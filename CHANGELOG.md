@@ -6,6 +6,7 @@ Ce qui a changé pour l'utilisateur : rien à l'écran pour l'instant. Le serveu
 
 - App `toolbox`, portée de SquidMind (qui n'est plus un service à part) : modèles locaux (`LocalModel`), agents (`Agent`), broker à priorités, moteur llama-cpp-python optionnel (`requirements-ai.txt`).
 - API `/api/v1/toolbox` : état du moteur, recherche et fichiers Hugging Face, recommandations, téléchargement et suppression de modèles (staff), agents par utilisateur (quatre agents de départ : Gardien, Rédacteur, Codeur, Illustrateur).
+- Le Gardien (`POST /api/v1/toolbox/command`, flux SSE) : lit la demande et le plan courant, répond par un plan d'actions JSON contraint (créer, modifier, relier, archiver, nettoyer, déléguer), place les nodes sans chevauchement, délègue aux agents (texte, code) qui publient leur résultat dans le node visé. Tout naît en brouillon, rattaché à un `AIRun`.
 - Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX`, `LLM_GPU_LAYERS`, `LLM_THREADS`.
 
 ## Phase 3 (en cours) : nouvelle interface

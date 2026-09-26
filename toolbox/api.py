@@ -1,16 +1,28 @@
-"""API /api/v1/toolbox : bibliothèque de modèles (Hugging Face) et bibliothèque d'agents."""
+"""API /api/v1/toolbox : bibliothèque de modèles (Hugging Face), bibliothèque d'agents, Gardien."""
 
+import asyncio
+import json
+import logging
+import queue
+import threading
+import uuid
 from pathlib import Path
 
 from django.conf import settings
-from django.http import JsonResponse
+from django.db import connection
+from django.http import JsonResponse, StreamingHttpResponse
 
 from graph.api import api
 from graph.services import ChangeError
 
 from . import hub
+from .broker import BrokerTimeout
+from .engine import EngineUnavailable
+from .guardian import Guardian
 from .models import Agent, LocalModel
 from .runtime import broker, engine
+
+logger = logging.getLogger(__name__)
 
 MODEL_FIELDS = ('kind', 'capabilities', 'params')
 AGENT_FIELDS = ('name', 'role', 'description', 'system_prompt', 'tools_allowed', 'params', 'enabled')
@@ -162,3 +174,49 @@ def agent_detail(request, body, agent_id):
         raise ChangeError('rôle inconnu')
     agent.save()
     return JsonResponse(agent_to_dict(agent))
+
+
+async def command(request):
+    """Demande au Gardien, réponse en flux SSE : start, text, changes, agent, agent_text, error, end.
+
+    L'inférence tourne dans un thread : sous Daphne, les vues synchrones partagent un seul thread
+    et une génération sur CPU bloquerait toutes les autres requêtes.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'méthode non autorisée'}, status=405)
+    user = await request.auser()
+    if not user.is_authenticated:
+        return JsonResponse({'error': 'authentification requise'}, status=401)
+    try:
+        body = json.loads(request.body or b'{}')
+        layer_id = str(uuid.UUID(str(body.get('layer'))))
+    except (json.JSONDecodeError, ValueError, AttributeError):
+        return JsonResponse({'error': 'JSON avec layer (uuid) requis'}, status=400)
+    prompt = str(body.get('prompt', '')).strip()
+    if not prompt:
+        return JsonResponse({'error': 'prompt requis'}, status=400)
+
+    events = queue.Queue()
+
+    def work():
+        try:
+            Guardian(user, engine, lambda kind, data: events.put((kind, data))).handle(
+                prompt, layer_id, [str(i) for i in body.get('selection') or []], body.get('view'))
+        except (ChangeError, EngineUnavailable, BrokerTimeout) as e:
+            events.put(('error', {'message': str(e)}))
+        except Exception:
+            logger.exception('Gardien')
+            events.put(('error', {'message': 'erreur interne du Gardien'}))
+        finally:
+            connection.close()
+            events.put(None)
+
+    threading.Thread(target=work, daemon=True).start()
+
+    async def stream():
+        while (item := await asyncio.to_thread(events.get)) is not None:
+            yield f'event: {item[0]}\ndata: {json.dumps(item[1])}\n\n'
+        yield 'event: end\ndata: {}\n\n'
+
+    return StreamingHttpResponse(stream(), content_type='text/event-stream',
+                                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})

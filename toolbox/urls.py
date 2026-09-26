@@ -11,4 +11,5 @@ urlpatterns = [
     path('models/<uuid:model_id>', api.model_detail),
     path('agents', api.agents),
     path('agents/<uuid:agent_id>', api.agent_detail),
+    path('command', api.command),
 ]

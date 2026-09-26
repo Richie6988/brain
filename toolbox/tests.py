@@ -1,4 +1,5 @@
 import json
+import math
 import tempfile
 import threading
 import time
@@ -7,13 +8,14 @@ from types import SimpleNamespace
 from unittest import mock
 
 from django.db import connection
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 
 from nodzapp.models import NodzUser
 
-from . import hub
+from . import api, hub
 from .broker import AGENT, BACKGROUND, CHAT, Broker, BrokerTimeout
 from .engine import Engine
+from .guardian import summary
 from .models import Agent, LocalModel
 
 
@@ -236,3 +238,147 @@ class ToolboxApiTests(TestCase):
         self.client.force_login(self.admin)
         self.assertEqual(self.send('patch', url, {'name': 'X'}).status_code, 404)
         self.assertEqual(self.send('post', '/api/v1/toolbox/agents', {'name': 'Traducteur', 'role': 'text'}).status_code, 201)
+
+
+class ScriptedEngine:
+    """Rend les réponses prévues dans l'ordre, en flux d'un seul fragment."""
+
+    def __init__(self, *replies):
+        self.replies = list(replies)
+        self.calls = []
+
+    def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
+        self.calls.append({'model': model, 'messages': messages, 'schema': json_schema, **params})
+        reply = self.replies.pop(0)
+        if on_text:
+            on_text(reply)
+        return reply
+
+
+class GuardianTests(TestCase):
+    def setUp(self):
+        from graph.models import Layer, Node
+
+        self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456')
+        self.layer = Layer.objects.create(owner=self.user, name='Home')
+        self.model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf', status=LocalModel.Status.READY)
+        self.client.force_login(self.user)
+        self.client.get('/api/v1/toolbox/agents')  # agents de départ
+        Agent.objects.filter(owner=self.user).exclude(role=Agent.Role.IMAGE).update(model=self.model)
+        self.idea = Node.objects.create(layer=self.layer, x=0, y=0, payload={'text': {'html': 'Voyage au Japon'}})
+        self.empty = Node.objects.create(layer=self.layer, x=500, y=0)
+        self.events = []
+
+    def run_guardian(self, *replies, selection=()):
+        from .guardian import Guardian
+
+        engine = ScriptedEngine(*replies)
+        Guardian(self.user, engine, lambda kind, data: self.events.append((kind, data))).handle(
+            'organise', str(self.layer.id), [str(i) for i in selection], {'x': 0, 'y': 0})
+        return engine
+
+    def kinds(self):
+        return [k for k, _ in self.events]
+
+    def test_requires_guardian_model(self):
+        from .engine import EngineUnavailable
+
+        Agent.objects.filter(role=Agent.Role.ORCHESTRATOR).update(model=None)
+        with self.assertRaises(EngineUnavailable):
+            self.run_guardian()
+
+    def test_create_link_update_as_drafts(self):
+        from graph.models import AIRun, Edge, Node
+
+        plan = {'say': 'Voilà.', 'actions': [
+            {'op': 'create', 'ref': 'new1', 'text': 'Kyoto', 'near': 'n1'},
+            {'op': 'create', 'ref': 'new2', 'text': 'Tokyo', 'near': 'n1'},
+            {'op': 'link', 'source': 'n1', 'target': 'new1'},
+            {'op': 'update', 'ref': 'n1', 'text': 'Japon <3'},
+        ]}
+        engine = self.run_guardian(json.dumps(plan), selection=[self.idea.id])
+        self.assertEqual(engine.calls[0]['schema']['required'], ['say', 'actions'])
+        prompt = engine.calls[0]['messages'][1]['content']
+        self.assertIn('n1 : Voyage au Japon', prompt)
+        self.assertIn('Sélection : n1', prompt)
+        self.assertEqual(self.kinds(), ['start', 'text', 'changes'])
+
+        created = Node.objects.filter(origin='ai')
+        self.assertEqual(sorted(summary(n) for n in created), ['Kyoto', 'Tokyo'])
+        self.assertTrue(all(n.status == Node.Status.DRAFT for n in created))
+        points = [(n.x, n.y) for n in Node.objects.all()]
+        self.assertTrue(all(math.dist(a, b) >= 2 * 62.5 for i, a in enumerate(points) for b in points[i + 1:]))
+        self.assertTrue(Edge.objects.filter(source=self.idea, target__in=created).exists())
+        self.idea.refresh_from_db()
+        self.assertEqual(self.idea.payload['text']['html'], 'Japon &lt;3')
+        run = AIRun.objects.get()
+        self.assertEqual((run.status, run.mode), (AIRun.Status.DONE, AIRun.Mode.COMMAND))
+        self.assertEqual(created.first().ai_run_id, run.id)
+
+    def test_delegation_publishes_into_nodes(self):
+        from graph.models import Node
+
+        plan = {'say': 'Je délègue.', 'actions': [
+            {'op': 'delegate', 'agent': 'Rédacteur', 'task': 'Itinéraire 7 jours', 'ref': 'new1', 'near': 'n1'},
+            {'op': 'delegate', 'agent': 'Codeur', 'task': 'Convertisseur yen', 'ref': 'n2'},
+            {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'Une carte', 'ref': 'new2'},
+        ]}
+        self.run_guardian(json.dumps(plan), 'Jour 1 : Tokyo\nJour 2 : Kyoto', 'Voici :\n```python\nprint(1)\n```')
+        self.assertIn('agent_text', self.kinds())
+        self.assertIn("pas encore branchée", json.dumps([d for k, d in self.events if k == 'error'], ensure_ascii=False))
+        text_node = Node.objects.get(payload__text__html__startswith='Jour 1')
+        self.assertEqual(text_node.payload['text']['html'], 'Jour 1 : Tokyo<br>Jour 2 : Kyoto')
+        self.empty.refresh_from_db()
+        self.assertEqual(self.empty.content_type, Node.ContentType.CODE)
+        self.assertEqual(self.empty.payload['code'], {'language': 'python', 'source': 'print(1)'})
+
+    def test_archive_and_cleanup(self):
+        from graph.models import Node
+
+        self.run_guardian(json.dumps({'say': '', 'actions': [{'op': 'cleanup'}]}))
+        self.empty.refresh_from_db()
+        self.idea.refresh_from_db()
+        self.assertEqual((self.empty.status, self.idea.status), (Node.Status.ARCHIVED, Node.Status.ACCEPTED))
+
+    def test_invalid_output_marks_run_failed(self):
+        from graph.models import AIRun
+        from graph.services import ChangeError
+
+        with self.assertRaises(ChangeError):
+            self.run_guardian('pas du json')
+        with self.assertRaises(ChangeError):
+            self.run_guardian(json.dumps({'say': '', 'actions': [{'op': 'archive', 'ref': 'n99'}]}))
+        self.assertEqual(set(AIRun.objects.values_list('status', flat=True)), {AIRun.Status.ERROR})
+
+    def test_free_spot(self):
+        from .guardian import free_spot
+
+        self.assertEqual(free_spot((0, 0), []), (0.0, -150.0))
+        occupied = [(0, 0), (0, -150)]
+        spot = free_spot((0, 0), occupied)
+        self.assertTrue(all(math.dist(spot, p) >= 135 for p in occupied))
+
+
+class CommandStreamTests(TransactionTestCase):
+    def setUp(self):
+        from graph.models import Layer
+
+        self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456')
+        self.layer = Layer.objects.create(owner=self.user, name='Home')
+        model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf')
+        Agent.objects.create(owner=self.user, name='Gardien', role=Agent.Role.ORCHESTRATOR, model=model)
+
+    async def test_stream(self):
+        await self.async_client.aforce_login(self.user)
+        url = '/api/v1/toolbox/command'
+        r = await self.async_client.post(url, {'prompt': 'x'}, content_type='application/json')
+        self.assertEqual(r.status_code, 400)
+        plan = json.dumps({'say': 'Fait.', 'actions': [{'op': 'create', 'text': 'Bonjour'}]})
+        with mock.patch.object(api, 'engine', ScriptedEngine(plan)):
+            r = await self.async_client.post(url, {'prompt': 'dis bonjour', 'layer': str(self.layer.id)},
+                                             content_type='application/json')
+            body = ''.join([chunk.decode() async for chunk in r.streaming_content])
+        self.assertEqual(r['Content-Type'], 'text/event-stream')
+        kinds = [line.split(': ', 1)[1] for line in body.splitlines() if line.startswith('event: ')]
+        self.assertEqual(kinds, ['start', 'text', 'changes', 'end'])
+        self.assertIn('Bonjour', body)
