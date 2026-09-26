@@ -15,7 +15,6 @@ from nodzapp.models import NodzUser
 from . import api, hub
 from .broker import AGENT, BACKGROUND, CHAT, Broker, BrokerTimeout
 from .engine import Engine
-from .guardian import summary
 from .models import Agent, LocalModel
 
 
@@ -256,29 +255,40 @@ class ScriptedEngine:
 
 
 class GuardianTests(TestCase):
-    def setUp(self):
-        from graph.models import Layer, Node
+    """Le Gardien planifie à partir du contexte de la page Nodz et émet des actions validées."""
 
+    CONTEXT = {
+        'layer': {'id': 1, 'name': 'Home'},
+        'layers': [{'id': 1, 'name': 'Home'}, {'id': 2, 'name': 'Budget'}],
+        'nodes': [
+            {'id': 'N-1', 'text': '<b>Voyage</b> au Japon', 'color': '#33FF99', 'x': 0, 'y': 0, 'r': 20},
+            {'id': 'N-2', 'text': '', 'color': '#6848A6', 'x': 400, 'y': 0, 'r': 20},
+        ],
+        'links': [['N-1', 'N-2']],
+        'selection': ['N-1'],
+        'view': {'x': 0, 'y': 0},
+    }
+
+    def setUp(self):
         self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456')
-        self.layer = Layer.objects.create(owner=self.user, name='Home')
         self.model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf', status=LocalModel.Status.READY)
         self.client.force_login(self.user)
         self.client.get('/api/v1/toolbox/agents')  # agents de départ
         Agent.objects.filter(owner=self.user).exclude(role=Agent.Role.IMAGE).update(model=self.model)
-        self.idea = Node.objects.create(layer=self.layer, x=0, y=0, payload={'text': {'html': 'Voyage au Japon'}})
-        self.empty = Node.objects.create(layer=self.layer, x=500, y=0)
         self.events = []
 
-    def run_guardian(self, *replies, selection=()):
+    def run_guardian(self, *replies, context=None):
         from .guardian import Guardian
 
         engine = ScriptedEngine(*replies)
-        Guardian(self.user, engine, lambda kind, data: self.events.append((kind, data))).handle(
-            'organise', str(self.layer.id), [str(i) for i in selection], {'x': 0, 'y': 0})
+        Guardian(self.user, engine, lambda kind, data: self.events.append((kind, data))).handle('organise', context or self.CONTEXT)
         return engine
 
-    def kinds(self):
-        return [k for k, _ in self.events]
+    def actions(self):
+        return [d for k, d in self.events if k == 'action']
+
+    def errors(self):
+        return [d['message'] for k, d in self.events if k == 'error']
 
     def test_requires_guardian_model(self):
         from .engine import EngineUnavailable
@@ -287,135 +297,73 @@ class GuardianTests(TestCase):
         with self.assertRaises(EngineUnavailable):
             self.run_guardian()
 
-    def test_create_link_update_as_drafts(self):
-        from graph.models import AIRun, Edge, Node
-
-        plan = {'say': 'Voilà.', 'actions': [
-            {'op': 'create', 'ref': 'new1', 'text': 'Kyoto', 'near': 'n1'},
-            {'op': 'create', 'ref': 'new2', 'text': 'Tokyo', 'near': 'n1'},
-            {'op': 'link', 'source': 'n1', 'target': 'new1'},
-            {'op': 'update', 'ref': 'n1', 'text': 'Japon <3'},
-        ]}
-        engine = self.run_guardian(json.dumps(plan), selection=[self.idea.id])
-        self.assertEqual(engine.calls[0]['schema']['required'], ['say', 'actions'])
+    def test_prompt_uses_page_context(self):
+        engine = self.run_guardian(json.dumps({'say': 'Ok.', 'actions': []}))
         prompt = engine.calls[0]['messages'][1]['content']
-        self.assertIn('n1 : Voyage au Japon', prompt)
-        self.assertIn('Sélection : n1', prompt)
-        self.assertEqual(self.kinds(), ['start', 'text', 'changes'])
+        self.assertIn('N-1 : Voyage au Japon', prompt)
+        self.assertIn('N-2 : (vide)', prompt)
+        self.assertIn('Liens : N-1-N-2', prompt)
+        self.assertIn('Sélection : N-1', prompt)
+        self.assertEqual(engine.calls[0]['schema']['required'], ['say', 'actions'])
+        from graph.models import AIRun
 
-        created = Node.objects.filter(origin='ai')
-        self.assertEqual(sorted(summary(n) for n in created), ['Kyoto', 'Tokyo'])
-        self.assertTrue(all(n.status == Node.Status.DRAFT for n in created))
-        points = [(n.x, n.y) for n in Node.objects.all()]
-        self.assertTrue(all(math.dist(a, b) >= 2 * 62.5 for i, a in enumerate(points) for b in points[i + 1:]))
-        self.assertTrue(Edge.objects.filter(source=self.idea, target__in=created).exists())
-        self.idea.refresh_from_db()
-        self.assertEqual(self.idea.payload['text']['html'], 'Japon &lt;3')
         run = AIRun.objects.get()
-        self.assertEqual((run.status, run.mode), (AIRun.Status.DONE, AIRun.Mode.COMMAND))
-        self.assertEqual(created.first().ai_run_id, run.id)
+        self.assertEqual((run.status, run.context_node_ids), (AIRun.Status.DONE, ['N-1', 'N-2']))
+
+    def test_actions_are_validated_and_placed(self):
+        plan = {'say': 'Voilà.', 'actions': [
+            {'op': 'create', 'ref': 'new1', 'text': 'Kyoto <3', 'near': 'N-1', 'color': '#FF6B6B', 'shape': 'square'},
+            {'op': 'create', 'ref': 'new2', 'text': 'Tokyo', 'near': 'N-1'},
+            {'op': 'link', 'source': 'N-1', 'target': 'new1'},
+            {'op': 'style', 'ref': 'N-2', 'color': 'rouge'},
+            {'op': 'style', 'ref': 'N-2', 'shape': 'none', 'radius': 9000, 'lock': True},
+            {'op': 'set_type', 'ref': 'N-2', 'content_type': 'canvas'},
+            {'op': 'archive', 'ref': 'N-99'},
+            {'op': 'create', 'ref': 'N-1', 'text': 'doublon'},
+            {'op': 'cleanup'},
+        ]}
+        self.run_guardian(json.dumps(plan))
+        ops = self.actions()
+        self.assertEqual([a['op'] for a in ops], ['create', 'create', 'link', 'style', 'set_type', 'cleanup'])
+        kyoto, tokyo = ops[0], ops[1]
+        self.assertEqual((kyoto['text'], kyoto['color'], kyoto['shape']), ('Kyoto &lt;3', '#FF6B6B', 'square'))
+        points = [(0, 0), (400, 0), (kyoto['x'], kyoto['y']), (tokyo['x'], tokyo['y'])]
+        self.assertTrue(all(math.dist(a, b) >= 100 for i, a in enumerate(points) for b in points[i + 1:]))
+        self.assertEqual((ops[3]['radius'], ops[3]['lock'], ops[3]['shape']), (400.0, True, 'none'))
+        self.assertEqual(ops[5]['refs'], ['N-2'])
+        self.assertEqual(len(self.errors()), 3)  # couleur invalide, référence inconnue, create sur un node existant
+
+    def test_navigation_and_portal(self):
+        plan = {'say': 'Visite.', 'actions': [
+            {'op': 'focus', 'ref': 'N-1', 'zoom': 50, 'text': 'Ton idée'},
+            {'op': 'overview'},
+            {'op': 'portal', 'ref': 'N-1', 'name': 'Kyoto'},
+            {'op': 'travel', 'name': 'kyoto', 'text': 'On entre.'},
+            {'op': 'travel', 'name': 'budget'},
+            {'op': 'travel', 'name': 'Nulle part'},
+        ]}
+        self.run_guardian(json.dumps(plan))
+        ops = self.actions()
+        self.assertEqual([a['op'] for a in ops], ['focus', 'overview', 'portal', 'travel', 'travel'])
+        self.assertEqual((ops[0]['zoom'], ops[0]['text']), (8.0, 'Ton idée'))
+        self.assertEqual((ops[3]['layer'], ops[3]['name']), (None, 'Kyoto'))  # dimension créée par le portail
+        self.assertEqual(ops[4]['layer'], 2)
+        self.assertIn('Nulle part', self.errors()[0])
 
     def test_delegation_publishes_into_nodes(self):
-        from graph.models import Node
-
         plan = {'say': 'Je délègue.', 'actions': [
-            {'op': 'delegate', 'agent': 'Rédacteur', 'task': 'Itinéraire 7 jours', 'ref': 'new1', 'near': 'n1'},
-            {'op': 'delegate', 'agent': 'Codeur', 'task': 'Convertisseur yen', 'ref': 'n2'},
+            {'op': 'delegate', 'agent': 'Rédacteur', 'task': 'Itinéraire', 'ref': 'new1', 'near': 'N-1'},
+            {'op': 'delegate', 'agent': 'Codeur', 'task': 'Convertisseur', 'ref': 'N-2'},
             {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'Une carte', 'ref': 'new2'},
         ]}
-        self.run_guardian(json.dumps(plan), 'Jour 1 : Tokyo\nJour 2 : Kyoto', 'Voici :\n```python\nprint(1)\n```')
-        self.assertIn('agent_text', self.kinds())
-        self.assertIn("pas encore branchée", json.dumps([d for k, d in self.events if k == 'error'], ensure_ascii=False))
-        text_node = Node.objects.get(payload__text__html__startswith='Jour 1')
-        self.assertEqual(text_node.payload['text']['html'], 'Jour 1 : Tokyo<br>Jour 2 : Kyoto')
-        self.empty.refresh_from_db()
-        self.assertEqual(self.empty.content_type, Node.ContentType.CODE)
-        self.assertEqual(self.empty.payload['code'], {'language': 'python', 'source': 'print(1)'})
-
-    def test_archive_and_cleanup(self):
-        from graph.models import Node
-
-        self.run_guardian(json.dumps({'say': '', 'actions': [{'op': 'cleanup'}]}))
-        self.empty.refresh_from_db()
-        self.idea.refresh_from_db()
-        self.assertEqual((self.empty.status, self.idea.status), (Node.Status.ARCHIVED, Node.Status.ACCEPTED))
-
-    def test_invalid_output_marks_run_failed(self):
-        from graph.models import AIRun
-        from graph.services import ChangeError
-
-        with self.assertRaises(ChangeError):
-            self.run_guardian('pas du json')
-        self.assertEqual(AIRun.objects.get().status, AIRun.Status.ERROR)
-
-    def test_invalid_action_is_reported_and_skipped(self):
-        from graph.models import Node
-
-        self.run_guardian(json.dumps({'say': '', 'actions': [
-            {'op': 'archive', 'ref': 'n99'},
-            {'op': 'style', 'ref': 'n1', 'color': 'rouge'},
-            {'op': 'create', 'ref': 'new1', 'text': 'ok'},
-        ]}))
-        errors = [d['message'] for k, d in self.events if k == 'error']
-        self.assertEqual(len(errors), 2)
-        self.assertIn("'n99'", errors[0])
-        self.assertTrue(Node.objects.filter(origin='ai').exists())
-
-    def test_style_type_unlink(self):
-        from graph.models import Edge, Node
-
-        Edge.objects.create(source=self.idea, target=self.empty)
-        self.run_guardian(json.dumps({'say': '', 'actions': [
-            {'op': 'style', 'ref': 'n1', 'color': '#FF6B6B', 'shape': 'square', 'radius': 9000, 'lock': True},
-            {'op': 'set_type', 'ref': 'n2', 'content_type': 'code'},
-            {'op': 'unlink', 'source': 'n2', 'target': 'n1'},
-            {'op': 'create', 'ref': 'new1', 'text': 'Bleu', 'color': '#4D96FF', 'shape': 'none'},
-        ]}))
-        self.idea.refresh_from_db()
-        self.empty.refresh_from_db()
-        self.assertEqual((self.idea.color, self.idea.shape, self.idea.radius, self.idea.lock), ('#FF6B6B', 'square', 400.0, True))
-        self.assertEqual(self.empty.content_type, Node.ContentType.CODE)
-        self.assertFalse(Edge.objects.exists())
-        self.assertEqual(Node.objects.get(origin='ai').shape, 'none')
-
-    def test_portal_new_and_existing_layer(self):
-        from graph.models import Edge, Layer, Node
-
-        other = Layer.objects.create(owner=self.user, name='Recherche', index=1)
-        Node.objects.create(layer=other, x=0, y=0)
-        self.run_guardian(json.dumps({'say': '', 'actions': [
-            {'op': 'portal', 'ref': 'n1', 'name': 'recherche'},
-            {'op': 'portal', 'ref': 'n1', 'name': 'Budget'},
-        ]}))
-        portals = Edge.objects.filter(kind=Edge.Kind.PORTAL, source=self.idea).select_related('target__layer')
-        self.assertEqual(sorted(e.target.layer.name for e in portals), ['Budget', 'Recherche'])
-        budget = Layer.objects.get(name='Budget')
-        self.assertEqual(budget.index, 2)
-        entry = next(e.target for e in portals if e.target.layer_id == other.id)
-        self.assertNotEqual((entry.x, entry.y), (0, 0))
-        self.assertEqual(entry.payload['text']['html'], 'Voyage au Japon')
-        self.assertTrue(all(e.target.status == Node.Status.DRAFT for e in portals))
-
-    def test_camera_steps_follow_writes(self):
-        from graph.models import Layer
-
-        self.run_guardian(json.dumps({'say': 'Visite.', 'actions': [
-            {'op': 'focus', 'ref': 'n1', 'zoom': 50, 'text': 'Ton idée'},
-            {'op': 'create', 'ref': 'new1', 'text': 'Kyoto'},
-            {'op': 'focus', 'ref': 'new1'},
-            {'op': 'portal', 'ref': 'n1', 'name': 'Budget'},
-            {'op': 'travel', 'name': 'budget', 'text': 'Le budget'},
-            {'op': 'overview'},
-            {'op': 'travel', 'name': 'Nulle part'},
-        ]}))
-        kinds = self.kinds()
-        self.assertLess(kinds.index('changes'), kinds.index('camera'))
-        steps = [d for k, d in self.events if k == 'camera']
-        self.assertEqual([s['action'] for s in steps], ['focus', 'focus', 'travel', 'overview'])
-        self.assertEqual((steps[0]['node'], steps[0]['zoom'], steps[0]['text']), (str(self.idea.id), 8.0, 'Ton idée'))
-        self.assertIsNone(steps[1]['zoom'])
-        self.assertEqual(steps[2]['layer'], str(Layer.objects.get(name='Budget').id))
-        self.assertIn('Nulle part', [d['message'] for k, d in self.events if k == 'error'][0])
+        self.run_guardian(json.dumps(plan), 'Jour 1 : Tokyo\nJour 2 : Kyoto', 'Voici :\n```python\nprint(1 < 2)\n```')
+        ops = self.actions()
+        self.assertEqual(ops[0]['op'], 'create')
+        self.assertIn('Rédacteur travaille', ops[0]['text'])
+        self.assertEqual(ops[1], {'op': 'update', 'ref': 'new1', 'text': 'Jour 1 : Tokyo<br>Jour 2 : Kyoto'})
+        self.assertEqual(ops[2], {'op': 'update', 'ref': 'N-2', 'text': '<pre>print(1 &lt; 2)</pre>'})
+        self.assertIn('agent_text', [k for k, _ in self.events])
+        self.assertIn("pas encore branchée", self.errors()[0])
 
     def test_plug_agent_and_inventory_loop(self):
         other = LocalModel.objects.create(repo='org/coder', filename='Qwen2.5-Coder-7B-Q4_K_M.gguf', status=LocalModel.Status.READY)
@@ -430,27 +378,34 @@ class GuardianTests(TestCase):
         )
         inventory = engine.calls[1]['messages'][-1]['content']
         self.assertIn('Codeur (code, sans modèle)', inventory)
-        self.assertIn('Home (2 nodes, courant)', inventory)
+        self.assertIn('Home (courante)', inventory)
         self.assertIn('Qwen2.5-Coder-7B-Q4_K_M.gguf (text)', inventory)
         self.assertEqual(Agent.objects.get(name='Codeur').model, other)
-        self.assertIn('notice', self.kinds())
+        self.assertIn('notice', [k for k, _ in self.events])
         self.assertEqual(len(engine.calls), 3)
+
+    def test_invalid_output_marks_run_failed(self):
+        from graph.models import AIRun
+
+        from .guardian import PlanError
+
+        with self.assertRaises(PlanError):
+            self.run_guardian('pas du json')
+        self.assertEqual(AIRun.objects.get().status, AIRun.Status.ERROR)
 
     def test_free_spot(self):
         from .guardian import free_spot
 
-        self.assertEqual(free_spot((0, 0), []), (0.0, -200.0))
-        occupied = [(0, 0), (0, -200)]
+        occupied = [(0, 0)]
         spot = free_spot((0, 0), occupied)
-        self.assertTrue(all(math.dist(spot, p) >= 180 for p in occupied))
+        self.assertGreaterEqual(math.dist(spot, (0, 0)), 100)
+        occupied.append(spot)
+        self.assertTrue(all(math.dist(free_spot((0, 0), occupied), p) >= 100 for p in occupied))
 
 
 class CommandStreamTests(TransactionTestCase):
     def setUp(self):
-        from graph.models import Layer
-
         self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456')
-        self.layer = Layer.objects.create(owner=self.user, name='Home')
         model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf')
         Agent.objects.create(owner=self.user, name='Gardien', role=Agent.Role.ORCHESTRATOR, model=model)
 
@@ -459,12 +414,12 @@ class CommandStreamTests(TransactionTestCase):
         url = '/api/v1/toolbox/command'
         r = await self.async_client.post(url, {'prompt': 'x'}, content_type='application/json')
         self.assertEqual(r.status_code, 400)
-        plan = json.dumps({'say': 'Fait.', 'actions': [{'op': 'create', 'text': 'Bonjour'}]})
+        plan = json.dumps({'say': 'Fait.', 'actions': [{'op': 'create', 'ref': 'new1', 'text': 'Bonjour'}]})
         with mock.patch.object(api, 'engine', ScriptedEngine(plan)):
-            r = await self.async_client.post(url, {'prompt': 'dis bonjour', 'layer': str(self.layer.id)},
+            r = await self.async_client.post(url, {'prompt': 'dis bonjour', 'context': {'nodes': [], 'layers': []}},
                                              content_type='application/json')
             body = ''.join([chunk.decode() async for chunk in r.streaming_content])
         self.assertEqual(r['Content-Type'], 'text/event-stream')
         kinds = [line.split(': ', 1)[1] for line in body.splitlines() if line.startswith('event: ')]
-        self.assertEqual(kinds, ['start', 'text', 'changes', 'end'])
+        self.assertEqual(kinds, ['start', 'text', 'action', 'end'])
         self.assertIn('Bonjour', body)

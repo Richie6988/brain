@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="{% static 'css/constelcss.css' %}">
     <link rel="stylesheet" href="{% static 'css/interface.css' %}">
     <link rel="stylesheet" href="{% static 'css/calendar.css' %}">
+    <link rel="stylesheet" href="{% static 'gardien/gardien.css' %}">
 
     <!-- JS files -->
     <script src="{% static 'js/base.js' %}"></script>
@@ -132,6 +133,39 @@
     <script src="{% static 'js/4D.js' %}"></script>
     <script src="{% static 'js/export.js' %}"></script>
     <script src="{% static 'js/admin.js' %}"></script>
+    <!-- Gardien : barre de commande et bibliothèque d'agents, par-dessus Nodz -->
+    <div id="gardien-dock">
+        <div id="gardien-reply" aria-live="polite" hidden></div>
+        <form id="gardien-command" autocomplete="off">
+            <button type="button" class="menuBtn" id="library-toggle" title="Agents" aria-controls="library"></button>
+            <textarea id="gardien-prompt" rows="1" placeholder="Demande au Gardien" enterkeyhint="send" aria-label="Demande au Gardien"></textarea>
+        </form>
+    </div>
+    <aside id="library" aria-label="Bibliothèque d'agents" hidden>
+        <header><h2>Agents</h2><button type="button" id="library-close">Fermer</button></header>
+        <p id="library-engine"></p>
+        <p id="library-state" role="status"></p>
+        <h3>Agents</h3>
+        <ul id="agent-list"></ul>
+        <h3>Modèles</h3>
+        <ul id="model-list"></ul>
+        <section id="hub" hidden>
+            <h3>Ajouter un modèle</h3>
+            <ul id="recommended"></ul>
+            <form id="hub-search">
+                <input type="search" name="q" placeholder="Rechercher sur Hugging Face" aria-label="Recherche Hugging Face">
+                <select name="sort" aria-label="Tri">
+                    <option value="downloads">Populaires</option>
+                    <option value="trending">Tendance</option>
+                    <option value="likes">Aimés</option>
+                    <option value="recent">Récents</option>
+                </select>
+                <button type="submit">Chercher</button>
+            </form>
+            <ul id="hub-results"></ul>
+        </section>
+    </aside>
+    <script type="module" src="{% static 'gardien/dock.js' %}"></script>
     
     
 </body>

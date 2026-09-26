@@ -5,7 +5,6 @@ import json
 import logging
 import queue
 import threading
-import uuid
 from pathlib import Path
 
 from django.conf import settings
@@ -18,7 +17,7 @@ from graph.services import ChangeError
 from . import hub
 from .broker import BrokerTimeout
 from .engine import EngineUnavailable
-from .guardian import Guardian
+from .guardian import Guardian, PlanError
 from .models import Agent, LocalModel
 from .runtime import broker, engine
 
@@ -178,7 +177,10 @@ def agent_detail(request, body, agent_id):
 
 
 async def command(request):
-    """Demande au Gardien, réponse en flux SSE : start, text, changes, agent, agent_text, error, end.
+    """Demande au Gardien, réponse en flux SSE : start, text, action, notice, agent, agent_text, error, end.
+
+    Le corps porte la demande et le contexte de la page Nodz (nodes, liens, dimensions, sélection) ;
+    les événements `action` sont exécutés par la page avec les fonctions de Nodz.
 
     L'inférence tourne dans un thread : sous Daphne, les vues synchrones partagent un seul thread
     et une génération sur CPU bloquerait toutes les autres requêtes.
@@ -190,9 +192,10 @@ async def command(request):
         return JsonResponse({'error': 'authentification requise'}, status=401)
     try:
         body = json.loads(request.body or b'{}')
-        layer_id = str(uuid.UUID(str(body.get('layer'))))
-    except (json.JSONDecodeError, ValueError, AttributeError):
-        return JsonResponse({'error': 'JSON avec layer (uuid) requis'}, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    if not isinstance(body, dict) or not isinstance(body.get('context'), dict):
+        return JsonResponse({'error': 'contexte de la page requis'}, status=400)
     prompt = str(body.get('prompt', '')).strip()
     if not prompt:
         return JsonResponse({'error': 'prompt requis'}, status=400)
@@ -201,9 +204,8 @@ async def command(request):
 
     def work():
         try:
-            Guardian(user, engine, lambda kind, data: events.put((kind, data))).handle(
-                prompt, layer_id, [str(i) for i in body.get('selection') or []], body.get('view'))
-        except (ChangeError, EngineUnavailable, BrokerTimeout) as e:
+            Guardian(user, engine, lambda kind, data: events.put((kind, data))).handle(prompt, body['context'])
+        except (PlanError, EngineUnavailable, BrokerTimeout) as e:
             events.put(('error', {'message': str(e)}))
         except Exception:
             logger.exception('Gardien')

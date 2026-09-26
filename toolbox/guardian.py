@@ -1,9 +1,11 @@
 """Le Gardien : orchestrateur garant de l'intégrité de l'univers.
 
-Il lit une demande et le contexte du plan, répond par un plan d'actions en JSON (contraint par
-grammaire), place les nodes sans chevauchement, délègue la production aux agents de la
-bibliothèque et publie leurs résultats en brouillon. Toute écriture passe par `apply_changes`
-avec un `AIRun` : provenance, révisions et audit sont ceux de l'humain.
+Il ne touche pas aux données lui-même : la page Nodz (v1, /universe) lui envoie le contexte du plan
+(nodes, liens, plans, sélection) ; il réfléchit avec le modèle de son agent (JSON contraint par
+grammaire) et renvoie des actions validées que la page exécute avec les fonctions de Nodz
+(createNode, createLink, focusNode, dragUniverse, zoom…), donc avec sa sauvegarde et son feel.
+Il place les nouveaux nodes sans chevauchement, délègue la production aux agents de la
+bibliothèque et publie leur résultat dans le node visé. Chaque demande est tracée par un AIRun.
 """
 
 import html
@@ -11,24 +13,28 @@ import json
 import math
 import re
 import time
-import uuid
 
-from django.db.models import Count, Q
-from django.utils.html import strip_tags
+from django.db.models import Q
 
-from graph.models import AIRun, Edge, Layer, Node
-from graph.services import ChangeError, apply_changes
+from graph.models import AIRun
 
 from . import broker as priorities
 from .engine import EngineUnavailable
 from .models import Agent, LocalModel
 
-RADIUS = 62.5
+RADIUS = 85  # rayon d'un node texte de Nodz une fois dimensionné (nodeSizing 120 × 120)
 MAX_CONTEXT_NODES = 60
 MAX_ROUNDS = 3  # un tour de plus après chaque lecture (inventaire)
+TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
+SHAPES = ['circle', 'square', 'none']
 OPS = ['create', 'update', 'style', 'set_type', 'link', 'unlink', 'portal', 'archive', 'cleanup',
        'delegate', 'plug_agent', 'inventory', 'focus', 'overview', 'travel']
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
+
+
+class PlanError(Exception):
+    """Action ou contexte invalide : signalé à l'utilisateur, le reste continue."""
+
 
 PLAN_SCHEMA = {
     'type': 'object',
@@ -48,10 +54,10 @@ PLAN_SCHEMA = {
                     'source': {'type': 'string'},
                     'target': {'type': 'string'},
                     'color': {'type': 'string'},
-                    'shape': {'type': 'string', 'enum': Node.Shape.values},
+                    'shape': {'type': 'string', 'enum': SHAPES},
                     'radius': {'type': 'number'},
                     'lock': {'type': 'boolean'},
-                    'content_type': {'type': 'string', 'enum': Node.ContentType.values},
+                    'content_type': {'type': 'string', 'enum': TYPES},
                     'name': {'type': 'string'},
                     'agent': {'type': 'string'},
                     'model': {'type': 'string'},
@@ -64,32 +70,31 @@ PLAN_SCHEMA = {
 }
 
 SYSTEM = """Tu es le Gardien de l'univers Nodz : une carte spatiale de nodes (idées) reliés entre eux,
-répartis sur des plans reliés par des portails. Tu pilotes le vaisseau de l'utilisateur à travers cet
-espace : tes travellings de caméra le guident (tutoriels, visites, montrer ce que tu viens de faire).
+répartis sur des dimensions (plans) reliées par des portails. Tu pilotes le vaisseau de l'utilisateur :
+tes travellings de caméra le guident (tutoriels, visites, montrer ce que tu viens de faire).
 Tu réponds uniquement en JSON : {"say": phrase courte pour l'utilisateur, "actions": [...]}.
+Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
 Actions possibles :
-- {"op":"create","ref":"new1","text":"...","near":"n3","color":"#4D96FF","shape":"circle"} : nouveau node
-  (ref new1, new2...), placé près de `near` ; couleur et forme facultatives.
-- {"op":"update","ref":"n2","text":"..."} : remplace le texte d'un node.
-- {"op":"style","ref":"n2","color":"#FF6B6B","shape":"square","radius":90,"lock":true} : apparence
+- {"op":"create","ref":"new1","text":"...","near":"N-3","color":"#4D96FF","shape":"circle"} : nouveau node
+  placé près de `near` ; couleur et forme facultatives.
+- {"op":"update","ref":"N-2","text":"..."} : remplace le texte d'un node.
+- {"op":"style","ref":"N-2","color":"#FF6B6B","shape":"square","radius":90,"lock":true} : apparence
   (formes : circle, square, none ; taille 20 à 400 ; lock empêche de le déplacer).
-- {"op":"set_type","ref":"n2","content_type":"code"} : change le mode d'affichage du node
-  (text, image, file, video, audio, model3d, code, prompt).
-- {"op":"link","source":"n1","target":"new1"} / {"op":"unlink","source":"n1","target":"n2"} : crée ou retire un lien.
-- {"op":"portal","ref":"n2","name":"Recherche"} : ouvre un portail depuis n2 vers le plan `name`
-  (créé s'il n'existe pas) ; une copie du node y sert d'entrée.
-- {"op":"archive","ref":"n4"} : supprime un node (archivé, récupérable).
-- {"op":"cleanup"} : archive les nodes vides du plan.
-- {"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou n2","near":"n1"} : confie la
+- {"op":"set_type","ref":"N-2","content_type":"canvas"} : type du node (text, image, file, canvas = dessin).
+- {"op":"link","source":"N-1","target":"new1"} / {"op":"unlink","source":"N-1","target":"N-2"} : crée ou retire un lien.
+- {"op":"portal","ref":"N-2","name":"Recherche"} : téléporte N-2 dans une nouvelle dimension `name`, reliée par un portail.
+- {"op":"archive","ref":"N-4"} : supprime un node (annulable avec Ctrl+Z).
+- {"op":"cleanup"} : supprime les nodes vides du plan.
+- {"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou N-2","near":"N-1"} : confie la
   production à un agent ; son résultat est publié dans le node `ref` (créé s'il est nouveau).
 - {"op":"plug_agent","agent":"<nom>","model":"<partie du nom du modèle>"} : branche un modèle sur un agent.
-- {"op":"focus","ref":"n2","zoom":1.5,"text":"légende"} : travelling vers un node (zoom 0.1 à 8), puis
-  affiche la légende. Enchaîne plusieurs focus pour une visite guidée ou un tutoriel.
+- {"op":"focus","ref":"N-2","zoom":1.5,"text":"légende"} : travelling vers un node puis légende.
+  Enchaîne plusieurs focus pour une visite guidée ou un tutoriel.
 - {"op":"overview","text":"..."} : prend du recul pour montrer tout le plan.
-- {"op":"travel","name":"<plan>","text":"..."} : voyage vers un autre plan.
-- {"op":"inventory"} : liste les plans, les agents et les modèles ; tu recevras la réponse et pourras continuer.
+- {"op":"travel","name":"<dimension>","text":"..."} : voyage vers une autre dimension.
+- {"op":"inventory"} : liste les dimensions, les agents et les modèles ; tu recevras la réponse et pourras continuer.
 Délègue tout contenu long (rédaction, code) ; écris toi-même seulement les titres courts.
-N'archive que ce que l'utilisateur demande ou ce qui est manifestement vide ou en double.
+Ne supprime que ce que l'utilisateur demande ou ce qui est manifestement vide ou en double.
 Agents équipés :
 {agents}"""
 
@@ -100,308 +105,257 @@ AGENT_SYSTEM = {
 }
 
 
-def summary(node, length=120):
-    text = strip_tags((node.payload.get('text') or {}).get('html', ''))
-    if not text and node.payload.get('code'):
-        text = node.payload['code'].get('source', '')
-    return html.unescape(' '.join(text.split()))[:length]
+def plain(markup, length=120):
+    """Texte lisible d'un contenu HTML de node (pour le prompt)."""
+    return html.unescape(' '.join(re.sub(r'<[^>]+>', ' ', markup or '').split()))[:length]
 
 
-def text_payload(text):
-    return {'html': '<br>'.join(html.escape(line) for line in text.strip().split('\n'))}
+def text_html(text):
+    return '<br>'.join(html.escape(line) for line in text.strip().split('\n'))
 
 
-def code_payload(text):
-    match = re.search(r'```([\w+-]*)\n(.*?)```', text, re.S)
-    language, source = (match.group(1), match.group(2)) if match else ('', text)
-    return {'language': language, 'source': source.strip('\n')}
+def code_html(text):
+    match = re.search(r'```[\w+-]*\n(.*?)```', text, re.S)
+    return f'<pre>{html.escape((match.group(1) if match else text).strip(chr(10)))}</pre>'
 
 
 def free_spot(anchor, occupied, radius=RADIUS):
     """Premier emplacement libre sur des anneaux autour de `anchor` (aucun chevauchement)."""
-    gap = radius * 3.2
+    gap = max(radius, RADIUS) * 2 + 70
     for ring in range(1, 12):
         steps = 6 * ring
         for i in range(steps):
-            angle = 2 * math.pi * i / steps - math.pi / 2
+            # Jamais pile sur un axe : le dégradé d'un lien de Nodz ne s'affiche pas s'il est vertical ou horizontal.
+            angle = 2 * math.pi * i / steps + math.pi / 2 + 0.35
             x, y = anchor[0] + ring * gap * math.cos(angle), anchor[1] + ring * gap * math.sin(angle)
             if all(math.dist((x, y), p) >= gap * 0.9 for p in occupied):
-                return round(x, 1), round(y, 1)
-    return anchor[0] + gap, anchor[1]
+                return round(x), round(y)
+    return round(anchor[0] + gap), round(anchor[1])
+
+
+def _number(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 class Guardian:
     def __init__(self, user, engine, emit):
         self.user, self.engine, self.emit = user, engine, emit
         self.run = None
-        self.refs = {}  # référence courte (n1, new1) -> node (id, x, y)
-        self.occupied = []
+        self.nodes = {}  # identifiant ou référence → {x, y, r, text, new}
 
-    # --- contexte
+    # --- contexte envoyé par la page
 
-    def load(self, layer_id, selection, view):
-        self.layer = Layer.objects.filter(id=layer_id, owner=self.user).exclude(kind=Layer.Kind.ARCHIVE).first()
-        if self.layer is None:
-            raise ChangeError('plan introuvable')
-        nodes = list(self.layer.nodes.exclude(status=Node.Status.ARCHIVED))
-        selected = [n for n in nodes if str(n.id) in selection]
-        try:
-            center = (float(view['x']), float(view['y']))
-        except (TypeError, KeyError, ValueError):
-            center = (0.0, 0.0)
-        others = sorted((n for n in nodes if n not in selected), key=lambda n: math.dist((n.x, n.y), center))
+    def load(self, context):
+        if not isinstance(context, dict):
+            raise PlanError('contexte invalide')
+        view = context.get('view') or {}
+        center = (_number(view.get('x')), _number(view.get('y')))
+        nodes = [n for n in context.get('nodes') or [] if isinstance(n, dict) and str(n.get('id', '')).startswith('N-')]
+        selection = [str(i) for i in context.get('selection') or []]
+        selected = [n for n in nodes if n['id'] in selection]
+        others = sorted((n for n in nodes if n['id'] not in selection),
+                        key=lambda n: math.dist((_number(n.get('x')), _number(n.get('y'))), center))
         self.context = (selected + others)[:MAX_CONTEXT_NODES]
-        self.occupied = [(n.x, n.y) for n in nodes]
-        self.anchor = (selected[0].x, selected[0].y) if selected else center
-        for i, n in enumerate(self.context, 1):
-            self.refs[f'n{i}'] = {'id': str(n.id), 'x': n.x, 'y': n.y}
-        ids = {str(n.id): ref for ref, n in zip(self.refs, self.context)}
-        edges = Edge.objects.filter(source_id__in=[n.id for n in self.context], target_id__in=[n.id for n in self.context])
-        self.links = [(ids[str(e.source_id)], ids[str(e.target_id)]) for e in edges]
-        self.selected_refs = [ids[str(n.id)] for n in selected]
+        for n in nodes:
+            self.nodes[n['id']] = {'x': _number(n.get('x')), 'y': _number(n.get('y')), 'r': _number(n.get('r'), RADIUS),
+                                   'text': plain(n.get('text', '')), 'color': n.get('color', '')}
+        self.occupied = [(n['x'], n['y']) for n in self.nodes.values()]
+        first = self.nodes.get(selected[0]['id']) if selected else None
+        self.anchor = (first['x'], first['y']) if first else center
+        known = {n['id'] for n in self.context}
+        self.links = [(a, b) for a, b in (context.get('links') or []) if a in known and b in known]
+        self.selection = [n['id'] for n in selected]
+        self.layer = context.get('layer') or {}
+        self.layers = [l for l in context.get('layers') or [] if isinstance(l, dict)]
 
     def agents(self):
         return {a.name: a for a in Agent.objects.filter(owner=self.user, enabled=True).select_related('model')}
 
     def prompt(self, request):
-        lines = [f'{ref} : {summary(n) or "(vide)"}' for ref, n in zip(self.refs, self.context)]
+        lines = [f"{n['id']} : {self.nodes[n['id']]['text'] or '(vide)'}" for n in self.context]
         return '\n'.join([
-            f'Plan : {self.layer.name or "sans nom"}',
+            f"Dimension : {self.layer.get('name') or 'sans nom'}",
             'Nodes :', *(lines or ['(aucun)']),
             'Liens : ' + (', '.join(f'{a}-{b}' for a, b in self.links) or 'aucun'),
-            'Sélection : ' + (', '.join(self.selected_refs) or 'aucune'),
+            'Sélection : ' + (', '.join(self.selection) or 'aucune'),
             f'Demande : {request}',
         ])
 
-    # --- écriture
+    # --- validation des actions
 
-    def apply(self, batch):
-        result = apply_changes(self.user, {
-            'ai_run': str(self.run.id),
-            'layers': {'upsert': batch['layers']},
-            'nodes': {'upsert': list(batch['nodes'].values()), 'delete': sorted(set(batch['deleted']))},
-            'edges': {'upsert': batch['edges'], 'delete': batch['unlinked']},
-        })
-        self.emit('changes', result)
-        return result
+    def existing(self, ref):
+        if ref not in self.nodes:
+            raise PlanError(f'référence inconnue : {ref!r}')
+        return ref
 
     def place(self, ref, near):
-        target = self.refs.get(near) if near else None
+        target = self.nodes.get(near) if near else None
         anchor = (target['x'], target['y']) if target else self.anchor
         x, y = free_spot(anchor, self.occupied)
         self.occupied.append((x, y))
-        self.refs[ref] = {'id': str(uuid.uuid4()), 'x': x, 'y': y, 'new': True}
-        return {'id': self.refs[ref]['id'], 'layer': str(self.layer.id), 'x': x, 'y': y}
-
-    def existing(self, ref):
-        node = self.refs.get(ref or '')
-        if node is None:
-            raise ChangeError(f'référence inconnue : {ref!r}')
-        return node['id']
-
-    def payload(self, node_id):
-        """Payload courant : on remplace un état, on garde les autres."""
-        node = Node.objects.filter(id=node_id).only('payload').first()
-        return dict(node.payload) if node else {}
-
-    def edit(self, batch, ref):
-        return batch['nodes'].setdefault(ref, {'id': self.existing(ref)})
+        self.nodes[ref] = {'x': x, 'y': y, 'r': RADIUS, 'text': '', 'new': True}
+        return x, y
 
     def agent(self, agents, name):
         agent = agents.get(name) or next((a for n, a in agents.items() if n.lower() == (name or '').lower()), None)
         if agent is None:
-            raise ChangeError(f'agent inconnu : {name!r}')
+            raise PlanError(f'agent inconnu : {name!r}')
         return agent
 
-    # --- outils (un par op) ; une action invalide est signalée et sautée, les autres passent
+    def color(self, action):
+        value = action.get('color')
+        if value and not HEX_COLOR.fullmatch(value):
+            raise PlanError(f'couleur invalide : {value!r}')
+        return value or None
 
-    def op_create(self, action, batch, agents):
-        self.op_update(action, batch, agents)
-        self.op_style(action, batch, agents)
+    def op_create(self, action, agents):
+        if action['ref'] in self.nodes:
+            raise PlanError(f"{action['ref']} existe déjà (update pour le modifier)")
+        x, y = self.place(action['ref'], action.get('near'))
+        self.nodes[action['ref']]['text'] = plain(action.get('text', ''))
+        return {'op': 'create', 'ref': action['ref'], 'x': x, 'y': y, 'text': text_html(action.get('text', '')),
+                'color': self.color(action), 'shape': action.get('shape') if action.get('shape') in SHAPES else None}
 
-    def op_update(self, action, batch, agents):
-        node = self.edit(batch, action['ref'])
-        node.setdefault('payload', self.payload(node['id']))['text'] = text_payload(action.get('text', ''))
+    def op_update(self, action, agents):
+        return {'op': 'update', 'ref': self.existing(action.get('ref')), 'text': text_html(action.get('text', ''))}
 
-    def op_style(self, action, batch, agents):
-        node = self.edit(batch, action['ref'])
-        if action.get('color'):
-            if not HEX_COLOR.fullmatch(action['color']):
-                raise ChangeError(f"couleur invalide : {action['color']!r}")
-            node['color'] = action['color']
-        if action.get('shape') in Node.Shape.values:
-            node['shape'] = action['shape']
-        if isinstance(action.get('radius'), (int, float)):
-            node['radius'] = min(max(float(action['radius']), 20.0), 400.0)
-        if isinstance(action.get('lock'), bool):
-            node['lock'] = action['lock']
+    def op_style(self, action, agents):
+        radius = action.get('radius')
+        return {'op': 'style', 'ref': self.existing(action.get('ref')), 'color': self.color(action),
+                'shape': action.get('shape') if action.get('shape') in SHAPES else None,
+                'radius': min(max(float(radius), 20.0), 400.0) if isinstance(radius, (int, float)) else None,
+                'lock': action['lock'] if isinstance(action.get('lock'), bool) else None}
 
-    def op_set_type(self, action, batch, agents):
-        if action.get('content_type') not in Node.ContentType.values:
-            raise ChangeError(f"mode inconnu : {action.get('content_type')!r}")
-        self.edit(batch, action['ref'])['content_type'] = action['content_type']
+    def op_set_type(self, action, agents):
+        if action.get('content_type') not in TYPES:
+            raise PlanError(f"type inconnu : {action.get('content_type')!r}")
+        return {'op': 'set_type', 'ref': self.existing(action.get('ref')), 'content_type': action['content_type']}
 
-    def op_link(self, action, batch, agents):
+    def op_link(self, action, agents):
         source, target = self.existing(action.get('source')), self.existing(action.get('target'))
-        if source != target:
-            batch['edges'].append({'id': str(uuid.uuid4()), 'source': source, 'target': target, 'kind': Edge.Kind.LINK})
+        if source == target:
+            raise PlanError('un node ne se relie pas à lui-même')
+        return {'op': 'link', 'source': source, 'target': target}
 
-    def op_unlink(self, action, batch, agents):
-        a, b = self.existing(action.get('source')), self.existing(action.get('target'))
-        edges = Edge.objects.filter(kind=Edge.Kind.LINK).filter(
-            Q(source_id=a, target_id=b) | Q(source_id=b, target_id=a)).values_list('id', flat=True)
-        batch['unlinked'] += [str(e) for e in edges]
+    def op_unlink(self, action, agents):
+        return {'op': 'unlink', 'source': self.existing(action.get('source')), 'target': self.existing(action.get('target'))}
 
-    def op_portal(self, action, batch, agents):
-        source_id = self.existing(action['ref'])
-        name = (action.get('name') or '').strip()
-        layer = None
-        if name:
-            layer = Layer.objects.filter(owner=self.user, name__iexact=name).exclude(kind=Layer.Kind.ARCHIVE).first()
-        if layer is not None and layer.pk == self.layer.pk:
-            raise ChangeError('un portail relie deux plans différents')
-        if layer is None:
-            self.next_index += 1
-            layer_id = str(uuid.uuid4())
-            batch['layers'].append({'id': layer_id, 'name': name or f'Dim-{self.next_index + 1}',
-                                    'index': self.next_index, 'kind': Layer.Kind.USER})
-            spot = (0.0, 0.0)
-        else:
-            layer_id = str(layer.id)
-            taken = [(n.x, n.y) for n in layer.nodes.exclude(status=Node.Status.ARCHIVED)]
-            spot = free_spot((0.0, 0.0), taken) if taken else (0.0, 0.0)
-        pending = batch['nodes'].get(action['ref'], {})
-        entry = str(uuid.uuid4())
-        batch['portals'].append({'id': entry, 'layer': layer_id, 'x': spot[0], 'y': spot[1],
-                                 'payload': pending.get('payload') or self.payload(source_id)})
-        batch['edges'].append({'id': str(uuid.uuid4()), 'source': source_id, 'target': entry, 'kind': Edge.Kind.PORTAL})
+    def op_portal(self, action, agents):
+        name = (action.get('name') or '').strip()[:60]
+        self.layers.append({'id': None, 'name': name})
+        return {'op': 'portal', 'ref': self.existing(action.get('ref')), 'name': name}
 
-    def op_archive(self, action, batch, agents):
-        batch['deleted'].append(self.existing(action.get('ref')))
+    def op_archive(self, action, agents):
+        return {'op': 'archive', 'ref': self.existing(action.get('ref'))}
 
-    def op_cleanup(self, action, batch, agents):
-        batch['deleted'] += [self.refs[r]['id'] for r, n in zip(list(self.refs), self.context) if not summary(n)]
+    def op_cleanup(self, action, agents):
+        empty = [n['id'] for n in self.context if not self.nodes[n['id']]['text']]
+        return {'op': 'cleanup', 'refs': empty} if empty else None
 
-    def op_delegate(self, action, batch, agents):
+    def op_delegate(self, action, agents):
         agent = self.agent(agents, action.get('agent'))
         if agent.role == Agent.Role.ORCHESTRATOR:
-            raise ChangeError('le Gardien ne se délègue pas à lui-même')
+            raise PlanError('le Gardien ne se délègue pas à lui-même')
         if agent.role == Agent.Role.IMAGE:
-            raise ChangeError(f"{agent.name} : la génération d'images n'est pas encore branchée")
+            raise PlanError(f"{agent.name} : la génération d'images n'est pas encore branchée")
         if agent.model_id is None:
-            raise ChangeError(f"{agent.name} n'a pas de modèle : branche-lui un modèle (plug_agent)")
+            raise PlanError(f"{agent.name} n'a pas de modèle : branche-lui un modèle (plug_agent)")
         ref = action['ref']
-        if self.refs[ref].get('new') and 'payload' not in batch['nodes'].get(ref, {'payload': None}):
-            batch['nodes'][ref]['payload'] = {'text': text_payload(f'{agent.name} travaille…')}
-            self.refs[ref]['placeholder'] = True
-        batch['jobs'].append((agent, action.get('task', ''), ref))
+        self.jobs.append((agent, action.get('task', ''), ref))
+        if ref in self.nodes:
+            return None
+        x, y = self.place(ref, action.get('near'))  # nouveau node : il attend le résultat de l'agent
+        self.nodes[ref]['text'] = f'{agent.name} travaille…'
+        return {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(self.nodes[ref]['text']), 'color': None, 'shape': None}
 
-    def op_plug_agent(self, action, batch, agents):
+    def op_plug_agent(self, action, agents):
         agent = self.agent(agents, action.get('agent'))
         query = (action.get('model') or '').strip()
         ready = LocalModel.objects.filter(status=LocalModel.Status.READY)
-        model = (ready.filter(Q(filename__icontains=query) | Q(repo__icontains=query)).first() if query else None)
+        model = ready.filter(Q(filename__icontains=query) | Q(repo__icontains=query)).first() if query else None
         if model is None:
-            raise ChangeError(f'aucun modèle prêt ne correspond à {query!r}')
+            raise PlanError(f'aucun modèle prêt ne correspond à {query!r}')
         agent.model = model
         agent.save(update_fields=['model'])
         self.emit('notice', {'text': f'{agent.name} utilise maintenant {model.filename}'})
+        return None
 
-    # --- navigation : jouée par le client après les écritures, dans l'ordre
-
-    def op_focus(self, action, batch, agents):
+    def op_focus(self, action, agents):
         zoom = action.get('zoom')
-        batch['camera'].append({'action': 'focus', 'node': self.existing(action.get('ref')), 'text': action.get('text', ''),
-                                'zoom': min(max(float(zoom), 0.1), 8.0) if isinstance(zoom, (int, float)) else None})
+        return {'op': 'focus', 'ref': self.existing(action.get('ref')), 'text': action.get('text', ''),
+                'zoom': min(max(float(zoom), 0.1), 8.0) if isinstance(zoom, (int, float)) else None}
 
-    def op_overview(self, action, batch, agents):
-        batch['camera'].append({'action': 'overview', 'text': action.get('text', '')})
+    def op_overview(self, action, agents):
+        return {'op': 'overview', 'text': action.get('text', '')}
 
-    def op_travel(self, action, batch, agents):
-        name = (action.get('name') or '').strip()
-        created = next((l for l in batch['layers'] if l['name'].lower() == name.lower()), None)
-        layer = created or Layer.objects.filter(owner=self.user, name__iexact=name).exclude(kind=Layer.Kind.ARCHIVE).first()
+    def op_travel(self, action, agents):
+        name = (action.get('name') or '').strip().lower()
+        layer = next((l for l in self.layers if str(l.get('name', '')).lower() == name), None)
         if layer is None:
-            raise ChangeError(f'plan introuvable : {name!r}')
-        layer_id = created['id'] if created else str(layer.id)
-        batch['camera'].append({'action': 'travel', 'layer': layer_id, 'text': action.get('text', '')})
+            raise PlanError(f"dimension introuvable : {action.get('name')!r}")
+        return {'op': 'travel', 'layer': layer.get('id'), 'name': layer.get('name'), 'text': action.get('text', '')}
 
-    def op_inventory(self, action, batch, agents):
-        batch['reads'].append(self.inventory())
+    def op_inventory(self, action, agents):
+        self.reads.append(self.inventory())
+        return None
 
     def inventory(self):
-        layers = Layer.objects.filter(owner=self.user).exclude(kind=Layer.Kind.ARCHIVE).annotate(
-            live=Count('nodes', filter=~Q(nodes__status=Node.Status.ARCHIVED)))
         agents = Agent.objects.filter(owner=self.user).select_related('model')
         models = LocalModel.objects.filter(status=LocalModel.Status.READY)
+        current = self.layer.get('id')
         return '\n'.join([
-            'Plans : ' + ', '.join(f'{l.name or "sans nom"} ({l.live} nodes{", courant" if l.pk == self.layer.pk else ""})'
-                                   for l in layers),
+            'Dimensions : ' + (', '.join(f"{l.get('name')}{' (courante)' if l.get('id') == current else ''}" for l in self.layers) or 'aucune'),
             'Agents : ' + ', '.join(f'{a.name} ({a.role}, {a.model.filename if a.model else "sans modèle"}'
                                     f'{", désactivé" if not a.enabled else ""})' for a in agents),
             'Modèles prêts : ' + (', '.join(f'{m.filename} ({m.kind})' for m in models) or 'aucun'),
         ])
 
     def execute(self, actions, agents):
-        batch = {'layers': [], 'nodes': {}, 'portals': [], 'edges': [], 'unlinked': [], 'deleted': [],
-                 'jobs': [], 'reads': [], 'camera': []}
+        """Valide et émet les actions dans l'ordre ; une action invalide est signalée et sautée."""
+        self.jobs, self.reads = [], []
         for action in actions:
             op = action.get('op')
-            tool = getattr(self, f'op_{op}', None) if op in OPS else None
             try:
-                if tool is None:
-                    raise ChangeError(f'action inconnue : {op!r}')
-                if op in ('create', 'delegate') and action.get('ref', '') not in self.refs:
-                    ref = action.get('ref', '')
-                    ref = ref if ref.startswith('new') else f'auto{len(self.refs) + 1}'
-                    batch['nodes'][ref] = self.place(ref, action.get('near'))
-                    action = {**action, 'ref': ref}
-                tool(action, batch, agents)
-            except (ChangeError, KeyError) as e:
+                if op not in OPS:
+                    raise PlanError(f'action inconnue : {op!r}')
+                if op in ('create', 'delegate') and not str(action.get('ref', '')).startswith(('new', 'N-')):
+                    action = {**action, 'ref': f'auto{len(self.nodes) + 1}'}  # référence manquante
+                event = getattr(self, f'op_{op}')(action, agents)
+                if event:
+                    self.emit('action', event)
+            except (PlanError, KeyError, TypeError, ValueError) as e:
                 self.emit('error', {'message': f'{op} : {e}'})
-        batch['nodes'].update({p['id']: p for p in batch['portals']})
-        if batch['layers'] or batch['nodes'] or batch['edges'] or batch['unlinked'] or batch['deleted']:
-            self.apply(batch)
-        for step in batch['camera']:
-            self.emit('camera', step)
-        return batch['jobs'], batch['reads']
+        return self.jobs, self.reads
 
     def delegate(self, agent, task, ref):
-        node_id = self.existing(ref)
-        self.emit('agent', {'agent': agent.name, 'node': node_id, 'task': task})
+        self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task})
         messages = [
             {'role': 'system', 'content': agent.system_prompt or AGENT_SYSTEM.get(agent.role, '')},
             {'role': 'user', 'content': task},
         ]
         text = self.engine.chat(
-            agent.model, messages, on_text=lambda piece: self.emit('agent_text', {'node': node_id, 'text': piece}),
+            agent.model, messages, on_text=lambda piece: self.emit('agent_text', {'ref': ref, 'text': piece}),
             priority=priorities.AGENT, owner=f'agent:{agent.name}', **agent.params,
         )
-        payload = self.payload(node_id)
-        if self.refs[ref].pop('placeholder', False):
-            payload.pop('text', None)  # le texte d'attente « X travaille… »
-        if agent.role == Agent.Role.CODE:
-            payload['code'], content_type = code_payload(text), Node.ContentType.CODE
-        else:
-            payload['text'], content_type = text_payload(text), Node.ContentType.TEXT
-        self.apply({'layers': [], 'nodes': {ref: {'id': node_id, 'payload': payload, 'content_type': content_type}},
-                    'edges': [], 'unlinked': [], 'deleted': []})
+        self.emit('action', {'op': 'update', 'ref': ref, 'text': code_html(text) if agent.role == Agent.Role.CODE else text_html(text)})
 
     # --- boucle
 
-    def handle(self, request, layer_id, selection=(), view=None):
+    def handle(self, request, context):
         started = time.monotonic()
-        self.load(layer_id, set(selection), view)
+        self.load(context)
         agents = self.agents()
         guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
         if guardian is None or guardian.model is None:
             raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
         self.run = AIRun.objects.create(
             owner=self.user, model_id=str(guardian.model), mode=AIRun.Mode.COMMAND, prompt=request,
-            context_node_ids=[n['id'] for n in self.refs.values()], status=AIRun.Status.RUNNING,
+            context_node_ids=[n['id'] for n in self.context], status=AIRun.Status.RUNNING,
         )
         self.emit('start', {'run': str(self.run.id)})
-        self.next_index = max(Layer.objects.filter(owner=self.user).values_list('index', flat=True), default=0)
         try:
             roster = '\n'.join(f'- {a.name} ({a.role}) : {a.description}' for a in agents.values()
                                if a.role != Agent.Role.ORCHESTRATOR and a.model_id) or '(aucun agent équipé)'
@@ -415,7 +369,7 @@ class Guardian:
                 try:
                     plan = json.loads(raw)
                 except json.JSONDecodeError:
-                    raise ChangeError('le Gardien a répondu hors format') from None
+                    raise PlanError('le Gardien a répondu hors format') from None
                 if plan.get('say'):
                     self.emit('text', {'text': plan['say']})
                 jobs, reads = self.execute(plan.get('actions') or [], agents)

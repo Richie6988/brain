@@ -2,6 +2,8 @@
 
 ## Phase 4 (en cours) : boîte à outils IA intégrée
 
+**Le Gardien vit sur `/universe`**, par-dessus Nodz, sans rien changer à son interface ni à ses sensations (bancs du feel identiques). Une barre « Demande au Gardien » en bas, et un bouton rond qui ouvre la bibliothèque d'agents (style des popups de Nodz, mode clair suivi). Le Gardien est un planificateur : la page lui envoie son contexte (nodes, liens, dimensions, sélection), il répond par des actions que la page exécute avec les fonctions de Nodz (`createNode`, `checkExistingLinks`, `deleteNode`, `nodeSizing`, boutons forme et verrou, téléportation par Entrée, `load`), donc avec la sauvegarde et l'annulation de Nodz. Ses travellings rejouent les gestes de l'utilisateur (crans de molette sur le SVG, `dragUniverse`). Pendant la saisie dans la barre, les raccourcis de Nodz sont suspendus. `/next` n'évolue plus.
+
 Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran permet de parler au Gardien, qui agit directement dans l'univers (création, liens, archivage) et confie le contenu aux agents ; tout ce qu'il fait s'annule d'un seul Ctrl+Z. Le bouton Agents ouvre la bibliothèque : choix du modèle de chaque agent, modèles installés, recherche et téléchargement sur Hugging Face (administrateurs).
 
 - App `toolbox`, portée de SquidMind (qui n'est plus un service à part) : modèles locaux (`LocalModel`), agents (`Agent`), broker à priorités, moteur llama-cpp-python optionnel (`requirements-ai.txt`).
