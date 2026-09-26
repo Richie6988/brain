@@ -143,14 +143,6 @@ document.addEventListener('keydown', function(event) {
             selectedNodes[0].children[1].style.fill = 'none';
   
             const newNode = createNode(mouseX,mouseY); 
-            if(displayTutorial) {
-                if(displayTutorial) {
-                    if (nodeCounter === 1){
-                        tutoPhase+=1;
-                    }
-                    tuto(newNode);
-                }
-            }
             newNode.setAttribute('color', selectedNodes[0].getAttribute('color'));            
             newNode.style.stroke = selectedNodes[0].getAttribute('color'); 
          
@@ -167,12 +159,6 @@ document.addEventListener('keydown', function(event) {
         event.preventDefault();   
         color = getRandomColor(); 
         newNode = createNode(mouseX,mouseY);
-        if(displayTutorial) {
-            if (nodeCounter === 1){
-                tutoPhase+=1;
-            }
-            tuto(newNode);
-        }
     }
 });
 

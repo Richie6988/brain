@@ -162,18 +162,6 @@
   background-size: 65%;
 }
 
-#tutorialButton::after {
-  background: url('../img/tuto.svg')no-repeat center/cover;
-  background-size: 80%;
-}
-
-.rookie {
-  background-color: transparent; 
-  border: 3px solid #663399; 
-  transform: scale(1.8);
-  transition: transform 0.3s ease, border-color 0.3s ease; /* Smooth transform and border color transition */
-}
-
 @keyframes pulse {
   0% {
     transform: scale(1);
@@ -875,29 +863,6 @@
   100% {
       transform: rotate(360deg);
   }
-}
-
-.tuto {
-  font-style: italic;
-  font-size: 16px;
-  text-align: center;
-  margin: 15px 0;
-  color: ivory;
-  transition: cubic-bezier() 0.3s ease;
-}
-
-.tuto strong {
-  color: springgreen;
-}
-
-.tuto:hover {
-  transform: scale(1.02); /* Slightly scale up when hovered */
-  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15); /* Enhance shadow on hover */
-  color: transparent;
-}
-
-.tuto br {
-  margin-bottom: 10px; /* Space between lines */
 }
 
 

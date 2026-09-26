@@ -56,7 +56,6 @@ document.getElementById('brand-container').addEventListener('mouseover', functio
 document.getElementById('button-container').addEventListener('mouseover', function() {
     if (!isLoggedIn) {
         // Disabling click action
-        document.getElementById('tutorialButton').disabled = true;
         document.getElementById('templateButton').disabled = true;
         document.getElementById('soundButton').disabled = true;
         document.getElementById('darkButton').disabled = true;
@@ -74,7 +73,6 @@ document.getElementById('button-container').addEventListener('mouseover', functi
 // Adding event listener for mouseout event
 document.getElementById('button-container').addEventListener('mouseout', function() {
     // Enabling click action when mouse leaves the button container
-    document.getElementById('tutorialButton').disabled = false;
     document.getElementById('templateButton').disabled = false;
     document.getElementById('soundButton').disabled = false;
     document.getElementById('darkButton').disabled = false;
@@ -252,26 +250,6 @@ document.getElementById('fullscreenButton').addEventListener('click', function()
 });
 document.getElementById('fullscreenButton').addEventListener('mouseover', function(event) {
     createTooltip ('fullscreenButton','Full screen');
-});
-
-document.getElementById('tutorialButton').addEventListener('mouseover', function() {
-    createTooltip ('tutorialButton','Tutorial');
-});
-
-let first = 0;
-document.getElementById('tutorialButton').addEventListener('click', function() {
-    var tutorial = document.getElementById('tutorial');
-    tutorial.style.display = 'flex';
-    tutorial.children[0].scrollTop = 0; 
-    overlay = true;
-    
-    window.addEventListener('click', function(event) {
-        tuti = document.getElementById('tutorial');
-        if (event.target === tutorial) {
-            tutorial.style.display = 'none';
-            overlay = false;
-        }
-    });
 });
 
 //////////////////// TEMPLATE ////////////////////
@@ -988,7 +966,6 @@ function login() {
     
         guest();
         document.body.removeChild(popup);
-        //tuto();
     });
 
 
@@ -1021,170 +998,7 @@ function login() {
 }
 
 
-//// Tutorial ////
-let tutoPhase = 0;
-function tuto(node){  
-    if(node){
-        node.children[0].style.display='none';
-        node.children[4].style.display='none';
-        node.children[5].style.display='none';
-        node.children[6].style.display='none';
-        nodeSizing(node,110,110);
-    }
-    console.log('tutophase:', tutoPhase)
-    switch (tutoPhase) {
-        case 0:
-            overlay = true;
-            displayTutorial = true;
-            //// Tuto 1st sequence ////
-            var intro = document.createElement('div');
-            intro.id = 'intro';
-            intro.className = 'tuto'; 
-            intro.innerHTML = `
-                <strong>...Nod: </strong> Some say I’m a <strong>relational, multimodal, and multidimensional tool</strong> designed to store pieces of your mind.<br>
-                <br>But please call me Nod! <br><br>
-                I can hold various forms of content including <strong>text</strong> for notes, 
-                <strong>images</strong>, <strong>videos</strong>, or even <strong>3D models</strong> to help visualize ideas. 
-                I can also support <strong>sketching</strong> to enhance your creativity and <strong>file embedding and visualization</strong> 
-                to document ideas seamlessly.
-            `;
-            document.body.appendChild(intro);
-            // Apply CSS 
-            intro.style.position = 'fixed';
-            const introHeight = intro.getBoundingClientRect().height;
-            intro.style.top = `calc(50% - ${introHeight / 2}px)`; 
-            intro.style.left = '50%';
-            intro.style.transform = 'translateX(-50%)'; // Centers the element horizontally
-            intro.style.width = '80%'; 
-            intro.style.zIndex = '1000'; // Ensure it stays on top of other elements
-        
-            var gotit_btn = document.createElement('button');
-            gotit_btn.id = 'gotit_btn';
-            gotit_btn.textContent = 'LET\'S GO';
-            gotit_btn.className = 'submit-button';  
-            gotit_btn.style.padding = '5px';
-            gotit_btn.style.fontSize = '10px';
-            gotit_btn.style.backgroundColor = '#6748a67e';
-        
-            // Apply CSS 
-            gotit_btn.style.position = 'fixed';
-            gotit_btn.style.width = `70px`; 
-            gotit_btn.style.bottom = `140px`; 
-            gotit_btn.style.left = '50%';
-            gotit_btn.style.transform = 'translateX(-50%)'; // Centers the element horizontally
-            gotit_btn.style.zIndex = '1000'; // Ensure it stays on top of other elements        
-            document.body.appendChild(gotit_btn);
-             
-            var tutoDescription = document.createElement('p');
-            tutoDescription.id = 'node0';
-            tutoDescription.className = 'tuto';
-            tutoDescription.style.width = '90%';
-            tutoDescription.style.position = 'fixed';
-            tutoDescription.style.top = `80%`; 
-            tutoDescription.style.left = '50%';
-            tutoDescription.style.transform = 'translateX(-50%)'; 
-            tutoDescription.style.zIndex = '1000'; // Ensure it stays on top of other element
-            tutoDescription.style.justifyContent = 'center';
-            tutoDescription.style.height = 'fit-content';
-            document.body.appendChild(tutoDescription);
 
-            intro.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-            })
-            tutoDescription.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-            })
-        
-            gotit_btn.addEventListener('mousedown', function(e) {
-                tutoPhase += 1;
-                tuto();
-            })
-          
-            break;
-        case 1:
-            intro = document.getElementById('intro');
-            tutoDescription = document.getElementById('node0');
-            gotit_btn = document.getElementById('gotit_btn');
-
-            document.body.removeChild(intro)
-            
-            tutoDescription.innerHTML = `<strong>Double click</strong> to create a node at center<br><strong>Press space bar</strong> to create a node at pointer`;
-            tutoDescription.style.pointerEvents = 'none';
-      
-            gotit_btn.textContent = 'GOT IT'
-            gotit_btn.style.opacity = 0;
-           
-            break;
-        case 2:
-            tutoDescription = document.getElementById('node0');
-            gotit_btn = document.getElementById('gotit_btn');
-
-            var tutoP = `Click on my edges to <strong>select me</strong>. You can also use a selection window while pressing <strong>Control Key</strong>. <br>
-            When selected, you access my <strong>options</strong>, <strong>move</strong> me around, or <strong>connect</strong> me with other nodes.<br>
-            Another click will <strong>unselect</strong> me, and let you access to my <strong>content</strong>.
-            `;
-            tutoDescription.innerHTML = tutoP;
-
-            document.getElementById('gotit_btn').style.opacity = 1;
-            break;
-        case 3:
-            tutoDescription = document.getElementById('node0');
-
-            tutoP = `
-            <strong>Move universe</strong>: <strong>click & drag</strong> the background or use <strong>2 fingers on touchpad</strong>.<br>
-            <strong>Zoom</strong>: use the <strong>mouse wheel</strong> or <strong>pinch gesture on a touchpad</strong>. <br>
-            <strong>Tab Key</strong>: jump between extreme zoom levels at <strong>cursor position</strong>.
-            `;
-            tutoDescription.innerHTML = tutoP;
-            break;
-        case 4:
-            tutoDescription = document.getElementById('node0');
-            tutoP = `
-            Select me and other nodes and press <strong>Space Bar</strong> to link us.<br>
-            You can also use it to directly create a<strong>connected node</strong>
-            `;
-            tutoDescription.innerHTML = tutoP;
-            break;
-        case 5:
-            tutoDescription = document.getElementById('node0');
-            gotit_btn = document.getElementById('gotit_btn');
-            
-            document.body.removeChild(tutoDescription);
-            const nodeGroups = document.querySelectorAll('.node-group');
-            // Iterate through each nodeGroup and check the condition
-            for (let i = 0; i < nodeGroups.length; i++) {
-                deleteNode([nodeGroups[i]]);                
-            }
-            displayTutorial = false;
-            document.body.removeChild(gotit_btn);
-
-            nodeCounter = 0;
-            linkCounter = 0;
-
-            buttonContainer.classList.add("show");
-            const tutorial = document.getElementById('tutorialButton');
-            tutorial.classList.add('rookie');
-
-            setTimeout(() => {
-                tutorial.classList.remove('rookie');
-            }, 400);
-            setTimeout(() => {
-                tutorial.classList.add('rookie');
-            }, 400);
-          
-
-            setTimeout(() => {
-                document.getElementById('tutorialButton').click();
-                tutorial.classList.remove('rookie');
-                buttonContainer.classList.remove("show");
-            }, 1000);
-
-            if(!isLoggedIn) {
-                loadingSpinner.style.display = 'block';
-            }
-            break;
-    }
-}
 
 
 

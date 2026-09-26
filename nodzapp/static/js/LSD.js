@@ -452,7 +452,7 @@ function loadFile(nodeID, fileName, spinner, filePreview, fileContainer) {
 
 function save(nodeGroup,tunnel){
     if(admin){return}
-    if(!isLoading && !displayTutorial){
+    if(!isLoading){
         console.log(nodeGroup.id,' SAVED')
         const data = [];
         const id = parseInt(nodeGroup.id.match(/\d+/)[0], 10);
@@ -686,7 +686,7 @@ function deleteNode(nodes) {
                 }  
             }
         });
-        if(!quantum && !displayTutorial) {
+        if(!quantum) {
             data.push({id: parseInt(node.getAttribute('id').match(/\d+/)[0], 10)}); 
         }
         players = players.filter((player, index) => index !== parseInt(node.getAttribute('id').match(/\d+/)[0], 10));

@@ -73,7 +73,8 @@ svg.addEventListener('mousedown', function(event) {
 // Cursors
 
 svg.addEventListener('mousemove', function(event) {          
-    if(colorWheelfo.getAttribute('visibility') === 'visible') {  
+    // colorWheelfo est défini par interface.js, chargé après : absent pendant le chargement de la page.
+    if(window.colorWheelfo?.getAttribute('visibility') === 'visible') {  
         return; 
     }
     if(currentNode) {  

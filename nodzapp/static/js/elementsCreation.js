@@ -3,7 +3,6 @@ let layer = document.getElementById('interactive-area');
 layer.classList.add('universe');
 let guestUser = false;
 let admin = false;
-let displayTutorial = false;
 let nodeCounter = 0;
 let linkCounter = 0; 
 let layerCounter;
@@ -33,7 +32,6 @@ universe.setAttribute('transform', `translate(${0},${0}) scale(${1})`);
 universe.setAttribute('id','universe');
 universe.style.perspective = '800px';
 svg.appendChild(universe);
-const tutorial = document.getElementById('tutorial');
 
 currentZoom = 1;
    
@@ -54,14 +52,7 @@ svg.addEventListener('dblclick', (event) => {
     var node;
     if (event.target.tagName.toLowerCase() === 'svg' && !selectionArea(event, currentNode)) {
         
-        if(displayTutorial) {
-            node = createNode(event.clientX,event.clientY);
-            focusNode(node,false);
-            if (nodeCounter === 1){
-                tutoPhase+=1;
-            }
-            tuto(node);
-        } else if (isLoggedIn){
+        if (isLoggedIn){
             if (nodeCounter !== 0){
                 color = getRandomColor();
             }            
@@ -194,21 +185,7 @@ function createNode(x,y,id) {
       });
     // Add event listener to the dropdown 
 
-    nodetypedropdown.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'Nod: <strong>Here you can switch my content type.</strong> I keep in mind all my potential states, meaning that if you choose <strong>Image</strong> I remember the <strong>text input</strong> that can be used as <strong>Metadata for classification and ease of search</strong>';
-            nodetypedropdown.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
     nodetypedropdown.addEventListener('change', function(event) {
-        if(displayTutorial) {
-            event.stopPropagation();
-            return;
-        }
         const selectedOption = event.target.value;
         img.style.display = 'none';
         fileContainer.style.display = 'none';
@@ -1999,16 +1976,6 @@ function createNode(x,y,id) {
 
           
     //////////////////// NODE PARAMS ////////////////////
-    colorButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'Use the <strong>Chromatic wheel</strong> to adjust my <strong>ring color</strong>. This change can also be applied to a <strong>selection of nodes</strong> at once.';
-            colorButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
     colorButtonimg.addEventListener('mousedown', function() {    
         CurrentNode(nodeGroup);
@@ -2037,16 +2004,6 @@ function createNode(x,y,id) {
         } 
     });
 
-    shapeButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'The <strong>Shape tool</strong> is useful when you want to switch me into a square or to hide my boundaries. Like other settings, it can be applied to a <strong>selection of multiple nodes</strong>.';
-            shapeButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
     shapeButtonimg.addEventListener('click', function() { 
         if(dark) {
@@ -2125,16 +2082,6 @@ function createNode(x,y,id) {
         showParams(nodeGroup);
     });
 
-    calendarButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'You can set up reminders using the <strong>Calendar tool</strong>. Manage time with the notifications and navigation system included in each node.';
-            calendarButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
     calendarButtonimg.addEventListener('click', function() { 
         const calendarOverlay = document.getElementById('calendarOverlay');
@@ -2163,27 +2110,7 @@ function createNode(x,y,id) {
     });
     
 
-    sizeButton.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'I have an <strong>automatic sizing system</strong> but still you can resize one or more nodes at once by <strong>clicking and dragging</strong>.';
-            sizeButton.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
-    lockButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'The <strong>Lock tool</strong> lets you prevent any changes to my content and <strong>pin my position</strong> in the universe. Like other settings, it can be applied to a <strong>selection of multiple nodes</strong>.';
-            lockButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
     
     lockButtonimg.addEventListener('click', function() { 
         if(dark) {
@@ -2218,21 +2145,8 @@ function createNode(x,y,id) {
     });
 
    
-    layerButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'The <strong>Layer tool</strong> lets you move a node, or a group of nodes, across dimensions. By extension, it can even create a new dimension—though it’s never as simple as just pressing <strong>Enter</strong> on a selected node!';
-            layerButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
     layerButtonimg.addEventListener('click', function() {
-        if (displayTutorial){
-            return;
-        }
         quantum = true; 
         cancelList.length = 0;
         cancelIndex = 0;
@@ -2244,14 +2158,7 @@ function createNode(x,y,id) {
 
     var portal = false;
     quantumButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'The <strong>Portal tool</strong> lets you jumb across dimensions. End up at the end of the tunnel prealably set up using <strong>Enter</strong> on a selected node';
-            quantumButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        } else {
+        {
             // quantumButtonfo.style.animationDuration = '30S';
     
             portal = true;
@@ -2282,9 +2189,6 @@ function createNode(x,y,id) {
     });
 
     quantumButtonimg.addEventListener('click', function() {
-        if (displayTutorial){
-            return;
-        }
         hideParams(nodeGroup);
         const quantumData = JSON.parse(nodeGroup.getAttribute('quantum'));
         const layer = quantumData[0].layer
