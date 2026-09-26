@@ -1,6 +1,7 @@
 // Banc de test du « feel » de navigation (CLAUDE.md, section 3).
 //   node tests/feel/feel.mjs --record    enregistre reference.json sur le code actuel
 //   node tests/feel/feel.mjs             rejoue le scénario et compare à reference.json (tolérance 1e-3)
+//   --scenario navigation                 Tab, flèches, focus au double-clic (reference-navigation.json)
 // Prérequis : serveur Nodz sur NODZ_URL (défaut http://127.0.0.1:8001). Chaque exécution passe par
 // GUEST, qui crée un compte neuf et vide : le scénario part toujours du même état.
 import { chromium } from 'playwright';
@@ -9,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 
 const BASE = (process.env.NODZ_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
 const PAGE = process.env.NODZ_PAGE || '/universe';  // /next : nouvelle interface
-const REFERENCE = fileURLToPath(new URL('./reference.json', import.meta.url));
+const SCENARIO = process.argv.includes('--scenario') ? process.argv[process.argv.indexOf('--scenario') + 1] : 'base';
+const REFERENCE = fileURLToPath(new URL(SCENARIO === 'base' ? './reference.json' : `./reference-${SCENARIO}.json`, import.meta.url));
 const TOLERANCE = 1e-3;
 const record = process.argv.includes('--record');
 
@@ -49,14 +51,18 @@ await page.getByText('GUEST', { exact: true }).click();
 await page.waitForTimeout(3500);
 
 // Espace crée un node sous la souris ; le clic à vide sort du mode saisie du node précédent.
-await step('création', async () => {
+const create = async () => {
     for (const [x, y] of [[420, 330], [760, 300], [600, 520]]) {
         await page.mouse.click(x, y);
         await page.keyboard.press(' ');
         await page.waitForTimeout(300);
     }
     await page.mouse.click(1200, 740);
-});
+};
+
+const scenarios = {};
+scenarios.base = async () => {
+await step('création', create);
 await step('pan molette', async () => { for (let i = 0; i < 3; i++) await wheel(640, 400, 30, -45); });
 await step('zoom avant centré', async () => { for (let i = 0; i < 10; i++) await wheel(300, 250, 0, -1.5); });
 await step('zoom arrière centré', async () => { for (let i = 0; i < 6; i++) await wheel(900, 600, 0, 1.5); });
@@ -89,6 +95,36 @@ await step('téléportation', async () => {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(4500);
 });
+};
+
+scenarios.navigation = async () => {
+    await step('création', create);
+    await step('molette puis focus', async () => {
+        for (let i = 0; i < 8; i++) await wheel(300, 250, 0, 1.5);
+        const id = (await snapshot()).nodes[1][0];
+        const p = await ring(id);
+        await page.mouse.move(p.x - 30, p.y, { steps: 5 });  // v1 : le node devient courant au survol
+        await page.mouse.move(p.x, p.y, { steps: 5 });
+        await page.mouse.dblclick(p.x, p.y);
+    });
+    await step('Tab arrière', async () => {
+        await page.mouse.click(1200, 740);
+        await page.mouse.move(800, 300);
+        await page.keyboard.press('Tab');
+    });
+    await step('Tab avant', async () => {
+        await page.mouse.move(500, 450);
+        await page.keyboard.press('Tab');
+    });
+    await step('flèches', async () => {
+        for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+        await page.keyboard.down('ArrowUp');
+        await page.keyboard.press('ArrowLeft');
+        await page.keyboard.up('ArrowUp');
+    });
+};
+
+await scenarios[SCENARIO]();
 await browser.close();
 
 const result = { viewport: '1280x800', steps, errors };

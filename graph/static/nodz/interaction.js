@@ -1,12 +1,16 @@
 // Souris, trackpad et clavier → actions du catalogue. Aucune écriture directe dans le DOM des nodes.
 // Comportements repris de v1 : molette = pan, pinch = zoom au pointeur, glisser à vide = pan,
 // Ctrl + glisser = sélection rectangle, glisser l'anneau d'un node = déplacer la sélection,
-// double-clic ou Espace = créer un node sous le pointeur, Entrée = téléporter.
+// double-clic ou Espace = créer un node sous le pointeur, Entrée = téléporter, Tab = saut de zoom,
+// double-clic sur l'anneau = focus, flèches = déplacer la vue.
 
-export function bindInteractions({ svg, store, viewport, view, sync }) {
+const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
     const dispatch = (name, params) => store.dispatch(name, params);
     const pointer = { x: viewport.center.x, y: viewport.center.y };
     let ctrlDown = false;
+    const held = new Set();  // flèches enfoncées
     let gesture = null;  // {type: 'pan' | 'drag' | 'rect', ...}
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('class', 'selection-box');
@@ -94,7 +98,14 @@ export function bindInteractions({ svg, store, viewport, view, sync }) {
     });
 
     svg.addEventListener('dblclick', event => {
-        if (view.nodeIdAt(event.target)) return;
+        // La capture du pointeur (drag) envoie le double-clic au SVG : on regarde sous le pointeur.
+        const target = document.elementFromPoint(event.clientX, event.clientY) || event.target;
+        const nodeId = view.nodeIdAt(target);
+        if (nodeId && target.classList?.contains('ring-hit')) {
+            nav.play(nav.gestures.focus(nodeId));
+            return;
+        }
+        if (nodeId) return;
         event.preventDefault();
         createAtPointer();
     });
@@ -124,8 +135,20 @@ export function bindInteractions({ svg, store, viewport, view, sync }) {
             store.redo();
         } else if (event.key === 'Escape') {
             dispatch('select', { ids: [] });
+        } else if (event.key === 'Tab') {
+            event.preventDefault();
+            nav.play(nav.gestures.zoomJump(pointer.x, pointer.y));
+        } else if (event.key in ARROWS && !selection.length) {
+            event.preventDefault();
+            held.add(event.key);
+            const v = [...held].reduce((sum, key) => [sum[0] + ARROWS[key][0], sum[1] + ARROWS[key][1]], [0, 0]);
+            const k = v[0] && v[1] ? 0.7 : 1;  // diagonale (v1)
+            nav.play(nav.gestures.arrows(v[0] * k, v[1] * k));
         }
     });
-    document.addEventListener('keyup', event => { if (event.key === 'Control') ctrlDown = false; });
-    window.addEventListener('blur', () => { ctrlDown = false; sync.flush(); });
+    document.addEventListener('keyup', event => {
+        if (event.key === 'Control') ctrlDown = false;
+        held.delete(event.key);
+    });
+    window.addEventListener('blur', () => { ctrlDown = false; held.clear(); sync.flush(); });
 }

@@ -1,0 +1,111 @@
+{
+  "viewport": "1280x800",
+  "steps": [
+    {
+      "name": "création",
+      "universe": "translate(0,0) scale(1)",
+      "zoom": 1,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "molette puis focus",
+      "universe": "translate(-159.52000, 84.40000) scale(1.052)",
+      "zoom": 1.052,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "Tab arrière",
+      "universe": "translate(709.48555, 279.89181) scale(0.099)",
+      "zoom": 0.099,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "Tab avant",
+      "universe": "translate(3076.93524, -1646.68192) scale(1.217)",
+      "zoom": 1.217,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "flèches",
+      "universe": "translate(3059.73524, -1639.88192) scale(1.217)",
+      "zoom": 1.217,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    }
+  ],
+  "errors": []
+}

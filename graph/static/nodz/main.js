@@ -5,8 +5,10 @@ import { api, createSync } from './api.js';
 import { bindCommand } from './command.js';
 import { bindInteractions } from './interaction.js';
 import { bindLibrary } from './library.js';
+import { createNavigation } from './navigation.js';
 import { createRenderer } from './render.js';
 import { createStore } from './store.js';
+import { bindToolbar } from './toolbar.js';
 import { createViewport } from './viewport.js';
 
 const BASE = document.documentElement.dataset.base || '';
@@ -19,7 +21,9 @@ store.register(actions);
 const viewport = createViewport(universe);
 const sync = createSync(store, { onError: error => { status.textContent = `Sauvegarde impossible : ${error.message}`; } });
 const view = createRenderer({ svg, universe, store, viewport, dispatch: (name, params) => store.dispatch(name, params) });
-bindInteractions({ svg, store, viewport, view, sync });
+const nav = createNavigation({ viewport, store, view });
+bindInteractions({ svg, store, viewport, view, sync, nav });
+bindToolbar({ svg, store, nav });
 bindCommand({ svg, store, viewport, sync });
 bindLibrary();
 
@@ -27,6 +31,7 @@ async function loadLayer(layerId) {
     await sync.flush();
     const graph = await api.graph(layerId);
     viewport.reset();
+    nav.resetOrigin();
     store.hydrate(graph);
 }
 

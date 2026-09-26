@@ -17,6 +17,18 @@
         </div>
     </div>
     <div id="status" role="status"></div>
+    <nav id="toolbar" aria-label="Navigation">
+        <input id="search" type="search" placeholder="Rechercher" aria-label="Rechercher dans le plan" autocomplete="off">
+        <span id="search-count" aria-live="polite"></span>
+        <button type="button" class="menuBtn" id="fullscreen-button" title="Plein écran" style="--icon: url('{% static 'img/full-screen.svg' %}')"></button>
+        <button type="button" class="menuBtn" id="links-button"
+            style="--gradient: url('{% static 'img/gradlink.svg' %}'); --neutral: url('{% static 'img/link.svg' %}'); --hidden: url('{% static 'img/nolink.svg' %}')"></button>
+        <button type="button" class="menuBtn" id="flag-button" title="Nouvelle origine" style="--icon: url('{% static 'img/flag.svg' %}')"></button>
+        <button type="button" class="menuBtn" id="origin-button" title="Retour à l'origine" style="--icon: url('{% static 'img/reset.svg' %}')"></button>
+        <button type="button" id="layers-button" aria-controls="layers-list" title="Plans (Maj)">Plans</button>
+        <ul id="layers-list" hidden></ul>
+    </nav>
+    <img id="pin" src="{% static 'img/pin.svg' %}" alt="" hidden>
     <div id="dock">
         <div id="reply" aria-live="polite" hidden></div>
         <form id="command" autocomplete="off">
