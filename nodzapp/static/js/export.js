@@ -253,11 +253,11 @@ async function exportNodz(nodesSelection, linksSelection, templatesSelection) {
             imageElem.setAttribute("width", 40);
             imageElem.setAttribute("height", 40);
             if (node.getAttribute('type') === 'video') {
-                imageElem.setAttributeNS("http://www.w3.org/1999/xlink", "href", "/static/img/youtube-logo.png");
+                imageElem.setAttributeNS("http://www.w3.org/1999/xlink", "href", NODZ_BASE + "/static/img/youtube-logo.png");
                 const videoLink = clone.getAttribute("videolink") || "#";   
                 clone.setAttribute('href','https://www.youtube.com/watch?'+videoLink);
             } else {
-                imageElem.setAttributeNS("http://www.w3.org/1999/xlink", "href", "/static/img/file.png"); 
+                imageElem.setAttributeNS("http://www.w3.org/1999/xlink", "href", NODZ_BASE + "/static/img/file.png"); 
                 const filename = clone.getAttribute('filename');
                 const node_id = parseInt(node.id.match(/\d+/)[0], 10);
                 setDownloadLink(node_id, filename, clone);

@@ -206,25 +206,25 @@ function displayNode(node) {
     if(node.shape === 'none'){
         newNode.style.stroke = 'transparent';
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/hide.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/hide-light.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
         }
     } else if(node.shape === 'circle') {
         newNode.style.stroke = node.color;
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/circle.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/circle-light.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
         }
     }  else if(node.shape === 'square') {
         newNode.children[1].style.stroke = 'transparent';
         newNode.children[2].style.display = 'block';  
         newNode.children[2].setAttribute('class','squareShape');  
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/square.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/square-light.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
         }
     } 
     newNode.setAttribute('layer', node.layer__layer_id);
@@ -249,22 +249,22 @@ function displayNode(node) {
     }    
     newNode.setAttribute('notification', node.notification);
     if(newNode.getAttribute('notification') !== '') {
-        newNode.children[7].children[6].children[0].setAttribute('src', '/static/img/notification.svg');
+        newNode.children[7].children[6].children[0].setAttribute('src', NODZ_BASE + '/static/img/notification.svg');
     }
   
     if(node.lock){
         newNode.setAttribute('lock', 1);
         if (dark) {
-            newNode.children[7].children[7].children[0].setAttribute('src', '/static/img/lock.svg');
+            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
         } else {
-            newNode.children[7].children[7].children[0].setAttribute('src', '/static/img/lock-light.svg');
+            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
         }
     } else {
         newNode.setAttribute('lock', 0);
         if (dark) {
-            newNode.children[7].children[7].children[0].setAttribute('src', '/static/img/unlock.svg');
+            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
         } else {
-            newNode.children[7].children[7].children[0].setAttribute('src', '/static/img/unlock-light.svg');
+            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
         }
     }
     newNode.setAttribute('quantum', node.quantum);
@@ -310,10 +310,10 @@ function displayTemplate(template) {
     loadTemplate.setAttribute('type', template.type);
     if(template.lock){
         loadTemplate.setAttribute('lock', 1);
-        loadTemplate.children[2].children[0].setAttribute('src', '/static/img/lock-template.svg'); 
+        loadTemplate.children[2].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-template.svg'); 
     } else {
         loadTemplate.setAttribute('lock', 0);
-        loadTemplate.children[2].children[0].setAttribute('src', '/static/img/unlock-template.svg');
+        loadTemplate.children[2].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-template.svg');
     }
 }
 

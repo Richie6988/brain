@@ -565,7 +565,7 @@ function nodeSizing(nodeGroup,w,h) {
     let img = nodeGroup.children[0].children[1];
     var nw = img.naturalWidth;
     var nh = img.naturalHeight;
-    var expectedSrc = '/static/img/newimg';
+    var expectedSrc = NODZ_BASE + '/static/img/newimg';
     let square = nodeGroup.children[2];
     var reduction_factor = 0;
     var hitboxRadius = Math.round(Math.sqrt(w * h / 2));

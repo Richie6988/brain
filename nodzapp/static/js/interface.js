@@ -206,7 +206,7 @@ document.getElementById('flagButton').addEventListener('click', function() {
         const flagImage = document.createElementNS('http://www.w3.org/2000/svg', 'image');
 
         // Set the href attribute to point to the image source (e.g., flag icon)
-        flagImage.setAttributeNS(null, 'href', '/static/img/pin.svg');
+        flagImage.setAttributeNS(null, 'href', NODZ_BASE + '/static/img/pin.svg');
         
         // Set the width and height of the image
         flagImage.setAttribute('width', '30px');
@@ -553,48 +553,48 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
 
         const colorLogo = document.querySelectorAll('img');
         colorLogo.forEach(color => {
-            if (color.getAttribute('src') === '/static/img/colorpicking.svg'){
-                color.setAttribute('src', '/static/img/colorpicking-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/bold.svg'){
-                color.setAttribute('src', '/static/img/bold-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/italic.svg'){
-                color.setAttribute('src', '/static/img/italic-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/underline.svg'){
-                color.setAttribute('src', '/static/img/underline-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/smiley.svg'){
-                color.setAttribute('src', '/static/img/smiley-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/view.svg'){
-                color.setAttribute('src', '/static/img/view-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/unlock.svg'){
-                color.setAttribute('src', '/static/img/unlock-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/edit.svg'){
-                color.setAttribute('src', '/static/img/edit-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/calendar.svg'){
-                color.setAttribute('src', '/static/img/calendar-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/lock.svg'){
-                color.setAttribute('src', '/static/img/lock-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/layer.svg'){
-                color.setAttribute('src', '/static/img/layer-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/newimg.svg'){
-                color.setAttribute('src', '/static/img/newimg-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/undo.svg'){
-                color.setAttribute('src', '/static/img/undo-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/redo.svg'){
-                color.setAttribute('src', '/static/img/redo-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/eraser.svg'){
-                color.setAttribute('src', '/static/img/eraser-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/eraseall.svg'){
-                color.setAttribute('src', '/static/img/eraseall-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/circle.svg'){
-                color.setAttribute('src', '/static/img/circle-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/square.svg'){
-                color.setAttribute('src', '/static/img/square-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/line.svg'){
-                color.setAttribute('src', '/static/img/line-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/upload.svg'){
-                color.setAttribute('src', '/static/img/upload-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/download.svg'){
-                color.setAttribute('src', '/static/img/download-light.svg');
+            if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/bold.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/bold-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/italic.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/italic-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/underline.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/underline-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/smiley.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/smiley-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/view.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/view-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/unlock.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/edit.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/edit-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/calendar.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/calendar-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/lock.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/layer.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/layer-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/newimg.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/newimg-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/undo.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/undo-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/redo.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/redo-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/eraser.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/eraser-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/eraseall.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/eraseall-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/circle.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/square.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/line.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/line-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/upload.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/upload-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/download.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/download-light.svg');
             }
         });       
         
@@ -638,48 +638,48 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
 
         const colorLogo = document.querySelectorAll('img');
         colorLogo.forEach(color => {
-            if (color.getAttribute('src') === '/static/img/colorpicking-light.svg'){
-                color.setAttribute('src', '/static/img/colorpicking.svg');
-            } else if (color.getAttribute('src') === '/static/img/bold-light.svg'){
-                color.setAttribute('src', '/static/img/bold.svg');
-            } else if (color.getAttribute('src') === '/static/img/italic-light.svg'){
-                color.setAttribute('src', '/static/img/italic.svg');
-            } else if (color.getAttribute('src') === '/static/img/underline-light.svg'){
-                color.setAttribute('src', '/static/img/underline.svg');
-            } else if (color.getAttribute('src') === '/static/img/smiley-light.svg'){
-                color.setAttribute('src', '/static/img/smiley.svg');
-            } else if (color.getAttribute('src') === '/static/img/view-light.svg'){
-                color.setAttribute('src', '/static/img/view.svg');
-            } else if (color.getAttribute('src') === '/static/img/unlock-light.svg'){
-                color.setAttribute('src', '/static/img/unlock.svg');
-            } else if (color.getAttribute('src') === '/static/img/edit-light.svg'){
-                color.setAttribute('src', '/static/img/edit.svg');
-            } else if (color.getAttribute('src') === '/static/img/calendar-light.svg'){
-                color.setAttribute('src', '/static/img/calendar.svg');
-            } else if (color.getAttribute('src') === '/static/img/lock-light.svg'){
-                color.setAttribute('src', '/static/img/lock.svg');
-            } else if (color.getAttribute('src') === '/static/img/layer-light.svg'){
-                color.setAttribute('src', '/static/img/layer.svg');
-            } else if (color.getAttribute('src') === '/static/img/newimg-light.svg'){
-                color.setAttribute('src', '/static/img/newimg.svg');
-            } else if (color.getAttribute('src') === '/static/img/undo-light.svg'){
-                color.setAttribute('src', '/static/img/undo.svg');
-            } else if (color.getAttribute('src') === '/static/img/redo-light.svg'){
-                color.setAttribute('src', '/static/img/redo.svg');
-            } else if (color.getAttribute('src') === '/static/img/eraser-light.svg'){
-                color.setAttribute('src', '/static/img/eraser.svg');
-            } else if (color.getAttribute('src') === '/static/img/eraseall-light.svg'){
-                color.setAttribute('src', '/static/img/eraseall.svg');
-            } else if (color.getAttribute('src') === '/static/img/circle-light.svg'){
-                color.setAttribute('src', '/static/img/circle.svg');
-            } else if (color.getAttribute('src') === '/static/img/square-light.svg'){
-                color.setAttribute('src', '/static/img/square.svg');
-            } else if (color.getAttribute('src') === '/static/img/line-light.svg'){
-                color.setAttribute('src', '/static/img/line.svg');
-            } else if (color.getAttribute('src') === '/static/img/upload-light.svg'){
-                color.setAttribute('src', '/static/img/upload.svg');
-            } else if (color.getAttribute('src') === '/static/img/download-light.svg'){
-                color.setAttribute('src', '/static/img/download.svg');
+            if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/bold-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/bold.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/italic-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/italic.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/underline-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/underline.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/smiley-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/smiley.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/view-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/view.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/unlock-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/edit-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/edit.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/calendar-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/calendar.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/lock-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/layer-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/layer.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/newimg-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/newimg.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/undo-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/undo.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/redo-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/redo.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/eraser-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/eraser.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/eraseall-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/eraseall.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/circle-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/square-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/line-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/line.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/upload-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/upload.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/download-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/download.svg');
             }
         });
 

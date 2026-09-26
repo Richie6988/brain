@@ -311,7 +311,7 @@
             sizeButtonfo.style.display= 'none';
             // Create the image inside the foreignObject
             const sizeButtonimg = document.createElement('img');
-            sizeButtonimg.setAttribute('src', '/static/img/size-template.svg');
+            sizeButtonimg.setAttribute('src', NODZ_BASE + '/static/img/size-template.svg');
             sizeButtonimg.style.width = '100%';
             sizeButtonimg.style.height = '100%';
             // Append the image inside the foreignObject
@@ -327,7 +327,7 @@
             lockButtonfo.style.cursor= 'pointer';
             // Create the image inside the foreignObject
             const lockButtonimg = document.createElement('img');
-            lockButtonimg.setAttribute('src', '/static/img/unlock-template.svg');
+            lockButtonimg.setAttribute('src', NODZ_BASE + '/static/img/unlock-template.svg');
             lockButtonimg.style.width = '100%';
             lockButtonimg.style.height = '100%';
             // Append the image inside the foreignObject
@@ -492,11 +492,11 @@
             //////////////////////////////// LOCK ////////////////////////////////
 
             lockButtonfo.addEventListener('mousedown', function() {
-                if(lockButtonimg.getAttribute('src') === '/static/img/unlock-template.svg') {
-                    lockButtonimg.setAttribute('src', '/static/img/lock-template.svg'); 
+                if(lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/unlock-template.svg') {
+                    lockButtonimg.setAttribute('src', NODZ_BASE + '/static/img/lock-template.svg'); 
                     template.setAttribute('lock', 1);  
                 } else {
-                    lockButtonimg.setAttribute('src', '/static/img/unlock-template.svg'); 
+                    lockButtonimg.setAttribute('src', NODZ_BASE + '/static/img/unlock-template.svg'); 
                     template.setAttribute('lock', 0);  
                 } 
                 saveTemplate(template); 
