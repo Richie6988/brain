@@ -24,6 +24,10 @@ Toute la configuration passe par `.env` (voir `.env.example`). Sans `EMAIL_HOST`
 
 Dépendances optionnelles à l'exécution : LibreOffice (`libreoffice --headless`) pour la conversion de documents, et la base `GeoLite2-Country.mmdb` à la racine pour la géolocalisation.
 
+## Déploiement
+
+Voir `DEPLOY.md` (serveur de test : nginx + Daphne + systemd).
+
 ## Tests
 
 ```bash

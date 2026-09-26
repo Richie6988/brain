@@ -1301,7 +1301,7 @@
                             if(currentNode.getAttribute('notification') !== ''){
                                 w.setDate(null);
                                 currentNode.setAttribute('notification','');
-                                currentNode.children[7].children[6].children[0].setAttribute('src', '/static/img/calendar.svg');
+                                currentNode.children[7].children[6].children[0].setAttribute('src', NODZ_BASE + '/static/img/calendar.svg');
                                 notificationsDate = notificationsDate.filter(([notificationDate, layerNumber, currentNode]) => currentNode !== currentNode);
                                 // Sort by the first element (date) in the sub-array
                                 notificationsDate.sort((a, b) => a[0] - b[0]);
@@ -1323,7 +1323,7 @@
                                     notificationsDate.sort((a, b) => a[0] - b[0]);
                                     const event = new Event('countChange');
                                     notification.dispatchEvent(event);
-                                    currentNode.children[7].children[6].children[0].setAttribute('src', '/static/img/notification.svg');
+                                    currentNode.children[7].children[6].children[0].setAttribute('src', NODZ_BASE + '/static/img/notification.svg');
                                     save(currentNode);
                                     w.close();
                                 }

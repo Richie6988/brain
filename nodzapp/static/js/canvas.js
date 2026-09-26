@@ -146,7 +146,7 @@ function drawLine(event,canvasID,canvasButton6img,drawingData,nodeGroup) {
             // Reset for the next line         
             isFirstClick = true;
             isLining = false;
-            canvasButton6img.setAttribute('src', '/static/img/line.svg'); 
+            canvasButton6img.setAttribute('src', NODZ_BASE + '/static/img/line.svg'); 
 
             const drawingDataString = JSON.stringify(drawingData);
             nodeGroup.setAttribute('canvascontent',drawingDataString);
@@ -219,7 +219,7 @@ function drawCircle(event,canvasID,canvasButton7img,drawingData,nodeGroup) {
             // Reset for the next circle          
             isFirstClick = true;
             isCircling = false;
-            canvasButton7img.setAttribute('src', '/static/img/circle.svg'); 
+            canvasButton7img.setAttribute('src', NODZ_BASE + '/static/img/circle.svg'); 
 
             const drawingDataString = JSON.stringify(drawingData);
             nodeGroup.setAttribute('canvascontent',drawingDataString);

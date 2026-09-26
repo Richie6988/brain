@@ -1,13 +1,7 @@
 let tunnel;
 document.addEventListener('keydown', function(event) {
-    const videoinput = Array.from(document.getElementsByClassName("videoinput"));
    
-    if (event.key === 'Enter' && selectedNodes.length > 0 && !isTyping  && !overlay && videoinput.every(element => event.target !== element)) {
-        if (displayTutorial) {
-            selectedNodes[selectedNodes.length - 1].children[3].style.display = 'block'; 
-            event.stopPropagation();
-            return;
-        }
+    if (event.key === 'Enter' && selectedNodes.length > 0 && !isTyping  && !overlay) {
         if (JSON.parse(selectedNodes[selectedNodes.length - 1].getAttribute('quantum')).length === 0) {    
             tunnel = true;
             copynodes(tunnel);
@@ -239,7 +233,7 @@ function saveLayers() {
       layercounter: layerCounter,
       layer: layerNumber,
     });
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     fetch('/save-layers/', {
         method: 'POST',
         headers: {
@@ -265,7 +259,7 @@ function deleteLayer(layer,index) {
         layerid: layerid,
         layername: layerName,
     });    
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     fetch('/delete-layer/', {
         method: 'POST',
         headers: {

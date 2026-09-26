@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nod-Z</title>
-    <link rel="icon" href="/static/img/icon.png" type="image/png">
-    <link rel="stylesheet" href="static\css\home.css">
+    <link rel="icon" href="{% static 'img/icon.png' %}" type="image/png">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -21,7 +21,7 @@
                 <button class="submit-button" onclick="window.location.href='you';">Start Mapping Now</button>
             </div>
             <div class="media">
-                <img src="/static/img/logo.svg" alt="Nod-Z Flag Image">
+                <img src="{% static 'img/logo.svg' %}" alt="Nod-Z Flag Image">
             </div>
         </section>
  
@@ -29,17 +29,17 @@
             <div class="feature">
                 <h3>Interactive Mind Maps</h3>
                 <p>Create dynamic mind maps and navigate data like a multidimensional space voyager!</p>
-                <img src="/static/img/capture1.png" alt="Interactive Mind Maps">
+                <img src="{% static 'img/capture1.png' %}" alt="Interactive Mind Maps">
             </div>
             <div class="feature">
                 <h3>Media Integration</h3>
                 <p>Embed images, videos, and documents directly into your mind maps.</p>
-                <img src="/static/img/capture1.png" alt="Media Integration">
+                <img src="{% static 'img/capture1.png' %}" alt="Media Integration">
             </div>
             <div class="feature">
                 <h3>Enhanced Collaboration </h3>
                 <p>Fosters idea generation and collaboration in both individual and collaborative workspaces designed for organizations and companies.</p>
-                <img src="/static/img/capture1.png" alt="Enhance Collaboration">
+                <img src="{% static 'img/capture1.png' %}" alt="Enhance Collaboration">
             </div>
         </section>
 
@@ -103,9 +103,9 @@
     <footer class="footer">
         <span style="padding-bottom: 5px;">&copy; 2023-{% now "Y" %} Nod-Z. All rights reserved. | <a href="privacy">Privacy Policy</a> | <a href="terms">Terms of Service</a> | <a href="contact">Contact</a></span>
         <span class="social-links">
-            <a href="#"><img width="15" height="15" src="/static/img/youtube-logo.png" alt="Youtube"></a>
-            <a href="#"><img width="15" height="15" src="/static/img/X-logo.svg" alt="X"></a>
-            <a href="#"><img width="15" height="15" src="/static/img/linkedin-logo.svg" alt="LinkedIn"></a>
+            <a href="#"><img width="15" height="15" src="{% static 'img/youtube-logo.png' %}" alt="Youtube"></a>
+            <a href="#"><img width="15" height="15" src="{% static 'img/X-logo.svg' %}" alt="X"></a>
+            <a href="#"><img width="15" height="15" src="{% static 'img/linkedin-logo.svg' %}" alt="LinkedIn"></a>
         </span>  
     </footer>
 

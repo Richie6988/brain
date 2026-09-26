@@ -7,9 +7,6 @@ import datetime
 import os
 
 
-# Convert to UTC timezone
-utc_now = timezone.localtime(timezone.now())
-
 class NodzUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -133,8 +130,6 @@ class Node(models.Model):
     # Additional fields based on node type
     text_content = models.TextField(null=True, blank=True)
     image_content = models.ImageField(upload_to=user_layer_upload_to, null=True, blank=True)
-    video_content = models.TextField(null=True, blank=True)
-    video_link = models.TextField(null=True, blank=True)
     canvas_content = models.TextField(null=True, blank=True)
     file_name = models.TextField(null=True, blank=True)
     file = models.FileField(upload_to=user_layer_upload_to, null=True)
@@ -144,16 +139,14 @@ class Node(models.Model):
     # Aditionnal fields
     notification = models.TextField(null=True, blank=True)
     archive = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     modified_at = models.DateTimeField(default=timezone.now)
-    uploaded_at = utc_now
 
     def __str__(self):
         return f"Node {self.node_id} - Type: {self.type}"
     
     def save(self, *args, **kwargs):
         if not self.pk:  # If the object is being created
-            self.uploaded_at = timezone.now()  # Set uploaded_at to the current time
             self.modified_at = timezone.now()
         else:
             self.modified_at = timezone.now()

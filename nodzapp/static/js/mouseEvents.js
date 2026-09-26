@@ -15,7 +15,7 @@ svg.addEventListener('mousedown', function(event) {
             initialdragY = event.clientY;
             if(!colorWheelfo.contains(event.target) && !isSizing){
                 isDragging = true;
-                if(!selectedNodes.includes(currentNode) && !currentNode.children[0].children[3].contains(event.target) && !currentNode.children[4].contains(event.target) && !currentNode.children[5].contains(event.target) && !currentNode.children[6].contains(event.target)){
+                if(!selectedNodes.includes(currentNode) && !currentNode.children[4].contains(event.target) && !currentNode.children[5].contains(event.target) && !currentNode.children[6].contains(event.target)){
                     event.stopPropagation();
                     nodeSelection(currentNode); 
                     svg.style.cursor = 'grabbing';
@@ -73,7 +73,8 @@ svg.addEventListener('mousedown', function(event) {
 // Cursors
 
 svg.addEventListener('mousemove', function(event) {          
-    if(colorWheelfo.getAttribute('visibility') === 'visible') {  
+    // colorWheelfo est défini par interface.js, chargé après : absent pendant le chargement de la page.
+    if(window.colorWheelfo?.getAttribute('visibility') === 'visible') {  
         return; 
     }
     if(currentNode) {  
@@ -92,14 +93,6 @@ svg.addEventListener('mousemove', function(event) {
             sizeButtonfo.setAttribute('visibility','hidden');
             sizeButtonfo.children[0].setAttribute('visibility','hidden');  
             svg.style.cursor = 'crosshair';    
-            const videoinput = currentNode.children[0].children[3].children[1];
-            const leftButton = currentNode.children[0].children[3].children[2];
-            const rightButton = currentNode.children[0].children[3].children[3];
-            if (currentNode.getAttribute('type') === 'video' && !videoinput.disabled) { 
-                videoinput.style.display = 'none';
-                leftButton.style.display = 'none';
-                rightButton.style.display = 'none';
-            }                  
         } else if(currentNode.getAttribute('type') === 'text'){
             svg.style.cursor = 'text';  
         } else {
@@ -308,20 +301,6 @@ function out(nodeGroup) {
             // nodeGroup.children[0].children[0].blur();
             // save(nodeGroup); 
             svg.style.cursor = 'crosshair';
-            if (nodeGroup.getAttribute('type') === 'video' && !document.fullscreenElement){   
-                document.documentElement.requestFullscreen({
-                    navigationUI: 'hide' // Valid option for requestFullscreen
-                }).then(() => {
-                    document.exitFullscreen();
-                }).catch(error => {
-                    console.error('Error during auto fullscreen:', error);
-                });
-            } 
-            if (nodeGroup.getAttribute('type') === 'video') {
-                // Move focus away from youtube iframe
-                document.activeElement.blur();
-                universe.focus();                                 
-            }
             const fileGroup = nodeGroup.children[5];         
             fileGroup.setAttribute('visibility', 'hidden');  
             

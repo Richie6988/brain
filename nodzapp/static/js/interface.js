@@ -56,7 +56,6 @@ document.getElementById('brand-container').addEventListener('mouseover', functio
 document.getElementById('button-container').addEventListener('mouseover', function() {
     if (!isLoggedIn) {
         // Disabling click action
-        document.getElementById('tutorialButton').disabled = true;
         document.getElementById('templateButton').disabled = true;
         document.getElementById('soundButton').disabled = true;
         document.getElementById('darkButton').disabled = true;
@@ -74,7 +73,6 @@ document.getElementById('button-container').addEventListener('mouseover', functi
 // Adding event listener for mouseout event
 document.getElementById('button-container').addEventListener('mouseout', function() {
     // Enabling click action when mouse leaves the button container
-    document.getElementById('tutorialButton').disabled = false;
     document.getElementById('templateButton').disabled = false;
     document.getElementById('soundButton').disabled = false;
     document.getElementById('darkButton').disabled = false;
@@ -100,7 +98,7 @@ styleElement.id = 'linksButton-style';
 document.head.appendChild(styleElement);
 styleElement.textContent = `
 #linksButton::after {
-    background: url('/static/img/gradlink.svg') no-repeat center/cover;
+    background: url('${NODZ_BASE}/static/img/gradlink.svg') no-repeat center/cover;
     background-size: 90%;
 }`;
 
@@ -112,7 +110,7 @@ document.getElementById('linksButton').addEventListener('click', function() {
     if (linkState === 0){
         styleElement.textContent = `
         #linksButton::after {
-            background: url('/static/img/link.svg') no-repeat center/cover;
+            background: url('${NODZ_BASE}/static/img/link.svg') no-repeat center/cover;
             background-size: 90%;
         }`;
 
@@ -130,7 +128,7 @@ document.getElementById('linksButton').addEventListener('click', function() {
     } else if (linkState === 1){
         styleElement.textContent = `
         #linksButton::after {
-            background: url('/static/img/nolink.svg') no-repeat center/cover;
+            background: url('${NODZ_BASE}/static/img/nolink.svg') no-repeat center/cover;
             background-size: 90%;
         }`;
 
@@ -141,7 +139,7 @@ document.getElementById('linksButton').addEventListener('click', function() {
     } else {
         styleElement.textContent = `
         #linksButton::after {
-            background: url('/static/img/gradlink.svg') no-repeat center/cover;
+            background: url('${NODZ_BASE}/static/img/gradlink.svg') no-repeat center/cover;
             background-size: 90%;
         }`;
 
@@ -206,7 +204,7 @@ document.getElementById('flagButton').addEventListener('click', function() {
         const flagImage = document.createElementNS('http://www.w3.org/2000/svg', 'image');
 
         // Set the href attribute to point to the image source (e.g., flag icon)
-        flagImage.setAttributeNS(null, 'href', '/static/img/pin.svg');
+        flagImage.setAttributeNS(null, 'href', NODZ_BASE + '/static/img/pin.svg');
         
         // Set the width and height of the image
         flagImage.setAttribute('width', '30px');
@@ -252,26 +250,6 @@ document.getElementById('fullscreenButton').addEventListener('click', function()
 });
 document.getElementById('fullscreenButton').addEventListener('mouseover', function(event) {
     createTooltip ('fullscreenButton','Full screen');
-});
-
-document.getElementById('tutorialButton').addEventListener('mouseover', function() {
-    createTooltip ('tutorialButton','Tutorial');
-});
-
-let first = 0;
-document.getElementById('tutorialButton').addEventListener('click', function() {
-    var tutorial = document.getElementById('tutorial');
-    tutorial.style.display = 'flex';
-    tutorial.children[0].scrollTop = 0; 
-    overlay = true;
-    
-    window.addEventListener('click', function(event) {
-        tuti = document.getElementById('tutorial');
-        if (event.target === tutorial) {
-            tutorial.style.display = 'none';
-            overlay = false;
-        }
-    });
 });
 
 //////////////////// TEMPLATE ////////////////////
@@ -553,48 +531,48 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
 
         const colorLogo = document.querySelectorAll('img');
         colorLogo.forEach(color => {
-            if (color.getAttribute('src') === '/static/img/colorpicking.svg'){
-                color.setAttribute('src', '/static/img/colorpicking-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/bold.svg'){
-                color.setAttribute('src', '/static/img/bold-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/italic.svg'){
-                color.setAttribute('src', '/static/img/italic-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/underline.svg'){
-                color.setAttribute('src', '/static/img/underline-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/smiley.svg'){
-                color.setAttribute('src', '/static/img/smiley-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/view.svg'){
-                color.setAttribute('src', '/static/img/view-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/unlock.svg'){
-                color.setAttribute('src', '/static/img/unlock-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/edit.svg'){
-                color.setAttribute('src', '/static/img/edit-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/calendar.svg'){
-                color.setAttribute('src', '/static/img/calendar-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/lock.svg'){
-                color.setAttribute('src', '/static/img/lock-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/layer.svg'){
-                color.setAttribute('src', '/static/img/layer-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/newimg.svg'){
-                color.setAttribute('src', '/static/img/newimg-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/undo.svg'){
-                color.setAttribute('src', '/static/img/undo-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/redo.svg'){
-                color.setAttribute('src', '/static/img/redo-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/eraser.svg'){
-                color.setAttribute('src', '/static/img/eraser-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/eraseall.svg'){
-                color.setAttribute('src', '/static/img/eraseall-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/circle.svg'){
-                color.setAttribute('src', '/static/img/circle-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/square.svg'){
-                color.setAttribute('src', '/static/img/square-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/line.svg'){
-                color.setAttribute('src', '/static/img/line-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/upload.svg'){
-                color.setAttribute('src', '/static/img/upload-light.svg');
-            } else if (color.getAttribute('src') === '/static/img/download.svg'){
-                color.setAttribute('src', '/static/img/download-light.svg');
+            if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/bold.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/bold-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/italic.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/italic-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/underline.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/underline-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/smiley.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/smiley-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/view.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/view-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/unlock.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/edit.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/edit-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/calendar.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/calendar-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/lock.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/layer.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/layer-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/newimg.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/newimg-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/undo.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/undo-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/redo.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/redo-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/eraser.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/eraser-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/eraseall.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/eraseall-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/circle.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/square.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/line.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/line-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/upload.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/upload-light.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/download.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/download-light.svg');
             }
         });       
         
@@ -638,48 +616,48 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
 
         const colorLogo = document.querySelectorAll('img');
         colorLogo.forEach(color => {
-            if (color.getAttribute('src') === '/static/img/colorpicking-light.svg'){
-                color.setAttribute('src', '/static/img/colorpicking.svg');
-            } else if (color.getAttribute('src') === '/static/img/bold-light.svg'){
-                color.setAttribute('src', '/static/img/bold.svg');
-            } else if (color.getAttribute('src') === '/static/img/italic-light.svg'){
-                color.setAttribute('src', '/static/img/italic.svg');
-            } else if (color.getAttribute('src') === '/static/img/underline-light.svg'){
-                color.setAttribute('src', '/static/img/underline.svg');
-            } else if (color.getAttribute('src') === '/static/img/smiley-light.svg'){
-                color.setAttribute('src', '/static/img/smiley.svg');
-            } else if (color.getAttribute('src') === '/static/img/view-light.svg'){
-                color.setAttribute('src', '/static/img/view.svg');
-            } else if (color.getAttribute('src') === '/static/img/unlock-light.svg'){
-                color.setAttribute('src', '/static/img/unlock.svg');
-            } else if (color.getAttribute('src') === '/static/img/edit-light.svg'){
-                color.setAttribute('src', '/static/img/edit.svg');
-            } else if (color.getAttribute('src') === '/static/img/calendar-light.svg'){
-                color.setAttribute('src', '/static/img/calendar.svg');
-            } else if (color.getAttribute('src') === '/static/img/lock-light.svg'){
-                color.setAttribute('src', '/static/img/lock.svg');
-            } else if (color.getAttribute('src') === '/static/img/layer-light.svg'){
-                color.setAttribute('src', '/static/img/layer.svg');
-            } else if (color.getAttribute('src') === '/static/img/newimg-light.svg'){
-                color.setAttribute('src', '/static/img/newimg.svg');
-            } else if (color.getAttribute('src') === '/static/img/undo-light.svg'){
-                color.setAttribute('src', '/static/img/undo.svg');
-            } else if (color.getAttribute('src') === '/static/img/redo-light.svg'){
-                color.setAttribute('src', '/static/img/redo.svg');
-            } else if (color.getAttribute('src') === '/static/img/eraser-light.svg'){
-                color.setAttribute('src', '/static/img/eraser.svg');
-            } else if (color.getAttribute('src') === '/static/img/eraseall-light.svg'){
-                color.setAttribute('src', '/static/img/eraseall.svg');
-            } else if (color.getAttribute('src') === '/static/img/circle-light.svg'){
-                color.setAttribute('src', '/static/img/circle.svg');
-            } else if (color.getAttribute('src') === '/static/img/square-light.svg'){
-                color.setAttribute('src', '/static/img/square.svg');
-            } else if (color.getAttribute('src') === '/static/img/line-light.svg'){
-                color.setAttribute('src', '/static/img/line.svg');
-            } else if (color.getAttribute('src') === '/static/img/upload-light.svg'){
-                color.setAttribute('src', '/static/img/upload.svg');
-            } else if (color.getAttribute('src') === '/static/img/download-light.svg'){
-                color.setAttribute('src', '/static/img/download.svg');
+            if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/bold-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/bold.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/italic-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/italic.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/underline-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/underline.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/smiley-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/smiley.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/view-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/view.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/unlock-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/edit-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/edit.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/calendar-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/calendar.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/lock-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/layer-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/layer.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/newimg-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/newimg.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/undo-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/undo.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/redo-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/redo.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/eraser-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/eraser.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/eraseall-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/eraseall.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/circle-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/square-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/line-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/line.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/upload-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/upload.svg');
+            } else if (color.getAttribute('src') === NODZ_BASE + '/static/img/download-light.svg'){
+                color.setAttribute('src', NODZ_BASE + '/static/img/download.svg');
             }
         });
 
@@ -975,7 +953,7 @@ function login() {
             buttonContainer.style.display = 'none';     
         }
         pendingLogin = true;        
-        iframe.src = '/login/';    
+        iframe.src = NODZ_BASE + '/login/';    
     });
     buttonContainer.appendChild(loginButton);
 
@@ -988,7 +966,6 @@ function login() {
     
         guest();
         document.body.removeChild(popup);
-        //tuto();
     });
 
 
@@ -1021,170 +998,7 @@ function login() {
 }
 
 
-//// Tutorial ////
-let tutoPhase = 0;
-function tuto(node){  
-    if(node){
-        node.children[0].style.display='none';
-        node.children[4].style.display='none';
-        node.children[5].style.display='none';
-        node.children[6].style.display='none';
-        nodeSizing(node,110,110);
-    }
-    console.log('tutophase:', tutoPhase)
-    switch (tutoPhase) {
-        case 0:
-            overlay = true;
-            displayTutorial = true;
-            //// Tuto 1st sequence ////
-            var intro = document.createElement('div');
-            intro.id = 'intro';
-            intro.className = 'tuto'; 
-            intro.innerHTML = `
-                <strong>...Nod: </strong> Some say I’m a <strong>relational, multimodal, and multidimensional tool</strong> designed to store pieces of your mind.<br>
-                <br>But please call me Nod! <br><br>
-                I can hold various forms of content including <strong>text</strong> for notes, 
-                <strong>images</strong>, <strong>videos</strong>, or even <strong>3D models</strong> to help visualize ideas. 
-                I can also support <strong>sketching</strong> to enhance your creativity and <strong>file embedding and visualization</strong> 
-                to document ideas seamlessly.
-            `;
-            document.body.appendChild(intro);
-            // Apply CSS 
-            intro.style.position = 'fixed';
-            const introHeight = intro.getBoundingClientRect().height;
-            intro.style.top = `calc(50% - ${introHeight / 2}px)`; 
-            intro.style.left = '50%';
-            intro.style.transform = 'translateX(-50%)'; // Centers the element horizontally
-            intro.style.width = '80%'; 
-            intro.style.zIndex = '1000'; // Ensure it stays on top of other elements
-        
-            var gotit_btn = document.createElement('button');
-            gotit_btn.id = 'gotit_btn';
-            gotit_btn.textContent = 'LET\'S GO';
-            gotit_btn.className = 'submit-button';  
-            gotit_btn.style.padding = '5px';
-            gotit_btn.style.fontSize = '10px';
-            gotit_btn.style.backgroundColor = '#6748a67e';
-        
-            // Apply CSS 
-            gotit_btn.style.position = 'fixed';
-            gotit_btn.style.width = `70px`; 
-            gotit_btn.style.bottom = `140px`; 
-            gotit_btn.style.left = '50%';
-            gotit_btn.style.transform = 'translateX(-50%)'; // Centers the element horizontally
-            gotit_btn.style.zIndex = '1000'; // Ensure it stays on top of other elements        
-            document.body.appendChild(gotit_btn);
-             
-            var tutoDescription = document.createElement('p');
-            tutoDescription.id = 'node0';
-            tutoDescription.className = 'tuto';
-            tutoDescription.style.width = '90%';
-            tutoDescription.style.position = 'fixed';
-            tutoDescription.style.top = `80%`; 
-            tutoDescription.style.left = '50%';
-            tutoDescription.style.transform = 'translateX(-50%)'; 
-            tutoDescription.style.zIndex = '1000'; // Ensure it stays on top of other element
-            tutoDescription.style.justifyContent = 'center';
-            tutoDescription.style.height = 'fit-content';
-            document.body.appendChild(tutoDescription);
 
-            intro.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-            })
-            tutoDescription.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-            })
-        
-            gotit_btn.addEventListener('mousedown', function(e) {
-                tutoPhase += 1;
-                tuto();
-            })
-          
-            break;
-        case 1:
-            intro = document.getElementById('intro');
-            tutoDescription = document.getElementById('node0');
-            gotit_btn = document.getElementById('gotit_btn');
-
-            document.body.removeChild(intro)
-            
-            tutoDescription.innerHTML = `<strong>Double click</strong> to create a node at center<br><strong>Press space bar</strong> to create a node at pointer`;
-            tutoDescription.style.pointerEvents = 'none';
-      
-            gotit_btn.textContent = 'GOT IT'
-            gotit_btn.style.opacity = 0;
-           
-            break;
-        case 2:
-            tutoDescription = document.getElementById('node0');
-            gotit_btn = document.getElementById('gotit_btn');
-
-            var tutoP = `Click on my edges to <strong>select me</strong>. You can also use a selection window while pressing <strong>Control Key</strong>. <br>
-            When selected, you access my <strong>options</strong>, <strong>move</strong> me around, or <strong>connect</strong> me with other nodes.<br>
-            Another click will <strong>unselect</strong> me, and let you access to my <strong>content</strong>.
-            `;
-            tutoDescription.innerHTML = tutoP;
-
-            document.getElementById('gotit_btn').style.opacity = 1;
-            break;
-        case 3:
-            tutoDescription = document.getElementById('node0');
-
-            tutoP = `
-            <strong>Move universe</strong>: <strong>click & drag</strong> the background or use <strong>2 fingers on touchpad</strong>.<br>
-            <strong>Zoom</strong>: use the <strong>mouse wheel</strong> or <strong>pinch gesture on a touchpad</strong>. <br>
-            <strong>Tab Key</strong>: jump between extreme zoom levels at <strong>cursor position</strong>.
-            `;
-            tutoDescription.innerHTML = tutoP;
-            break;
-        case 4:
-            tutoDescription = document.getElementById('node0');
-            tutoP = `
-            Select me and other nodes and press <strong>Space Bar</strong> to link us.<br>
-            You can also use it to directly create a<strong>connected node</strong>
-            `;
-            tutoDescription.innerHTML = tutoP;
-            break;
-        case 5:
-            tutoDescription = document.getElementById('node0');
-            gotit_btn = document.getElementById('gotit_btn');
-            
-            document.body.removeChild(tutoDescription);
-            const nodeGroups = document.querySelectorAll('.node-group');
-            // Iterate through each nodeGroup and check the condition
-            for (let i = 0; i < nodeGroups.length; i++) {
-                deleteNode([nodeGroups[i]]);                
-            }
-            displayTutorial = false;
-            document.body.removeChild(gotit_btn);
-
-            nodeCounter = 0;
-            linkCounter = 0;
-
-            buttonContainer.classList.add("show");
-            const tutorial = document.getElementById('tutorialButton');
-            tutorial.classList.add('rookie');
-
-            setTimeout(() => {
-                tutorial.classList.remove('rookie');
-            }, 400);
-            setTimeout(() => {
-                tutorial.classList.add('rookie');
-            }, 400);
-          
-
-            setTimeout(() => {
-                document.getElementById('tutorialButton').click();
-                tutorial.classList.remove('rookie');
-                buttonContainer.classList.remove("show");
-            }, 1000);
-
-            if(!isLoggedIn) {
-                loadingSpinner.style.display = 'block';
-            }
-            break;
-    }
-}
 
 
 
@@ -1228,262 +1042,6 @@ function guest() {
     });
 }
 
-
-//////////////////// YOUTUBE VIDEO PLAYER ////////////////////
-
-let players = [];
-let videoIds = [];
-
-let isAPIReady = false;
-
-// Function is called by the YouTube API when it is ready
-function onYouTubeIframeAPIReady() {
-    isAPIReady = true;
-    console.log("YT API ready")
-}
-
-
-// Function to initialize a YouTube player for a nodegroup
-function initializePlayer(counter,video) {
-    if (isAPIReady) {
-        // Initialize the YouTube player
-        players[counter] = new YT.Player(`videoplayer-${counter}`, {
-            height: '250',
-            width: '350',
-            videoId: videoIds[counter], // The video ID will be set when the video is loaded
-            host: 'http://www.youtube-nocookie.com',
-            playerVars: {
-                modestbranding: 0,
-                controls: 1,
-                iv_load_policy:3,
-                loop:0,
-                rel:0,
-                showinfo:0,           
-                autoplay: 1, 
-                disablekb: 1,
-                fs: 1,
-                mute: 0,
-                autohide: 1,
-                loaded: 0,
-                enablejsapi: 0,
-                size: 0,
-                origin: window.location.origin,
-                enablejsapi: 1, // Enable JS API
-            },
-            events: {
-                'onReady': function () {},
-                'onStateChange': (event) => onPlayerStateChange(event, counter),
-                'onError': function (event) {
-                    // console.error(`YouTube Player Error [Counter: ${counter}]`, event);
-                    if (videoIndex === videoSearch.length - 1) {
-                        videoIndex = 0;
-                    } else {
-                        videoIndex += 1;
-                    }          
-                    document.getElementById(`videoinput-${counter}`).value = videoSearch[videoIndex];
-                    document.getElementById(`N-${counter}`).setAttribute('videolink',videoSearch[videoIndex])   
-                    if(intervalId === null)  {
-                        loadYouTubeVideo(counter);  
-                    }
-                }
-            }
-        });
-
-    } else {
-        console.log('API is not ready yet. Please wait.');
-    }  
-
-}
-
-function onPlayerStateChange(event, counter) {
-    const states = {
-        '-1': 'UNSTARTED',
-        '0': 'ENDED',
-        '1': 'PLAYING',
-        '2': 'PAUSED',
-        '3': 'BUFFERING',
-        '5': 'VIDEO_CUED'
-    };
-    
-    // console.log(`Player ${counter} state changed to:`, states[event.data]);
-
-    if (event.data === YT.PlayerState.PLAYING) {
-        document.getElementById(`N-${counter}`).setAttribute('videocontent',players[counter].videoTitle);
-        console.log(document.getElementById(`N-${counter}`).getAttribute('videocontent'))
-
-        if(sound){
-            var audio = document.getElementById('music'); 
-            document.getElementById('soundButton').className = 'soundoff';
-            sound = false;             
-            audio.pause();
-        } 
-    }
-}
-
-// Function to load and play the YouTube video
-function loadYouTubeVideo(counter) {
-    // Get the YouTube video ID from the input field
-    var url = document.getElementById(`videoinput-${counter}`).value || 'v=0FBiyFpV__g';  
-
-    if (url !== null && url !== "") {  
-        videoIds[counter] = extractYouTubeVideoId(url,counter);   
-        if(players[counter]){
-            players[counter].loadVideoById(videoIds[counter]);
-            console.log('Existing player'); 
-        } else {
-            initializePlayer(counter,videoIds[counter]); 
-            console.log('New player');
-        }
-    } 
-}
-
-let videoSearch = ['v=0FBiyFpV__g','v=x7eH-VqRhyA','v=MILbOVRVeOk','v=DHUnz4dyb54','v=39uYW98qOV0','v=6dp-bvQ7RWo'];
-let videoIndex = 0;
-// Variable to hold the interval ID
-let intervalId;
-
-// Function to toggle the color of the buttons
-function toggleButtonColor(button) {
-    button.classList.toggle('search-button-loading'); // Add or remove the class
-}
-
-// Function to start the alternating color change
-function startAlternatingColor(lbutton,rbutton) {
-    // Set interval to toggle color every second
-    intervalId = setInterval(function() {
-        toggleButtonColor(lbutton); 
-        toggleButtonColor(rbutton); 
-    }, 1000);
-}
-
-// Function to stop the alternating color change
-function stopAlternatingColor(lbutton,rbutton) {
-    // Clear the interval
-    clearInterval(intervalId);
-    intervalId = null;
-    if (lbutton.classList.contains('search-button-loading')) {
-        lbutton.className = 'arrow-button search-button-left';
-    }
-    if (rbutton.classList.contains('search-button-loading')) {
-        rbutton.className = 'arrow-button search-button-right';
-    }
-}
-
-
-function extractYouTubeVideoId(url,counter) {
-    document.getElementById(`videoinput-${counter}`).disabled = true;
-    document.getElementById(`videoinput-${counter}`).value = 'loading...';
-    startAlternatingColor(document.getElementById(`leftButton-${counter}`),document.getElementById(`rightButton-${counter}`));
-   
-    // Regular expression to match the video ID from the URL
-    const regex = /(?:\/|%3D|v=|vi=)([a-zA-Z0-9_-]{11})/;
-    const match = url.match(regex);
-     
-    if(match ? match[1] : null) {   
-        document.getElementById(`N-${counter}`).setAttribute('videolink', match[0])  
-        save(document.getElementById(`N-${counter}`));        
-        document.getElementById(`videoinput-${counter}`).value = match[0];
-        document.getElementById(`videoinput-${counter}`).disabled = false;
-        stopAlternatingColor(document.getElementById(`leftButton-${counter}`),document.getElementById(`rightButton-${counter}`));
-        return match ? match[1] : null;
-    } else {
-        const csrfToken = getCookie('csrftoken');
-  
-        fetch('YTsearch/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken,
-            },
-            body: JSON.stringify(url),
-        }).then(response => {       
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            document.getElementById(`videoinput-${counter}`).disabled = false;
-            stopAlternatingColor(document.getElementById(`leftButton-${counter}`),document.getElementById(`rightButton-${counter}`));
-           
-            return response.json();
-        })
-        .then(data => {
-            // Handle the retrieved JSON data
-            const inputElement = document.getElementById(`videoinput-${counter}`);
-
-            // Create a new event
-            var enterKeyEvent = new KeyboardEvent('keydown', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13, // Deprecated but still used for compatibility
-                which: 13,   // Deprecated but still used for compatibility
-                bubbles: true,
-                cancelable: true
-            });
-
-            videoSearch.length = 0;
-            
-            for (var i = 0; i < data.video_ids.length; i++) {
-                videoSearch[i] = data.video_ids[i];
-            }
-    
-            // Create a set to store unique values
-            var uniqueVideoSearch = new Set(videoSearch);
-
-            // Convert the set back to an array to remove duplicates
-            videoSearch = Array.from(uniqueVideoSearch);
-            console.log(data)
-            const match = data.video_ids[0].match(regex);
-            inputElement.value = match[0];
-            document.getElementById(`N-${counter}`).setAttribute('videolink',match[0])
-            save(document.getElementById(`N-${counter}`));
-            setTimeout(() => {
-                inputElement.dispatchEvent(enterKeyEvent);
-            }, 200); 
-
-        }).catch(error => {
-            // Handle error
-        });                   
-    }  
-}
-
-// Function to pause the video
-function pauseVideoIfOutOfViewport(counter) {
-    var videocontainer = document.getElementById(`videoplayer-${counter}`);
-    if (players[counter] && isOnScreen(videocontainer.parentElement.parentElement.parentElement) !== 4) {
-        players[counter].pauseVideo();
-    }
-}
-
-// Text infinite scroll
-
-function scrollPlaceholder(input, text, speed = 100) {
-    // Add extra spaces to create a gap between repetitions
-    const fullText = text + "     ";
-    let position = 0;
-    let lastTime = 0;
-
-    function animate(currentTime) {
-        // Check if enough time has passed based on speed
-        if (currentTime - lastTime > speed) {
-            // Move the position one character at a time
-            position = (position + 1) % fullText.length;
-            
-            // Create the scrolling effect
-            const scrolledText = fullText.slice(position) + fullText.slice(0, position);
-            
-            // Update the placeholder
-            input.placeholder = scrolledText;
-            
-            // Update last time
-            lastTime = currentTime;
-        }
-        
-        // Continue the animation
-        requestAnimationFrame(animate);
-    }
-
-    // Start the animation
-    requestAnimationFrame(animate);
-}
 
 //////////////////// COUNTER LABEL FOR NAVIGATION ////////////////////
 
@@ -1611,7 +1169,7 @@ const picker = new ColorWheel(function (eventState) {
             setTimeout(save(currentNode),1000);        
 
         }  else if (colorContext === 'sketch') {
-            const canvas = currentNode.children[0].children[4];
+            const canvas = currentNode.children[0].children[3];
             var ctx = canvas.getContext('2d');
             colorWheelfo.setAttribute('visibility', 'hidden');
             ctx.strokeStyle = selectedColorCSS;     

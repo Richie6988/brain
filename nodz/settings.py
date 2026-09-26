@@ -36,6 +36,23 @@ if not SECRET_KEY or (not DEBUG and SECRET_KEY.startswith('dev-only')):
 
 ALLOWED_HOSTS = [h for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') if h]
 
+# Préfixe d'URL quand Nodz est servi sous un chemin (ex. /nodz derrière le nginx de paintit).
+FORCE_SCRIPT_NAME = os.environ.get('NODZ_URL_PREFIX', '').rstrip('/') or None
+# Noms propres à Nodz : sur un domaine partagé, sessionid/csrftoken entreraient en collision.
+SESSION_COOKIE_NAME = 'nodz_sessionid'
+CSRF_COOKIE_NAME = 'nodz_csrftoken'
+SESSION_COOKIE_PATH = CSRF_COOKIE_PATH = (FORCE_SCRIPT_NAME or '') + '/'
+CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o]
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    # HSTS volontairement absent en test (irréversible côté navigateurs) ; nginx redirige vers HTTPS ;
+    # X_FRAME_OPTIONS reste SAMEORIGIN car Nodz s'affiche lui-même en iframe.
+    SILENCED_SYSTEM_CHECKS = ['security.W004', 'security.W008', 'security.W019']
+
 
 # Application definition
 
@@ -75,6 +92,7 @@ CHANNEL_LAYERS = {
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -98,6 +116,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'nodzapp.context_processors.nodz_base',
             ],
         },
     },
@@ -112,7 +131,7 @@ WSGI_APPLICATION = 'nodz.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.environ.get('SQLITE_PATH') or BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -154,14 +173,25 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = (FORCE_SCRIPT_NAME or '') + '/static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'nodzapp/static'),
     # Add more app static directories if necessary
 ]
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-MEDIA_URL = 'media/'
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
+MEDIA_URL = (FORCE_SCRIPT_NAME or '') + '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'nodzapp/media')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO')},
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -169,8 +199,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'nodzapp/media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'nodzapp.NodzUser'
 
-LOGIN_REDIRECT_URL = 'index'
-LOGOUT_REDIRECT_URL = 'index' 
+LOGIN_REDIRECT_URL = 'universe'
+LOGOUT_REDIRECT_URL = 'home'
 
 
 # Add your email configuration

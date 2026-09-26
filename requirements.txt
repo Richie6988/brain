@@ -6,6 +6,7 @@ channels==4.0.0
 daphne==4.1.2
 python-dotenv==1.2.3
 pillow==12.3.0
+whitenoise==6.12.0
 
 # Extraction de texte et conversion de fichiers
 PyPDF2==3.0.1
@@ -14,10 +15,8 @@ python-pptx==1.0.2
 openpyxl==3.1.5
 aspose.slides==26.9.0
 reportlab==5.0.1
-beautifulsoup4==4.15.0
 
-# Paiement, géolocalisation, jetons, HTTP
+# Paiement, géolocalisation, jetons
 stripe==15.6.1
 geoip2==5.3.0
 itsdangerous==2.2.0
-requests==2.34.2

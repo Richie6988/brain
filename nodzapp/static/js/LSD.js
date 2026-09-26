@@ -36,7 +36,7 @@ observer.observe(log, config);
 
 
 function referrer(rId){
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     const data = [];
     data.push({ 
         referrer: rId, 
@@ -68,9 +68,8 @@ function load(layer,nodeID){
     loadingSpinner.style.display = 'block';
     isLoading = true;
     selectedNodes.length = 0;
-    players = [];
     currentNode = null;
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     fetch('/loading/', {
         method: 'POST',
         headers: {
@@ -206,25 +205,25 @@ function displayNode(node) {
     if(node.shape === 'none'){
         newNode.style.stroke = 'transparent';
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/hide.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/hide-light.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
         }
     } else if(node.shape === 'circle') {
         newNode.style.stroke = node.color;
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/circle.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/circle-light.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
         }
     }  else if(node.shape === 'square') {
         newNode.children[1].style.stroke = 'transparent';
         newNode.children[2].style.display = 'block';  
         newNode.children[2].setAttribute('class','squareShape');  
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/square.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', '/static/img/square-light.svg');
+            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
         }
     } 
     newNode.setAttribute('layer', node.layer__layer_id);
@@ -234,10 +233,7 @@ function displayNode(node) {
     newNode.setAttribute('canvascontent', node.canvas_content);
     var drawingDataString = newNode.getAttribute('canvascontent');
     var drawingData = JSON.parse(drawingDataString);              
-    redrawCanvas(newNode.children[0].children[4].id,0, drawingData);
-    newNode.setAttribute('videocontent', node.video_content);
-    newNode.setAttribute('videolink', node.video_link);
-    newNode.children[0].children[3].children[1].value  =  newNode.getAttribute('videolink');
+    redrawCanvas(newNode.children[0].children[3].id,0, drawingData);
     newNode.setAttribute('filename', node.file_name);
     newNode.setAttribute('file', node.file);
     newNode.children[5].children[2].children[0].textContent = node.file_name;        
@@ -249,22 +245,22 @@ function displayNode(node) {
     }    
     newNode.setAttribute('notification', node.notification);
     if(newNode.getAttribute('notification') !== '') {
-        newNode.children[7].children[6].children[0].setAttribute('src', '/static/img/notification.svg');
+        newNode.children[7].children[6].children[0].setAttribute('src', NODZ_BASE + '/static/img/notification.svg');
     }
   
     if(node.lock){
         newNode.setAttribute('lock', 1);
         if (dark) {
-            newNode.children[7].children[7].children[0].setAttribute('src', '/static/img/lock.svg');
+            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
         } else {
-            newNode.children[7].children[7].children[0].setAttribute('src', '/static/img/lock-light.svg');
+            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
         }
     } else {
         newNode.setAttribute('lock', 0);
         if (dark) {
-            newNode.children[7].children[7].children[0].setAttribute('src', '/static/img/unlock.svg');
+            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
         } else {
-            newNode.children[7].children[7].children[0].setAttribute('src', '/static/img/unlock-light.svg');
+            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
         }
     }
     newNode.setAttribute('quantum', node.quantum);
@@ -310,10 +306,10 @@ function displayTemplate(template) {
     loadTemplate.setAttribute('type', template.type);
     if(template.lock){
         loadTemplate.setAttribute('lock', 1);
-        loadTemplate.children[2].children[0].setAttribute('src', '/static/img/lock-template.svg'); 
+        loadTemplate.children[2].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-template.svg'); 
     } else {
         loadTemplate.setAttribute('lock', 0);
-        loadTemplate.children[2].children[0].setAttribute('src', '/static/img/unlock-template.svg');
+        loadTemplate.children[2].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-template.svg');
     }
 }
 
@@ -328,7 +324,6 @@ let nodes = 0;
 let text_nodes = 0;
 let image_nodes = 0;
 let file_nodes = 0;
-let video_nodes = 0;
 let sketch_nodes = 0;
 function loadUser(param) {
     if (param.name === "username") {
@@ -361,8 +356,6 @@ function loadUser(param) {
         image_nodes = param.value;
     } else if (param.name === "file_nodes") {
         file_nodes = param.value;
-    } else if (param.name === "video_nodes") {
-        video_nodes = param.value;
     } else if (param.name === "sketch_nodes") {
         sketch_nodes = param.value;
     } 
@@ -404,7 +397,7 @@ function loadParams(param) {
 }
 
 function loadFile(nodeID, fileName, spinner, filePreview, fileContainer) {
-    const csrfToken = getCookie('csrftoken');            
+    const csrfToken = getCookie('nodz_csrftoken');            
     fetch('/load-file/', {
         method: 'POST',
         headers: {
@@ -452,7 +445,7 @@ function loadFile(nodeID, fileName, spinner, filePreview, fileContainer) {
 
 function save(nodeGroup,tunnel){
     if(admin){return}
-    if(!isLoading && !displayTutorial){
+    if(!isLoading){
         console.log(nodeGroup.id,' SAVED')
         const data = [];
         const id = parseInt(nodeGroup.id.match(/\d+/)[0], 10);
@@ -466,8 +459,6 @@ function save(nodeGroup,tunnel){
         const layer = nodeGroup.getAttribute('layer');
         const textContent = nodeGroup.getAttribute('textcontent');
         const imgContent = nodeGroup.getAttribute('imagecontent');
-        const videoLink = nodeGroup.getAttribute('videolink');
-        const videoContent = nodeGroup.getAttribute('videocontent');
         const canvasContent = nodeGroup.getAttribute('canvascontent');
         const fileName = nodeGroup.getAttribute('filename');
         const file = nodeGroup.getAttribute('file');    
@@ -489,8 +480,6 @@ function save(nodeGroup,tunnel){
             layer: layer,
             textContent: textContent,
             imgContent: imgContent,
-            videoLink: videoLink,
-            videoContent: videoContent,
             canvasContent: canvasContent,
             links: links,
             siblings: siblings,
@@ -526,7 +515,7 @@ function save(nodeGroup,tunnel){
             fullscreen: fullscreen,
         })
 
-        const csrfToken = getCookie('csrftoken');
+        const csrfToken = getCookie('nodz_csrftoken');
 
         fetch('/save-node/', {
             method: 'POST',
@@ -563,7 +552,7 @@ function saveQuantum(id,tunnelid){
         layer: layer,
     });
 
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
 
     fetch('/save-quantum/', {
         method: 'POST',
@@ -600,7 +589,7 @@ function deleteQuantum(id){
         id: parseInt(id.match(/\d+/)[0], 10),
     });
 
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
 
     fetch('/delete-quantum/', {
         method: 'POST',
@@ -686,10 +675,9 @@ function deleteNode(nodes) {
                 }  
             }
         });
-        if(!quantum && !displayTutorial) {
+        if(!quantum) {
             data.push({id: parseInt(node.getAttribute('id').match(/\d+/)[0], 10)}); 
         }
-        players = players.filter((player, index) => index !== parseInt(node.getAttribute('id').match(/\d+/)[0], 10));
         universe.removeChild(node);                   
     });
 
@@ -698,7 +686,7 @@ function deleteNode(nodes) {
 }
 
 function deleteFetch (data){
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     // Set up headers
     const headers = {
         'Content-Type': 'application/json',

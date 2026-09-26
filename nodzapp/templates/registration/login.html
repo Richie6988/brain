@@ -9,7 +9,7 @@
     <title>LOGIN</title> 
     <link rel="stylesheet" href="{% static 'css/constelcss.css' %}">
     <link rel="stylesheet" href="{% static 'css/interface.css' %}">
-    <script src="https://unpkg.com/htmx.org/dist/htmx.js"></script>    
+    <script src="{% static 'vendor/htmx-2.0.11/htmx.js' %}"></script>    
     <style>
 
         form {
@@ -84,8 +84,8 @@
             {% csrf_token %}
             <input type="email" id="email" name="email" placeholder="Email address" style="max-height: 15px;" required>
             <input type="password" id="password" name="password" placeholder="Password" style="max-height: 15px;" required>
-            <button class="submit-button log-button" hx-post="/checklogin/" hx-swap="outerhtml" hx-target="#err">LOGIN</button>
-            <a href="/forgot-password/" class="forgot-password" onclick="forgot()">Forgot Password?</a>
+            <button class="submit-button log-button" hx-post="{% url 'checklogin' %}" hx-swap="outerhtml" hx-target="#err">LOGIN</button>
+            <a href="{% url 'forgot_password' %}" class="forgot-password" onclick="forgot()">Forgot Password?</a>
         </form>    
     </div>
     
@@ -97,7 +97,7 @@
             <input type="date" id="birthdate" name="birthdate" autocomplete="off" style="max-height: 15px;" required onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" placeholder="Birth date">
             <input type="password" id="password1" name="password1" placeholder="Password" autocomplete="new-password" style="max-height: 15px;" required>
             <input type="password" id="password2" name="password2" placeholder="Confirm password" autocomplete="new-password" style="max-height: 15px;" required>
-            <button class="submit-button reg-button" hx-post="/register/" hx-swap="outerhtml" hx-target="#err">REGISTER</button>
+            <button class="submit-button reg-button" hx-post="{% url 'register' %}" hx-swap="outerhtml" hx-target="#err">REGISTER</button>
         </form>
     </div>
 
@@ -239,7 +239,7 @@
     observer.observe(targetNode, config);
 
 </script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="{% static 'vendor/jquery-3.6.0/jquery.min.js' %}"></script>
 
      
 </body>

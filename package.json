@@ -1,0 +1,12 @@
+{
+  "name": "nodz-next",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "feel": "node tests/feel/feel.mjs",
+    "feel:record": "node tests/feel/feel.mjs --record"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

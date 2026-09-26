@@ -1,0 +1,18 @@
+# Nodz - service systemd (Daphne, ASGI : HTTP + WebSocket)
+# Cible : /etc/systemd/system/nodz.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now nodz
+[Unit]
+Description=Nodz (Daphne ASGI)
+After=network.target
+
+[Service]
+User=nodz
+Group=www-data
+WorkingDirectory=/home/nodz/brain
+EnvironmentFile=/home/nodz/brain/.env
+ExecStart=/home/nodz/brain/.venv/bin/daphne -b 127.0.0.1 -p 8001 --proxy-headers nodz.asgi:application
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

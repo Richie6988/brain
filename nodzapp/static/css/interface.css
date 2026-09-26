@@ -142,36 +142,24 @@
 }
 
 #originButton::after {
-  background: url('/static/img/reset.svg')no-repeat center/cover;
+  background: url('../img/reset.svg')no-repeat center/cover;
   background-size: 90%;
 }
 
 #linksButton::after {
-  background: url('/static/img/gradlink.svg')no-repeat center/cover;
+  background: url('../img/gradlink.svg')no-repeat center/cover;
   background-size: 90%;
 }
 
 
 #flagButton::after {
-  background: url('/static/img/flag.svg')no-repeat center/cover;
+  background: url('../img/flag.svg')no-repeat center/cover;
   background-size: 70%;
 }
 
 #fullscreenButton::after {
-  background: url('/static/img/full-screen.svg')no-repeat center/cover;
+  background: url('../img/full-screen.svg')no-repeat center/cover;
   background-size: 65%;
-}
-
-#tutorialButton::after {
-  background: url('/static/img/tuto.svg')no-repeat center/cover;
-  background-size: 80%;
-}
-
-.rookie {
-  background-color: transparent; 
-  border: 3px solid #663399; 
-  transform: scale(1.8);
-  transition: transform 0.3s ease, border-color 0.3s ease; /* Smooth transform and border color transition */
 }
 
 @keyframes pulse {
@@ -190,26 +178,26 @@
 }
 
 #shareButton::after {
-  background: url('/static/img/share.svg')no-repeat center/cover;
+  background: url('../img/share.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
 .export::after {
-  background: url('/static/img/export.svg')no-repeat center/cover;
+  background: url('../img/export.svg')no-repeat center/cover;
   background-size: 80%;
 }
 .save::after {
-  background: url('/static/img/save.svg')no-repeat center/cover;
+  background: url('../img/save.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
 #profileButton::after {
-  background: url('/static/img/profile.svg')no-repeat center/cover;
+  background: url('../img/profile.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
 #notificationButton::after {
-  background: url('/static/img/bell.svg')no-repeat center/cover;
+  background: url('../img/bell.svg')no-repeat center/cover;
   background-size: 100%;
 }
 
@@ -229,7 +217,7 @@
 }
 
 #darkButton::after {
-  background: url('/static/img/darklight.svg')no-repeat center/cover;
+  background: url('../img/darklight.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
@@ -238,26 +226,26 @@
 }
 
 .soundon::after {
-  background: url('/static/img/soundon.svg')no-repeat center/cover;
+  background: url('../img/soundon.svg')no-repeat center/cover;
   background-size: 100%;
 }
 .soundoff::after {
-  background: url('/static/img/nosound.svg')no-repeat center/cover;
+  background: url('../img/nosound.svg')no-repeat center/cover;
   background-size: 100%;
 }
 
 #templateButton::after {
-  background: url('/static/img/template.svg')no-repeat center/cover;
+  background: url('../img/template.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
 #quantumButton::after {
-  background: url('/static/img/quantum.svg')no-repeat center/cover;
+  background: url('../img/quantum.svg')no-repeat center/cover;
   background-size: 100%;
 }
 
 #statsButton::after {
-  background: url('/static/img/stats.svg')no-repeat center/cover;
+  background: url('../img/stats.svg')no-repeat center/cover;
   background-size: 80%;
 }
 #statsButton {
@@ -265,7 +253,7 @@
 }
 
 #usersButton::after {
-  background: url('/static/img/users.svg')no-repeat center/cover;
+  background: url('../img/users.svg')no-repeat center/cover;
   background-size: 80%;
 }
 #usersButton {
@@ -737,68 +725,6 @@
 }
 
 
-/* VIDEO */
-/* Style for the videocontainer */
-.videocontainer {
-  width: 100%;
-  height: calc(100% - 35px); 
-  display: flex;
-}
-
-.videoinput {
-  text-align: center;
-  margin-top: 10px;
-  margin-bottom: 20px;
-  width: 130px;
-  position: absolute;
-  left:calc(50% - 65px);
-  background: transparent;
-  border: none;
-  color:#6e7c85;
-  overflow: hidden;
-  white-space: nowrap;
-  animation: scroll 5s linear infinite;
-}
-
-.videoinput::placeholder {
-  color: #6e7c85; 
-}
-
-.search-button-left {
-  position: absolute;
-  left:5%;
-  bottom: 0px;
-  width: 25px;
-  height: 25px;
-  z-index: 9999;
-  font-family: 'Cascadia Code', monospace;  
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6748a67e;
-  margin: 5px;
-}
-
-
-.search-button-right {
-  position: absolute;
-  left:calc(95% - 35px);
-  bottom: 0px;
-  width: 25px;
-  height: 25px;
-  z-index: 9999;
-  font-family: 'Cascadia Code', monospace;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6748a67e;
-  margin: 5px;
-}
-
-.search-button-loading {
-  color: #242428de;
-}
-
 /*//////////////////////  LOADING  //////////////////////*/
 
 /*  loading spinner  */
@@ -875,29 +801,6 @@
   100% {
       transform: rotate(360deg);
   }
-}
-
-.tuto {
-  font-style: italic;
-  font-size: 16px;
-  text-align: center;
-  margin: 15px 0;
-  color: ivory;
-  transition: cubic-bezier() 0.3s ease;
-}
-
-.tuto strong {
-  color: springgreen;
-}
-
-.tuto:hover {
-  transform: scale(1.02); /* Slightly scale up when hovered */
-  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15); /* Enhance shadow on hover */
-  color: transparent;
-}
-
-.tuto br {
-  margin-bottom: 10px; /* Space between lines */
 }
 
 
@@ -1042,7 +945,7 @@
   /* left: -10px; Adjust as needed */
   width: 20px;
   height: 20px;
-  background-image: url('/static/img/pen-cursor.svg');
+  background-image: url('../img/pen-cursor.svg');
   background-size: contain;
   background-repeat: no-repeat;
   pointer-events: none; /* Allow clicks to pass through */

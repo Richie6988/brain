@@ -3,7 +3,6 @@ let layer = document.getElementById('interactive-area');
 layer.classList.add('universe');
 let guestUser = false;
 let admin = false;
-let displayTutorial = false;
 let nodeCounter = 0;
 let linkCounter = 0; 
 let layerCounter;
@@ -33,7 +32,6 @@ universe.setAttribute('transform', `translate(${0},${0}) scale(${1})`);
 universe.setAttribute('id','universe');
 universe.style.perspective = '800px';
 svg.appendChild(universe);
-const tutorial = document.getElementById('tutorial');
 
 currentZoom = 1;
    
@@ -54,14 +52,7 @@ svg.addEventListener('dblclick', (event) => {
     var node;
     if (event.target.tagName.toLowerCase() === 'svg' && !selectionArea(event, currentNode)) {
         
-        if(displayTutorial) {
-            node = createNode(event.clientX,event.clientY);
-            focusNode(node,false);
-            if (nodeCounter === 1){
-                tutoPhase+=1;
-            }
-            tuto(node);
-        } else if (isLoggedIn){
+        if (isLoggedIn){
             if (nodeCounter !== 0){
                 color = getRandomColor();
             }            
@@ -121,8 +112,6 @@ function createNode(x,y,id) {
     nodeGroup.setAttribute('quantum', JSON.stringify([]));
     nodeGroup.setAttribute('textcontent', '');
     nodeGroup.setAttribute('imagecontent', '');
-    nodeGroup.setAttribute('videolink','');
-    nodeGroup.setAttribute('videocontent','Nod-Z');
     nodeGroup.setAttribute('canvascontent',JSON.stringify([]));
     nodeGroup.setAttribute('file',nodeID);
     nodeGroup.setAttribute('filename','');
@@ -178,7 +167,6 @@ function createNode(x,y,id) {
     const options = [
         { text: 'Text' },
         { text: 'Image' },
-        { text: 'Video' },
         { text: 'File' },
         { text: 'Canvas' },
       ];
@@ -194,28 +182,13 @@ function createNode(x,y,id) {
       });
     // Add event listener to the dropdown 
 
-    nodetypedropdown.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'Nod: <strong>Here you can switch my content type.</strong> I keep in mind all my potential states, meaning that if you choose <strong>Image</strong> I remember the <strong>text input</strong> that can be used as <strong>Metadata for classification and ease of search</strong>';
-            nodetypedropdown.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
     nodetypedropdown.addEventListener('change', function(event) {
-        if(displayTutorial) {
-            event.stopPropagation();
-            return;
-        }
         const selectedOption = event.target.value;
         img.style.display = 'none';
         fileContainer.style.display = 'none';
         fileGroup.style.display = 'none';
         input.style.display = 'none';
         canvas.style.display = 'none'; 
-        videoContainer.style.display = 'none';
         // foreignObject.style.background = 'transparent';
         hideParams(nodeGroup);
 
@@ -248,7 +221,7 @@ function createNode(x,y,id) {
             // console.log('Image option selected');
             nodeGroup.setAttribute('type', 'image');
             img.style.display = 'block';
-            var expectedSrc = '/static/img/newimg';
+            var expectedSrc = NODZ_BASE + '/static/img/newimg';
             if (img.src.includes(expectedSrc)) {           
                 foreignObject.setAttribute('width', '30px');
                 foreignObject.setAttribute('height','30px');     
@@ -310,24 +283,6 @@ function createNode(x,y,id) {
                     }            
                 } 
             });            
-            break;
-        case 'video':
-            // console.log('Video option selected');
-            nodeGroup.setAttribute('type', 'video');
-            nodeSizing(nodeGroup,200,200); 
-            video.style.display = 'block';
-            videoinput.style.display = 'block';
-            videoContainer.style.display = 'block';
-            foreignObject.style.background = 'black';
-            const match = nodeGroup.id.match(/\d+/);
-            const number = match ? parseInt(match[0]) : null;  
-
-            const playerElement = document.getElementById(`videoplayer-${number}`);
-    
-            if (!playerElement.querySelector('iframe')) {
-                loadYouTubeVideo(number);
-            }                  
-                        
             break;
         case 'file':
             // console.log('Document option selected');
@@ -391,12 +346,12 @@ function createNode(x,y,id) {
                 customCursor.style.display = 'block';
                 canvas.style.cursor = 'none';
                 if(isErasing){
-                    customCursor.style.backgroundImage = 'url("/static/img/eraser-cursor.svg")';
+                    customCursor.style.backgroundImage = 'url(NODZ_BASE + "/static/img/eraser-cursor.svg")';
                     customCursor.style.left = `${event.clientX - (customCursor.offsetWidth / 2)}px`;
                     customCursor.style.top = `${event.clientY - (customCursor.offsetHeight / 2)}px`;
 
                 } else {
-                    customCursor.style.backgroundImage = 'url("/static/img/pen-cursor.svg")';
+                    customCursor.style.backgroundImage = 'url(NODZ_BASE + "/static/img/pen-cursor.svg")';
                     customCursor.style.left = `${event.clientX - 0*(customCursor.offsetWidth / 2)}px`;
                     customCursor.style.top = `${event.clientY - (customCursor.offsetHeight)}px`;
                 }
@@ -434,9 +389,9 @@ function createNode(x,y,id) {
     const colorButtonimg = document.createElement('img');
     colorButtonimg.id = `colorButtonimg-${count}`;
     if (dark) {
-        colorButtonimg.setAttribute('src', '/static/img/colorpicking.svg');
+        colorButtonimg.setAttribute('src', NODZ_BASE + '/static/img/colorpicking.svg');
     } else {
-        colorButtonimg.setAttribute('src', '/static/img/colorpicking-light.svg');
+        colorButtonimg.setAttribute('src', NODZ_BASE + '/static/img/colorpicking-light.svg');
     }    
     colorButtonimg.style.width = '60%';
     colorButtonimg.style.height = '60%';
@@ -475,9 +430,9 @@ function createNode(x,y,id) {
     const shapeButtonimg = document.createElement('img');
     // shapeButtonimg.id = `shapeButtonimg-${count}`;
     if (dark) {
-        shapeButtonimg.setAttribute('src', '/static/img/circle.svg');
+        shapeButtonimg.setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
     } else {
-        shapeButtonimg.setAttribute('src', '/static/img/circle-light.svg');
+        shapeButtonimg.setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
     }
     shapeButtonimg.setAttribute('class', 'stylebuttonimg'); 
     shapeButtonfo.appendChild(shapeButtonimg);
@@ -488,9 +443,9 @@ function createNode(x,y,id) {
     const calendarButtonimg = document.createElement('img');
     // calendarButtonimg.id = `calendarButtonimg-${count}`;
     if (dark) {
-        calendarButtonimg.setAttribute('src', '/static/img/calendar.svg');
+        calendarButtonimg.setAttribute('src', NODZ_BASE + '/static/img/calendar.svg');
     } else {
-        calendarButtonimg.setAttribute('src', '/static/img/calendar-light.svg');
+        calendarButtonimg.setAttribute('src', NODZ_BASE + '/static/img/calendar-light.svg');
     }
     calendarButtonimg.style.width = '60%';
     calendarButtonimg.style.height = '60%';
@@ -504,9 +459,9 @@ function createNode(x,y,id) {
     const lockButtonimg = document.createElement('img');
     // lockButtonimg.id = `lockButtonimg-${count}`;
     if (dark) {
-        lockButtonimg.setAttribute('src', '/static/img/unlock.svg');
+        lockButtonimg.setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
     } else {
-        lockButtonimg.setAttribute('src', '/static/img/unlock-light.svg');
+        lockButtonimg.setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
     }
     lockButtonimg.style.width = '70%';
     lockButtonimg.style.height = '50%';
@@ -519,9 +474,9 @@ function createNode(x,y,id) {
     const layerButtonimg = document.createElement('img');
     // layerButtonimg.id = `layerButtonimg-${count}`;
     if (dark) {
-        layerButtonimg.setAttribute('src', '/static/img/layer.svg');
+        layerButtonimg.setAttribute('src', NODZ_BASE + '/static/img/layer.svg');
     } else {
-        layerButtonimg.setAttribute('src', '/static/img/layer-light.svg');
+        layerButtonimg.setAttribute('src', NODZ_BASE + '/static/img/layer-light.svg');
     }
     layerButtonimg.setAttribute('class', 'stylebuttonimg');
     layerButtonfo.appendChild(layerButtonimg);
@@ -548,9 +503,9 @@ function createNode(x,y,id) {
     boldButtondiv.setAttribute('class', 'stylebuttoncontainer');    
     const boldButtonimg = document.createElement('img');
     if (dark) {
-        boldButtonimg.setAttribute('src', '/static/img/bold.svg');
+        boldButtonimg.setAttribute('src', NODZ_BASE + '/static/img/bold.svg');
     } else {
-        boldButtonimg.setAttribute('src', '/static/img/bold-light.svg');
+        boldButtonimg.setAttribute('src', NODZ_BASE + '/static/img/bold-light.svg');
     }
     boldButtonimg.setAttribute('class', 'stylebuttonimg');
     boldButtonimg.id = `boldButtonimg-${count}`;
@@ -567,9 +522,9 @@ function createNode(x,y,id) {
     const italicButtonimg = document.createElement('img');
     italicButtonimg.id = `italicButtonimg-${count}`;
     if (dark) {
-        italicButtonimg.setAttribute('src', '/static/img/italic.svg');
+        italicButtonimg.setAttribute('src', NODZ_BASE + '/static/img/italic.svg');
     } else {
-        italicButtonimg.setAttribute('src', '/static/img/italic-light.svg');
+        italicButtonimg.setAttribute('src', NODZ_BASE + '/static/img/italic-light.svg');
     }
     italicButtonimg.setAttribute('class', 'stylebuttonimg');
     italicButtonimg.style.width = '60%';
@@ -585,9 +540,9 @@ function createNode(x,y,id) {
     const underlineButtonimg = document.createElement('img');
     underlineButtonimg.id = `underlineButtonimg-${count}`;
     if (dark) {
-        underlineButtonimg.setAttribute('src', '/static/img/underline.svg');
+        underlineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/underline.svg');
     } else {
-        underlineButtonimg.setAttribute('src', '/static/img/underline-light.svg');
+        underlineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/underline-light.svg');
     }
     underlineButtonimg.setAttribute('class', 'stylebuttonimg');
     underlineButtondiv.appendChild(underlineButtonimg);
@@ -643,9 +598,9 @@ function createNode(x,y,id) {
     textColorButtonimg.style.margin = '5px';
     textColorButtonimg.id = `textColorButtonimg-${count}`;
     if (dark) {
-        textColorButtonimg.setAttribute('src', '/static/img/colorpicking.svg');
+        textColorButtonimg.setAttribute('src', NODZ_BASE + '/static/img/colorpicking.svg');
     } else {
-        textColorButtonimg.setAttribute('src', '/static/img/colorpicking-light.svg');
+        textColorButtonimg.setAttribute('src', NODZ_BASE + '/static/img/colorpicking-light.svg');
     }
     textColorButtonfo.appendChild(textColorButtonimg);
     styleGroup.appendChild(textColorButtonfo);
@@ -657,9 +612,9 @@ function createNode(x,y,id) {
     const smileyButtonimg = document.createElement('img');
     smileyButtonimg.id = `smileyButtonimg-${count}`;
     if (dark) {
-        smileyButtonimg.setAttribute('src', '/static/img/smiley.svg');
+        smileyButtonimg.setAttribute('src', NODZ_BASE + '/static/img/smiley.svg');
     } else {
-        smileyButtonimg.setAttribute('src', '/static/img/smiley-light.svg');
+        smileyButtonimg.setAttribute('src', NODZ_BASE + '/static/img/smiley-light.svg');
     }
     smileyButtonimg.setAttribute('class', 'stylebuttonimg');
     smileyButtondiv.appendChild(smileyButtonimg);
@@ -672,9 +627,9 @@ function createNode(x,y,id) {
     var img = document.createElement("img");
     img.id = `img-${count}`;
     if (dark) {
-        img.setAttribute('src', '/static/img/newimg.svg');
+        img.setAttribute('src', NODZ_BASE + '/static/img/newimg.svg');
     } else {
-        img.setAttribute('src', '/static/img/newimg-light.svg');
+        img.setAttribute('src', NODZ_BASE + '/static/img/newimg-light.svg');
     }
     img.setAttribute("width", "100%");
     img.setAttribute("height", "100%");
@@ -722,9 +677,9 @@ function createNode(x,y,id) {
     const fileButton1img = document.createElement('img');
     fileButton1img.id = `fileButton1img-${count}`;
     if (dark) {
-        fileButton1img.setAttribute('src', '/static/img/upload.svg');
+        fileButton1img.setAttribute('src', NODZ_BASE + '/static/img/upload.svg');
     } else {
-        fileButton1img.setAttribute('src', '/static/img/upload-light.svg');
+        fileButton1img.setAttribute('src', NODZ_BASE + '/static/img/upload-light.svg');
     } 
     fileButton1img.setAttribute('class', 'stylebuttonimg');
     fileButton1div.appendChild(fileButton1img);
@@ -740,9 +695,9 @@ function createNode(x,y,id) {
     const fileButton2img = document.createElement('img');
     fileButton2img.id = `fileButton2img-${count}`;
     if (dark) {
-        fileButton2img.setAttribute('src', '/static/img/download.svg');
+        fileButton2img.setAttribute('src', NODZ_BASE + '/static/img/download.svg');
     } else {
-        fileButton2img.setAttribute('src', '/static/img/download-light.svg');
+        fileButton2img.setAttribute('src', NODZ_BASE + '/static/img/download-light.svg');
     } 
     fileButton2img.setAttribute('class', 'stylebuttonimg');
     fileButton2div.appendChild(fileButton2img);
@@ -767,125 +722,6 @@ function createNode(x,y,id) {
     fileGroup.appendChild(fileButton3fo);
     foreignObject.appendChild(fileContainer);
 
-    /////////////// VIDEO /////////////////////
-    
-    var videoContainer = document.createElement("div");
-    videoContainer.className = 'videocontainer';
-    var video = document.createElement("div");
-    video.style.width = '100%';
-    video.style.height = '100%';
-    const videoplayerID = `videoplayer-${count}`;
-    video.setAttribute('id', videoplayerID);
-  
-    // Create the left button
-    var leftButton = document.createElement("button");
-    leftButton.innerHTML = '&lt;';
-    leftButton.className = 'arrow-button search-button-left';
-    leftButton.id = `leftButton-${count}`;
-
-    leftButton.addEventListener('mouseover', function(event) {
-        createTooltip (leftButton.id,'Previous video',event);
-    });
-
-    // Create the right button
-    var rightButton = document.createElement("button");
-    rightButton.innerHTML = '&gt;';
-    rightButton.className = 'arrow-button search-button-right';
-    rightButton.id = `rightButton-${count}`;
-
-    rightButton.addEventListener('mouseover', function(event) {
-        createTooltip (rightButton.id,'Next video',event);
-    });
-
-    // Create the input element for search
-    var videoinput = document.createElement('input');
-    videoinput.setAttribute('type', 'text');
-    const videoinputID = `videoinput-${count}`;
-    videoinput.setAttribute('id', videoinputID);
-    videoinput.setAttribute('placeholder', 'Enter YouTube link for specific video / Keywords to create a personalized playlist');
-    videoinput.setAttribute('autocomplete', 'off');
-    videoinput.className = 'videoinput';
-
-    scrollPlaceholder(videoinput,videoinput.getAttribute('placeholder'),80);
-
-
-    videoinput.onmousedown = function() {
-        isTyping = true;
-    };
-
-    videoinput.addEventListener('keydown', function(event) {
-        if (event.key === 'Enter') {
-            // Prevent the default form submission behavior
-            event.preventDefault();
-            const match = nodeGroup.id.match(/\d+/);
-            const number = match ? parseInt(match[0]) : null;            
-            loadYouTubeVideo(number);               
-        }
-    });
-
-    videoinput.addEventListener('input', function() {
-        isTyping = true;
-    });
-    videoinput.addEventListener('blur', function() {
-        isTyping = false;
-    });
-    videoinput.addEventListener('mouseover', function() {
-        if(!this.disabled) {
-            this.value = ''; 
-        }
-    });
-    videoinput.addEventListener('mouseout', function() {
-        if(!this.disabled) {
-            this.value = nodeGroup.getAttribute('videolink'); 
-        }        
-    });
-
-
-    leftButton.addEventListener('mousedown', function() {
-        if (videoSearch.length !== 0) {
-            if (videoIndex === 0) {
-                videoIndex = videoSearch.length - 1;
-            } else {
-                videoIndex -= 1;
-            }
-            
-            videoinput.value = videoSearch[videoIndex];
-            nodeGroup.setAttribute('videolink',videoSearch[videoIndex])
-            const match = nodeGroup.id.match(/\d+/);
-            const number = match ? parseInt(match[0]) : null;    
-            if(intervalId === null)  {
-                loadYouTubeVideo(number);  
-            } 
-        }   
-    });
-
-    rightButton.addEventListener('mousedown', function() {
-        if (videoSearch.length !== 0) {
-            if (videoIndex === videoSearch.length - 1) {
-                videoIndex = 0;
-            } else {
-                videoIndex += 1;
-            }
-            
-            videoinput.value = videoSearch[videoIndex];
-            nodeGroup.setAttribute('videolink',videoSearch[videoIndex])
-            const match = nodeGroup.id.match(/\d+/);
-            const number = match ? parseInt(match[0]) : null;    
-            if(intervalId === null)  {
-                loadYouTubeVideo(number);  
-            }
-        }  
-    });
-
-
-    videoContainer.appendChild(video);
-    videoContainer.appendChild(videoinput);
-    videoContainer.appendChild(leftButton);
-    videoContainer.appendChild(rightButton);
-    
-    foreignObject.appendChild(videoContainer);
-    
-
     /////////////// CANVAS ///////////////////// 
 
     var canvas = document.createElement("canvas");
@@ -907,9 +743,9 @@ function createNode(x,y,id) {
     const canvasEraserButtonimg = document.createElement('img');
     canvasEraserButtonimg.id = `canvasEraserButtonimg-${count}`;
     if (dark) {
-        canvasEraserButtonimg.setAttribute('src', '/static/img/eraser.svg');
+        canvasEraserButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraser.svg');
     } else {
-        canvasEraserButtonimg.setAttribute('src', '/static/img/eraser-light.svg');
+        canvasEraserButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraser-light.svg');
     } 
     canvasEraserButtonimg.setAttribute('class', 'stylebuttonimg');
     canvasEraserButtondiv.appendChild(canvasEraserButtonimg);
@@ -923,9 +759,9 @@ function createNode(x,y,id) {
     const canvasRedoButtonimg = document.createElement('img');
     canvasRedoButtonimg.id = `canvasRedoButtonimg-${count}`;
     if (dark) {
-        canvasRedoButtonimg.setAttribute('src', '/static/img/redo.svg');
+        canvasRedoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/redo.svg');
     } else {
-        canvasRedoButtonimg.setAttribute('src', '/static/img/redo-light.svg');
+        canvasRedoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/redo-light.svg');
     } 
     canvasRedoButtonimg.setAttribute('class', 'stylebuttonimg');
     canvasRedoButtondiv.appendChild(canvasRedoButtonimg);
@@ -939,9 +775,9 @@ function createNode(x,y,id) {
     const canvasUndoButtonimg = document.createElement('img');
     canvasUndoButtonimg.id = `canvasUndoButtonimg-${count}`;
     if (dark) {
-        canvasUndoButtonimg.setAttribute('src', '/static/img/undo.svg');
+        canvasUndoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/undo.svg');
     } else {
-        canvasUndoButtonimg.setAttribute('src', '/static/img/undo-light.svg');
+        canvasUndoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/undo-light.svg');
     } 
     canvasUndoButtonimg.setAttribute('class', 'stylebuttonimg');
     canvasUndoButtondiv.appendChild(canvasUndoButtonimg);
@@ -955,9 +791,9 @@ function createNode(x,y,id) {
     const canvasClearButtonimg = document.createElement('img');
     canvasClearButtonimg.id = `canvasClearButtonimg-${count}`;
     if (dark) {
-        canvasClearButtonimg.setAttribute('src', '/static/img/eraseall.svg');
+        canvasClearButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraseall.svg');
     } else {
-        canvasClearButtonimg.setAttribute('src', '/static/img/eraseall-light.svg');
+        canvasClearButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraseall-light.svg');
     } 
     canvasClearButtonimg.setAttribute('class', 'stylebuttonimg');
     canvasClearButtondiv.appendChild(canvasClearButtonimg);
@@ -971,9 +807,9 @@ function createNode(x,y,id) {
     const canvasLineButtonimg = document.createElement('img');
     canvasLineButtonimg.id = `canvasLineButtonimg-${count}`;
     if (dark) {
-        canvasLineButtonimg.setAttribute('src', '/static/img/line.svg');
+        canvasLineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/line.svg');
     } else {
-        canvasLineButtonimg.setAttribute('src', '/static/img/line-light.svg');
+        canvasLineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/line-light.svg');
     } 
     canvasLineButtonimg.setAttribute('class', 'stylebuttonimg');
     canvasLineButtondiv.appendChild(canvasLineButtonimg);
@@ -987,9 +823,9 @@ function createNode(x,y,id) {
     const canvasCircleButtonimg = document.createElement('img');
     canvasCircleButtonimg.id = `canvasButton9img-${count}`;
     if (dark) {
-        canvasCircleButtonimg.setAttribute('src', '/static/img/circle.svg');
+        canvasCircleButtonimg.setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
     } else {
-        canvasCircleButtonimg.setAttribute('src', '/static/img/circle-light.svg');
+        canvasCircleButtonimg.setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
     } 
     canvasCircleButtonimg.setAttribute('class', 'stylebuttonimg');
     canvasCircleButtondiv.appendChild(canvasCircleButtonimg);
@@ -1042,9 +878,9 @@ function createNode(x,y,id) {
     canvasColorButtonimg.style.margin = '5px';
     canvasColorButtonimg.id = `canvasColorButtonimg-${count}`;
     if (dark) {
-        canvasColorButtonimg.setAttribute('src', '/static/img/colorpicking.svg');
+        canvasColorButtonimg.setAttribute('src', NODZ_BASE + '/static/img/colorpicking.svg');
     } else {
-        canvasColorButtonimg.setAttribute('src', '/static/img/colorpicking-light.svg');
+        canvasColorButtonimg.setAttribute('src', NODZ_BASE + '/static/img/colorpicking-light.svg');
     } 
     canvasColorButtonfo.appendChild(canvasColorButtonimg);
     canvasStyleGroup.appendChild(canvasColorButtonfo);
@@ -1059,7 +895,7 @@ function createNode(x,y,id) {
     var quantumButtonfo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     quantumButtonfo.setAttribute('class', 'stylebutton'); 
     const quantumButtonimg = document.createElement('img');
-    quantumButtonimg.setAttribute('src', '/static/img/portal.svg');
+    quantumButtonimg.setAttribute('src', NODZ_BASE + '/static/img/portal.svg');
     quantumButtonimg.style.width = '100%';
     quantumButtonimg.style.height = '100%';
     quantumButtonfo.classList.add("portal");
@@ -1171,7 +1007,7 @@ function createNode(x,y,id) {
    
     //////////////////// INTERACTIONS WITHIN NODE ////////////////////
     nodeGroup.addEventListener('mousedown', function(event) {
-        if(!input.contains(event.target) && !nodetypedropdown.contains(event.target) && !fontdropdown.contains(event.target) && !videoinput.contains(event.target) && !slider.contains(event.target)){
+        if(!input.contains(event.target) && !nodetypedropdown.contains(event.target) && !fontdropdown.contains(event.target) && !slider.contains(event.target)){
             event.preventDefault();
         }            
     });
@@ -1192,7 +1028,7 @@ function createNode(x,y,id) {
             heart.style.left = x+'%'; 
             heart.style.top = y+'%'; 
             heart.style.transform = 'translate(-50%, -50%) scale(1)'; 
-            heart.setAttribute('src', '/static/img/hearts.svg');
+            heart.setAttribute('src', NODZ_BASE + '/static/img/hearts.svg');
             document.body.appendChild(heart);
             const size = 320*currentZoom
             setTimeout(() => {
@@ -1219,10 +1055,6 @@ function createNode(x,y,id) {
         if(nodeGroup.getAttribute('lock') === '1') { 
             event.preventDefault();
             return;
-        } else if (nodeGroup.getAttribute('type') === 'video' && hitbox.style.fill === 'none' && !videoinput.disabled) { 
-            videoinput.style.display = 'block';
-            leftButton.style.display = 'block';
-            rightButton.style.display = 'block';
         } else if (nodeGroup.getAttribute('type') === 'canvas' && hitbox.style.fill === 'none') {        
             canvasStyleGroup.setAttribute('visibility', 'visible');  
         } else if(nodeGroup.getAttribute('type') === 'file' && hitbox.style.fill === 'none') {              
@@ -1259,10 +1091,6 @@ function createNode(x,y,id) {
             canvasStyleGroup.setAttribute('visibility', 'visible');  
         } else  if (nodeGroup.getAttribute('type') === 'image') {
             img.style.display = 'block';                   
-        } else if (nodeGroup.getAttribute('type') === 'video') { 
-            videoinput.style.display = 'block';
-            leftButton.style.display = 'block';
-            rightButton.style.display = 'block';
         }
     });
 
@@ -1274,7 +1102,7 @@ function createNode(x,y,id) {
         var savedSelection = saveSelection();
               
         document.execCommand('bold', false, null);         
-        boldButtonimg.setAttribute('src', '/static/img/bold-selected.svg');  
+        boldButtonimg.setAttribute('src', NODZ_BASE + '/static/img/bold-selected.svg');  
        
         setTimeout(function() {            
             input.focus(); 
@@ -1286,9 +1114,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         boldButtonimg.addEventListener(event, function () {
             if (dark) {
-                boldButtonimg.setAttribute('src', '/static/img/bold.svg');
+                boldButtonimg.setAttribute('src', NODZ_BASE + '/static/img/bold.svg');
             } else {
-                boldButtonimg.setAttribute('src', '/static/img/bold-light.svg');
+                boldButtonimg.setAttribute('src', NODZ_BASE + '/static/img/bold-light.svg');
             }
         });
     });
@@ -1300,7 +1128,7 @@ function createNode(x,y,id) {
         var savedSelection = saveSelection();
              
         document.execCommand('italic', false, null);  
-        italicButtonimg.setAttribute('src', '/static/img/italic-selected.svg');       
+        italicButtonimg.setAttribute('src', NODZ_BASE + '/static/img/italic-selected.svg');       
               
         setTimeout(function() {            
             input.focus(); 
@@ -1311,9 +1139,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         italicButtonimg.addEventListener(event, function () {
             if (dark) {
-                italicButtonimg.setAttribute('src', '/static/img/italic.svg');
+                italicButtonimg.setAttribute('src', NODZ_BASE + '/static/img/italic.svg');
             } else {
-                italicButtonimg.setAttribute('src', '/static/img/italic-light.svg');
+                italicButtonimg.setAttribute('src', NODZ_BASE + '/static/img/italic-light.svg');
             }
         });
     });
@@ -1327,7 +1155,7 @@ function createNode(x,y,id) {
         var savedSelection = saveSelection();
              
         document.execCommand('underline', false, null);  
-        underlineButtonimg.setAttribute('src', '/static/img/underline-selected.svg');  
+        underlineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/underline-selected.svg');  
    
         setTimeout(function() {            
             input.focus(); 
@@ -1338,9 +1166,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         underlineButtonimg.addEventListener(event, function () {
             if (dark) {
-                underlineButtonimg.setAttribute('src', '/static/img/underline.svg');
+                underlineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/underline.svg');
             } else {
-                underlineButtonimg.setAttribute('src', '/static/img/underline-light.svg');
+                underlineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/underline-light.svg');
             }
         });
     });
@@ -1401,7 +1229,7 @@ function createNode(x,y,id) {
 
     smileyButtonimg.addEventListener('mousedown', function() {
         var smileySavedSelection = saveSelection();       
-        smileyButtonimg.setAttribute('src', '/static/img/smiley-selected.svg');  
+        smileyButtonimg.setAttribute('src', NODZ_BASE + '/static/img/smiley-selected.svg');  
         const smileys = document.getElementById('smileys');
         smileys.style.display = 'flex';
         smileys.children[0].scrollTop = 0;
@@ -1432,9 +1260,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         smileyButtonimg.addEventListener(event, function () {
             if (dark) {
-                smileyButtonimg.setAttribute('src', '/static/img/smiley.svg');
+                smileyButtonimg.setAttribute('src', NODZ_BASE + '/static/img/smiley.svg');
             } else {
-                smileyButtonimg.setAttribute('src', '/static/img/smiley-light.svg');
+                smileyButtonimg.setAttribute('src', NODZ_BASE + '/static/img/smiley-light.svg');
             }
         });
     });
@@ -1509,7 +1337,7 @@ function createNode(x,y,id) {
         }
 
         if(!isErasing && !preventDrawing){
-            canvasCircleButtonimg.setAttribute('src', '/static/img/circle-selected.svg');          
+            canvasCircleButtonimg.setAttribute('src', NODZ_BASE + '/static/img/circle-selected.svg');          
             preventDrawing = true;  
             var canvasID = canvas.getAttribute('id');
             canvas.addEventListener('mousedown', function(event) {
@@ -1525,9 +1353,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         canvasCircleButtonimg.addEventListener(event, function () {
             if (dark) {
-                canvasCircleButtonimg.setAttribute('src', '/static/img/circle.svg');
+                canvasCircleButtonimg.setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
             } else {
-                canvasCircleButtonimg.setAttribute('src', '/static/img/circle-light.svg');
+                canvasCircleButtonimg.setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
             }
         });
     });
@@ -1550,7 +1378,7 @@ function createNode(x,y,id) {
         }
 
         if(!isErasing && !preventDrawing){
-            canvasLineButtonimg.setAttribute('src', '/static/img/line-selected.svg');            
+            canvasLineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/line-selected.svg');            
             preventDrawing = true;
             var canvasID = canvas.getAttribute('id');
             canvas.addEventListener('click', function(event) {
@@ -1566,9 +1394,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         canvasLineButtonimg.addEventListener(event, function () {
             if (dark) {
-                canvasLineButtonimg.setAttribute('src', '/static/img/line.svg');
+                canvasLineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/line.svg');
             } else {
-                canvasLineButtonimg.setAttribute('src', '/static/img/line-light.svg');
+                canvasLineButtonimg.setAttribute('src', NODZ_BASE + '/static/img/line-light.svg');
             }
         });
     });
@@ -1600,14 +1428,14 @@ function createNode(x,y,id) {
     canvasEraserButtonimg.addEventListener('mousedown', function() {        
         isErasing = !isErasing;
         if (isErasing) {    
-            customCursor.style.backgroundImage = '/static/img/eraser-cursor.svg'; 
-            canvasEraserButtonimg.setAttribute('src', '/static/img/eraser-selected.svg');       
+            customCursor.style.backgroundImage = NODZ_BASE + '/static/img/eraser-cursor.svg'; 
+            canvasEraserButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraser-selected.svg');       
         } else {
-            customCursor.style.backgroundImage = '/static/img/pen-cursor.svg';
+            customCursor.style.backgroundImage = NODZ_BASE + '/static/img/pen-cursor.svg';
             if (dark) {
-                canvasEraserButtonimg.setAttribute('src', '/static/img/eraser.svg');
+                canvasEraserButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraser.svg');
             } else {
-                canvasEraserButtonimg.setAttribute('src', '/static/img/eraser-light.svg');
+                canvasEraserButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraser-light.svg');
             }
         }
     });
@@ -1619,7 +1447,7 @@ function createNode(x,y,id) {
     // Clear canvas
    
     canvasClearButtonimg.addEventListener('mousedown', function() { 
-        canvasClearButtonimg.setAttribute('src', '/static/img/eraseall-selected.svg');        
+        canvasClearButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraseall-selected.svg');        
 
         // Parse the string back into an array of objects
         var drawingDataString = nodeGroup.getAttribute('canvascontent');
@@ -1640,9 +1468,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         canvasClearButtonimg.addEventListener(event, function () {
             if (dark) {
-                canvasClearButtonimg.setAttribute('src', '/static/img/eraseall.svg');
+                canvasClearButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraseall.svg');
             } else {
-                canvasClearButtonimg.setAttribute('src', '/static/img/eraseall-light.svg');
+                canvasClearButtonimg.setAttribute('src', NODZ_BASE + '/static/img/eraseall-light.svg');
             }
         });
     }); 
@@ -1654,7 +1482,7 @@ function createNode(x,y,id) {
     // Undo
 
     canvasUndoButtonimg.addEventListener('mousedown', function() {
-        canvasUndoButtonimg.setAttribute('src', '/static/img/undo-selected.svg');        
+        canvasUndoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/undo-selected.svg');        
         var canvasID = canvas.getAttribute('id');
         var drawingDataString = nodeGroup.getAttribute('canvascontent');
         // Parse the string back into an array of objects
@@ -1668,9 +1496,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         canvasUndoButtonimg.addEventListener(event, function () {
             if (dark) {
-                canvasUndoButtonimg.setAttribute('src', '/static/img/undo.svg');
+                canvasUndoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/undo.svg');
             } else {
-                canvasUndoButtonimg.setAttribute('src', '/static/img/undo-light.svg');
+                canvasUndoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/undo-light.svg');
             }
         });
     }); 
@@ -1682,7 +1510,7 @@ function createNode(x,y,id) {
     // Redo
 
     canvasRedoButtonimg.addEventListener('mousedown', function() {
-        canvasRedoButtonimg.setAttribute('src', '/static/img/redo-selected.svg');
+        canvasRedoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/redo-selected.svg');
         var canvasID = canvas.getAttribute('id');  
         var drawingDataString = nodeGroup.getAttribute('canvascontent');
         // Parse the string back into an array of objects
@@ -1696,9 +1524,9 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         canvasRedoButtonimg.addEventListener(event, function () {
             if (dark) {
-                canvasRedoButtonimg.setAttribute('src', '/static/img/redo.svg');
+                canvasRedoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/redo.svg');
             } else {
-                canvasRedoButtonimg.setAttribute('src', '/static/img/redo-light.svg');
+                canvasRedoButtonimg.setAttribute('src', NODZ_BASE + '/static/img/redo-light.svg');
             }
         });
     }); 
@@ -1757,7 +1585,7 @@ function createNode(x,y,id) {
             formData.append('nodeID', nodeID);
             formData.append('layer', layerNumber);
 
-            const csrfToken = getCookie('csrftoken');            
+            const csrfToken = getCookie('nodz_csrftoken');            
             spinner.style.display = 'block';
             fetch(this.getAttribute('hx-post'), {
                 method: 'POST',
@@ -1840,12 +1668,12 @@ function createNode(x,y,id) {
     });
 
     fileButton1div.addEventListener('mousedown', function() {
-        fileButton1img.setAttribute('src', '/static/img/upload-selected.svg');
+        fileButton1img.setAttribute('src', NODZ_BASE + '/static/img/upload-selected.svg');
         setTimeout(() => {
             if (dark) {
-                fileButton1img.setAttribute('src', '/static/img/upload.svg');
+                fileButton1img.setAttribute('src', NODZ_BASE + '/static/img/upload.svg');
             } else {
-                fileButton1img.setAttribute('src', '/static/img/upload-light.svg');
+                fileButton1img.setAttribute('src', NODZ_BASE + '/static/img/upload-light.svg');
             }
         }, 100);
         fileButton1input.click(); 
@@ -1858,11 +1686,11 @@ function createNode(x,y,id) {
     });
  
     fileButton2div.addEventListener('mousedown', function() {
-        fileButton2img.setAttribute('src', '/static/img/download-selected.svg');
+        fileButton2img.setAttribute('src', NODZ_BASE + '/static/img/download-selected.svg');
       
         const tagName = nodeGroup.getAttribute('filename');
         const id = parseInt(nodeGroup.id.match(/\d+/)[0], 10);
-        const csrfToken = getCookie('csrftoken');
+        const csrfToken = getCookie('nodz_csrftoken');
 
         fetch('/download-file/', {
             method: 'POST',
@@ -1902,16 +1730,16 @@ function createNode(x,y,id) {
     ['mouseup', 'mouseout'].forEach(event => {
         fileButton2div.addEventListener(event, function () {
             if (dark) {
-                fileButton2img.setAttribute('src', '/static/img/download.svg');
+                fileButton2img.setAttribute('src', NODZ_BASE + '/static/img/download.svg');
             } else {
-                fileButton2img.setAttribute('src', '/static/img/download-light.svg');
+                fileButton2img.setAttribute('src', NODZ_BASE + '/static/img/download-light.svg');
             }
         });
     }); 
 
     // Handle supperposition of nodes of different sizes
     nodeGroup.addEventListener('mouseover', function(event) {
-        if(!isTyping && nodeGroup.getAttribute('type') !== 'video' && nodeGroup.getAttribute('type') !== 'file' && !typeGroup.contains(event.target)){
+        if(!isTyping && nodeGroup.getAttribute('type') !== 'file' && !typeGroup.contains(event.target)){
             const mouseoverX = parseFloat(nodeGroup.getAttribute('x'));
             const mouseoverY = parseFloat(nodeGroup.getAttribute('y'));
             const mouseoverRadius = parseFloat(nodeGroup.children[1].getAttribute('r'));
@@ -1930,8 +1758,6 @@ function createNode(x,y,id) {
                 }
             });
 
-        } else if (nodeGroup.getAttribute('type') === 'video' && hitbox.contains(event.target)) {
-            semanticsearch.blur();
         }
      
         if(selectedNodes.includes(nodeGroup)){ 
@@ -1999,16 +1825,6 @@ function createNode(x,y,id) {
 
           
     //////////////////// NODE PARAMS ////////////////////
-    colorButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'Use the <strong>Chromatic wheel</strong> to adjust my <strong>ring color</strong>. This change can also be applied to a <strong>selection of nodes</strong> at once.';
-            colorButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
     colorButtonimg.addEventListener('mousedown', function() {    
         CurrentNode(nodeGroup);
@@ -2037,23 +1853,13 @@ function createNode(x,y,id) {
         } 
     });
 
-    shapeButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'The <strong>Shape tool</strong> is useful when you want to switch me into a square or to hide my boundaries. Like other settings, it can be applied to a <strong>selection of multiple nodes</strong>.';
-            shapeButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
     shapeButtonimg.addEventListener('click', function() { 
         if(dark) {
-            if (shapeButtonimg.getAttribute('src') === '/static/img/circle.svg') {
+            if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/circle.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', '/static/img/square.svg');
+                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
                         nodeGroup.children[1].style.stroke = 'transparent'; 
                         nodeGroup.setAttribute('shape','square');
                         nodeGroup.children[2].style.display = 'block';  
@@ -2067,18 +1873,18 @@ function createNode(x,y,id) {
                         quickSize(nodeGroup); 
                     }
                 });
-            } else if (shapeButtonimg.getAttribute('src') === '/static/img/square.svg') {
+            } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/square.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', '/static/img/hide.svg');
+                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
                         nodeGroup.setAttribute('shape','none');
                         nodeGroup.children[2].style.display = 'none';                           
                     }
                 });
-            } else if (shapeButtonimg.getAttribute('src') === '/static/img/hide.svg') {
+            } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/hide.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', '/static/img/circle.svg');
+                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
                         nodeGroup.children[1].style.stroke = '#f3ee58'; 
                         nodeGroup.children[1].setAttribute('class', 'selectednode'); 
                         nodeGroup.setAttribute('shape','circle');
@@ -2086,10 +1892,10 @@ function createNode(x,y,id) {
                 });
             } 
         } else {
-            if (shapeButtonimg.getAttribute('src') === '/static/img/circle-light.svg') {
+            if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/circle-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', '/static/img/square-light.svg');
+                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
                         nodeGroup.children[1].style.stroke = 'transparent'; 
                         nodeGroup.setAttribute('shape','square');
                         nodeGroup.children[2].style.display = 'block';  
@@ -2103,18 +1909,18 @@ function createNode(x,y,id) {
                         quickSize(nodeGroup);                       
                     }
                 });
-            } else if (shapeButtonimg.getAttribute('src') === '/static/img/square-light.svg') {
+            } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/square-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', '/static/img/hide-light.svg');
+                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
                         nodeGroup.setAttribute('shape','none');
                         nodeGroup.children[2].style.display = 'none';                           
                     }
                 });
-            } else if (shapeButtonimg.getAttribute('src') === '/static/img/hide-light.svg') {
+            } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/hide-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', '/static/img/circle-light.svg');
+                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
                         nodeGroup.children[1].style.stroke = nodeGroup.getAttribute('color'); 
                         nodeGroup.children[1].setAttribute('class', 'hitbox'); 
                         nodeGroup.setAttribute('shape','circle');
@@ -2125,16 +1931,6 @@ function createNode(x,y,id) {
         showParams(nodeGroup);
     });
 
-    calendarButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'You can set up reminders using the <strong>Calendar tool</strong>. Manage time with the notifications and navigation system included in each node.';
-            calendarButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
     calendarButtonimg.addEventListener('click', function() { 
         const calendarOverlay = document.getElementById('calendarOverlay');
@@ -2150,12 +1946,6 @@ function createNode(x,y,id) {
     nodetypedropdown.addEventListener('change', function() {
         hitbox.setAttribute('class', 'hitbox'); 
         selectedNodes.length = 0;  
-        const match = nodeGroup.id.match(/\d+/);
-        const number = match ? parseInt(match[0]) : null;     
-       
-        if (nodetypedropdown.value !== 'video' && players[number]) {
-            players[number].pauseVideo();
-        }
     });
 
     typeGroup.addEventListener('mouseout', function(event) {
@@ -2163,53 +1953,33 @@ function createNode(x,y,id) {
     });
     
 
-    sizeButton.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'I have an <strong>automatic sizing system</strong> but still you can resize one or more nodes at once by <strong>clicking and dragging</strong>.';
-            sizeButton.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
-    lockButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'The <strong>Lock tool</strong> lets you prevent any changes to my content and <strong>pin my position</strong> in the universe. Like other settings, it can be applied to a <strong>selection of multiple nodes</strong>.';
-            lockButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
     
     lockButtonimg.addEventListener('click', function() { 
         if(dark) {
-            if (lockButtonimg.getAttribute('src') === '/static/img/lock.svg') {
+            if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/lock.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', '/static/img/unlock.svg');
+                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
                     nodeGroup.setAttribute('lock','0');
                     nodetypedropdown.disabled = false;
                 });
-            } else if (lockButtonimg.getAttribute('src') === '/static/img/unlock.svg') {
+            } else if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/unlock.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', '/static/img/lock.svg');
+                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
                     nodeGroup.setAttribute('lock','1');
                     nodetypedropdown.disabled = true;
                 });
             } 
         } else {
-            if (lockButtonimg.getAttribute('src') === '/static/img/lock-light.svg') {
+            if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/lock-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', '/static/img/unlock-light.svg');
+                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
                     nodeGroup.setAttribute('lock','0');
                     nodetypedropdown.disabled = false;
                 });
-            } else if (lockButtonimg.getAttribute('src') === '/static/img/unlock-light.svg') {
+            } else if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/unlock-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', '/static/img/lock-light.svg');
+                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
                     nodeGroup.setAttribute('lock','1');
                     nodetypedropdown.disabled = true;
                 });
@@ -2218,21 +1988,8 @@ function createNode(x,y,id) {
     });
 
    
-    layerButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'The <strong>Layer tool</strong> lets you move a node, or a group of nodes, across dimensions. By extension, it can even create a new dimension—though it’s never as simple as just pressing <strong>Enter</strong> on a selected node!';
-            layerButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        }
-    });
 
     layerButtonimg.addEventListener('click', function() {
-        if (displayTutorial){
-            return;
-        }
         quantum = true; 
         cancelList.length = 0;
         cancelIndex = 0;
@@ -2244,14 +2001,7 @@ function createNode(x,y,id) {
 
     var portal = false;
     quantumButtonimg.addEventListener('mouseover', function() {
-        if (displayTutorial){
-            const node0 = document.getElementById('node0')
-            var tutobox_txt = node0.innerHTML;
-            node0.innerHTML = 'The <strong>Portal tool</strong> lets you jumb across dimensions. End up at the end of the tunnel prealably set up using <strong>Enter</strong> on a selected node';
-            quantumButtonimg.addEventListener('mouseout', function() {
-                node0.innerHTML=tutobox_txt;
-            }, { once: true });
-        } else {
+        {
             // quantumButtonfo.style.animationDuration = '30S';
     
             portal = true;
@@ -2282,9 +2032,6 @@ function createNode(x,y,id) {
     });
 
     quantumButtonimg.addEventListener('click', function() {
-        if (displayTutorial){
-            return;
-        }
         hideParams(nodeGroup);
         const quantumData = JSON.parse(nodeGroup.getAttribute('quantum'));
         const layer = quantumData[0].layer

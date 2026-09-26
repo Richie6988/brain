@@ -143,14 +143,6 @@ document.addEventListener('keydown', function(event) {
             selectedNodes[0].children[1].style.fill = 'none';
   
             const newNode = createNode(mouseX,mouseY); 
-            if(displayTutorial) {
-                if(displayTutorial) {
-                    if (nodeCounter === 1){
-                        tutoPhase+=1;
-                    }
-                    tuto(newNode);
-                }
-            }
             newNode.setAttribute('color', selectedNodes[0].getAttribute('color'));            
             newNode.style.stroke = selectedNodes[0].getAttribute('color'); 
          
@@ -167,12 +159,6 @@ document.addEventListener('keydown', function(event) {
         event.preventDefault();   
         color = getRandomColor(); 
         newNode = createNode(mouseX,mouseY);
-        if(displayTutorial) {
-            if (nodeCounter === 1){
-                tutoPhase+=1;
-            }
-            tuto(newNode);
-        }
     }
 });
 
@@ -369,16 +355,16 @@ function pastenodes(tunnel) {
             if(element.getAttribute('shape') === 'none'){
                 pasteNode.children[1].style.stroke = 'transparent';
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', '/static/img/hide.svg');
+                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', '/static/img/hide-light.svg');
+                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
                 }
             } else if(element.getAttribute('shape') === 'circle'){
                 pasteNode.children[1].style.stroke = element.getAttribute('color');
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', '/static/img/circle.svg');
+                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', '/static/img/circle-light.svg');
+                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
                 }
             }  else if(element.getAttribute('shape') === 'square'){
                 pasteNode.children[1].style.stroke = 'transparent';
@@ -386,24 +372,24 @@ function pastenodes(tunnel) {
                 pasteNode.children[2].style.display = 'block';  
                 pasteNode.children[2].setAttribute('class','squareShape'); 
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', '/static/img/square.svg');
+                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', '/static/img/square-light.svg');
+                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
                 }
             }  
 
             pasteNode.setAttribute('lock', element.getAttribute('lock'));
             if(element.getAttribute('lock') === '1'){
                 if (dark) {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', '/static/img/lock.svg');
+                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
                 } else {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', '/static/img/lock-light.svg');
+                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
                 }
             } else {
                 if (dark) {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', '/static/img/unlock.svg');
+                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
                 } else {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', '/static/img/unlock-light.svg');
+                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
                 }
             }  
             
@@ -420,16 +406,12 @@ function pastenodes(tunnel) {
             const fileName = element.getAttribute('filename');
             pasteNode.children[5].children[2].children[0].textContent = element.children[5].children[2].children[0].textContent;
             
-            // Video
-            pasteNode.setAttribute('videocontent',element.getAttribute('videocontent'));   
-            pasteNode.setAttribute('videolink',element.getAttribute('videolink'));                
-            pasteNode.children[0].children[3].children[1].value = element.getAttribute('videolink');
             // Canvas
             pasteNode.setAttribute('canvascontent',element.getAttribute('canvascontent'));
             var drawingDataString = pasteNode.getAttribute('canvascontent');
             // Parse the string back into an array of objects
             var drawingData = JSON.parse(drawingDataString);              
-            redrawCanvas(pasteNode.children[0].children[4].id,0, drawingData);
+            redrawCanvas(pasteNode.children[0].children[3].id,0, drawingData);
 
             pasteNode.children[1].setAttribute('r', parseFloat(element.children[1].getAttribute('r')));
 
@@ -576,7 +558,6 @@ function cancel()   {
             node.text_content = node.getAttribute('textcontent');
             node.image_content = node.getAttribute('imagecontent');
             node.canvas_content = node.getAttribute('canvascontent');
-            node.video_content = node.getAttribute('videocontent');
             node.file_name = node.getAttribute('filename');
             node.file = node.getAttribute('file');
             node.quantum = node.getAttribute('quantum');

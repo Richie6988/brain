@@ -97,16 +97,12 @@ async function exportNodz(nodesSelection, linksSelection, templatesSelection) {
     let minX = Infinity, maxY = -Infinity;
     // Find relative position to place nodes in extract
     nodesSelection.forEach(node => {
-        if (node.getAttribute('type') === 'video' || node.getAttribute('type') === 'file'){
+        if (node.getAttribute('type') === 'file'){
             const type = node.getAttribute('type');
             var event = new Event('change');
             node.children[7].children[0].children[0].value = 'text';    
             node.children[7].children[0].children[0].dispatchEvent(event); 
-            if (type === 'video') {
-                node.children[0].children[0].innerHTML = '<span style="color: black; text-decoration: underline;font-size: smaller;">Watch here:</span>\n' + '<span style="color: black; font-size: small;">' + node.getAttribute('videocontent') + '</span>';
-            } else {
-                node.children[0].children[0].innerHTML = '<span style="color: black; text-decoration: underline;font-size: smaller;">Get file:</span>\n' + '<span style="color: black; font-size: small;">' + node.getAttribute('filename') + '</span>';
-            }
+            node.children[0].children[0].innerHTML = '<span style="color: black; text-decoration: underline;font-size: smaller;">Get file:</span>\n' + '<span style="color: black; font-size: small;">' + node.getAttribute('filename') + '</span>';
             var inputEvent = new Event('input');
             node.children[0].children[0].dispatchEvent(inputEvent);
             node.setAttribute('type',type);     
@@ -238,13 +234,9 @@ async function exportNodz(nodesSelection, linksSelection, templatesSelection) {
             }
         }  
 
-        if (node.getAttribute('type') === 'video' || node.getAttribute('type') === 'file'){
+        if (node.getAttribute('type') === 'file'){
             node.children[0].children[0].innerHTML = node.getAttribute('textcontent');
-            if (node.getAttribute('type') === 'video') {
-                node.children[7].children[0].children[0].value = 'video'; 
-            } else {
-                node.children[7].children[0].children[0].value = 'file'; 
-            }            
+            node.children[7].children[0].children[0].value = 'file'; 
             node.children[7].children[0].children[0].dispatchEvent(event); 
             
             const imageElem = document.createElementNS("http://www.w3.org/2000/svg", "image");
@@ -252,16 +244,10 @@ async function exportNodz(nodesSelection, linksSelection, templatesSelection) {
             imageElem.setAttribute("y", y - 40);
             imageElem.setAttribute("width", 40);
             imageElem.setAttribute("height", 40);
-            if (node.getAttribute('type') === 'video') {
-                imageElem.setAttributeNS("http://www.w3.org/1999/xlink", "href", "/static/img/youtube-logo.png");
-                const videoLink = clone.getAttribute("videolink") || "#";   
-                clone.setAttribute('href','https://www.youtube.com/watch?'+videoLink);
-            } else {
-                imageElem.setAttributeNS("http://www.w3.org/1999/xlink", "href", "/static/img/file.png"); 
-                const filename = clone.getAttribute('filename');
-                const node_id = parseInt(node.id.match(/\d+/)[0], 10);
-                setDownloadLink(node_id, filename, clone);
-            }             
+            imageElem.setAttributeNS("http://www.w3.org/1999/xlink", "href", NODZ_BASE + "/static/img/file.png"); 
+            const filename = clone.getAttribute('filename');
+            const node_id = parseInt(node.id.match(/\d+/)[0], 10);
+            setDownloadLink(node_id, filename, clone);
             clone.appendChild(imageElem);   
             
             clone.setAttribute('type','text');
@@ -550,7 +536,7 @@ async function exportSVGToPDF(svgElement, filename = 'Nod-Z.pdf') {
     const height = (bbox.height)*0.3 + 10;
 
     const img = new Image(); 
-    img.src = "/static/img/logo_img.png"; 
+    img.src = NODZ_BASE + "/static/img/logo_img.png"; 
     const logoScale = 0.002*(width+height)/2;
     console.log(logoScale);
     const imgHeight = Math.max(49.5,49.5*logoScale);
