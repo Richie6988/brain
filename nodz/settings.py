@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'nodzapp',
+    'graph',
     # 'widget_tweaks',
     # 'django_tex',
     # 'wkhtmltopdf',

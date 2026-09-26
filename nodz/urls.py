@@ -28,6 +28,7 @@ def healthz(request):
 
 urlpatterns = [
     path('healthz', healthz),
+    path('api/v1/', include('graph.urls')),
     path('admin/', admin.site.urls),
     path('', include('nodzapp.urls')),
 ]
