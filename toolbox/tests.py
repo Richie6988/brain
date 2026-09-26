@@ -353,10 +353,10 @@ class GuardianTests(TestCase):
     def test_free_spot(self):
         from .guardian import free_spot
 
-        self.assertEqual(free_spot((0, 0), []), (0.0, -150.0))
-        occupied = [(0, 0), (0, -150)]
+        self.assertEqual(free_spot((0, 0), []), (0.0, -200.0))
+        occupied = [(0, 0), (0, -200)]
         spot = free_spot((0, 0), occupied)
-        self.assertTrue(all(math.dist(spot, p) >= 135 for p in occupied))
+        self.assertTrue(all(math.dist(spot, p) >= 180 for p in occupied))
 
 
 class CommandStreamTests(TransactionTestCase):

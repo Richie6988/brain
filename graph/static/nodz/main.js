@@ -2,7 +2,9 @@
 
 import { actions } from './actions.js';
 import { api, createSync } from './api.js';
+import { bindCommand } from './command.js';
 import { bindInteractions } from './interaction.js';
+import { bindLibrary } from './library.js';
 import { createRenderer } from './render.js';
 import { createStore } from './store.js';
 import { createViewport } from './viewport.js';
@@ -18,6 +20,8 @@ const viewport = createViewport(universe);
 const sync = createSync(store, { onError: error => { status.textContent = `Sauvegarde impossible : ${error.message}`; } });
 const view = createRenderer({ svg, universe, store, viewport, dispatch: (name, params) => store.dispatch(name, params) });
 bindInteractions({ svg, store, viewport, view, sync });
+bindCommand({ store, viewport, sync });
+bindLibrary();
 
 async function loadLayer(layerId) {
     await sync.flush();

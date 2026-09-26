@@ -92,7 +92,7 @@ def code_payload(text):
 
 def free_spot(anchor, occupied, radius=RADIUS):
     """Premier emplacement libre sur des anneaux autour de `anchor` (aucun chevauchement)."""
-    gap = radius * 2.4
+    gap = radius * 3.2
     for ring in range(1, 12):
         steps = 6 * ring
         for i in range(steps):

@@ -7,22 +7,63 @@ function csrfToken() {
     return match ? decodeURIComponent(match[1]) : '';
 }
 
-async function request(method, path, body) {
-    const response = await fetch(`${BASE}/api/v1/${path}`, {
+function send(method, path, body) {
+    return fetch(`${BASE}/api/v1/${path}`, {
         method,
         credentials: 'same-origin',
-        headers: body ? { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() } : {},
+        headers: method === 'GET' ? {} : { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
         body: body ? JSON.stringify(body) : undefined,
     });
+}
+
+async function failure(response) {
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error(data.error || response.statusText), { status: response.status, data });
-    return data;
+    return Object.assign(new Error(data.error || response.statusText), { status: response.status, data });
+}
+
+async function request(method, path, body) {
+    const response = await send(method, path, body);
+    if (!response.ok) throw await failure(response);
+    return response.json();
+}
+
+// Réponse en flux SSE (POST) : onEvent(type, données) pour chaque événement.
+async function stream(path, body, onEvent) {
+    const response = await send('POST', path, body);
+    if (!response.ok) throw await failure(response);
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = '';
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return;
+        buffer += value;
+        let cut;
+        while ((cut = buffer.indexOf('\n\n')) >= 0) {
+            const block = buffer.slice(0, cut);
+            buffer = buffer.slice(cut + 2);
+            const type = /^event: (.*)$/m.exec(block)?.[1];
+            const data = /^data: (.*)$/m.exec(block)?.[1];
+            if (type) onEvent(type, data ? JSON.parse(data) : {});
+        }
+    }
 }
 
 export const api = {
     layers: () => request('GET', 'layers'),
     graph: layerId => request('GET', `layers/${layerId}/graph`),
     changes: batch => request('POST', 'changes', batch),
+    command: (body, onEvent) => stream('toolbox/command', body, onEvent),
+    toolbox: {
+        status: () => request('GET', 'toolbox/status'),
+        agents: () => request('GET', 'toolbox/agents'),
+        updateAgent: (id, fields) => request('PATCH', `toolbox/agents/${id}`, fields),
+        models: () => request('GET', 'toolbox/models'),
+        download: file => request('POST', 'toolbox/models', file),
+        deleteModel: id => request('DELETE', `toolbox/models/${id}`),
+        recommendations: () => request('GET', 'toolbox/recommendations'),
+        search: (q, sort) => request('GET', `toolbox/hub/search?${new URLSearchParams({ q, sort, limit: 30 })}`),
+        files: repo => request('GET', `toolbox/hub/files?${new URLSearchParams({ repo })}`),
+    },
 };
 
 // Envoie les changements du store au plus tard `delay` ms après la dernière modification.

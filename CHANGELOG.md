@@ -2,11 +2,13 @@
 
 ## Phase 4 (en cours) : boîte à outils IA intégrée
 
-Ce qui a changé pour l'utilisateur : rien à l'écran pour l'instant. Le serveur sait chercher et télécharger des modèles Hugging Face, les faire tourner en local et gérer une bibliothèque d'agents ; la barre de commande s'appuiera dessus.
+Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran permet de parler au Gardien, qui agit directement dans l'univers (création, liens, archivage) et confie le contenu aux agents ; tout ce qu'il fait s'annule d'un seul Ctrl+Z. Le bouton Agents ouvre la bibliothèque : choix du modèle de chaque agent, modèles installés, recherche et téléchargement sur Hugging Face (administrateurs).
 
 - App `toolbox`, portée de SquidMind (qui n'est plus un service à part) : modèles locaux (`LocalModel`), agents (`Agent`), broker à priorités, moteur llama-cpp-python optionnel (`requirements-ai.txt`).
 - API `/api/v1/toolbox` : état du moteur, recherche et fichiers Hugging Face, recommandations, téléchargement et suppression de modèles (staff), agents par utilisateur (quatre agents de départ : Gardien, Rédacteur, Codeur, Illustrateur).
 - Le Gardien (`POST /api/v1/toolbox/command`, flux SSE) : lit la demande et le plan courant, répond par un plan d'actions JSON contraint (créer, modifier, relier, archiver, nettoyer, déléguer), place les nodes sans chevauchement, délègue aux agents (texte, code) qui publient leur résultat dans le node visé. Tout naît en brouillon, rattaché à un `AIRun`.
+- Interface : `command.js` (barre de commande, flux SSE, réponse appliquée au store sans renvoi au serveur et annulable en un pas via `store.applyRemote` / `store.record`), `library.js` (bibliothèque, en bottom sheet sur mobile, suppression confirmée en deux temps), clavier virtuel pris en compte (`visualViewport`).
+- nginx : bloc sans tampon et délai de 15 min pour le flux du Gardien.
 - Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX`, `LLM_GPU_LAYERS`, `LLM_THREADS`.
 
 ## Phase 3 (en cours) : nouvelle interface

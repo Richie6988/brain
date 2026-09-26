@@ -101,7 +101,7 @@ export function bindInteractions({ svg, store, viewport, view, sync }) {
 
     document.addEventListener('keydown', event => {
         if (event.key === 'Control') ctrlDown = true;
-        if (editing() || event.target.closest?.('input, textarea, [contenteditable]')) return;
+        if (editing() || event.target.closest?.('input, textarea, select, button, [contenteditable]')) return;
         const selection = store.state.selection;
         const mod = event.ctrlKey || event.metaKey;
         if (event.key === ' ') {

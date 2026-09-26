@@ -71,7 +71,8 @@ def agent_to_dict(a):
 
 @api('GET')
 def status(request, body):
-    return JsonResponse({'engine': engine.available(), 'loaded': str(engine.loaded) if engine.loaded else None,
+    return JsonResponse({'engine': engine.available(), 'staff': request.user.is_staff,
+                         'loaded': str(engine.loaded) if engine.loaded else None,
                          'broker': broker.state(), 'models_dir': str(settings.MODELS_DIR)})
 
 
