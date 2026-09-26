@@ -126,3 +126,81 @@ class ApiV1Tests(TestCase):
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.user)
         self.assertEqual(self.post({}, client).status_code, 403)
+
+
+class LegacyMigrationTests(TestCase):
+    """Migration v1 → v2 sur une base v1 générée (jamais sur une base de production)."""
+
+    def setUp(self):
+        from nodzapp import models as v1
+
+        self.v1 = v1
+        self.user = NodzUser.objects.create_user(email='legacy@nodz.local', password='pw-123456')
+        home = v1.Layer.objects.create(user=self.user, layer_id=1, layer_name='Home')
+        dim = v1.Layer.objects.create(user=self.user, layer_id=2, layer_name='Dim-2')
+
+        def node(node_id, layer, **kw):
+            return v1.Node.objects.create(user=self.user, node_id=node_id, layer=layer, **kw)
+
+        node(1, home, x_coordinate=10, y_coordinate=20, radius=80, text_content='<b>A</b>', siblings='["N-2"]',
+             quantum='[{"node": "N-4", "layer": "2"}]')
+        node(2, home, type='image', image_content='uploads/1/1/cat.png', text_content='chat', siblings='["N-1"]')
+        node(3, home, type='canvas', canvas_content='[{"x": 1}]', shape='weird', notification='2026-10-01')
+        node(4, dim, type='file', file='uploads/1/2/doc.pdf', file_name='doc.pdf', file_text_content='contrat')
+        node(5, home, archive=True, text_content='old')
+        v1.Link.objects.create(user=self.user, link_id=1, linkA='N-1', linkB='N-2', layer=home)
+        v1.Link.objects.create(user=self.user, link_id=2, linkA='N-1', linkB='N-99', layer=home)
+
+    def migrate(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command('migrate_v1_to_v2', '--user', 'legacy@nodz.local', stdout=out)
+        return out.getvalue()
+
+    def v2(self, node_id):
+        return Node.objects.get(legacy_ref=f'v1:{self.user.pk}:node:{node_id}')
+
+    def test_structure_and_content(self):
+        self.assertIn('2 plans, 5 nodes, 2 arêtes', self.migrate())
+        from .models import Layer
+
+        self.assertEqual(list(Layer.objects.values_list('name', 'index')), [('Home', 0), ('Dim-2', 1)])
+        a = self.v2(1)
+        self.assertEqual((a.x, a.y, a.radius, a.origin, a.content_type), (10, -20, 80, 'import', 'text'))
+        self.assertEqual(a.payload, {'text': {'html': '<b>A</b>'}})
+        self.assertEqual(self.v2(2).payload, {'text': {'html': 'chat'}, 'image': {'path': 'uploads/1/1/cat.png'}})
+        c = self.v2(3)
+        self.assertEqual((c.content_type, c.shape, c.radius), ('text', 'circle', 62.5))
+        self.assertEqual(c.payload['legacy'], {'type': 'canvas', 'canvas': '[{"x": 1}]', 'notification': '2026-10-01'})
+        d = self.v2(4)
+        self.assertEqual((d.content_type, d.file.name, d.file.extracted_text), ('file', 'doc.pdf', 'contrat'))
+        self.assertEqual(self.v2(5).status, 'archived')
+        self.assertEqual(NodeRevision.objects.filter(reason='import').count(), 5)
+
+    def test_edges_are_deduplicated_and_portals_cross_layers(self):
+        self.migrate()
+        links = Edge.objects.filter(kind='link')
+        self.assertEqual(links.count(), 1)  # Link 1 et siblings 1↔2 : une seule arête ; N-99 inconnu ignoré
+        portal = Edge.objects.get(kind='portal')
+        self.assertEqual((portal.source, portal.target), (self.v2(1), self.v2(4)))
+
+    def test_idempotent_and_syncs_changes(self):
+        self.migrate()
+        counts = (Node.objects.count(), Edge.objects.count(), NodeRevision.objects.count(), AuditLog.objects.count())
+        self.assertIn('0 plans, 0 nodes, 0 arêtes créés ; 0 mis à jour', self.migrate())
+        self.assertEqual(counts, (Node.objects.count(), Edge.objects.count(), NodeRevision.objects.count(), AuditLog.objects.count()))
+        self.v1.Node.objects.filter(user=self.user, node_id=1).update(color='#FF0000')
+        self.assertIn('1 mis à jour', self.migrate())
+        a = self.v2(1)
+        self.assertEqual((a.color, a.version), ('#FF0000', 2))
+
+    def test_migrated_graph_is_served_by_the_api(self):
+        self.migrate()
+        self.client.force_login(self.user)
+        home = self.client.get('/api/v1/layers').json()['layers'][0]
+        graph = self.client.get(f'/api/v1/layers/{home["id"]}/graph').json()
+        self.assertEqual(len(graph['nodes']), 3)  # le node archivé n'est pas servi
+        self.assertEqual(len(graph['edges']), 2)
+        self.assertEqual(len(graph['portal_ends']), 1)
