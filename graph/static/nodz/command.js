@@ -43,7 +43,7 @@ export function bindCommand({ store, viewport, sync }) {
                 selection: store.state.selection,
                 view: viewport.toUniverse(window.innerWidth / 2, window.innerHeight / 2),
             }, (type, data) => {
-                if (type === 'text') line(data.text);
+                if (type === 'text' || type === 'notice') line(data.text, type);
                 else if (type === 'error') line(data.message, 'error');
                 else if (type === 'agent') drafts.set(data.node, line(`${data.agent} : ${data.task}`, 'agent'));
                 else if (type === 'agent_text') drafts.get(data.node)?.classList.add('working');

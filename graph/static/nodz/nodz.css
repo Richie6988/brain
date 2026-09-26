@@ -53,6 +53,7 @@ button:disabled, select:disabled { opacity: 0.5; cursor: default; }
 #reply .you { color: var(--muted); }
 #reply .error { color: #ff6b6b; }
 #reply .agent { color: var(--accent); }
+#reply .notice { color: var(--muted); font-size: 13px; }
 #reply .agent.working::after { content: ' …'; }
 #command {
     display: flex; align-items: flex-end; gap: 8px; padding: 8px; border-radius: 16px;

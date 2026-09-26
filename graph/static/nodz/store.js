@@ -137,7 +137,8 @@ export function createStore() {
         hasChanges: () => Object.values(dirty).some(set => set.size > 0),
         // Changements déjà écrits par le serveur (Gardien) : appliqués sans être renvoyés. Renvoie
         // leur inverse ; l'annulation, elle, passe par les primitives et est donc sauvegardée.
-        applyRemote({ nodes = [], edges = [], deleted = {} }) {
+        applyRemote({ layers = [], nodes = [], edges = [], deleted = {} }) {
+            layers.forEach(l => state.layers.set(l.id, l));
             const steps = [];
             const track = (map, id, next, put, remove) => {
                 const swap = (value, other) => () => {

@@ -346,9 +346,74 @@ class GuardianTests(TestCase):
 
         with self.assertRaises(ChangeError):
             self.run_guardian('pas du json')
-        with self.assertRaises(ChangeError):
-            self.run_guardian(json.dumps({'say': '', 'actions': [{'op': 'archive', 'ref': 'n99'}]}))
-        self.assertEqual(set(AIRun.objects.values_list('status', flat=True)), {AIRun.Status.ERROR})
+        self.assertEqual(AIRun.objects.get().status, AIRun.Status.ERROR)
+
+    def test_invalid_action_is_reported_and_skipped(self):
+        from graph.models import Node
+
+        self.run_guardian(json.dumps({'say': '', 'actions': [
+            {'op': 'archive', 'ref': 'n99'},
+            {'op': 'style', 'ref': 'n1', 'color': 'rouge'},
+            {'op': 'create', 'ref': 'new1', 'text': 'ok'},
+        ]}))
+        errors = [d['message'] for k, d in self.events if k == 'error']
+        self.assertEqual(len(errors), 2)
+        self.assertIn("'n99'", errors[0])
+        self.assertTrue(Node.objects.filter(origin='ai').exists())
+
+    def test_style_type_unlink(self):
+        from graph.models import Edge, Node
+
+        Edge.objects.create(source=self.idea, target=self.empty)
+        self.run_guardian(json.dumps({'say': '', 'actions': [
+            {'op': 'style', 'ref': 'n1', 'color': '#FF6B6B', 'shape': 'square', 'radius': 9000, 'lock': True},
+            {'op': 'set_type', 'ref': 'n2', 'content_type': 'code'},
+            {'op': 'unlink', 'source': 'n2', 'target': 'n1'},
+            {'op': 'create', 'ref': 'new1', 'text': 'Bleu', 'color': '#4D96FF', 'shape': 'none'},
+        ]}))
+        self.idea.refresh_from_db()
+        self.empty.refresh_from_db()
+        self.assertEqual((self.idea.color, self.idea.shape, self.idea.radius, self.idea.lock), ('#FF6B6B', 'square', 400.0, True))
+        self.assertEqual(self.empty.content_type, Node.ContentType.CODE)
+        self.assertFalse(Edge.objects.exists())
+        self.assertEqual(Node.objects.get(origin='ai').shape, 'none')
+
+    def test_portal_new_and_existing_layer(self):
+        from graph.models import Edge, Layer, Node
+
+        other = Layer.objects.create(owner=self.user, name='Recherche', index=1)
+        Node.objects.create(layer=other, x=0, y=0)
+        self.run_guardian(json.dumps({'say': '', 'actions': [
+            {'op': 'portal', 'ref': 'n1', 'name': 'recherche'},
+            {'op': 'portal', 'ref': 'n1', 'name': 'Budget'},
+        ]}))
+        portals = Edge.objects.filter(kind=Edge.Kind.PORTAL, source=self.idea).select_related('target__layer')
+        self.assertEqual(sorted(e.target.layer.name for e in portals), ['Budget', 'Recherche'])
+        budget = Layer.objects.get(name='Budget')
+        self.assertEqual(budget.index, 2)
+        entry = next(e.target for e in portals if e.target.layer_id == other.id)
+        self.assertNotEqual((entry.x, entry.y), (0, 0))
+        self.assertEqual(entry.payload['text']['html'], 'Voyage au Japon')
+        self.assertTrue(all(e.target.status == Node.Status.DRAFT for e in portals))
+
+    def test_plug_agent_and_inventory_loop(self):
+        other = LocalModel.objects.create(repo='org/coder', filename='Qwen2.5-Coder-7B-Q4_K_M.gguf', status=LocalModel.Status.READY)
+        Agent.objects.filter(name='Codeur').update(model=None)
+        engine = self.run_guardian(
+            json.dumps({'say': 'Je regarde.', 'actions': [{'op': 'inventory'}]}),
+            json.dumps({'say': 'Je branche.', 'actions': [
+                {'op': 'plug_agent', 'agent': 'codeur', 'model': 'coder'},
+                {'op': 'delegate', 'agent': 'Codeur', 'task': 'hello', 'ref': 'new1'},
+            ]}),
+            '```js\nhi()\n```',
+        )
+        inventory = engine.calls[1]['messages'][-1]['content']
+        self.assertIn('Codeur (code, sans modèle)', inventory)
+        self.assertIn('Home (2 nodes, courant)', inventory)
+        self.assertIn('Qwen2.5-Coder-7B-Q4_K_M.gguf (text)', inventory)
+        self.assertEqual(Agent.objects.get(name='Codeur').model, other)
+        self.assertIn('notice', self.kinds())
+        self.assertEqual(len(engine.calls), 3)
 
     def test_free_spot(self):
         from .guardian import free_spot
