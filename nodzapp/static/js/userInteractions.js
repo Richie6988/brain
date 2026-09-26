@@ -928,7 +928,7 @@ function multiUsers() {
     
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token'); 
-    const socket = new WebSocket(`ws://localhost:8000/ws/?token=${token}`);
+    const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/?token=${token}`);
 
     // Listen for socket events
     socket.onopen = function() {
