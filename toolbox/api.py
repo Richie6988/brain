@@ -1,4 +1,8 @@
-"""API /api/v1/toolbox : bibliothèque de modèles (Hugging Face), bibliothèque d'agents, Gardien."""
+"""API /api/v1/toolbox : bibliothèque de modèles (Hugging Face, fichiers du serveur), agents, Gardien.
+
+Consulter est ouvert à tout compte connecté ; ce qui change le serveur (télécharger, importer,
+supprimer, régler un modèle) est réservé aux administrateurs : les modèles sont partagés.
+"""
 
 import asyncio
 import json
@@ -16,19 +20,20 @@ from graph.services import ChangeError
 
 from . import hub
 from .broker import BrokerTimeout
-from .engine import EngineUnavailable
+from .engine import LOAD_PARAMS, EngineUnavailable
 from .guardian import Guardian, PlanError
 from .models import Agent, LocalModel
 from .runtime import broker, engine
 
 logger = logging.getLogger(__name__)
 
-MODEL_FIELDS = ('kind', 'capabilities', 'params')
 AGENT_FIELDS = ('name', 'role', 'description', 'system_prompt', 'tools_allowed', 'params', 'enabled')
+# Réglages d'un modèle : chargement (engine.LOAD_PARAMS), déchargement et génération.
+MODEL_PARAMS = {**{key: int for key in LOAD_PARAMS}, 'ttl': float, 'temperature': float, 'max_tokens': int}
 
 # Bibliothèque de départ : l'utilisateur choisit ensuite le modèle de chaque agent.
 DEFAULT_AGENTS = [
-    ('Gardien', Agent.Role.ORCHESTRATOR, "Orchestre l'univers : place, délègue, archive et nettoie les nodes."),
+    ('Gardien', Agent.Role.ORCHESTRATOR, "Lit chaque node écrit et répond dans l'univers : place, relie, délègue, archive."),
     ('Rédacteur', Agent.Role.TEXT, 'Écrit, résume, reformule.'),
     ('Codeur', Agent.Role.CODE, 'Écrit et explique du code.'),
     ('Illustrateur', Agent.Role.IMAGE, 'Génère des images.'),
@@ -55,11 +60,13 @@ def hub_call(fn, *args, **kwargs):
         raise Upstream(f'Hugging Face : {e}') from None
 
 
-def model_to_dict(m):
-    hub.refresh_progress(m)
-    return {'id': str(m.id), 'repo': m.repo, 'filename': m.filename, 'kind': m.kind, 'capabilities': m.capabilities,
-            'quant': m.quant, 'size': m.size, 'status': m.status, 'progress': round(m.progress, 3), 'error': m.error,
-            'params': m.params, 'loaded': engine.loaded == m.id}
+def model_to_dict(m, user):
+    stats = engine.stats.get(m.id)
+    return {'id': str(m.id), 'repo': m.repo, 'filename': m.filename, 'label': m.label, 'kind': m.kind,
+            'capabilities': m.capabilities, 'quant': m.quant, 'size': m.size, 'downloaded': m.downloaded,
+            'status': m.status, 'error': m.error, 'params': m.params, 'loaded': engine.loaded == m.id,
+            'stats': stats if engine.loaded == m.id else None, **hub.download_state(m),
+            'agents': [a.name for a in m.agents.all() if a.owner_id == user.pk]}
 
 
 def agent_to_dict(a):
@@ -68,18 +75,27 @@ def agent_to_dict(a):
             'tools_allowed': a.tools_allowed, 'params': a.params, 'enabled': a.enabled}
 
 
+def _number(value, kind, name):
+    try:
+        return kind(value)
+    except (TypeError, ValueError):
+        raise ChangeError(f'{name} : nombre attendu') from None
+
+
 @api('GET')
 def status(request, body):
     return JsonResponse({'engine': engine.available(), 'staff': request.user.is_staff,
-                         'loaded': str(engine.loaded) if engine.loaded else None,
-                         'broker': broker.state(), 'models_dir': str(settings.MODELS_DIR)})
+                         'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
+                         'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR)})
 
 
 @api('GET')
 def hub_search(request, body):
     q = request.GET
+    size = {key: _number(q[key], float, key) if q.get(key) else None for key in ('min_b', 'max_b')}
     return JsonResponse({'models': hub_call(hub.search, q.get('q', ''), q.get('sort', 'downloads'),
-                                            min(int(q.get('limit', 30)), 100), q.get('pipeline', ''))})
+                                            min(_number(q.get('limit', 30), int, 'limit'), 100), q.get('pipeline', ''),
+                                            q.get('quant', ''), size['min_b'], size['max_b'])})
 
 
 @api('GET')
@@ -98,7 +114,7 @@ def recommendations(request, body):
 @api('GET', 'POST')
 def models(request, body):
     if request.method == 'GET':
-        return JsonResponse({'models': [model_to_dict(m) for m in LocalModel.objects.all()]})
+        return JsonResponse({'models': [model_to_dict(m, request.user) for m in LocalModel.objects.prefetch_related('agents')]})
     staff_only(request)
     repo, filename = body.get('repo', ''), body.get('filename', '')
     if repo.count('/') != 1 or not filename.lower().endswith('.gguf') or '..' in filename:
@@ -107,29 +123,74 @@ def models(request, body):
     if kind not in LocalModel.Kind.values:
         raise ChangeError(f'type {kind!r} inconnu')
     model = hub.start_download(repo, filename, body.get('size', 0), kind, body.get('capabilities', []))
-    return JsonResponse(model_to_dict(model), status=202)
+    return JsonResponse(model_to_dict(model, request.user), status=202)
 
 
 @api('PATCH', 'DELETE')
 def model_detail(request, body, model_id):
+    """Réglages d'un modèle ; DELETE le retire de la bibliothèque (?file=1 supprime aussi le fichier)."""
     staff_only(request)
     model = LocalModel.objects.filter(id=model_id).first()
     if model is None:
         return JsonResponse({'error': 'modèle introuvable'}, status=404)
     if request.method == 'DELETE':
+        hub.cancel_download(model)
         if engine.loaded == model.id:
             engine.unload()
-        if model.path and Path(model.path).is_relative_to(Path(settings.MODELS_DIR)):
+        if request.GET.get('file') == '1' and model.path and Path(model.path).is_relative_to(Path(settings.MODELS_DIR)):
             Path(model.path).unlink(missing_ok=True)
         model.delete()
         return JsonResponse({'deleted': str(model_id)})
-    for field in MODEL_FIELDS:
-        if field in body:
-            setattr(model, field, body[field])
-    if model.kind not in LocalModel.Kind.values:
-        raise ChangeError('type inconnu')
+    if 'label' in body:
+        model.label = str(body['label'])[:120]
+    if 'kind' in body:
+        if body['kind'] not in LocalModel.Kind.values:
+            raise ChangeError('type inconnu')
+        model.kind = body['kind']
+    if 'params' in body:
+        params = body['params'] or {}
+        unknown = set(params) - set(MODEL_PARAMS)
+        if unknown:
+            raise ChangeError(f'réglage inconnu : {", ".join(sorted(unknown))}')
+        model.params = {key: _number(value, MODEL_PARAMS[key], key) for key, value in params.items() if value not in ('', None)}
     model.save()
-    return JsonResponse(model_to_dict(model))
+    return JsonResponse(model_to_dict(model, request.user))
+
+
+@api('POST')
+def model_action(request, body, model_id, action):
+    """unload (libérer la mémoire), cancel (arrêter le téléchargement), retry (le reprendre)."""
+    staff_only(request)
+    model = LocalModel.objects.filter(id=model_id).first()
+    if model is None:
+        return JsonResponse({'error': 'modèle introuvable'}, status=404)
+    if action == 'unload':
+        if engine.loaded == model.id:
+            engine.unload()
+    elif action == 'cancel':
+        hub.cancel_download(model)
+    elif action == 'retry':
+        model = hub.start_download(model.repo, model.filename, model.size, model.kind, model.capabilities)
+    else:
+        raise ChangeError(f'action inconnue : {action}')
+    model.refresh_from_db()
+    return JsonResponse(model_to_dict(model, request.user))
+
+
+@api('GET', 'POST', 'DELETE')
+def local_files(request, body):
+    """Fichiers .gguf déjà présents dans MODELS_DIR : liste, import dans la bibliothèque, suppression."""
+    if request.method == 'GET':
+        return JsonResponse({'files': hub.local_files(), 'models_dir': str(settings.MODELS_DIR)})
+    staff_only(request)
+    path = hub.resolve_local((body or {}).get('path') if request.method == 'POST' else request.GET.get('path'))
+    if path is None:
+        raise ChangeError('fichier .gguf introuvable dans le dossier des modèles')
+    if request.method == 'DELETE':
+        LocalModel.objects.filter(path=str(path)).delete()
+        path.unlink()
+        return JsonResponse({'deleted': str(path.name)})
+    return JsonResponse(model_to_dict(hub.import_local(path), request.user), status=201)
 
 
 def _agent_model(body):

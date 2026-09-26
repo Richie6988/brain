@@ -60,6 +60,7 @@ async function upload(file) {
 }
 
 export const api = {
+    request,
     upload,
     fileUrl: (id, download = false) => `${BASE}/api/v1/files/${id}${download ? '?download=1' : ''}`,
     layers: () => request('GET', 'layers'),

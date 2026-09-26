@@ -1,20 +1,27 @@
-"""Hugging Face : recherche de modèles GGUF, fichiers d'un dépôt, recommandations, téléchargement.
+"""Hugging Face et fichiers de modèles : recherche filtrée, fichiers d'un dépôt, recommandations selon
+la machine, téléchargements suivis (reprise, vitesse, annulation), fichiers déjà présents sur le serveur.
 
-Annotations (rôle, capacités, quantisation, fichiers recommandés) reprises de SquidMind.
+Annotations (rôle, capacités, quantisation, fichier recommandé, taille) reprises du ModelLoader de SquidMind.
 """
 
 import re
 import shutil
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 from django.conf import settings
-from huggingface_hub import HfApi, hf_hub_download
+from django.db import connection
+from huggingface_hub import HfApi, get_session, hf_hub_url
+from huggingface_hub.utils import build_hf_headers
 
 from .models import LocalModel
 
-SORTS = {'downloads': 'downloads', 'likes': 'likes', 'trending': 'trending_score', 'recent': 'last_modified'}
+SORTS = {'downloads': 'downloads', 'likes': 'likes', 'trending': 'trending_score', 'recent': 'last_modified',
+         'created': 'created_at'}
+EXPAND = ['downloads', 'likes', 'tags', 'pipeline_tag', 'lastModified']
+CHUNK = 1024 * 1024
 
 # Un modèle par palier de mémoire, tous capables d'appeler des outils (liste SquidMind).
 CATALOG = [
@@ -34,7 +41,8 @@ def api():
 
 
 def detect_quant(name):
-    match = re.search(r'[_-]((?:IQ|Q)[0-9]+(?:_[A-Z0-9]+)*)', name, re.I) or re.search(r'((?:IQ|Q)[0-9]+(?:_[A-Z0-9]+)*)', name, re.I)
+    match = re.search(r'[_.-]((?:IQ|Q)[0-9]+(?:_[A-Z0-9]+)*|F16|BF16|F32)', name, re.I) \
+        or re.search(r'((?:IQ|Q)[0-9]+(?:_[A-Z0-9]+)*)', name, re.I)
     return match.group(1).upper() if match else ''
 
 
@@ -73,37 +81,89 @@ def capabilities_of(model_id, tags, pipeline=''):
     return [cap for cap, pattern in rules if re.search(pattern, text, re.I)]
 
 
-def size_in_billions(tags):
+def size_tag(tags):
+    """('7B', 7.0) à partir des tags du dépôt, (None, None) sinon."""
     for tag in tags:
         match = re.fullmatch(r'([0-9]+(?:\.[0-9]+)?)([bBmM])', tag)
         if match:
             value = float(match.group(1))
-            return value if match.group(2).lower() == 'b' else value / 1000
-    return None
+            return tag.upper(), value if match.group(2).lower() == 'b' else value / 1000
+    return None, None
 
 
-def search(query='', sort='downloads', limit=30, pipeline=''):
+def search(query='', sort='downloads', limit=30, pipeline='', quant='', min_b=None, max_b=None):
     models = api().list_models(
         search=query or None, filter='gguf', pipeline_tag=pipeline or None,
-        sort=SORTS.get(sort, 'downloads'), limit=limit,
+        sort=SORTS.get(sort, 'downloads'), limit=limit, expand=EXPAND,
     )
     results = []
     for m in models:
         tags = list(m.tags or [])
+        hint, size_b = size_tag(tags)
+        if size_b is not None and ((min_b and size_b < min_b) or (max_b and size_b > max_b)):
+            continue
+        if quant and quant.upper() not in f"{m.id} {' '.join(tags)}".upper():
+            continue
         results.append({
             'id': m.id, 'downloads': m.downloads or 0, 'likes': m.likes or 0, 'pipeline': m.pipeline_tag or '',
             'role': role_of(m.id, m.pipeline_tag or ''), 'capabilities': capabilities_of(m.id, tags, m.pipeline_tag or ''),
-            'size_b': size_in_billions(tags),
+            'size_b': size_b, 'size_hint': hint,
+            'updated': m.last_modified.isoformat() if getattr(m, 'last_modified', None) else '',
         })
     return results
 
 
+# --- la machine : décide des recommandations et des fichiers trop lourds
+
+def gpu_memory_mb():
+    if not shutil.which('nvidia-smi'):
+        return 0
+    try:
+        out = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'],
+                             capture_output=True, text=True, timeout=4).stdout
+        return int(out.split()[0])
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        return 0
+
+
+def ram_mb():
+    try:
+        for line in Path('/proc/meminfo').read_text().splitlines():
+            if line.startswith('MemTotal:'):
+                return int(line.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return 0
+
+
+def machine():
+    vram = gpu_memory_mb()
+    ram = ram_mb()
+    # Budget pour les poids : 85 % de la VRAM sur GPU (SquidMind), 60 % de la RAM sur CPU.
+    budget = vram * 0.85 if vram else ram * 0.6
+    return {'gpu': vram > 0, 'vram_mb': vram, 'ram_mb': ram, 'budget_mb': int(budget)}
+
+
+def recommendations():
+    info = machine()
+    if info['gpu']:
+        fits = [m for m in CATALOG if info['vram_mb'] >= m['min_mb']]
+    else:
+        fits = [m for m in CATALOG if m['size_gb'] * 1024 <= info['budget_mb']] or CATALOG[-1:]
+    return {**info, 'models': [{**m, 'recommended': i == 0} for i, m in enumerate(fits)]}
+
+
 def repo_files(repo):
     info = api().model_info(repo, files_metadata=True)
-    files = [
-        {'name': s.rfilename, 'size': s.size or 0, 'quant': detect_quant(s.rfilename), 'recommended': is_recommended(s.rfilename)}
-        for s in info.siblings or [] if s.rfilename.lower().endswith('.gguf')
-    ]
+    budget = machine()['budget_mb']
+    files = []
+    for s in info.siblings or []:
+        if not s.rfilename.lower().endswith('.gguf'):
+            continue
+        size = s.size or 0
+        files.append({'name': s.rfilename, 'size': size, 'quant': detect_quant(s.rfilename),
+                      'recommended': is_recommended(s.rfilename),
+                      'heavy': bool(budget and size > budget * 1024 * 1024)})
     order = ['Q8', 'Q6', 'Q5', 'Q4', 'Q3', 'Q2', 'IQ']
 
     def rank(f):
@@ -117,55 +177,115 @@ def repo_files(repo):
             'pipeline': info.pipeline_tag or ''}
 
 
-def gpu_memory_mb():
-    if not shutil.which('nvidia-smi'):
-        return 0
-    try:
-        out = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'],
-                             capture_output=True, text=True, timeout=4).stdout
-        return int(out.split()[0])
-    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
-        return 0
+# --- téléchargements : suivis en mémoire (vitesse, annulation), état durable dans LocalModel
+
+DOWNLOADS = {}  # id du LocalModel → {'cancel': Event, 'speed': octets/s}
 
 
-def recommendations():
-    vram = gpu_memory_mb()
-    fits = [m for m in CATALOG if vram >= m['min_mb']]
-    return {'gpu': vram > 0, 'vram_mb': vram, 'models': [{**m, 'recommended': i == 0} for i, m in enumerate(fits)]}
+def folder_of(model):
+    return Path(settings.MODELS_DIR) / model.repo.replace('/', '__')
 
 
 def start_download(repo, filename, size=0, kind=LocalModel.Kind.TEXT, capabilities=()):
-    """Crée (ou relance) l'entrée et télécharge en tâche de fond ; la progression est lue sur disque."""
+    """Crée (ou relance) l'entrée et télécharge en tâche de fond ; reprend un .partial existant."""
     model, _ = LocalModel.objects.update_or_create(
         repo=repo, filename=filename,
-        defaults={'status': LocalModel.Status.DOWNLOADING, 'progress': 0, 'error': '', 'size': size, 'kind': kind,
+        defaults={'status': LocalModel.Status.DOWNLOADING, 'error': '', 'size': size, 'kind': kind,
                   'quant': detect_quant(filename), 'capabilities': list(capabilities)},
     )
-    threading.Thread(target=_download, args=(model.pk,), daemon=True).start()
+    if model.pk not in DOWNLOADS:
+        DOWNLOADS[model.pk] = {'cancel': threading.Event(), 'speed': 0.0}
+        threading.Thread(target=_download, args=(model.pk,), daemon=True).start()
     return model
 
 
-def _download(model_id):
-    from django.db import connection
+def cancel_download(model):
+    job = DOWNLOADS.get(model.pk)
+    if job:
+        job['cancel'].set()
+    else:  # plus de tâche (serveur redémarré) : l'état passe simplement à annulé
+        LocalModel.objects.filter(pk=model.pk, status=LocalModel.Status.DOWNLOADING).update(status=LocalModel.Status.CANCELLED)
 
+
+def _download(model_id):
+    job = DOWNLOADS[model_id]
     model = LocalModel.objects.get(pk=model_id)
-    target = Path(settings.MODELS_DIR) / model.repo.replace('/', '__')
+    target = folder_of(model) / model.filename
+    partial = target.with_name(target.name + '.partial')
     try:
-        path = hf_hub_download(model.repo, model.filename, local_dir=target, token=settings.HF_TOKEN or None)
-        LocalModel.objects.filter(pk=model_id).update(
-            path=str(path), status=LocalModel.Status.READY, progress=1, size=Path(path).stat().st_size,
-        )
-    except Exception as e:  # réseau, disque, dépôt privé : l'erreur est rapportée dans la bibliothèque
+        target.parent.mkdir(parents=True, exist_ok=True)
+        done = partial.stat().st_size if partial.exists() else 0
+        headers = build_hf_headers(token=settings.HF_TOKEN or None)
+        if done:
+            headers['Range'] = f'bytes={done}-'
+        with get_session().stream('GET', hf_hub_url(model.repo, model.filename), headers=headers,
+                                  follow_redirects=True, timeout=60) as response:
+            if response.status_code != 416:  # 416 : le .partial est déjà complet
+                response.raise_for_status()
+                if response.status_code == 200:
+                    done = 0  # le serveur ignore la reprise : on repart de zéro
+                total = done + int(response.headers.get('content-length') or 0) or model.size
+                LocalModel.objects.filter(pk=model_id).update(size=total, downloaded=done)
+                window_start, window_bytes, last_save = time.monotonic(), 0, 0.0
+                with partial.open('ab' if done else 'wb') as out:
+                    for chunk in response.iter_bytes(CHUNK):
+                        if job['cancel'].is_set():
+                            LocalModel.objects.filter(pk=model_id).update(status=LocalModel.Status.CANCELLED, downloaded=done)
+                            return
+                        out.write(chunk)
+                        done += len(chunk)
+                        window_bytes += len(chunk)
+                        now = time.monotonic()
+                        if now - window_start >= 1:
+                            job['speed'] = window_bytes / (now - window_start)
+                            window_start, window_bytes = now, 0
+                        if now - last_save >= 1:
+                            LocalModel.objects.filter(pk=model_id).update(downloaded=done)
+                            last_save = now
+        partial.replace(target)
+        size = target.stat().st_size
+        LocalModel.objects.filter(pk=model_id).update(path=str(target), status=LocalModel.Status.READY, size=size, downloaded=size)
+    except Exception as e:  # réseau, disque, dépôt privé : rapporté dans la bibliothèque, le .partial reste pour reprendre
         LocalModel.objects.filter(pk=model_id).update(status=LocalModel.Status.ERROR, error=str(e)[:2000])
     finally:
+        DOWNLOADS.pop(model_id, None)
         connection.close()
 
 
-def refresh_progress(model):
-    """Progression d'un téléchargement en cours : taille partielle sur disque / taille annoncée."""
-    if model.status != LocalModel.Status.DOWNLOADING or not model.size:
-        return model
-    folder = Path(settings.MODELS_DIR) / model.repo.replace('/', '__')
-    partial = sum(p.stat().st_size for p in folder.rglob('*') if p.is_file()) if folder.exists() else 0
-    model.progress = min(partial / model.size, 0.99)
+def download_state(model):
+    """Progression, vitesse et temps restant d'un téléchargement."""
+    job = DOWNLOADS.get(model.pk)
+    speed = job['speed'] if job else 0.0
+    left = max(model.size - model.downloaded, 0)
+    return {'progress': round(model.downloaded / model.size, 4) if model.size else 0, 'speed': round(speed),
+            'eta': round(left / speed) if speed else None}
+
+
+# --- fichiers .gguf déjà sur le serveur (copiés à la main dans MODELS_DIR)
+
+def local_files():
+    root = Path(settings.MODELS_DIR)
+    known = {m.path: m for m in LocalModel.objects.exclude(path='')}
+    files = []
+    if root.exists():
+        for path in sorted(root.rglob('*.gguf')):
+            files.append({'path': str(path.relative_to(root)), 'name': path.name, 'size': path.stat().st_size,
+                          'quant': detect_quant(path.name), 'model': str(known[str(path)].id) if str(path) in known else None})
+    return files
+
+
+def resolve_local(relative):
+    """Chemin absolu d'un fichier .gguf de MODELS_DIR ; None s'il sort du dossier ou n'existe pas."""
+    root = Path(settings.MODELS_DIR).resolve()
+    path = (root / str(relative)).resolve()
+    return path if path.is_relative_to(root) and path.is_file() and path.suffix.lower() == '.gguf' else None
+
+
+def import_local(path):
+    model, _ = LocalModel.objects.update_or_create(
+        repo='local', filename=path.name,
+        defaults={'path': str(path), 'status': LocalModel.Status.READY, 'size': path.stat().st_size,
+                  'downloaded': path.stat().st_size, 'quant': detect_quant(path.name),
+                  'capabilities': capabilities_of(path.name, [])},
+    )
     return model

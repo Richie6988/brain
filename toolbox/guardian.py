@@ -72,7 +72,8 @@ PLAN_SCHEMA = {
 SYSTEM = """Tu es le Gardien de l'univers Nodz : une carte spatiale de nodes (idées) reliés entre eux,
 répartis sur des dimensions (plans) reliées par des portails. Tu pilotes le vaisseau de l'utilisateur :
 tes travellings de caméra le guident (tutoriels, visites, montrer ce que tu viens de faire).
-Tu réponds uniquement en JSON : {"say": phrase courte pour l'utilisateur, "actions": [...]}.
+L'utilisateur t'écrit dans un node (le node message) ; tu réponds uniquement en JSON :
+{"say": ta réponse, courte, écrite dans un node relié au node message, "actions": [...]}.
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
 Actions possibles :
 - {"op":"create","ref":"new1","text":"...","near":"N-3","color":"#4D96FF","shape":"circle"} : nouveau node
@@ -163,11 +164,13 @@ class Guardian:
             self.nodes[n['id']] = {'x': _number(n.get('x')), 'y': _number(n.get('y')), 'r': _number(n.get('r'), RADIUS),
                                    'text': plain(n.get('text', '')), 'color': n.get('color', '')}
         self.occupied = [(n['x'], n['y']) for n in self.nodes.values()]
-        first = self.nodes.get(selected[0]['id']) if selected else None
+        origin = context.get('origin')  # le node message : les réponses se placent autour de lui
+        first = self.nodes.get(origin) or (self.nodes.get(selected[0]['id']) if selected else None)
         self.anchor = (first['x'], first['y']) if first else center
         known = {n['id'] for n in self.context}
         self.links = [(a, b) for a, b in (context.get('links') or []) if a in known and b in known]
         self.selection = [n['id'] for n in selected]
+        self.origin = origin if origin in self.nodes else None
         self.layer = context.get('layer') or {}
         self.layers = [l for l in context.get('layers') or [] if isinstance(l, dict)]
 
@@ -181,7 +184,7 @@ class Guardian:
             'Nodes :', *(lines or ['(aucun)']),
             'Liens : ' + (', '.join(f'{a}-{b}' for a, b in self.links) or 'aucun'),
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
-            f'Demande : {request}',
+            f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
         ])
 
     # --- validation des actions
@@ -330,6 +333,15 @@ class Guardian:
                 self.emit('error', {'message': f'{op} : {e}'})
         return self.jobs, self.reads
 
+    def answer(self, say):
+        """La réponse du Gardien : un node relié au node message, ou une ligne si la demande n'a pas de node."""
+        if not self.origin:
+            self.emit('text', {'text': say})
+            return
+        ref = f'reply{sum(1 for key in self.nodes if key.startswith("reply")) + 1}'
+        self.emit('action', self.op_create({'ref': ref, 'text': say, 'near': self.origin}, {}))
+        self.emit('action', {'op': 'link', 'source': self.origin, 'target': ref})
+
     def delegate(self, agent, task, ref):
         self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task})
         messages = [
@@ -363,6 +375,7 @@ class Guardian:
                 {'role': 'system', 'content': guardian.system_prompt or SYSTEM.replace('{agents}', roster)},
                 {'role': 'user', 'content': self.prompt(request)},
             ]
+            say = ''
             for _ in range(MAX_ROUNDS):
                 raw = self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT,
                                        owner='gardien', temperature=0.2)
@@ -370,17 +383,18 @@ class Guardian:
                     plan = json.loads(raw)
                 except json.JSONDecodeError:
                     raise PlanError('le Gardien a répondu hors format') from None
-                if plan.get('say'):
-                    self.emit('text', {'text': plan['say']})
+                say = plan.get('say') or say
                 jobs, reads = self.execute(plan.get('actions') or [], agents)
                 for agent, task, ref in jobs:
                     self.delegate(agent, task, ref)
                 if not reads:
-                    break
+                    break  # dernier tour : sa réponse devient le node-réponse (une seule par message)
                 messages += [
                     {'role': 'assistant', 'content': raw},
                     {'role': 'user', 'content': '\n'.join(reads) + '\nContinue la demande sans refaire les actions déjà faites.'},
                 ]
+            if say:
+                self.answer(say)
             self.run.status = AIRun.Status.DONE
         except Exception as e:
             self.run.status, self.run.error = AIRun.Status.ERROR, str(e)

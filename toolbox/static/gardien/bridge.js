@@ -8,7 +8,7 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-export function createBridge({ caption, covered = () => 0 }) {
+export function createBridge({ caption }) {
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
     let take = 0;            // numéro de prise : un geste de l'utilisateur coupe le travelling
     const cut = () => { take += 1; };
@@ -22,7 +22,7 @@ export function createBridge({ caption, covered = () => 0 }) {
     const toScreen = (x, y) => ({ x: x * currentZoom - rootX() + centerX, y: -y * currentZoom + rootY() + centerY });
     const toWorld = (sx, sy) => ({ x: (sx - centerX + rootX()) / currentZoom, y: -(sy - centerY - rootY()) / currentZoom });
     const at = node => toScreen(parseFloat(node.getAttribute('x')), parseFloat(node.getAttribute('y')));
-    const view = () => ({ x: window.innerWidth / 2, y: (window.innerHeight - covered()) / 2 });
+    const view = () => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
     // --- gestes, joués comme l'utilisateur les joue
 
@@ -74,7 +74,7 @@ export function createBridge({ caption, covered = () => 0 }) {
         const pts = nodes.map(n => ({ x: parseFloat(n.getAttribute('x')), y: parseFloat(n.getAttribute('y')), r: parseFloat(n.children[1].getAttribute('r')) }));
         const [x0, x1] = [Math.min(...pts.map(p => p.x - p.r)), Math.max(...pts.map(p => p.x + p.r))];
         const [y0, y1] = [Math.min(...pts.map(p => p.y - p.r)), Math.max(...pts.map(p => p.y + p.r))];
-        const zoom = Math.min(window.innerWidth / (x1 - x0 + 240), (window.innerHeight - covered()) / (y1 - y0 + 240), 1.6);
+        const zoom = Math.min(window.innerWidth / (x1 - x0 + 240), window.innerHeight / (y1 - y0 + 240), 1.6);
         const v = view();
         if (!(await zoomTo(zoom, v.x, v.y, id))) return false;
         const c = toScreen((x0 + x1) / 2, (y0 + y1) / 2);
@@ -234,18 +234,24 @@ export function createBridge({ caption, covered = () => 0 }) {
                 await wait(Math.min(6000, 1400 + action.text.length * 45));
             }
         },
-        // Pendant la réflexion : quelques crans de recul, lents, au centre de la vue.
-        async drift() {
-            const id = take;
-            isZooming = false;
-            for (let i = 0; i < 6 && id === take; i++) {
-                const v = view();
-                svg.dispatchEvent(new WheelEvent('wheel', { clientX: v.x, clientY: v.y, deltaY: 0.9, cancelable: true }));
-                await wait(700);
-            }
-            isZooming = false;
+        // Un node écrit par l'utilisateur est un message : quand il le quitte après l'avoir modifié,
+        // `send(node, texte)` est appelé. Les textes posés par le Gardien (événements non fiables) ne comptent pas.
+        watchMessages(send) {
+            const edited = new Set();
+            const sent = new Map();
+            const inputOf = target => (target?.isContentEditable ? target.closest?.('.node-group') : null);
+            document.addEventListener('input', event => {
+                const node = inputOf(event.target);
+                if (node && event.isTrusted) edited.add(node.id);
+            }, true);
+            document.addEventListener('focusout', event => {
+                const node = inputOf(event.target);
+                if (!node || !edited.delete(node.id)) return;
+                const text = event.target.innerText.trim();
+                if (!text || sent.get(node.id) === text) return;
+                sent.set(node.id, text);
+                send(node, text);
+            }, true);
         },
-        cut,
-        refOf: ref => refs.get(ref) || ref,
     };
 }

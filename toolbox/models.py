@@ -19,19 +19,21 @@ class LocalModel(models.Model):
         DOWNLOADING = 'downloading'
         READY = 'ready'
         ERROR = 'error'
+        CANCELLED = 'cancelled'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    repo = models.CharField(max_length=200)
+    repo = models.CharField(max_length=200)  # 'local' pour un fichier importé depuis le serveur
     filename = models.CharField(max_length=300)
+    label = models.CharField(max_length=120, blank=True)  # nom affiché, choisi par l'utilisateur
     path = models.CharField(max_length=500, blank=True)
     kind = models.CharField(max_length=6, choices=Kind.choices, default=Kind.TEXT)
     capabilities = models.JSONField(default=list, blank=True)  # chat, tools, code, vision, image, reason…
     quant = models.CharField(max_length=20, blank=True)
     size = models.PositiveBigIntegerField(default=0)
+    downloaded = models.PositiveBigIntegerField(default=0)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.DOWNLOADING)
-    progress = models.FloatField(default=0)
     error = models.TextField(blank=True)
-    params = models.JSONField(default=dict, blank=True)  # n_ctx, temperature, max_tokens…
+    params = models.JSONField(default=dict, blank=True)  # n_ctx, n_gpu_layers, n_threads, n_batch, ttl, temperature, max_tokens
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

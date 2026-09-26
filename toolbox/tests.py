@@ -1,5 +1,6 @@
 import json
 import math
+from datetime import datetime
 import tempfile
 import threading
 import time
@@ -26,66 +27,131 @@ class FakeHfApi:
         self.calls.append(kwargs)
         return [
             SimpleNamespace(id='org/Qwen2.5-Coder-7B-Instruct-GGUF', downloads=10, likes=2, pipeline_tag='text-generation',
-                            tags=['gguf', '7B', 'tool-calling']),
-            SimpleNamespace(id='org/SmolLM-135M-GGUF', downloads=None, likes=None, pipeline_tag=None, tags=None),
+                            tags=['gguf', '7B', 'tool-calling', 'Q4_K_M'], last_modified=datetime(2026, 9, 1)),
+            SimpleNamespace(id='org/SmolLM-135M-GGUF', downloads=None, likes=None, pipeline_tag=None, tags=None, last_modified=None),
+            SimpleNamespace(id='org/Big-70B-GGUF', downloads=5, likes=1, pipeline_tag='text-generation', tags=['70B'], last_modified=None),
         ]
 
     def model_info(self, repo, files_metadata=False):
         siblings = [SimpleNamespace(rfilename=name, size=size) for name, size in
-                    [('m-Q8_0.gguf', 8), ('m-Q4_K_M.gguf', 4), ('m-Q2_K.gguf', 2), ('README.md', 1)]]
+                    [('m-Q8_0.gguf', 8 << 30), ('m-Q4_K_M.gguf', 4 << 30), ('m-Q2_K.gguf', 2 << 30), ('README.md', 1)]]
         return SimpleNamespace(siblings=siblings, tags=['instruct'], pipeline_tag='text-generation')
+
+
+class FakeResponse:
+    """Réponse HTTP en flux (interface httpx) servant `body` à partir de l'octet demandé par Range."""
+
+    def __init__(self, body, headers, fail_after=None):
+        start = int(headers.get('Range', 'bytes=0-')[6:-1] or 0)
+        self.status_code = 206 if start else 200
+        self.chunks = [body[i:i + 3] for i in range(start, len(body), 3)]
+        self.headers = {'content-length': str(len(body) - start)}
+        self.fail_after = fail_after
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def raise_for_status(self):
+        pass
+
+    def iter_bytes(self, size):
+        for i, chunk in enumerate(self.chunks):
+            if self.fail_after is not None and i == self.fail_after:
+                raise OSError('connexion coupée')
+            yield chunk
 
 
 class HubTests(TestCase):
     def test_annotations(self):
         self.assertEqual(hub.detect_quant('Qwen2.5-7B-Instruct-Q4_K_M.gguf'), 'Q4_K_M')
         self.assertEqual(hub.detect_quant('model-IQ3_XS.gguf'), 'IQ3_XS')
+        self.assertEqual(hub.detect_quant('model.F16.gguf'), 'F16')
         self.assertTrue(hub.is_recommended('x-Q5_K_M.gguf'))
         self.assertFalse(hub.is_recommended('x-Q8_0.gguf'))
         self.assertEqual(hub.role_of('bartowski/Qwen2.5-Coder-7B'), 'code')
         self.assertEqual(hub.role_of('org/Qwen2.5-1.5B-Instruct'), 'small')
-        self.assertEqual(hub.size_in_billions(['gguf', '135M']), 0.135)
+        self.assertEqual(hub.size_tag(['gguf', '135M']), ('135M', 0.135))
         self.assertIn('tools', hub.capabilities_of('m', ['function-calling'], ''))
 
-    def test_search_and_files(self):
+    def test_search_filters(self):
         fake = FakeHfApi()
         with mock.patch.object(hub, 'api', return_value=fake):
-            results = hub.search('qwen', 'trending', 5)
-            files = hub.repo_files('org/m')
-        self.assertEqual(fake.calls[0]['sort'], 'trending_score')
-        self.assertEqual(fake.calls[0]['filter'], 'gguf')
-        self.assertEqual(results[0]['role'], 'code')
-        self.assertEqual(results[0]['size_b'], 7.0)
-        self.assertIn('tools', results[0]['capabilities'])
+            results = hub.search('qwen', 'created', 5, pipeline='text-generation')
+            sized = hub.search(max_b=9)
+            quant = hub.search(quant='q4_k_m')
+        call = fake.calls[0]
+        self.assertEqual((call['sort'], call['filter'], call['pipeline_tag']), ('created_at', 'gguf', 'text-generation'))
+        self.assertIn('lastModified', call['expand'])
+        coder = results[0]
+        self.assertEqual((coder['role'], coder['size_b'], coder['size_hint'], coder['updated'][:10]), ('code', 7.0, '7B', '2026-09-01'))
+        self.assertIn('tools', coder['capabilities'])
         self.assertEqual(results[1]['downloads'], 0)
-        self.assertEqual([f['name'] for f in files['files']], ['m-Q4_K_M.gguf', 'm-Q8_0.gguf', 'm-Q2_K.gguf'])
+        self.assertEqual([m['id'] for m in sized], ['org/Qwen2.5-Coder-7B-Instruct-GGUF', 'org/SmolLM-135M-GGUF'])
+        self.assertEqual([m['id'] for m in quant], ['org/Qwen2.5-Coder-7B-Instruct-GGUF'])
 
-    def test_recommendations_without_gpu(self):
-        with mock.patch.object(hub, 'gpu_memory_mb', return_value=0):
+    def test_files_flag_heavy_for_this_machine(self):
+        with mock.patch.object(hub, 'api', return_value=FakeHfApi()), \
+                mock.patch.object(hub, 'gpu_memory_mb', return_value=0), mock.patch.object(hub, 'ram_mb', return_value=10_000):
+            files = hub.repo_files('org/m')['files']  # budget CPU : 60 % de 10 Go
+        self.assertEqual([(f['name'], f['heavy']) for f in files],
+                         [('m-Q4_K_M.gguf', False), ('m-Q8_0.gguf', True), ('m-Q2_K.gguf', False)])
+
+    def test_recommendations_follow_the_machine(self):
+        with mock.patch.object(hub, 'gpu_memory_mb', return_value=0), mock.patch.object(hub, 'ram_mb', return_value=4000):
             rec = hub.recommendations()
         self.assertFalse(rec['gpu'])
-        self.assertEqual([m['name'] for m in rec['models']], ['Qwen2.5 1.5B Instruct Q4_K_M'])
+        self.assertEqual([m['name'] for m in rec['models']], ['Llama 3.2 3B Instruct Q4_K_M', 'Qwen2.5 1.5B Instruct Q4_K_M'])
+        self.assertTrue(rec['models'][0]['recommended'])
+        with mock.patch.object(hub, 'gpu_memory_mb', return_value=8192), mock.patch.object(hub, 'ram_mb', return_value=4000):
+            self.assertEqual(hub.recommendations()['models'][0]['name'], 'Qwen2.5 7B Instruct Q4_K_M')
 
-    def test_download_success_and_error(self):
+    def download(self, model, body, fail_after=None):
+        session = SimpleNamespace(stream=lambda method, url, headers, **kw: FakeResponse(body, headers, fail_after))
+        hub.DOWNLOADS[model.pk] = {'cancel': threading.Event(), 'speed': 0.0}
+        with mock.patch.object(hub, 'get_session', return_value=session), mock.patch.object(connection, 'close'):
+            hub._download(model.pk)
+        model.refresh_from_db()
+
+    def test_download_resumes_after_failure(self):
         with tempfile.TemporaryDirectory() as root, override_settings(MODELS_DIR=Path(root)):
-            model = LocalModel.objects.create(repo='org/m', filename='m-Q4_K_M.gguf', size=3)
+            model = LocalModel.objects.create(repo='org/m', filename='m-Q4_K_M.gguf')
+            body = b'abcdefghijkl'
+            self.download(model, body, fail_after=2)
+            self.assertEqual((model.status, model.error), (LocalModel.Status.ERROR, 'connexion coupée'))
+            partial = Path(root) / 'org__m' / 'm-Q4_K_M.gguf.partial'
+            self.assertEqual(partial.read_bytes(), b'abcdef')
+            self.download(model, body)  # reprise avec Range : 206, on complète le .partial
+            self.assertEqual((model.status, model.size, model.downloaded), (LocalModel.Status.READY, 12, 12))
+            self.assertEqual(Path(model.path).read_bytes(), body)
+            self.assertFalse(partial.exists())
+            self.assertEqual(hub.download_state(model)['progress'], 1)
 
-            def fake_download(repo, filename, local_dir, token):
-                path = Path(local_dir) / filename
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(b'abcd')
-                return str(path)
-
-            with mock.patch.object(hub, 'hf_hub_download', fake_download), mock.patch.object(connection, 'close'):
+    def test_download_cancel(self):
+        with tempfile.TemporaryDirectory() as root, override_settings(MODELS_DIR=Path(root)):
+            model = LocalModel.objects.create(repo='org/m', filename='a.gguf')
+            hub.DOWNLOADS[model.pk] = {'cancel': threading.Event(), 'speed': 0.0}
+            hub.cancel_download(model)
+            session = SimpleNamespace(stream=lambda method, url, headers, **kw: FakeResponse(b'abcdef', headers))
+            with mock.patch.object(hub, 'get_session', return_value=session), mock.patch.object(connection, 'close'):
                 hub._download(model.pk)
             model.refresh_from_db()
-            self.assertEqual((model.status, model.size, model.progress), (LocalModel.Status.READY, 4, 1))
+            self.assertEqual(model.status, LocalModel.Status.CANCELLED)
+            self.assertNotIn(model.pk, hub.DOWNLOADS)
 
-            with mock.patch.object(hub, 'hf_hub_download', side_effect=OSError('disque plein')), \
-                    mock.patch.object(connection, 'close'):
-                hub._download(model.pk)
-            model.refresh_from_db()
-            self.assertEqual((model.status, model.error), (LocalModel.Status.ERROR, 'disque plein'))
+    def test_local_files_import(self):
+        with tempfile.TemporaryDirectory() as root, override_settings(MODELS_DIR=Path(root)):
+            (Path(root) / 'perso').mkdir()
+            (Path(root) / 'perso' / 'mon-Q5_K_M.gguf').write_bytes(b'xy')
+            self.assertIsNone(hub.resolve_local('../etc/passwd'))
+            self.assertIsNone(hub.resolve_local('perso/absent.gguf'))
+            path = hub.resolve_local('perso/mon-Q5_K_M.gguf')
+            model = hub.import_local(path)
+            self.assertEqual((model.repo, model.status, model.quant, model.size), ('local', LocalModel.Status.READY, 'Q5_K_M', 2))
+            self.assertEqual(hub.local_files(), [{'path': 'perso/mon-Q5_K_M.gguf', 'name': 'mon-Q5_K_M.gguf', 'size': 2,
+                                                  'quant': 'Q5_K_M', 'model': str(model.id)}])
 
 
 class BrokerTests(TestCase):
@@ -152,6 +218,7 @@ class EngineTests(TestCase):
 
     def test_stream_schema_and_reuse(self):
         engine = Engine(Broker(), factory=FakeLlama)
+        engine._watch = lambda: None
         pieces = []
         text = engine.chat(self.model, [{'role': 'user', 'content': 'salut'}], on_text=pieces.append,
                            json_schema={'type': 'object'}, temperature=0)
@@ -164,8 +231,24 @@ class EngineTests(TestCase):
         self.assertEqual(len(FakeLlama.instances), 1)
         self.assertEqual(engine.loaded, self.model.pk)
 
+    def test_params_stats_and_idle_unload(self):
+        now = [1000.0]
+        engine = Engine(Broker(), factory=FakeLlama, clock=lambda: now[0])
+        self.model.params = {'n_ctx': 1024, 'n_gpu_layers': -1, 'n_batch': 256, 'ttl': 5}
+        with mock.patch.object(Engine, '_watch'):
+            engine.chat(self.model, [])
+        self.assertEqual({k: FakeLlama.instances[0].kwargs[k] for k in ('n_ctx', 'n_gpu_layers', 'n_batch')},
+                         {'n_ctx': 1024, 'n_gpu_layers': -1, 'n_batch': 256})
+        self.assertEqual((engine.stats[self.model.pk]['requests'], engine.stats[self.model.pk]['chunks']), (1, 2))
+        now[0] += 4 * 60
+        self.assertFalse(engine.unload_if_idle())
+        now[0] += 2 * 60
+        self.assertTrue(engine.unload_if_idle())
+        self.assertIsNone(engine.loaded)
+
     def test_switch_model_reloads(self):
         engine = Engine(Broker(), factory=FakeLlama)
+        engine._watch = lambda: None
         other = LocalModel.objects.create(repo='org/m', filename='b.gguf', path='/models/b.gguf')
         engine.chat(self.model, [])
         engine.chat(other, [])
@@ -207,7 +290,7 @@ class ToolboxApiTests(TestCase):
         self.assertEqual(r.json()['quant'], 'Q4_K_M')
         self.assertEqual(r.json()['status'], LocalModel.Status.DOWNLOADING)
 
-    def test_delete_model_removes_file(self):
+    def test_remove_keeps_file_unless_asked(self):
         with tempfile.TemporaryDirectory() as root, override_settings(MODELS_DIR=Path(root)):
             path = Path(root) / 'org__m' / 'a.gguf'
             path.parent.mkdir()
@@ -217,7 +300,46 @@ class ToolboxApiTests(TestCase):
             self.assertEqual(self.client.delete(url).status_code, 403)
             self.client.force_login(self.admin)
             self.assertEqual(self.client.delete(url).status_code, 200)
+            self.assertTrue(path.exists())
+            again = LocalModel.objects.create(repo='org/m', filename='a.gguf', path=str(path), status=LocalModel.Status.READY)
+            self.assertEqual(self.client.delete(f'/api/v1/toolbox/models/{again.pk}?file=1').status_code, 200)
             self.assertFalse(path.exists())
+            self.assertFalse(LocalModel.objects.exists())
+
+    def test_model_settings_and_actions(self):
+        model = LocalModel.objects.create(repo='org/m', filename='a-Q4_K_M.gguf', status=LocalModel.Status.READY)
+        url = f'/api/v1/toolbox/models/{model.pk}'
+        r = self.client.get('/api/v1/toolbox/models')
+        self.assertEqual(r.json()['models'][0]['agents'], [])  # lecture ouverte à tous
+        self.assertEqual(self.send('patch', url, {'label': 'Qwen'}).status_code, 403)
+        self.client.force_login(self.admin)
+        r = self.send('patch', url, {'label': 'Qwen', 'kind': 'image', 'params': {'n_ctx': '8192', 'ttl': 30, 'temperature': ''}})
+        self.assertEqual((r.status_code, r.json()['label'], r.json()['kind'], r.json()['params']),
+                         (200, 'Qwen', 'image', {'n_ctx': 8192, 'ttl': 30.0}))
+        self.assertEqual(self.send('patch', url, {'params': {'pirate': 1}}).status_code, 400)
+        self.assertEqual(self.send('patch', url, {'params': {'n_ctx': 'beaucoup'}}).status_code, 400)
+        with mock.patch.object(api.engine, 'unload') as unload, mock.patch.object(type(api.engine), 'loaded', model.pk):
+            self.assertEqual(self.send('post', f'{url}/unload').status_code, 200)
+            unload.assert_called_once()
+        with mock.patch.object(hub, 'cancel_download') as cancel:
+            self.send('post', f'{url}/cancel')
+            cancel.assert_called_once()
+        with mock.patch.object(hub.threading, 'Thread'):
+            self.assertEqual(self.send('post', f'{url}/retry').json()['status'], LocalModel.Status.DOWNLOADING)
+        self.assertEqual(self.send('post', f'{url}/pirate').status_code, 400)
+
+    def test_server_files(self):
+        with tempfile.TemporaryDirectory() as root, override_settings(MODELS_DIR=Path(root)):
+            (Path(root) / 'b.gguf').write_bytes(b'xy')
+            r = self.client.get('/api/v1/toolbox/files')
+            self.assertEqual([f['name'] for f in r.json()['files']], ['b.gguf'])
+            self.assertEqual(self.send('post', '/api/v1/toolbox/files', {'path': 'b.gguf'}).status_code, 403)
+            self.client.force_login(self.admin)
+            self.assertEqual(self.send('post', '/api/v1/toolbox/files', {'path': '../b.gguf'}).status_code, 400)
+            self.assertEqual(self.send('post', '/api/v1/toolbox/files', {'path': 'b.gguf'}).status_code, 201)
+            self.assertEqual(LocalModel.objects.get().repo, 'local')
+            self.assertEqual(self.client.delete('/api/v1/toolbox/files?path=b.gguf').status_code, 200)
+            self.assertFalse((Path(root) / 'b.gguf').exists())
             self.assertFalse(LocalModel.objects.exists())
 
     def test_agents_seeded_and_owner_scoped(self):
@@ -309,6 +431,17 @@ class GuardianTests(TestCase):
 
         run = AIRun.objects.get()
         self.assertEqual((run.status, run.context_node_ids), (AIRun.Status.DONE, ['N-1', 'N-2']))
+
+    def test_node_message_gets_a_linked_reply_node(self):
+        engine = self.run_guardian(json.dumps({'say': 'Bonne idée : Kyoto en avril.', 'actions': []}),
+                                   context={**self.CONTEXT, 'origin': 'N-2', 'selection': []})
+        self.assertIn('Message écrit dans le node N-2 : organise', engine.calls[0]['messages'][1]['content'])
+        reply, link = self.actions()
+        self.assertEqual((reply['op'], reply['ref'], reply['text']), ('create', 'reply1', 'Bonne idée : Kyoto en avril.'))
+        self.assertEqual(link, {'op': 'link', 'source': 'N-2', 'target': 'reply1'})
+        self.assertGreaterEqual(math.dist((reply['x'], reply['y']), (400, 0)), 200)  # autour du node message
+        self.assertLess(math.dist((reply['x'], reply['y']), (400, 0)), math.dist((reply['x'], reply['y']), (0, 0)) + 200)
+        self.assertNotIn('text', [k for k, _ in self.events])
 
     def test_actions_are_validated_and_placed(self):
         plan = {'say': 'Voilà.', 'actions': [
@@ -421,5 +554,5 @@ class CommandStreamTests(TransactionTestCase):
             body = ''.join([chunk.decode() async for chunk in r.streaming_content])
         self.assertEqual(r['Content-Type'], 'text/event-stream')
         kinds = [line.split(': ', 1)[1] for line in body.splitlines() if line.startswith('event: ')]
-        self.assertEqual(kinds, ['start', 'text', 'action', 'end'])
+        self.assertEqual(kinds, ['start', 'action', 'text', 'end'])
         self.assertIn('Bonjour', body)
