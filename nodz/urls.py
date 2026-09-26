@@ -15,9 +15,19 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.db import connection
+from django.http import JsonResponse
 from django.urls import path, include
 
+
+def healthz(request):
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+    return JsonResponse({'status': 'ok'})
+
+
 urlpatterns = [
+    path('healthz', healthz),
     path('admin/', admin.site.urls),
     path('', include('nodzapp.urls')),
 ]

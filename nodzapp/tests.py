@@ -57,3 +57,10 @@ class Phase1FixesTests(TestCase):
     def test_login_redirects_to_universe(self):
         response = self.client.post('/login/', {'username': 'a@nodz.local', 'password': 'pw-123456'})
         self.assertRedirects(response, '/universe', fetch_redirect_response=False)
+
+
+class DeploymentTests(TestCase):
+    def test_healthz(self):
+        response = self.client.get('/healthz')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'status': 'ok'})
