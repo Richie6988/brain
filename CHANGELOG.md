@@ -1,5 +1,14 @@
 # Changelog
 
+## Phase 2 : modèle de données v2 (gouvernance)
+
+Ce qui a changé pour l'utilisateur : rien à l'écran pour l'instant. Le nouveau modèle de données et son API existent à côté de l'ancien ; la nouvelle interface s'appuiera dessus.
+
+- App `graph` : plans, nodes à identifiant stable (UUID), contenu par type dans `payload`, provenance (humain, IA, import), statut brouillon/accepté/archivé, arêtes typées (lien, portail, dérivation, référence), historique append-only des versions (`NodeRevision`) et journal d'audit.
+- API JSON `/api/v1` : plans, graphe d'un plan (avec l'autre extrémité des portails), écriture par lots transactionnels avec détection de conflit de version, historique d'un node, exécutions IA (`AIRun`).
+- `python manage.py migrate_v1_to_v2` : copie idempotente des données existantes (plans, nodes, liens dédupliqués, portails) ; rien n'est supprimé côté v1, les contenus sans équivalent (dessin, rappels) sont conservés dans `payload.legacy`.
+- Architecture : prise en compte du mobile (tactile, barre de commande, bottom sheets).
+
 ## Phase 1 (partielle) : version déployable en test
 
 Ce qui a changé pour l'utilisateur : `/login/` ne plante plus, la date de création d'un node reste fixe, et Nodz fonctionne sans aucun CDN externe. Un serveur de test peut être installé en suivant `DEPLOY.md`.

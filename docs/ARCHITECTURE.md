@@ -132,6 +132,28 @@ forme, taille, verrou), `set_type`, `move_nodes`, `delete_nodes`, `link_nodes`, 
 Les changements sont animés (apparition, déplacement, caméra qui suit via `focus`) pour que
 l'utilisateur voie l'IA « agir » dans l'espace, au lieu d'un résultat qui apparaît d'un coup.
 
+## Mobile
+
+L'ancien Nodz était pensé souris et molette uniquement. La nouvelle couche vise le mobile dès le départ :
+
+- **Pointer Events unifiés** (`pointer.js`) : souris, stylet et doigts passent par le même code.
+  Pinch à deux doigts = zoom centré entre les doigts, glisser à deux doigts = pan, avec **les mêmes
+  maths** que la molette (pas de 0,95 par cran équivalent, mêmes bornes) pour garder le feel.
+  Appui long = sélection, double tap = création de node.
+- **La barre de commande est l'entrée principale sur mobile** : le clavier du téléphone et la
+  dictée (STT) remplacent les raccourcis clavier et les menus contextuels. C'est l'écran où
+  l'interface hybride apporte le plus.
+- **Barres d'outils en bottom sheet** sur petit écran (au lieu d'être accrochées au node), cibles
+  tactiles de 44 px minimum, aucun survol nécessaire pour accéder à une fonction.
+- **Viewport** : `width=device-width`, `touch-action: none` sur le canevas (le navigateur ne
+  zoome plus la page), gestion de la zone sûre (`env(safe-area-inset-*)`) et du clavier virtuel
+  (la barre reste au-dessus via `visualViewport`).
+- **Performance** : le culling et le rendu à la demande rendent 2 000 nodes tenables sur mobile ;
+  objectif 60 fps en pan/zoom tactile sur un téléphone milieu de gamme.
+- **Banc de test** : `tests/feel` gagne un scénario tactile (viewport 390×844, pinch et pan
+  synthétiques) dès que la nouvelle couche existe ; l'ancien code n'a pas de référence tactile.
+- Plus tard : manifeste PWA (installation sur l'écran d'accueil, mode hors ligne en lecture).
+
 ## Ordre de bascule
 
 1. Phase 2 côté serveur : schéma v2 (`Node.payload`, `Edge`, UUID) + `/api/v1` + migration des
