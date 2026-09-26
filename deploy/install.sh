@@ -20,6 +20,8 @@ if ss -ltn "sport = :$PORT" | grep -q LISTEN; then echo "Port $PORT déjà utili
 
 apt-get install -y -q python3.12-venv git curl >/dev/null
 id $APP_USER >/dev/null 2>&1 || adduser --disabled-password --gecos "" $APP_USER
+# Ubuntu 24.04 crée les home en 750 : nginx (www-data) doit pouvoir traverser /home/nodz pour /nodz/static/.
+chmod o+x /home/$APP_USER
 usermod -aG www-data $APP_USER
 
 if [ ! -d "$APP_DIR/.git" ]; then
