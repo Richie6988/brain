@@ -1,0 +1,182 @@
+<div id="smileys" class="overlay">
+    <div class="smileyContent" style="width:fit-content">
+        <span class="close-btn" onclick="closeSmileys()">&times;</span>  
+        <div id="emojiPicker" class="grid grid-cols-6 gap-2 p-4 border rounded-lg max-w-md bg-gray-100">
+            <!-- Emotions & Expressions -->
+            <span class="emoji-item" data-emoji="😊">😊</span>
+            <span class="emoji-item" data-emoji="😍">😍</span>
+            <span class="emoji-item" data-emoji="🤔">🤔</span>
+            <span class="emoji-item" data-emoji="😢">😢</span>
+            <span class="emoji-item" data-emoji="😡">😡</span>
+            <span class="emoji-item" data-emoji="😴">😴</span>
+            <span class="emoji-item" data-emoji="😎">😎</span>
+            <span class="emoji-item" data-emoji="🥺">🥺</span>
+            <span class="emoji-item" data-emoji="😱">😱</span>
+            <span class="emoji-item" data-emoji="😅">😅</span>
+            <span class="emoji-item" data-emoji="🥱">🥱</span>
+            <span class="emoji-item" data-emoji="🤩">🤩</span>
+            <span class="emoji-item" data-emoji="😇">😇</span>
+            <span class="emoji-item" data-emoji="🤧">🤧</span>
+            <span class="emoji-item" data-emoji="🫣">🫣</span>
+            <span class="emoji-item" data-emoji="😌">😌</span>
+            <span class="emoji-item" data-emoji="🤤">🤤</span>
+            <span class="emoji-item" data-emoji="🤯">🤯</span>
+            <span class="emoji-item" data-emoji="🥳">🥳</span>
+            <span class="emoji-item" data-emoji="💪">💪</span>
+            
+            <!-- Productivity & Work -->
+            <span class="emoji-item" data-emoji="🧑‍💻">🧑‍💻</span>
+            <span class="emoji-item" data-emoji="✅">✅</span>
+            <span class="emoji-item" data-emoji="📅">📅</span>
+            <span class="emoji-item" data-emoji="🚧">🚧</span>
+            <span class="emoji-item" data-emoji="⚙️">⚙️</span>
+            <span class="emoji-item" data-emoji="🕒">🕒</span>
+            <span class="emoji-item" data-emoji="📊">📊</span>
+            <span class="emoji-item" data-emoji="📝">📝</span>
+            <span class="emoji-item" data-emoji="📚">📚</span>
+            <span class="emoji-item" data-emoji="✏️">✏️</span>
+            <span class="emoji-item" data-emoji="💻">💻</span>
+            <span class="emoji-item" data-emoji="📱">📱</span>
+            <span class="emoji-item" data-emoji="🔧">🔧</span>
+
+            <!-- Ideas & Innovation -->
+            <span class="emoji-item" data-emoji="💡">💡</span>
+            <span class="emoji-item" data-emoji="🧠">🧠</span>
+            <span class="emoji-item" data-emoji="🎓">🎓</span>
+            <span class="emoji-item" data-emoji="🧬">🧬</span>
+            <span class="emoji-item" data-emoji="🔍">🔍</span>
+            <span class="emoji-item" data-emoji="✨">✨</span>
+            <span class="emoji-item" data-emoji="🧪">🧪</span>
+            <span class="emoji-item" data-emoji="⚡">⚡</span>
+            <span class="emoji-item" data-emoji="🌟">🌟</span>
+            <span class="emoji-item" data-emoji="🔮">🔮</span>
+            <span class="emoji-item" data-emoji="📡">📡</span>
+            <span class="emoji-item" data-emoji="🎒">🎒</span>
+            <span class="emoji-item" data-emoji="🧨">🧨</span>
+            <span class="emoji-item" data-emoji="🔋">🔋</span>
+
+            <!-- Goals & Achievement -->
+            <span class="emoji-item" data-emoji="🎯">🎯</span>
+            <span class="emoji-item" data-emoji="📈">📈</span>
+            <span class="emoji-item" data-emoji="🚀">🚀</span>
+            <span class="emoji-item" data-emoji="🏁">🏁</span>
+            <span class="emoji-item" data-emoji="🏆">🏆</span>
+            <span class="emoji-item" data-emoji="🥇">🥇</span>
+            <span class="emoji-item" data-emoji="🥈">🥈</span>
+            <span class="emoji-item" data-emoji="🥉">🥉</span>
+
+            <!-- Celebration & Entertainment -->
+            <span class="emoji-item" data-emoji="🎉">🎉</span>
+            <span class="emoji-item" data-emoji="🎂">🎂</span>
+            <span class="emoji-item" data-emoji="🧸">🧸</span>
+            <span class="emoji-item" data-emoji="🎁">🎁</span>
+            <span class="emoji-item" data-emoji="🍪">🍪</span>
+            <span class="emoji-item" data-emoji="🎶">🎶</span>
+            <span class="emoji-item" data-emoji="🍕">🍕</span>
+            <span class="emoji-item" data-emoji="🍻">🍻</span>
+            <span class="emoji-item" data-emoji="🎨">🎨</span>
+            <span class="emoji-item" data-emoji="🍿">🍿</span>
+            <span class="emoji-item" data-emoji="🏖️">🏖️</span>
+            <span class="emoji-item" data-emoji="🎤">🎤</span>
+            <span class="emoji-item" data-emoji="🕹️">🕹️</span>
+            <span class="emoji-item" data-emoji="🎬">🎬</span>
+
+            <!-- Nature & Animals -->
+            <span class="emoji-item" data-emoji="🦄">🦄</span>
+            <span class="emoji-item" data-emoji="🦊">🦊</span>
+            <span class="emoji-item" data-emoji="🦋">🦋</span>
+            <span class="emoji-item" data-emoji="🍀">🍀</span>
+            <span class="emoji-item" data-emoji="🐾">🐾</span>
+            <span class="emoji-item" data-emoji="🦛">🦛</span>
+            <span class="emoji-item" data-emoji="🦒">🦒</span>
+            <span class="emoji-item" data-emoji="🐝">🐝</span>
+            <span class="emoji-item" data-emoji="🐧">🐧</span>
+            <span class="emoji-item" data-emoji="🦦">🦦</span>
+            <span class="emoji-item" data-emoji="🦢">🦢</span>
+            <span class="emoji-item" data-emoji="🦘">🦘</span>
+            <span class="emoji-item" data-emoji="🌾">🌾</span>
+            <span class="emoji-item" data-emoji="🌱">🌱</span>
+            <span class="emoji-item" data-emoji="🌍">🌍</span>
+
+          </div>
+    </div> 
+          <script>
+
+            function closeSmileys() {
+                const smileys = document.getElementById('smileys');
+                smileys.style.display = 'none';
+                overlay = false;
+            }
+
+            document.getElementById('smileys').addEventListener('mousedown', () => {
+                event.preventDefault();
+            });
+
+            document.getElementById('smileys').addEventListener('contextmenu', () => {
+                event.preventDefault();
+            });
+
+            const visibilityChangeEvent = new Event('visibilityChange');
+            // Attach click event to each emoji
+            document.querySelectorAll('.emoji-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const smileys = document.getElementById('smileys');
+                    smileys.data = item.innerHTML;
+                    smileys.style.display = 'none'; 
+                    overlay = false;
+                    smileys.dispatchEvent(visibilityChangeEvent);
+                });
+            });         
+          </script>
+
+          <style>
+
+            .smileyContent {
+                position: relative;
+                background-color: #f8f9fa;
+                padding: 40px;
+                width: fit-content;
+                max-height: 85vh;
+                margin: 0 auto;
+                border-radius: 15px;
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+                overflow-y: auto;
+            }
+            #emojiPicker {
+              display: grid;
+              grid-template-columns: repeat(6, 1fr);
+              gap: 10px;
+              max-width: 480px;
+              margin: 0 auto;
+            }
+            .emoji-item {
+              display: inline-block;
+              cursor: pointer;
+              padding: 0.5rem;
+              font-size: 25px;
+              text-align: center;
+              border-radius: 8px;
+              transition: background-color 0.2s;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+            }
+            .emoji-item:hover {
+              background-color: #f0f0f0;
+            }
+            .sr-only {
+              position: absolute;
+              width: 1px;
+              height: 1px;
+              margin: -1px;
+              padding: 0;
+              border: 0;
+              clip: rect(0, 0, 0, 0);
+              clip-path: inset(50%);
+              white-space: nowrap;
+              overflow: hidden;
+            }
+          </style>
+     
+</div>
+

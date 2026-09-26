@@ -1,0 +1,123 @@
+@font-face {
+    font-family: 'Cascadia Code';
+    src: url('/static/fonts/CascadiaCode.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+
+body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100%;
+    font-family: 'Cascadia Code', monospace;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1; 
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #bbb; 
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #888; 
+}
+
+.universe {
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: #050c17;
+    animation: gradient-animation 1s infinite linear;  
+}
+
+.lightmode {
+    background: #f0f0f0;
+}
+
+
+@keyframes gradient-animation {
+    0% {
+        background-position: 100% 100%;
+    }
+    50% {
+        background-position: 200% 350%;
+    }
+    100% {
+        background-position: 500% 500%;
+    }
+}
+  
+/* Key element for zoom function */
+.node-group {
+    transform-origin:center;
+}
+
+.hitbox {
+    /*stroke: rgb(178, 170, 245);*/
+    stroke-width: 1mm;
+    fill: transparent;
+}
+
+.squareShape {
+    stroke-width: 1mm;
+    fill: none;
+    stroke: #33FF99;
+}
+
+.focus {
+    fill: red;
+}
+
+.selectednode {
+    fill: transparent;
+    stroke-width: 7px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke: #f3ee58; 
+}
+ 
+
+
+.node-text-input {
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #379be7;
+    display: inline-block;
+    overflow: hidden;
+    text-align: center;
+    padding: 5px;
+    cursor: text;
+    position: absolute;
+    left:-5px;
+}
+
+.node-text-input[contenteditable]:empty:focus::before {
+    content: 'Start typing';
+    color: #379be7;
+    line-height: auto;
+}
+
+.grabbing-cursor {
+    cursor: grabbing ;
+}
+
+.grab-cursor {
+    cursor: grab ;
+}
+
+.crosshair-cursor {
+    cursor: crosshair ;
+}
+
+

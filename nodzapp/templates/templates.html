@@ -1,0 +1,737 @@
+<head>
+    <style>
+        .templatesContent {
+            position: relative;
+            background-color: #f8f9fa;
+            padding: 40px;
+            max-height: 85vh;
+            max-width: 80vw;
+            /* margin: 0 auto; */
+            margin-top: 10px;
+            border-radius: 15px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            overflow-y: auto;
+            /* Grid layout for better organization */
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            justify-items: center;
+            align-items: start;
+        }
+
+        /* Template item styling */
+        .template-model {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 200px;
+            height: 200px;
+        }
+
+        /* Hover effects */
+        .template-model:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Special sizing for Business Model Canvas */
+        #BM {
+            width: 450px;
+            height: 250px;
+            grid-column: span 3;
+        }
+
+        /* Ensure consistent SVG scaling */
+        .template-model svg {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+        .templatesContent {
+            padding: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .template-model {
+            width: 180px;
+            height: 180px;
+        }
+        
+        #BMCanvas {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16/9;
+        }
+        }
+
+
+        /* Fade in animation */
+        @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        }
+
+        .templatesContent {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .template-model {
+            cursor: pointer;  
+            transition: all 0.3s ease;
+            margin-bottom: 10px; 
+        }
+
+        .template-model:hover {
+            transform: scale(1.1);  
+        }    
+        
+        .template-rect-hover {
+            stroke: #ffa500;
+            stroke-width: 10;
+        }
+
+        .resize-handle {
+            fill: #000;
+            cursor: nwse-resize;
+        }
+
+        .delete-button {
+            background-color: red;
+            color: white;
+            padding: 5px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="templates" class="overlay">
+        <div class="templatesContent">    
+            <span class="close-btn" onclick="closeGallery()">&times;</span>        
+            <svg class="template-model" id="SWOT" width="200" height="200" viewBox="0 0 200 200">
+                <rect x="0" y="0" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="100" y="0" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="0" y="100" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="100" y="100" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+            </svg>  
+            <svg class="template-model" id="M3X3" width="200" height="200" viewBox="0 0 300 300">
+                <rect x="100" y="0" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="200" y="0" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="0" y="0" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="0" y="100" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="0" y="200" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="100" y="100" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="100" y="200" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="200" y="100" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="200" y="200" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />   
+            </svg> 
+            <svg class="template-model" id="PYRAMID" width="200" height="200" viewBox="0 0 400 300">
+                <polygon points="200,20 150,80 250,80" 
+                         fill="transparent" 
+                         stroke="black" 
+                         stroke-width="1" />                
+                <polygon points="150,80 100,140 300,140 250,80" 
+                         fill="transparent" 
+                         stroke="black" 
+                         stroke-width="1" />                
+                <polygon points="100,140 50,200 350,200 300,140" 
+                         fill="transparent" 
+                         stroke="black" 
+                         stroke-width="1" />                
+                <polygon points="50,200 0,260 400,260 350,200" 
+                         fill="transparent" 
+                         stroke="black" 
+                         stroke-width="1" />
+           </svg>
+           <svg class="template-model" id="IKIGAI" width="200" height="200" viewBox="0 0 400 400">
+                <g transform="translate(20, 20)">
+                    <!-- Top circle -->
+                    <circle cx="180" cy="120" r="100" 
+                            fill="none" 
+                            stroke="black" 
+                            stroke-width="1"/>
+                    <!-- Right circle -->
+                    <circle cx="260" cy="200" r="100" 
+                            fill="none" 
+                            stroke="black" 
+                            stroke-width="1"/>
+                    <!-- Bottom circle -->
+                    <circle cx="180" cy="280" r="100" 
+                            fill="none" 
+                            stroke="black" 
+                            stroke-width="1"/>
+                    <!-- Left circle -->
+                    <circle cx="100" cy="200" r="100" 
+                            fill="none" 
+                            stroke="black" 
+                            stroke-width="1"/>
+                </g>
+            </svg>
+            <svg class="template-model" id="CHRONO" width="200" height="200" viewBox="0 0 800 200">
+                <path d="M50,20 
+                         L600,20 
+                         L750,100 
+                         L600,180 
+                         L50,180 
+                         Z" 
+                      fill="none" 
+                      stroke="black" 
+                      stroke-width="1"/>
+            </svg>  
+            <svg class="template-model" id="TOWS" width="200" height="200" viewBox="0 0 300 300">            
+                <!-- Threats -->
+                <rect x="100" y="0" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <text x="150" y="50" text-anchor="middle" alignment-baseline="middle" font-size="12" fill="black">Threats</text>
+                <!-- Opportunities -->
+                <rect x="200" y="0" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <text x="250" y="50" text-anchor="middle" alignment-baseline="middle" font-size="12" fill="black">Opportunities</text>
+                 <!-- Weaknesses -->
+                <rect x="0" y="100" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <text x="50" y="150" text-anchor="middle" alignment-baseline="middle" font-size="12" fill="black">Weaknesses</text>
+                <!-- Strengths -->
+                <rect x="0" y="200" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <text x="50" y="250" text-anchor="middle" alignment-baseline="middle" font-size="12" fill="black">Strengths</text>
+                <rect x="100" y="100" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="100" y="200" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="200" y="100" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />
+                <rect x="200" y="200" width="100" height="100" fill="transparent" stroke="black" stroke-width="1" />   
+            </svg>  
+            
+            <svg class="template-model" id="BM" width="450" height="250" viewBox="0 0 1000 350">
+                <!-- Key Partners (Spanning 2 rows) -->
+                <rect x="0" y="0" width="200" height="200" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="100" y="100" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Key Partners</text>
+                <!-- Key Activities -->
+                <rect x="200" y="0" width="200" height="100" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="300" y="50" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Key Activities</text>
+                <!-- Value Proposition (Spanning 2 rows) -->
+                <rect x="400" y="0" width="200" height="200" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="500" y="100" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Value Proposition</text>
+                <!-- Customer Relationships -->
+                <rect x="600" y="0" width="200" height="100" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="700" y="50" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Customer Relationships</text>
+                <!-- Customer Segments (Spanning 2 rows) -->
+                <rect x="800" y="0" width="200" height="200" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="900" y="100" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Customer Segments</text>
+                <!-- Key Resources -->
+                <rect x="200" y="100" width="200" height="100" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="300" y="150" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Key Resources</text>
+                <!-- Channels -->
+                <rect x="600" y="100" width="200" height="100" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="700" y="150" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Channels</text>
+                <!-- Cost Structure -->
+                <rect x="0" y="200" width="500" height="150" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="250" y="275" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Cost Structure</text>
+                <!-- Revenue Streams -->
+                <rect x="500" y="200" width="500" height="150" fill="transparent" stroke="black" stroke-width="1"/>
+                <text x="750" y="275" text-anchor="middle" alignment-baseline="middle" font-size="14" fill="black">Revenue Streams</text>
+            </svg>          
+        </div> 
+    </div>
+
+    <script>
+
+        function closeGallery() {
+            const templates = document.getElementById('templates');
+            templates.style.display = 'none';
+            overlay = false;
+        }
+
+        document.getElementById('templates').addEventListener('mousedown', () => {
+            event.preventDefault();
+        });
+
+        document.getElementById('templates').addEventListener('contextmenu', () => {
+            event.preventDefault();
+        });
+
+        const models = document.querySelectorAll('.template-model'); 
+        let templateID = 1;
+        models.forEach(model => { 
+            model.addEventListener('click', function(e) {
+                const template = createTemplate(0,0,model.id);
+                saveTemplate(template);
+            });
+        });
+
+        function createTemplate(x,y,type,id) {
+            document.getElementById('templates').style.display = 'none';
+            if (x !== 0 && y !== 0){
+                X = x;
+                Y = y;
+            } else {
+                X = (parseFloat(root.getAttribute('x')))/currentZoom;
+                Y = (parseFloat(root.getAttribute('y')))/currentZoom - windowHeightCorrec;
+            }
+
+            var TID;
+            if(id) {
+                TID = id;
+                console.log(TID)
+            } else {
+                TID = `T-${templateID}`;
+                templateID += 1;
+            }            
+            
+            const template = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            universe.insertBefore(template, universe.firstChild);            
+            template.setAttribute('layer', layerNumber);
+            template.setAttribute('size', 1);
+            template.setAttribute('id',TID);
+            template.setAttribute('x', X);
+            template.setAttribute('y', Y);
+            template.setAttribute('type', type);
+            template.setAttribute('lock', 0);
+            template.setAttribute('transform', `translate(${X+centerX}, ${-Y+centerY}) scale(${1})`);     
+            template.setAttribute('class', 'template');      
+
+            const sizeButton = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            sizeButton.setAttribute('class', 'stylebutton');
+            sizeButton.style.width = 100 + 'px';
+            sizeButton.style.height = 100 + 'px';
+            sizeButton.style.stroke = 'transparent';
+            var sizeButtonfo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject'); 
+            sizeButtonfo.style.width = 70 + 'px';
+            sizeButtonfo.style.height = 70 + 'px'; 
+            sizeButtonfo.style.display= 'none';
+            // Create the image inside the foreignObject
+            const sizeButtonimg = document.createElement('img');
+            sizeButtonimg.setAttribute('src', '/static/img/size-template.svg');
+            sizeButtonimg.style.width = '100%';
+            sizeButtonimg.style.height = '100%';
+            // Append the image inside the foreignObject
+            sizeButtonfo.appendChild(sizeButtonimg);
+            // Append foreignObject and the button to the template
+            template.appendChild(sizeButtonfo);
+            template.appendChild(sizeButton);    
+            
+            var lockButtonfo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject'); 
+            lockButtonfo.style.width = 40 + 'px';
+            lockButtonfo.style.height = 40 + 'px'; 
+            lockButtonfo.style.display = 'none';
+            lockButtonfo.style.cursor= 'pointer';
+            // Create the image inside the foreignObject
+            const lockButtonimg = document.createElement('img');
+            lockButtonimg.setAttribute('src', '/static/img/unlock-template.svg');
+            lockButtonimg.style.width = '100%';
+            lockButtonimg.style.height = '100%';
+            // Append the image inside the foreignObject
+            lockButtonfo.appendChild(lockButtonimg);
+            // Append foreignObject and the button to the template
+            template.appendChild(lockButtonfo);
+                
+            switch (type) {
+            case 'SWOT':
+                SWOT(template);
+                break;
+            case 'M3X3':
+                M3X3(template);
+                break;
+            case 'TOWS':
+                TOWS(template);
+                break;
+            case 'BM':
+                BM(template);
+                break;
+            case 'CHRONO':
+                CHRONO(template);
+                break;
+            case 'PYRAMID':
+                PYRAMID(template);
+                break;
+            case 'IKIGAI':
+                IKIGAI(template);
+                break;
+            }
+
+            const templateWidth = template.getBBox().width/2;
+            const templateHeight = -template.getBBox().height/2;
+            if (type === 'PYRAMID') {
+                sizeButton.setAttribute('transform', `translate(${0}, ${templateHeight - 50})`);  
+                sizeButtonfo.setAttribute('transform', `translate(${0}, ${templateHeight}) rotate(-45)`);
+                lockButtonfo.setAttribute('transform', `translate(${70}, ${templateHeight + 20})`);
+            } else if (type === 'IKIGAI') {
+                sizeButton.setAttribute('transform', `translate(${templateWidth*2/3 - 50}, ${templateHeight*2/3 - 50})`);  
+                sizeButtonfo.setAttribute('transform', `translate(${templateWidth*2/3 - 50}, ${templateHeight*2/3}) rotate(-45)`);
+                lockButtonfo.setAttribute('transform', `translate(${templateWidth*2/3 + 20}, ${templateHeight*2/3 + 20})`);
+            } else {
+                sizeButton.setAttribute('transform', `translate(${templateWidth - 50}, ${templateHeight - 50})`);  
+                sizeButtonfo.setAttribute('transform', `translate(${templateWidth - 50}, ${templateHeight}) rotate(-45)`);
+                lockButtonfo.setAttribute('transform', `translate(${templateWidth + 20}, ${templateHeight + 20})`);
+            }
+            
+
+            //////////////////////////////// HOVER ////////////////////////////////
+            template.addEventListener('mousedown', function() {
+                const shapes = template.querySelectorAll('*:not(text)');
+                if (!selectedTemplates.includes(template)) {                
+                    shapes.forEach(shape => {
+                        shape.classList.add('template-rect-hover');  
+                    });
+                    selectedTemplates.push(template);
+                    svg.style.cursor = 'pointer';
+                    sizeButtonfo.style.display= 'block';
+                    lockButtonfo.style.display= 'block';
+                }               
+            });   
+            template.addEventListener('mouseover', function() {
+                svg.style.cursor = 'grab'; 
+                const shapes = template.querySelectorAll('*:not(text)');  
+                shapes.forEach(shape => {
+                    shape.classList.add('template-rect-hover');  
+                });                    
+                sizeButtonfo.style.display= 'block';  
+                lockButtonfo.style.display= 'block';                    
+            });
+            template.addEventListener('mouseout', function() {
+                svg.style.cursor = 'crosshair';   
+                const shapes = template.querySelectorAll('*:not(text)');  
+                if (!selectedTemplates.includes(template)) {
+                    shapes.forEach(shape => {
+                        shape.classList.remove('template-rect-hover');  
+                    });                    
+                    sizeButtonfo.style.display= 'none';  
+                    lockButtonfo.style.display= 'none';  
+                }                 
+            });
+            //////////////////////////////// DRAG ////////////////////////////////
+            let isTemplateDragging = false;
+            let templateInitX,templateInitY, templateOffsetX, templateOffsetY;
+            template.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if(!sizeButtonimg.contains(e.target) && template.getAttribute('lock') === '0') {
+                    isTemplateDragging = true;
+                    templateInitX = e.clientX;
+                    templateInitY = e.clientY;
+                }                
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (isTemplateDragging) {                        
+                    templateOffsetX = e.clientX - templateInitX;
+                    templateOffsetY = e.clientY - templateInitY;
+                    templateInitX = e.clientX;
+                    templateInitY = e.clientY;
+                    dragSelected(templateOffsetX,templateOffsetY); 
+                    isMouseCloseToEdges(true);
+                }
+            });
+            document.addEventListener('mouseup', function() {
+                if (isTemplateDragging) { 
+                    isTemplateDragging = false;
+                    saveTemplate(template);
+                }
+            });
+            //////////////////////////////// RESIZE ////////////////////////////////
+            let isTemplateResizing = false;
+            let initialScale = 1;
+            let templateInitialX;
+            let templateInitialY;  
+            sizeButton.addEventListener('mouseover', function() {
+                svg.style.cursor = 'pointer';                         
+            });          
+            sizeButton.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (template.getAttribute('lock') === '0') {
+                    isTemplateResizing = true;
+                    // Get current scale from transform attribute
+                    const transformAttr = template.getAttribute('transform');
+                    const transformRegex = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
+                    const match = transformAttr.match(transformRegex);
+                    initialScale = parseFloat(match[3]);
+                    // Store initial mouse position
+                    templateInitialX = e.clientX;
+                    templateInitialY = e.clientY;  
+                }              
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (isTemplateResizing) {  
+                    const transformAttr = template.getAttribute('transform');
+                    const transformRegex = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
+                    const match = transformAttr.match(transformRegex);
+                    const transX = parseFloat(match[1]);
+                    const transY = parseFloat(match[2]);                        
+                    const dx = e.clientX - templateInitialX;
+                    const dy = templateInitialY - e.clientY; 
+                    const scaleX = (dx+template.getBBox().width*currentZoom*initialScale)/(template.getBBox().width*currentZoom*initialScale);
+                    const scaleY = (dy+template.getBBox().height*currentZoom*initialScale)/(template.getBBox().height*currentZoom*initialScale);
+                    var scaleAbs = Math.max(0.2,initialScale*(scaleX + scaleY)/2);                        
+                    scaleAbs = scaleAbs;                 
+                    template.setAttribute('transform', 
+                        `translate(${transX}, ${transY}) scale(${scaleAbs})`
+                    );                                   
+                }
+            });
+            document.addEventListener('mouseup', function() {
+                if (isTemplateResizing) {
+                    isTemplateResizing = false;                    
+                    const transformAttr = template.getAttribute('transform');
+                    const transformRegex = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
+                    const match = transformAttr.match(transformRegex);
+                    template.setAttribute('size', parseFloat(match[3]));
+                    saveTemplate(template);
+                }
+            });   
+            
+            //////////////////////////////// LOCK ////////////////////////////////
+
+            lockButtonfo.addEventListener('mousedown', function() {
+                if(lockButtonimg.getAttribute('src') === '/static/img/unlock-template.svg') {
+                    lockButtonimg.setAttribute('src', '/static/img/lock-template.svg'); 
+                    template.setAttribute('lock', 1);  
+                } else {
+                    lockButtonimg.setAttribute('src', '/static/img/unlock-template.svg'); 
+                    template.setAttribute('lock', 0);  
+                } 
+                saveTemplate(template); 
+            });
+            overlay = false;
+            return template;
+        }
+
+        function SWOT(template) {
+            const size = 400;
+            const rects = [
+                {x: 0, y: 0, width: size, height: size}, 
+                {x: -size, y: 0, width: size, height: size}, 
+                {x: 0, y: -size, width: size, height: size}, 
+                {x: -size, y: -size, width: size, height: size}
+            ];
+            rects.forEach(rect => {
+                const rectangle = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rectangle.setAttribute('x', rect.x);
+                rectangle.setAttribute('y', rect.y);
+                rectangle.setAttribute('width', rect.width);
+                rectangle.setAttribute('height', rect.height);
+                rectangle.setAttribute('fill', 'none');
+                rectangle.setAttribute('stroke', '#6848A6');
+                rectangle.setAttribute('stroke-width', '4');
+                template.appendChild(rectangle);
+            });
+        }
+
+        function M3X3(template) {
+            const size = 400;
+            const rects = [
+                {x: 0.5*size, y: -1.5*size, width: size, height: size}, 
+                {x: -1.5*size, y: 0.5*size, width: size, height: size},
+                {x: 0.5*size, y: 0.5*size, width: size, height: size}, 
+                {x: -1.5*size, y: -0.5*size, width: size, height: size}, 
+                {x: -1.5*size, y: -1.5*size, width: size, height: size}, 
+                {x: -0.5*size, y: -1.5*size, width: size, height: size}, 
+                {x: 0.5*size, y: -0.5*size, width: size, height: size}, 
+                {x: -0.5*size, y: 0.5*size, width: size, height: size}, 
+                {x: -0.5*size, y: -0.5*size, width: size, height: size}
+            ];
+            rects.forEach(rect => {
+                const rectangle = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rectangle.setAttribute('x', rect.x);
+                rectangle.setAttribute('y', rect.y);
+                rectangle.setAttribute('width', rect.width);
+                rectangle.setAttribute('height', rect.height);
+                rectangle.setAttribute('fill', 'none');          
+                rectangle.setAttribute('stroke', '#6848A6');
+                rectangle.setAttribute('stroke-width', '4');
+                template.appendChild(rectangle);
+            });
+        }
+
+        function PYRAMID(template) {
+            const size = 300; 
+
+            const polygons = [
+                // Top layer (first triangle)
+                { points: `${0},${-2*size} ${-size},${-size} ${size},${-size}` },
+                // Second layer (second triangle)
+                { points: `${-size},${-size} ${-2*size},${0} ${2*size},${0} ${size},${-size}` },
+                // Third layer (third triangle)
+                { points: `${-2*size},${0} ${-3*size},${size} ${3*size},${size} ${2*size},${0}` },
+                // Base layer (fourth triangle)
+                { points: `${-3*size},${size} ${-4*size},${2*size} ${4*size},${2*size} ${3*size},${size}` }
+            ];
+
+            polygons.forEach(polygon => {
+                const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                shape.setAttribute('points', polygon.points);
+                shape.setAttribute('fill', 'none');
+                shape.setAttribute('stroke', '#6848A6');
+                shape.setAttribute('stroke-width', '4');
+                template.appendChild(shape);
+            });
+        }
+
+        function TOWS(template) {
+            const size = 500;
+            const rects = [
+                {x: 0.5*size, y: -1.5*size, width: size, height: size, label: 'OPPORTUNITIES'}, 
+                {x: -1.5*size, y: 0.5*size, width: size, height: size, label: 'STRENGTHS'},
+                {x: 0.5*size, y: 0.5*size, width: size, height: size}, 
+                {x: -1.5*size, y: -0.5*size, width: size, height: size, label: 'WEAKENESSES'}, 
+                {x: -0.5*size, y: -1.5*size, width: size, height: size, label: 'THREATS'}, 
+                {x: 0.5*size, y: -0.5*size, width: size, height: size}, 
+                {x: -0.5*size, y: 0.5*size, width: size, height: size}, 
+                {x: -0.5*size, y: -0.5*size, width: size, height: size}
+            ];
+            rects.forEach(rect => {
+                const rectangle = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rectangle.setAttribute('x', rect.x);
+                rectangle.setAttribute('y', rect.y);
+                rectangle.setAttribute('width', rect.width);
+                rectangle.setAttribute('height', rect.height);
+                rectangle.setAttribute('fill', 'none');          
+                rectangle.setAttribute('stroke', '#6848A6');
+                rectangle.setAttribute('stroke-width', '4');
+                template.appendChild(rectangle);
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', rect.x + rect.width / 2);
+                text.setAttribute('y', rect.y + rect.height / 2);
+                text.setAttribute('font-size', '18');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dy', '.3em');
+                text.setAttribute('fill', '#6e7c85');
+                text.textContent = rect.label;
+                template.appendChild(text);
+            });
+        }   
+        
+        function BM(template) {
+            const size = 400;
+            const rects = [
+                {x: -5*size, y: -1.75*size, width: 2*size, height: 2*size, label: 'Key Partners'},            
+                {x: -3*size, y: -1.75*size, width: 2*size, height: size, label: 'Key Activities'},          
+                {x: -size, y: -1.75*size, width: 2*size, height: 2*size, label: 'Value Proposition'},      
+                {x: size, y: -1.75*size, width: 2*size, height: size, label: 'Customer Relationships'}, 
+                {x: 3*size, y: -1.75*size, width: 2*size, height: 2*size, label: 'Customer Segments'},      
+                {x: -3*size, y: -0.75*size, width: 2*size, height: size, label: 'Key Resources'},      
+                {x: size, y: -0.75*size, width: 2*size, height: size, label: 'Channels'},             
+                {x: -5*size, y: 0.25*size, width: 5*size, height: 1.5*size, label: 'Cost Structure'},       
+                {x: 0, y: 0.25*size, width: 5*size, height: 1.5*size, label: 'Revenue Streams'}       
+            ];
+            rects.forEach(rect => {
+                const rectangle = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rectangle.setAttribute('x', rect.x);
+                rectangle.setAttribute('y', rect.y);
+                rectangle.setAttribute('width', rect.width);
+                rectangle.setAttribute('height', rect.height);
+                rectangle.setAttribute('fill', 'none');          
+                rectangle.setAttribute('stroke', '#6848A6');
+                rectangle.setAttribute('stroke-width', '4');
+                template.appendChild(rectangle);
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', rect.x + rect.width / 2);
+                text.setAttribute('y', rect.y + rect.height / 2);
+                text.setAttribute('font-size', '18');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dy', '.3em');
+                text.setAttribute('fill', '#6e7c85');
+                text.textContent = rect.label;
+                template.appendChild(text);
+            });
+        }  
+
+        function CHRONO(template) {
+            const size = 300;
+            const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');            
+            const d = `
+                M ${-2.8 * size}, ${-0.35 * size}  
+                L ${2.4 * size}, ${-0.35 * size}  
+                L ${3 * size}, 0  
+                L ${2.4 * size}, ${0.35 * size}  
+                L ${-2.8 * size}, ${0.35 * size}  
+                Z
+            `;
+            arrowPath.setAttribute('d', d);
+            arrowPath.setAttribute('fill', 'none');
+            arrowPath.setAttribute('stroke', '#6848A6');
+            arrowPath.setAttribute('stroke-width', '4');
+            template.appendChild(arrowPath);
+        }
+
+        function IKIGAI(template) {
+            const size = 700;            
+            // Define circles with their positions and colors
+            const circles = [
+                // Top circle
+                {cx: 0, cy: -0.7*size, r: size, stroke: '#6848A6'},
+                // Right circle
+                {cx: 0.7*size, cy: 0, r: size, stroke: '#6848A6'},
+                // Bottom circle
+                {cx: 0, cy: 0.7*size, r: size, stroke: '#6848A6'},
+                // Left circle
+                {cx: -0.7*size, cy: 0, r: size, stroke: '#6848A6'}
+            ];
+            
+            // Create and append each circle
+            circles.forEach(circleData => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', circleData.cx);
+                circle.setAttribute('cy', circleData.cy);
+                circle.setAttribute('r', circleData.r);
+                circle.setAttribute('fill', 'none');
+                circle.setAttribute('stroke', circleData.stroke);
+                circle.setAttribute('stroke-width', '4');
+                template.appendChild(circle);
+            });
+        }    
+        
+        function saveTemplate(template){
+            const data = [];
+
+            const id = parseInt(template.getAttribute('id').match(/\d+/)[0], 10);
+            const x = Math.round(template.getAttribute('x'));
+            const y = Math.round(template.getAttribute('y'));
+            const type = template.getAttribute('type');
+            const lock = template.getAttribute('lock');
+            const size = template.getAttribute('size');
+            const layer = template.getAttribute('layer');          
+
+            data.push({ 
+                id: id, 
+                x: x,
+                y: y,
+                type: type,
+                layer: layer,
+                lock: lock,
+                size: size,
+            });
+
+            const csrfToken = getCookie('csrftoken');
+
+            fetch('/save-template/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error('There was a problem with the fetch operation:', error);
+            });
+        }
+          
+    </script>
+</body>

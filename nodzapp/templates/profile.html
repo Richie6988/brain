@@ -1,0 +1,1056 @@
+<style>
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #bbb; 
+        /* border-radius: 10px; */
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #663399; 
+        border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #888; 
+    }
+
+    .profile-content {
+        position: relative;
+        background-color: #f8f9fa;
+        padding: 30px;
+        width: 80%;
+        max-width: 80vw;
+        max-height: 80vh;
+        border-radius: 10px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+        animation: fadeIn 0.3s ease-in-out;
+        overflow-y: auto;
+    }
+
+    .mail-popup {
+        position: absolute; /* Position relative to the container or viewport */
+        background-color: #f8f9fa;
+        padding: 15px;
+        width: 250px; /* Fixed width for the popup */
+        border-radius: 10px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+        overflow-y: auto;
+        z-index: 1000;
+        left: 50%; /* Center horizontally */
+        transform: translateX(-50%); /* Adjust position to truly center */
+        top: 50%; /* Adjust vertical position */
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .mail-popup.error {
+        border: 2px solid #f44336; /* Red border for error */
+        background-color: #ffebee; /* Light red background for emphasis */
+        color: #d32f2f;
+    }
+
+    .code-input {
+        width: 80%;
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        font-size: 16px;
+        text-align: center;
+        font-family: 'Cascadia Code', monospace;  /* Set Cascadia Code font */
+    }
+
+    .section-title {
+        font-size: 1.5em;
+        margin-bottom: 20px;
+        color: #333;
+        text-align: left;
+        border-bottom: 2px solid #ddd;
+        padding-bottom: 10px;
+    }
+
+    .user-stats {
+        text-align: center;
+        display: grid;
+        grid-template: 1fr 1fr;
+    }
+
+    .subscription-upgrade {
+        max-width: 100%;
+        height: max-content;
+        margin: 20px auto;
+        background-color: #f8f9fa;
+    }
+
+    .subscription-upgrade p {
+        margin-bottom: 20px;
+        text-align: left;
+        color: #666;
+    }
+
+    .subscription-upgrade input[type="checkbox"] {
+        margin-right: 5px;
+        accent-color: #663399; 
+    }
+
+    .subscription-upgrade .form-group {
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+
+    .subscription-upgrade a {
+        color: #007bff;
+        text-decoration: none;
+    }
+    .subscription-upgrade a:hover {
+        text-decoration: underline;
+    }
+
+    .danger-button {
+        position:absolute;
+        left:calc(50% - 50px);
+        padding: 8px 10px;
+        border: none;
+        border-radius: 6px;
+        font-size: .7rem;
+        cursor: pointer;
+        font-weight: 400;
+        margin-top: 5px;
+        color: darkgrey;
+        background-color: transparent;
+        transition: background-color 0.3s ease;
+        width:100px;
+        display: flex;
+        align-items: center;
+        justify-content: center
+    }
+
+    .danger-button:hover:enabled {
+        background-color: #e53935;
+        color: ivory;
+        transform: scale(1.02);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Flex container for the charts */
+    .charts-container {
+        position: relative;
+        height: 100%;
+    }
+
+    /* Each chart container */
+    .chart {
+        flex: 1;  /* Ensures both charts take up equal width   */
+        max-width: 69%;
+        overflow-x: auto;
+        margin-top: 10px;
+    }
+
+    /* Set equal height for both charts */
+    #nodeCategoryChart {
+    height: 100px; 
+    width: 100%;
+    }
+
+    /* Responsive behavior for smaller screens */
+    @media (max-width: 768px) {
+    .charts-container {
+        flex-direction: column;  /* Stack charts vertically on smaller screens */
+        gap: 10px;
+    }
+
+    .chart {
+        max-width: 100%;
+        max-height: 120px;
+    }
+    }
+  
+    .field-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 20px; 
+        height: 100%;
+        justify-items: center; 
+        border-bottom: 1px solid #eee;
+    }
+    .field1 {
+        grid-column: 1; 
+        justify-self: start;
+    }
+
+    .field2 {
+        grid-column: 2; 
+    }
+
+    .field3 {
+        grid-column: 3; 
+        justify-self: end;
+        margin-right: 10px;
+    }
+
+    .field-label {
+        font-weight: bold;
+        color: #4a5568;
+    }
+    .field-value {
+        font-size: 1.125rem;
+    }
+
+    .edit-input {
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+    .edit-buttons {
+        display: flex;
+        gap: 5px;
+    }
+ 
+    #feedback-btn {
+        padding: 10px 20px;  
+        font-size: 16px;   
+        color: white;     
+        background-color: transparent; 
+        background-image: url('/static/img/mail.svg');
+        background-size: contain; 
+        background-repeat: no-repeat; 
+        background-position: center center;
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        gap: 10px; 
+        cursor: pointer; 
+        transition: background-color 0.3s ease, border-color 0.3s ease; 
+    }
+
+    /* Hover effect to improve UX */
+    #feedback-btn:hover {
+        transform: scale(1.12);
+    }
+
+    .thanks {
+        font-weight:800; 
+        font-style:oblique;     
+        color: #663399;          
+        text-align: center;   
+        justify-content: center;         
+        font-size: 38px;       
+    }
+
+</style>
+
+<div id="profile" class="overlay">
+    <div class="profile-content">
+        <span class="close-btn" onclick="closeProfile()">&times;</span> 
+     
+        <h3 class="section-title">User Profile</h3>
+
+        <div id="userProfile">
+            <div class="field-container" data-field="username">
+                <label class="field-label field1">Name:</label>
+                <span id="profile_name" class="field-value field2">Guest</span>
+                <span id="edit-username" class="edit-icon icon field3">✎</span>
+            </div>
+            <div class="field-container" data-field="email">
+                <label class="field-label field1">Email:</label>
+                <span id="profile_email" class="field-value field2">john.doe@example.com</span>
+                <span id="edit-email" class="edit-icon icon  field3">✎</span>
+            </div>
+            <div class="field-container" data-field="country">
+                <label class="field-label field1">Country:</label>
+                <span id="profile_country" class="field-value field2">France</span>
+                <span id="edit-country" class="edit-icon icon field3">✎</span>
+            </div>
+            <div class="field-container" data-field="joinedDate">
+                <label class="field-label field1">Joined Date:</label>
+                <span id="profile_joined_date" class="field-value field2">Today?</span>
+            </div>
+            <div class="field-container" data-field="CurrentPlan">
+                <label class="field-label field1">Current Plan:</label>
+                <span id="profile_plan" class="field-value field2">Free</span>
+            </div>
+        </div>
+
+        <!-- Usage Statistics Section -->
+        <br></br>
+        <div class="user-stats">
+            <div style="display: flex; flex-direction: column; width: 100%; height:fit-content ; grid-column: 1; margin-top: 12px;"> 
+                <h2 id="nodesKPI" class="message">524</h2>
+                <h2 class="message">NODES</h2>
+            </div>            
+            <div class="charts-container" style="grid-column: 2;display: flex; justify-content: center;">                
+                <div class="chart">
+                    <canvas id="nodeCategoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <br>
+        <div class="field-container" data-field="Referee" style="display: flex; justify-content:center; gap: 20px;">
+            <label class="field-label" style="position:relative;">Referrees:</label>
+            <span id="referrerKPI" class="message">0</span>
+            <div style="text-align: center; margin-top: 30px; display: flex; align-items: center; margin-bottom: 20px;">
+                <p>Invite others to join using your referral link:</p>
+                <button id="copyButton" 
+                        class="submit-button">
+                    Link
+                </button>
+                <p id="copyMessage" style="color: #663399; font-size: 14px; display: none; margin-top: 10px;">Referral link copied to clipboard!</p>
+            </div>
+        </div>
+
+
+        <!-- Subscription Section -->
+        <div class="subscription">                         
+            <div class="subscription-upgrade">
+                
+                <div class="subscription-upgrade" style="background-color: #f8f8f8; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); max-width: 600px; margin: 30px auto; font-family: 'Cascadia Code', monospace;">
+                    <p style="font-size: 24px; font-weight: bold; color: #663399; text-align: center; margin-bottom: 20px;">Level Up Your Experience with Premium Features</p>
+                    <ul id="feedback" style="font-size: 16px; margin: 0; padding-left: 20px; color: #444;">
+                        <li style="margin-bottom: 10px; list-style-type: disc;">
+                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Extended Server Capabilities</p>
+                        </li>
+                        <li style="margin-bottom: 10px; list-style-type: disc;">
+                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Unlimited Nodes & Dimensions</p>
+                        </li>
+                        <li style="margin-bottom: 10px; list-style-type: disc;">
+                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ High Document Size</p>
+                        </li>
+                        <li style="margin-bottom: 10px; list-style-type: disc;">
+                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Multi-User Access</p>
+                        </li>
+                        <li style="margin-bottom: 10px; list-style-type: disc;">
+                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ New Features Coming (AI, Voice Messages, etc.)</p>
+                        </li>
+                        <li style="margin-bottom: 10px; list-style-type: disc;">
+                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Premium Support</p> 
+                        </li>
+                    </ul>
+                    <p style="color: #663399; text-align: center; font-size: 14px; margin-top: 20px;">
+                        Your support means the world to us! Not only does it motivate us, but it helps us continue refining and polishing this gem!
+                    </p>
+                </div>
+                
+                <form id="payment-form" action="/process-payment" method="POST">
+                    <!-- Terms Agreement -->
+                    <div class="form-group">
+                        <input type="checkbox" id="agree-terms" name="agree-terms" required>
+                        <span for="agree-terms">
+                            I agree to the 
+                            <a href="/terms" style="color:#663399" target="_blank">Terms and Conditions</a> 
+                            and 
+                            <a href="/privacy" style="color:#663399" target="_blank">Privacy Policy</a>.
+                        </span>
+                    </div>
+                    <!-- Plan Selection -->
+                    <div class="form-group" style="display: flex; align-items: center; justify-content: center;">
+                        <select name="plan" id="plan" class="submit-button"
+                        style="background-color: #383838; width:30%; text-align: center; font-family: 'Cascadia Code', monospace; font-size: 14px; border: 1px solid #ccc; padding: 5px; border-radius: 4px;" 
+                        required>
+                            <option value="free" disabled>Free</option>
+                            <option value="monthly" selected>Monthly - 9.90€</option>
+                            <option value="yearly">Yearly - 99€</option>
+                        </select>
+                        <button style="width:180px;" type="submit" id="pay-button" class="submit-button">Upgrade Now</button>
+                    </div>     
+                </form>
+            </div>
+             <!-- Contact Section -->
+             <h3 class="section-title">Feedback</h3>
+            <div class="subscription" style="display: flex; align-items: center;">    
+                <textarea id="feedback-input" type="text" style="width: 100%; min-height: 30px;"></textarea>  
+                <span id="feedback-btn"></span>
+            </div>
+        </div>
+        <!-- Delete account Section -->
+        <div class="subscription">
+            <h3 class="section-title"></h3>      
+            <button id="delete-account" class="danger-button">Delete Account</button>
+        </div>
+        
+    </div>
+
+
+                
+
+    <script>
+        function closeProfile() {
+            const profile = document.getElementById('profile');
+            profile.style.display = 'none';
+            overlay = false;
+        }
+
+        //////////////////// FEEDBACK ////////////////////
+        document.getElementById("feedback-input").addEventListener('input', function() {
+            isTyping = true;
+        });
+
+        document.getElementById("feedback-input").addEventListener('blur', function() {
+            isTyping = false;
+        });
+
+        document.getElementById("feedback-btn").addEventListener('click', function() {
+
+            const message = document.getElementById("feedback-input").value;
+            if (message === ''){
+                return;
+            }
+            const data = [{message: message}];      
+            const csrfToken = getCookie('csrftoken');
+
+            // Send the feedback using fetch
+            fetch('/submit-feedback/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const feedback_input = document.getElementById("feedback-input");                     
+                    feedback_input.classList.add('thanks'); 
+                    feedback_input.value = 'THANK YOU!'; 
+                    setTimeout(() => {
+                        document.getElementById("feedback-input").value = ''; 
+                        feedback_input.classList.remove('thanks') 
+                    }, 3000);
+                } else {
+                    console.log(data.message);  
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while submitting the feedback.');
+            });
+        });
+
+
+        //////////////////// DELETE ACCOUNT ////////////////////
+        document.getElementById("delete-account").addEventListener('click', function() {
+            let bye = document.createElement('div');
+            // bye.className = 'popup'; 
+            const message = document.createElement('div');
+            message.className = 'smallmessage';          
+            message.textContent = `Are you sure? Deleting account is permanent.`;
+            bye.appendChild(message);
+            const buttonContainer = document.createElement('div');
+            bye.classList.add('mail-popup');
+            bye.classList.add('error');
+            // buttonContainer.className = 'popupbutton-container'; 
+            buttonContainer.style.justifyContent = 'center';
+            const confirmButton = document.createElement('button');
+            confirmButton.textContent = 'CONFIRM';
+            confirmButton.style.fontSize = '10px';
+            confirmButton.className = 'submit-button'; 
+            confirmButton.style.padding = '5px';
+            confirmButton.style.backgroundColor = '#d32f2f';
+            buttonContainer.appendChild(confirmButton);
+            bye.appendChild(buttonContainer);
+            document.body.appendChild(bye);
+
+            setTimeout(() => {
+                document.body.addEventListener('click', (e) => {
+                var popup = document.body.querySelector('.error');               
+                // Close modal if clicked outside of the modal content
+                    if(popup && !popup.contains(e.target) && isLoggedIn) {
+                        document.body.removeChild(popup);
+                    }
+                },{once: true});
+            }, 500);
+            
+            confirmButton.addEventListener('click', function() {
+                // Delete account
+                deleteAccount();   
+                document.body.removeChild(bye);
+                bye = null;             
+            });
+          
+            bye.addEventListener('wheel', function(event) {
+                event.preventDefault();
+            });
+            bye.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+            });  
+        });
+
+        function deleteAccount() {
+            const data = [];      
+            const csrfToken = getCookie('csrftoken');
+            fetch('/delete-account/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                } else {
+                    window.location.reload(true);
+                }
+                return response.json();
+            }).catch(error => {
+                console.error('There was a problem with deleting account operation:', error);
+            });
+        }
+        //////////////////// REFERRAL PROGRAM ////////////////////
+        document.getElementById("copyButton").addEventListener("click", function() {
+            console.log(userID,pseudo)
+            const referralLink = `${window.location}/r-${userID}`; // Referral link to copy
+        
+            // Copy the referral link to clipboard
+            navigator.clipboard.writeText(referralLink).then(function() {
+            // Change button text after successful copy
+            document.getElementById("copyMessage").style.display = "block"; // Show confirmation message
+            
+            // Optionally, revert the button text after a short delay
+            setTimeout(function() {
+                document.getElementById("copyButton").innerText = "Link";
+                document.getElementById("copyMessage").style.display = "none";  // Hide confirmation message
+            }, 2000); // Reset after 2 seconds
+            }).catch(function(error) {
+                console.error("Failed to copy the referral link:", error);
+            });
+        });
+
+
+        let nodeCategoryChart;
+        function getProfile() {
+            const data = [];      
+            const csrfToken = getCookie('csrftoken');
+            fetch('/get-profile/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();   
+            }).then(data => {       
+                if (data.profile) {
+                    data.profile.forEach(param => {   
+                        loadUser(param);
+                    });
+                }
+
+                // LOAD PROFILE                
+                target = document.getElementById('profile_name');
+                target.textContent = pseudo;
+                target = document.getElementById('profile_email');
+                target.textContent = email;
+                target = document.getElementById('profile_country');
+                target.textContent = country;
+                target = document.getElementById('profile_joined_date');
+                date_joined = date_joined.split(' ')[0];
+                target.textContent = date_joined;
+                target = document.getElementById('profile_plan');
+                if(premium === false) {
+                    target.textContent = 'FREE';
+                } else {
+                    target.textContent = 'PREMIUM';
+                }
+                target = document.getElementById('nodesKPI');
+                target.textContent = nodes;
+
+                // Select the feedback input element and apply improvements
+                var feedbackInput = document.getElementById('feedback-input');
+
+                // Apply styles dynamically
+                feedbackInput.style.width = '100%';
+                feedbackInput.style.minHeight = '30px'; 
+                feedbackInput.style.padding = '10px';
+                feedbackInput.style.border = '2px solid #ddd';
+                feedbackInput.style.borderRadius = '8px';
+                feedbackInput.style.fontSize = '16px';
+                feedbackInput.style.backgroundColor = '#f9f9f9';
+                feedbackInput.style.transition = 'border-color 0.3s ease, box-shadow 0.3s ease';
+                feedbackInput.style.resize = 'none';  
+                feedbackInput.style.overflow = 'auto'; // Allow scrolling if content overflows
+                feedbackInput.style.wordWrap = 'break-word'; // Break long words if necessary
+                feedbackInput.style.whiteSpace = 'pre-wrap'; // Handle multiple lines properly
+                feedbackInput.style.lineHeight = '1.5'; // Make text more readable
+                
+                // Pie chart for node categories
+                const pieCtx = document.getElementById('nodeCategoryChart').getContext('2d');
+                if (nodeCategoryChart) {
+                    nodeCategoryChart.destroy();  // Free up the canvas
+                }
+                nodeCategoryChart = new Chart(pieCtx, {
+                    type: 'pie',  // Pie chart type
+                    data: {
+                        labels: ['Text', 'Image', 'Video', 'Files', 'Sketch'],  // Node categories
+                        datasets: [{
+                            data: [text_nodes, image_nodes, videoSearch, file_nodes, sketch_nodes],  
+                            backgroundColor: [
+                                'rgba(255, 159, 64, 0.7)',  // Text - Warm Orange
+                                'rgba(75, 192, 192, 0.7)',  // Image - Soft Teal
+                                'rgba(54, 162, 235, 0.7)',  // Video - Sky Blue
+                                'rgba(153, 102, 255, 0.7)',  // Files - Purple
+                                'rgba(255, 99, 132, 0.7)'   // Sketch - Light Pink
+                            ],
+                            borderColor: [
+                                'rgba(255, 159, 64, 1)',  // Text - Warm Orange Border
+                                'rgba(75, 192, 192, 1)',  // Image - Soft Teal Border
+                                'rgba(54, 162, 235, 1)',  // Video - Sky Blue Border
+                                'rgba(153, 102, 255, 1)', // Files - Purple Border
+                                'rgba(255, 99, 132, 1)'   
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        animation: {
+                            animateScale: true, // Animates scaling of pie chart on load
+                            animateRotate: true // Animates rotation of pie chart on load
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    usePointStyle: true,  // Use point style for better clarity
+                                    font: {
+                                        size: 14,  // Modern font size for clarity
+                                        family: "'Cascadia Code', monospace"  // Use a modern font family
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.7)',  // Dark tooltip background
+                                titleFont: {
+                                    size: 16, 
+                                    family: "'Cascadia Code', monospace"
+                                },
+                                bodyFont: {
+                                    size: 14,  
+                                    family: "'Cascadia Code', monospace"
+                                },
+                                callbacks: {
+                                    label: function(tooltipItem) {
+                                        return tooltipItem.raw + ' nodes';
+                                    }
+                                }
+                            },
+                        }
+                    }
+                });
+
+                
+            }).catch(error => {
+                console.error('There was a problem with getting profile:', error);
+            });
+        }
+
+        function saveProfile(data) {    
+            const csrfToken = getCookie('csrftoken');
+            fetch('/save-profile/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                } else {
+                   // SAVE PROFILE
+                   console.log('CL/profile saved')                   
+                }
+                return response.json();
+            }).catch(error => {
+                console.error('There was a problem with saving profile:', error);
+            });
+        }
+
+        //////////////////// USERNAME ////////////////////
+
+        document.getElementById('edit-username').addEventListener('click', function () {
+            const fieldContainer = this.parentElement;
+            const fieldValue = fieldContainer.querySelector('.field-value');
+            if(fieldValue) {
+                const currentEmail = fieldValue.textContent; 
+                const usernameInput = document.createElement('input');
+                usernameInput.id = 'usernameInput';
+                usernameInput.type = 'name';
+                usernameInput.style.fontFamily = "'Cascadia Code', monospace"; 
+                usernameInput.style.fontSize = "14px"; 
+                usernameInput.value = fieldValue.textContent;
+
+                fieldValue.replaceWith(usernameInput);
+                isTyping = true;
+                usernameInput.focus();
+
+                // Keydown event to detect when Enter is pressed
+                usernameInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    // Prevent the default behavior (optional if you don't want to submit a form or trigger any default action)
+                    event.preventDefault();
+                    restoreView();
+                }
+                });
+               
+           
+                // Close when clicking outside
+                document.addEventListener('click', function(event) {
+                    if (!fieldContainer.contains(event.target)) {
+                        restoreView();
+                        // Remove the event listener after it has been triggered
+                        document.removeEventListener('click', arguments.callee);
+                    }
+                });
+               
+                // Restore view function
+                function restoreView() {
+                    const newUsername = usernameInput.value;
+                    usernameInput.replaceWith(fieldValue); // Restore text
+                    fieldValue.textContent = newUsername;
+                    saveProfile({'username': newUsername}); 
+                }
+            }
+
+        });
+
+  
+
+
+        ////////////////////////////////// EMAIL //////////////////////////////////
+        function validateEmail(email) {
+            // Regular expression for more accurate email validation
+            const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            return emailPattern.test(email);
+        }
+
+
+        document.getElementById('edit-email').addEventListener('click', function () {
+            const fieldContainer = this.parentElement;
+            const fieldValue = fieldContainer.querySelector('.field-value');
+            if(fieldValue) {
+                const currentEmail = fieldValue.textContent; 
+                const emailInput = document.createElement('input');
+                emailInput.id = 'emailInput';
+                emailInput.type = 'email';
+                emailInput.style.fontFamily = "'Cascadia Code', monospace"; 
+                emailInput.style.fontSize = "14px"; 
+
+                fieldValue.replaceWith(emailInput);
+                isTyping = true;
+                emailInput.focus();
+
+                // Keydown event to detect when Enter is pressed
+                emailInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    validateAndShowPopup();
+                }
+                });
+                function validateAndShowPopup() {
+                    const existingPopup = document.querySelector('.mail-popup');
+                    if (existingPopup) {
+                        existingPopup.remove();
+                    }
+                    if (!validateEmail(emailInput.value)) {
+                        const mailPopup = document.createElement('div');
+                        mailPopup.classList.add('mail-popup');
+                        mailPopup.classList.add('error');
+                        mailPopup.textContent = 'Invalid email address';
+                        
+                        // Append the mail popup to the DOM
+                        document.body.appendChild(mailPopup);
+
+                        // Optionally, remove the popup after 3 seconds
+                        setTimeout(() => {
+                        mailPopup.remove();
+                        }, 3000);
+                    } else {
+                       // Create the mail popup
+                        sendValidationCode();
+                        const mailPopup = document.createElement('div');
+                        mailPopup.id = 'mailPopup';
+                        mailPopup.classList.add('mail-popup'); 
+                        const mailMessage = document.createElement('div');
+                        mailMessage.id = 'mailMessage';
+                        mailMessage.textContent = 'Sending validation code...';                       
+                        isTyping = true;
+
+                        // Create the code input field
+                        const codeInput = document.createElement('input');
+                        codeInput.id = 'codeInput';
+                        codeInput.type = 'text'; 
+                        codeInput.placeholder = 'Validation Code';
+                        codeInput.classList.add('code-input'); 
+                        
+                        // Add event listener to only allow numeric input
+                        codeInput.addEventListener('input', function (event) {
+                            // Remove any non-numeric characters
+                            this.value = this.value.replace(/\D/g, ''); // \D matches any non-digit character
+                        });
+
+                        // Create a submit button
+                        const submitButton = document.createElement('button');
+                        submitButton.textContent = 'Submit';
+                        submitButton.classList.add('submit-button'); 
+
+                        mailPopup.appendChild(mailMessage);
+                        mailPopup.appendChild(codeInput);
+                        mailPopup.appendChild(submitButton);
+                        document.body.appendChild(mailPopup);
+
+                        submitButton.addEventListener('click', function (event) {
+                            var check = verifyValidationCode(fieldValue,emailInput);                                               
+                        });
+                    }
+                }
+           
+                // Close when clicking outside
+                document.addEventListener('click', handleOutsideClick);
+                function handleOutsideClick(event) {
+                    if (!fieldContainer.contains(event.target) && typeof mailPopup !== 'undefined'){
+                        restoreView();
+                    } else if (!fieldContainer.contains(event.target)) {
+                        emailInput.replaceWith(fieldValue); 
+                    }
+                }
+                // Restore view function
+                function restoreView() {                    
+                    if (!mailPopup.contains(event.target)) {
+                        emailInput.replaceWith(fieldValue); // Restore text
+                        mailPopup.remove();
+                    }
+                }
+            }
+
+        });
+
+        async function sendValidationCode() {
+            const email = document.getElementById('emailInput').value;
+
+            const response = await fetch('/send-validation-code/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `email=${encodeURIComponent(email)}`
+            });
+
+            const result = await response.json();
+            
+            if (result.status === 'Validation code sent') {
+                document.getElementById('mailMessage').textContent = 'Enter the validation code sent to your email address';
+            } 
+        }
+
+        async function verifyValidationCode(fieldValue,emailInput) {
+    
+            const email = document.getElementById('emailInput').value;           
+            const code = document.getElementById('codeInput').value;
+
+            if (!code) {
+                document.getElementById('mailMessage').textContent = 'Please enter the validation code.';
+                setTimeout(() => {
+                    document.getElementById('mailMessage').textContent = 'Enter the validation code sent to your email address';
+                }, 3000);
+                return;
+            }
+
+            const response = await fetch('/verify-validation-code/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'Code is correct!') {  
+                document.getElementById('mailPopup').remove();  
+                emailInput.replaceWith(fieldValue);
+                fieldValue.textContent = email;  
+                saveProfile({'email': email});                          
+                return true;
+            } else if (result.error === 'This email is already used') { 
+                document.getElementById('mailMessage').textContent = 'This email is already used';
+                return false;   
+                
+            } else {
+                console.log(result.error);
+                document.getElementById('mailPopup').classList.add('error');
+                setTimeout(() => {
+                    document.getElementById('mailPopup').classList.remove('error');
+                }, 3000);
+                return false;
+            }
+        }
+
+
+        ////////////////////////////////// COUNTRIES //////////////////////////////////
+        let countries = [
+            "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+            "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina",
+            "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cambodia", "Cameroon", "Canada", "Cape Verde", "Central African Republic",
+            "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic", "Denmark",
+            "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini",
+            "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala",
+            "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland",
+            "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia",
+            "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives",
+            "Mali", "Malta", "Mauritania", "Mauritius", "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+            "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway",
+            "Oman", "Pakistan", "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania",
+            "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Saudi Arabia",
+            "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa",
+            "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan",
+            "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu",
+            "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City",
+            "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+        ];
+
+        function createCountryDropdown(selectedCountry = "") {
+            const select = document.createElement('select');
+            select.id = 'country-select';
+            select.style.fontFamily = "'Cascadia Code', monospace"; 
+            select.style.fontSize = "14px"; 
+            select.style.border = "1px solid #ccc"; 
+            select.style.padding = "5px"; 
+            select.style.borderRadius = "4px"; 
+
+            countries.forEach(country => {
+                const option = document.createElement('option');
+                option.value = country;
+                option.textContent = country;
+                if (country === selectedCountry) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+
+            return select;
+        }
+       
+        document.getElementById('edit-country').addEventListener('click', function () {
+            const fieldContainer = this.parentElement;
+            const fieldValue = fieldContainer.querySelector('.field-value');
+            if(fieldValue) {
+                const selectedCountry = fieldValue.textContent; // Get the current country name
+                const countryDropdown = createCountryDropdown(selectedCountry); // Create dropdown with the current country selected
+
+                fieldValue.replaceWith(countryDropdown);
+                countryDropdown.addEventListener('change', function () {
+                    fieldValue.textContent = countryDropdown.value;
+                    const country = countryDropdown.value;
+                    saveProfile({'country': country}); 
+                    restoreView();
+                })
+
+                // Close when clicking outside
+                document.addEventListener('click', handleOutsideClick);
+                function handleOutsideClick(event) {
+                    if (!fieldContainer.contains(event.target)) {
+                        restoreView();
+                    }
+                }
+                // Restore view function
+                function restoreView() {
+                    countryDropdown.replaceWith(fieldValue); // Restore text
+                }
+            }
+
+        });
+
+
+        ////////////////////////////////// PAYMENT //////////////////////////////////
+
+        // Assume you have the Stripe.js library loaded
+        const stripe = ''// Stripe('your-publishable-key');
+
+        //Handle the subscription upgrade
+        document.getElementById('payment-form').addEventListener('submit', async (e) => {
+            e.preventDefault();    
+            const plan = document.getElementById('plan').value;
+            const csrfToken = getCookie('csrftoken');
+
+            // Send request to your Django backend to create a PaymentIntent
+            const response = await fetch('/process-payment/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken,  
+                },
+                body: new URLSearchParams({
+                    'plan': plan  // Send the selected plan (monthly or yearly)
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                alert('Error creating payment: ' + data.error);
+                return;
+            }
+
+            const clientSecret = data.client_secret;
+
+            // Use Stripe.js to handle the payment confirmation
+            const {error} = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: {
+                    card: elements.getElement(CardElement),  // Assuming you're using Stripe Elements
+                    billing_details: {
+                        name: 'Customer Name',
+                        email: 'customer@example.com',
+                    },
+                },
+            });
+
+            if (error) {
+                alert('Payment failed: ' + error.message);
+            } else {
+                alert('Payment successful!');
+            }
+        });
+
+        // Handle subscription cancellation
+        // document.getElementById('cancel-subscription').addEventListener('click', function() {
+        //     if (confirm('Are you sure you want to cancel your subscription?')) {
+        //         fetch('/cancel-subscription/', {
+        //             method: 'POST',
+        //             headers: {
+        //                 'X-CSRFToken': csrftoken,  
+        //                 'Content-Type': 'application/json'
+        //             }
+        //         })
+        //         .then(response => response.json())
+        //         .then(data => {
+        //             if (data.status) {
+        //                 alert('Subscription canceled successfully');
+        //                 // Update the UI or redirect the user
+        //             } else {
+        //                 alert('Error: ' + data.error);
+        //             }
+        //         })
+        //         .catch(error => console.error('Error:', error));
+        //     }
+        // });
+
+    </script>
+</div>

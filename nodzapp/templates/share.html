@@ -1,0 +1,7 @@
+{% for node in nodes %}
+    <div class="node">
+        <h2>{{ node.node_id }} - {{ node.type }}</h2>
+        <p>{{ node.text_content }}</p>
+        <!-- Display other node fields as needed -->
+    </div>
+{% endfor %}

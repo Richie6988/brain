@@ -1,0 +1,247 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <title>LOGIN</title> 
+    <link rel="stylesheet" href="{% static 'css/constelcss.css' %}">
+    <link rel="stylesheet" href="{% static 'css/interface.css' %}">
+    <script src="https://unpkg.com/htmx.org/dist/htmx.js"></script>    
+    <style>
+
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input, textarea {
+            padding: 5px;
+            margin-top: 5px;
+            border: 1px solid #ccd1d9;
+            border-radius: 6px;
+            font-size: 1rem;
+            background-color: #f9f9f9;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            text-align: center;
+            width: 70%;
+            margin-left: 15%;
+        }
+
+        input:focus, textarea:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+            outline: none;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 6px;
+        }
+
+        .log-button {
+            position: relative;
+            left: calc(80% - 10px);  
+            text-align: center;
+            width: 20%;
+            padding: 5px;
+            font-size:small;
+            margin-top: 10px;
+        }
+
+        .reg-button {
+            position: relative;
+            left: calc(70% - 10px);  
+            text-align: center;
+            width: 30%;
+            padding: 5px;
+            font-size:small;
+            margin-top: 10px;
+        }
+
+    </style>
+</head>
+
+<body onload="loginView()">
+
+    <div class="col-8 offset-2" id="loginToggle">
+        <label for="toggle">
+            <input class="input" type="checkbox" id="toggle" onchange="switchLogin()" checked/>
+            <div class="toggle-wrapper">
+                <span class="selector"></span>
+            </div>
+            <p class="notification"><span class="selected"></span></p>
+            <hr color="#440852">
+            <div class="text-danger mt-2" id="err"></div>    
+        </label>                
+    </div>
+    
+   
+    <div id="loginBlock" class="loginblock col-8 offset-2" style="display: none;">
+        <form id="loginForm">
+            {% csrf_token %}
+            <input type="email" id="email" name="email" placeholder="Email address" style="max-height: 15px;" required>
+            <input type="password" id="password" name="password" placeholder="Password" style="max-height: 15px;" required>
+            <button class="submit-button log-button" hx-post="/checklogin/" hx-swap="outerhtml" hx-target="#err">LOGIN</button>
+            <a href="/forgot-password/" class="forgot-password" onclick="forgot()">Forgot Password?</a>
+        </form>    
+    </div>
+    
+    <div id="registerBlock" class="loginblock col-8 offset-2" style="display: none;">
+        <form id="registerForm">
+            {% csrf_token %}
+            <input type="text" id="username" name="username" autocomplete="off" style="max-height: 15px;" placeholder="Choose username" required>
+            <input type="email" id="email" name="email" autocomplete="off" style="max-height: 15px;" placeholder="Email address" required>
+            <input type="date" id="birthdate" name="birthdate" autocomplete="off" style="max-height: 15px;" required onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" placeholder="Birth date">
+            <input type="password" id="password1" name="password1" placeholder="Password" autocomplete="new-password" style="max-height: 15px;" required>
+            <input type="password" id="password2" name="password2" placeholder="Confirm password" autocomplete="new-password" style="max-height: 15px;" required>
+            <button class="submit-button reg-button" hx-post="/register/" hx-swap="outerhtml" hx-target="#err">REGISTER</button>
+        </form>
+    </div>
+
+<script>
+    let loginIndex = 0;
+    function loginView () {
+        const loginBlock = document.getElementById('loginBlock');
+        const registerBlock = document.getElementById('registerBlock');
+        const loginToggle = document.getElementById('loginToggle');
+        const loginButton = document.getElementById('logBtn');
+       
+        loginBlock.style.display = 'block';
+        registerBlock.style.display = 'none';
+        loginIndex = 2;
+        const loginForm = document.getElementById('loginForm');
+        const parentWindow = window.parent;
+        const loginPopup = parentWindow.document.getElementById('loginPopup');
+    
+        height = parseInt(document.getElementById('loginToggle').scrollHeight) + parseInt(document.getElementById('loginBlock').scrollHeight);
+        loginPopup.style.height = height+'px';
+    
+
+        loginBlock.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });
+        registerBlock.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });   
+        loginToggle.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });     
+      
+        loginToggle.addEventListener('wheel', (event) => {
+            event.preventDefault();
+        }); 
+        loginBlock.addEventListener('wheel', (event) => {
+            event.preventDefault();
+        });
+        registerBlock.addEventListener('wheel', (event) => {
+            event.preventDefault();
+        });      
+        
+        if(parentWindow.document.getElementById('exportButton').className === 'save'){
+            switchLogin ();
+        }
+    }
+
+    function alert () {
+        const message = document.getElementById('err');
+        const parentWindow = window.parent;
+        const loginPopup = parentWindow.document.getElementById('loginPopup');
+        const messageNumber = parseInt(message.innerHTML);
+        const source = loginPopup.ownerDocument;
+        if (!isNaN(messageNumber) && messageNumber > 0) { 
+            const spinner = window.parent.document.getElementById('loadingSpinner');
+            spinner.style.display = 'block';
+            document.body.style.opacity = 0; 
+            if (loginIndex === 1) {
+                source.getElementById('log').innerHTML = 'register'; 
+            } else if (loginIndex === 2) {   
+                source.getElementById('log').innerHTML = 'login'; 
+            }   
+            loginPopup.parentElement.removeChild(loginPopup);           
+        } else if(message.innerHTML === 'Saved') {
+            document.getElementById('registerBlock').style.display = 'none';
+            document.getElementById('loginToggle').style.display = 'none';  
+            source.getElementById('log').innerHTML = 'oldGuest';
+            loginPopup.children[2].style.display = 'none';
+            const confirm = document.createElement('div');
+            confirm.style.textAlign = 'center'; 
+            confirm.style.fontSize = '2.5rem';
+            confirm.style.color = '#4b0082';
+            confirm.textContent = `Saved successfully`;            
+            loginPopup.style.height = 'auto';
+            loginPopup.appendChild(confirm);
+                  
+            setTimeout(function() {
+                loginPopup.parentElement.removeChild(loginPopup); 
+            }, 2000);  
+        } else {
+                setTimeout(function() {
+                    message.innerHTML = '';
+                }, 2000);                
+        }     
+    }
+
+    function switchLogin () {
+        const loginBlock = document.getElementById('loginBlock');
+        const registerBlock = document.getElementById('registerBlock');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        // Access the parent window
+        const parentWindow = window.parent;
+        const loginPopup = parentWindow.document.getElementById('loginPopup');
+
+        if (registerBlock.style.display === 'none'){
+            loginBlock.style.display = 'none';
+            registerBlock.style.display = 'block';
+            document.getElementById('birthdate').focus();
+            document.getElementById('birthdate').blur();
+            const height = parseInt(document.getElementById('loginToggle').scrollHeight) + parseInt(document.getElementById('registerBlock').scrollHeight);
+            loginPopup.style.height = height+'px';
+            loginIndex = 1;
+        } else {
+            loginBlock.style.display = 'block';
+            registerBlock.style.display = 'none';
+            const height = parseInt(document.getElementById('loginToggle').scrollHeight) + parseInt(document.getElementById('loginBlock').scrollHeight);
+            loginPopup.style.height = height+'px';
+            loginIndex = 2;
+        }
+    }
+
+    function forgot() {
+        const parentWindow = window.parent;
+        const loginPopup = parentWindow.document.getElementById('loginPopup');
+        loginPopup.style.height = '60%';
+    }
+
+    // Select the target node
+    const targetNode = document.getElementById('err');
+
+    // Options for the observer (which mutations to observe)
+    const config = { attributes: true, childList: true, subtree: true };
+
+    // Callback function to execute when mutations are observed
+    const callback = function(mutationsList, observer) {
+        for(const mutation of mutationsList) {
+            if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                alert(); // Call the alert function
+                break;
+            }
+        }
+    };
+
+    // Create an observer instance linked to the callback function
+    const observer = new MutationObserver(callback);
+
+    // Start observing the target node for configured mutations
+    observer.observe(targetNode, config);
+
+</script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+     
+</body>
+
+</html>

@@ -1,0 +1,448 @@
+<head>
+    <style>
+        .tutorialContent {
+            position:relative;
+            background-color: #f8f9fa;
+            padding: 30px;
+            width: 80vw;
+            max-width: 80vw;
+            max-height: 80vh;
+            border-radius: 10px;
+            /* box-shadow: 0 0 15px rgba(0, 0, 0, 0.5); */
+            animation: fadeIn 0.3s ease-in-out;
+            overflow-y: auto;
+        }
+
+        #instructions h2 {
+            font-size: 33px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #663399;
+        }
+
+        #instructions h3 {
+            font-size: 19px;
+            font-weight:lighter;
+            font-style: italic;
+            margin-bottom: 4px;
+            text-align: left;
+            color: #322835;
+        }
+
+        #instructions p {
+            margin: 15px 0;
+            color: #333;
+            transition: cubic-bezier() 0.3s ease;
+        }
+
+        #instructions p strong {
+            color:#663399;
+        }
+
+        .tutohover:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 6px #a038a233;
+        }
+
+
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            max-width: 100%;
+        }
+        
+        .nodes-container {
+            position: relative;
+            display: flex;
+            /* flex-direction: row; */
+            max-height: fit-content;
+            width:100%;
+            overflow: auto;
+            justify-content: space-around;
+            /* flex-wrap: wrap; */
+            /* margin-bottom: 20px; */
+        }
+        
+        .node-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 10px;
+            cursor: pointer;
+            width: 20%;
+        }
+        
+        .node-wrapper h3 {
+            margin: 10px 0;
+            text-align: center;
+        }
+        
+        .node-svg {
+            width: 100%;
+            height: auto;
+            position: relative;
+        }
+        
+        .description-panel {
+            /* background-color: #2a2a2a; */
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 150px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 20px;
+        }
+        
+        .circle {
+            fill: none;
+            stroke: #6848A6;
+            stroke-width: 2;
+        }
+
+
+    </style>
+</head>
+<div id="tutorial" class="overlay" style="background: transparent;">
+    <div class="tutorialContent">
+        <span class="close-btn" onclick="closeTuto()">&times;</span>  
+        <!-- Tutorial content goes here -->
+        <div id="instructions">
+            <h2>How to Use Nod-Z</h2>
+
+            <div style="display: flex; justify-content: space-between;">
+                <!-- Basic Shortcuts Column -->
+                <div style="width: 48%;">
+                    <h3><strong>Creation</strong></h3>
+                    <div class="tutohover">
+                        <p><strong>Space:</strong> Create nodes or links</p>
+                        <ul>
+                            <li>Press the space bar or double-click anywhere on the canvas to create a node</li>
+                            <li>To create a link, select one or more nodes, then press the space bar</li>
+                        </ul>
+                    </div>
+                   
+                    
+                    <p class="tutohover"><strong>Enter:</strong> Create a tunnel between two dimensions on the selected node</p>
+                    
+                    <h3><strong>Selection</strong></h3>
+                    <p class="tutohover"><strong>Ctrl + Click + Drag:</strong> Select multiple objects</p>
+                    <p class="tutohover"><strong>Ctrl + A:</strong> Select all visible nodes on the canvas</p>
+
+                    <h3><strong>Deletion</strong></h3>
+                    <p class="tutohover"><strong>Del / Supr:</strong> Delete an object (click on the node/template or hover over the link, then press delete)</p>
+                    <p class="tutohover"><strong>Ctrl + Z:</strong> Restore deleted objects</p>
+                    
+                    <h3><strong>Clipboard</strong></h3>
+                    <p class="tutohover"><strong>Ctrl + C:</strong> Copy selection</p>
+                    <p class="tutohover"><strong>Ctrl + X:</strong> Cut selection</p>
+                    <p class="tutohover"><strong>Ctrl + V:</strong> Paste</p>                
+                </div>
+              
+                <!-- Navigation Shortcuts Column -->
+                <div style="width: 48%;">
+                    <h3><strong>Navigation</strong></h3>
+                    <p class="tutohover"><strong>Click & Drag / Touchpad 2 Fingers:</strong> Move the entire workspace around</p>
+                    <p class="tutohover"><strong>Arrow Keys:</strong> Move the workspace with fine control</p>
+                    <p class="tutohover"><strong>Tab:</strong> Zoom in and out, adjusting the zoom relative to your mouse position</p>
+                    <p class="tutohover"><strong>Mouse Scroll / Touchpad Pinch Zoom:</strong> Zoom in or out for a closer or broader view</p>
+                    
+                    <h3><strong>Teleportation</strong></h3>
+                    <p class="tutohover"><strong>Click on link:</strong> Follow the link to its destination</p>
+                    <p class="tutohover"><strong>Click on multidimensional portal:</strong> Jump between dimensions</p>
+                    <p class="tutohover"><strong>Click on a corner arrow:</strong> Focus on the closest node towards that direction</p>
+
+                    <h3><strong>Search</strong></h3>
+                    <p class="tutohover"><strong>Ctrl + F:</strong> Search for nodes by their content (text, image, video, or file)</p>
+                    
+                    <h3><strong>Workspace Control</strong></h3>
+                    <p class="tutohover"><strong>Shift:</strong> Access the dimensions control panel (create, edit, or switch dimensions)</p>
+                    <p class="tutohover"><strong>Toolbar:</strong> Use the toolbar for notifications, multi-users, and workspace export features</p>
+                </div>
+              </div>
+              
+        </div>   
+        
+        <div class="container">
+            <h1>Nod-Z Node States</h1>
+            <p>Hover over any node to see details about each state in the panel below.</p>
+            
+            <div class="nodes-container">
+                <!-- Text Node -->
+                <div class="node-wrapper" id="text-node">
+                    <div class="node-svg">
+                        <svg width="100%" height="100%" viewBox="0 0 200 200">
+                            <g class="node-group" type="text" color="#6848A6">
+                                <circle class="hitbox" cx="100" cy="100" r="60" style="stroke:#6848A6"></circle>
+                                <foreignObject x="60" y="85" width="120" height="120">
+                                    <div xmlns="http://www.w3.org/1999/xhtml">
+                                        <span class="node-text-input">Text Node</span>
+                                    </div>
+                                </foreignObject>
+                                
+                                <!-- Text Mode Buttons -->
+                                <foreignObject class="stylebutton" x="55" y="125">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/static/img/select-light.svg" style="width:10px;height:10px" alt="Bold" class="stylebuttonimg"/>
+                                    </div>                                
+                                </foreignObject>
+
+                                <foreignObject class="stylebutton" x="70" y="125">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/static/img/bold-light.svg" style="width:10px;height:10px" alt="Bold" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="83" y="125" width="20" height="20">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/static/img/italic-light.svg" style="width:10px;height:10px" alt="Italic" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="95" y="125" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/static/img/underline-light.svg" alt="Underline" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="110" y="125" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/static/img/colorpicking-light.svg" style="width:10px;height:10px" alt="Font Color" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="125" y="125" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/static/img/smiley-light.svg" alt="Smiley" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                            </g>
+                        </svg>
+                    </div>
+                    <h3>Text Mode</h3>
+                </div>
+                
+                <!-- Image Node -->
+                <div class="node-wrapper" id="image-node">
+                    <div class="node-svg">
+                        <svg width="100%" height="100%" viewBox="0 0 200 200">
+                            <g class="node-group" type="image" color="#6848A6">
+                                <circle class="hitbox" cx="100" cy="100" r="60" style="stroke:#a64896"></circle>
+                                <foreignObject x="40" y="40" width="120" height="120">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center;">
+                                        <img src="/static/img/owl.png" alt="Node Image" style="max-width:69%; max-height:69%; object-fit: contain;"/>
+                                    </div>
+                                </foreignObject>
+                            </g>
+                        </svg>
+                    </div>
+                    <h3>Image Mode</h3>
+                </div>
+                
+                <!-- Video Node -->
+                <div class="node-wrapper" id="video-node">
+                    <div class="node-svg">
+                        <svg width="100%" height="100%" viewBox="0 0 200 200">
+                            <g class="node-group" type="video" color="#6848A6">
+                                <circle class="hitbox" cx="100" cy="100" r="60" style="stroke:#48a677"></circle>
+                                <foreignObject x="40" y="40" width="120" height="120">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                                        <img src="/static/img/videoplayer.svg" alt="Node Image" style="max-width:69%; max-height:69%; object-fit: contain;"/>
+                                        <div style="width:100%; height:7%; display:flex; justify-content:center; align-items:center;">
+                                            <span class="arrow-button prev">&lt;</span>        
+                                            <input type="text" style="width: 50%;" autocomplete="off"/>        
+                                            <span class="arrow-button next">&gt;</span>
+                                        </div>
+                                    </div>
+                                </foreignObject>
+                            </g>
+                        </svg>
+                    </div>
+                    <h3>Video Mode</h3>
+                </div>
+                
+                <!-- File Node -->
+                <div class="node-wrapper" id="file-node">
+                    <div class="node-svg">
+                        <svg width="100%" height="100%" viewBox="0 0 200 200">
+                            <g class="node-group" type="file" color="#6848A6">
+                                <circle class="hitbox" cx="100" cy="100" r="60" style="stroke:#a65c48"></circle>
+                                <foreignObject x="40" y="40" width="120" height="120">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%;">
+                                        <div class="file-container">
+                                            <span>document.pdf</span>
+                                        </div>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="60" y="145" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/api/placeholder/15/15" alt="Upload" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="115" y="145" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/api/placeholder/15/15" alt="Download" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                            </g>
+                        </svg>
+                    </div>
+                    <h3>File Mode</h3>
+                </div>
+                
+                <!-- Canvas Node -->
+                <div class="node-wrapper" id="canvas-node">
+                    <div class="node-svg">
+                        <svg width="100%" height="100%" viewBox="0 0 200 200">
+                            <g class="node-group" type="canvas" color="#6848A6">
+                                <circle class="hitbox" cx="100" cy="100" r="60" style="stroke:#5b48a6"></circle>
+                                <foreignObject x="40" y="40" width="120" height="120">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%;">
+                                        <div class="canvas-container">
+                                            <canvas width="120" height="120" style="background:#333;"></canvas>
+                                        </div>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="40" y="40" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/api/placeholder/15/15" alt="Eraser" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="70" y="40" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/api/placeholder/15/15" alt="Redo" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="100" y="40" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/api/placeholder/15/15" alt="Undo" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                                
+                                <foreignObject class="stylebutton" x="130" y="40" width="25" height="25">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
+                                        <img src="/api/placeholder/15/15" alt="Clear" class="stylebuttonimg"/>
+                                    </div>
+                                </foreignObject>
+                            </g>
+                        </svg>
+                    </div>
+                    <h3>Canvas Mode</h3>
+                </div>
+            </div>
+            
+            <div class="description-panel" id="description-panel">
+                <h2>Node States Information</h2>
+                <p>Hover over any node above to see its detailed description here.</p>
+            </div>
+        </div>
+                   
+    </div>
+
+    <script>
+        document.getElementById('tutorial').addEventListener('mousedown', function(e) {
+            e.preventDefault();
+        })
+
+        document.getElementById('tutorial').addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        })
+        
+        function closeTuto() {
+            const tutorial = document.getElementById('tutorial');
+            tutorial.style.display = 'none';
+            const node0 = document.getElementById('N-0');
+            if(node0) {
+                document.body.remove(node0);
+            }
+            overlay = false;            
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const descriptionPanel = document.getElementById('description-panel');
+            
+            // Define descriptions for each node state
+            const descriptions = {
+                'text-node': `
+                    <h2>Text Mode</h2>
+                    <p>The Text Mode allows users to input and format text content within the node. This is the default state of a node.</p>
+                    <p>Features visible:</p>
+                    <ul>
+                        <li>Text formatting tools (Bold, Italic, Underline)</li>
+                        <li>Font size selector</li>
+                        <li>Text color picker</li>
+                        <li>Emoji/smiley inserter</li>
+                    </ul>
+                    <p>The node stores text content as plain text that can be formatted using the available tools.</p>
+                `,
+                'image-node': `
+                    <h2>Image Mode</h2>
+                    <p>The Image Mode transforms the node into a container for images. Users can upload images which will be displayed within the node's circular boundary.</p>
+                    <p>Features:</p>
+                    <ul>
+                        <li>Image upload functionality</li>
+                        <li>Image display within node boundaries</li>
+                        <li>Maintains text content as metadata</li>
+                    </ul>
+                    <p>The node stores the image as base64 data in the 'imagecontent' attribute.</p>
+                `,
+                'video-node': `
+                    <h2>Video Mode</h2>
+                    <p>The Video Mode allows users to embed and play videos (typically from YouTube) within the node.</p>
+                    <p>Features:</p>
+                    <ul>
+                        <li>Video link input field</li>
+                        <li>Video player within node</li>
+                        <li>Navigation buttons for playlists</li>
+                        <li>Search functionality for videos</li>
+                    </ul>
+                    <p>The node stores the video link and enables playback controls within its interface.</p>
+                `,
+                'file-node': `
+                    <h2>File Mode</h2>
+                    <p>The File Mode transforms the node into a document container where users can upload, preview, and download various file types.</p>
+                    <p>Features:</p>
+                    <ul>
+                        <li>File upload button</li>
+                        <li>File download button</li>
+                        <li>Filename display</li>
+                        <li>File preview capability</li>
+                    </ul>
+                    <p>The node stores file data and displays the filename within its boundary.</p>
+                `,
+                'canvas-node': `
+                    <h2>Canvas Mode</h2>
+                    <p>The Canvas Mode provides a drawing surface within the node where users can create freehand drawings or illustrations.</p>
+                    <p>Features:</p>
+                    <ul>
+                        <li>Drawing tools (pen, eraser)</li>
+                        <li>Undo/redo functionality</li>
+                        <li>Line width adjustment</li>
+                        <li>Color picker</li>
+                        <li>Clear canvas option</li>
+                    </ul>
+                    <p>The node stores drawing data as a collection of paths in its 'canvascontent' attribute.</p>
+                `
+            };
+            
+            // Add hover event listeners to each node
+            document.querySelectorAll('.node-wrapper').forEach(node => {
+                node.addEventListener('mouseenter', function() {
+                    descriptionPanel.innerHTML = descriptions[this.id];
+                });
+            });
+            
+            // Set default description to first node
+            descriptionPanel.innerHTML = descriptions['text-node'];
+        });
+    
+    </script>
+</div>
+

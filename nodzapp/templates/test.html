@@ -1,0 +1,1030 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React SVG Test</title>
+    <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/babel-standalone@6.26.0/babel.min.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #interactive-area {
+            width: 100vw;
+            height: 100vh;
+            border: 1px solid black; /* Optional: Border for better visibility */
+        }
+
+        .hitbox {
+            stroke: blue;
+            stroke-width: 2px;
+            fill: transparent; /* Make hitbox transparent */
+        }
+
+        .text-input {
+            width: 40px; /* Width of text input */
+            text-align: center; /* Center the text input */
+            border: 1px solid black; /* Optional: Border for better visibility */
+            border-radius: 3px; /* Optional: Rounded corners */
+        }
+
+        .resize-handle {
+            cursor: ew-resize; /* Resize cursor for the handle */
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        const InteractiveArea = () => {
+            const svgRef = useRef(null);
+            const [nodeCounter, setNodeCounter] = useState(1);
+            const [nodes, setNodes] = useState([]);
+            const [draggingNodeId, setDraggingNodeId] = useState(null);
+            const [draggingSizeId, setDraggingSizeId] = useState(null);
+            const [currentZoom, setCurrentZoom] = useState(1); // Set initial zoom level
+            const [transformOrigin, setTransformOrigin] = useState("center center");
+            const zoomStep = 0.95; // Adjust zoom step
+            const minZoom = 0.1; // Minimum zoom level
+            const maxZoom = 10; // Maximum zoom level
+
+            // Handle double click to create a node
+            const handleDoubleClick = (event) => {
+                const rect = svgRef.current.getBoundingClientRect();
+                const x = event.clientX - rect.left; // X position within SVG
+                const y = event.clientY - rect.top; // Y position within SVG
+
+                // Create a new node object and update state
+                setNodes((prevNodes) => [
+                    ...prevNodes,
+                    { id: nodeCounter, x, y, label: `ID: ${nodeCounter}`, size: 20 }
+                ]);
+                setNodeCounter(nodeCounter + 1); // Increment node counter
+            };
+
+            // Update the label of a node
+            const updateLabel = (id, newLabel) => {
+                setNodes((prevNodes) =>
+                    prevNodes.map(node => {
+                        const size = Math.max(10, newLabel.length * 4); // Adjust size based on input length
+                        return node.id === id ? { ...node, label: newLabel, size } : node;
+                    })
+                );
+            };
+
+            // Handle mouse down event for dragging
+            const handleMouseDown = (event, nodeId) => {
+                setDraggingNodeId(nodeId);
+            };
+
+            // Handle mouse move event for dragging
+            const handleMouseMove = (event) => {
+                if (draggingNodeId !== null) {
+                    const rect = svgRef.current.getBoundingClientRect();
+                    const mouseX = event.clientX - rect.left; // Mouse X position relative to SVG
+                    const mouseY = event.clientY - rect.top; // Mouse Y position relative to SVG
+
+                    // Update the node's position to follow the mouse
+                    setNodes((prevNodes) =>
+                        prevNodes.map(node => 
+                            node.id === draggingNodeId ? { ...node, x: mouseX, y: mouseY } : node
+                        )
+                    );
+                }
+            };
+
+            // Handle mouse up event to stop dragging and resizing
+            const handleMouseUp = () => {
+                setDraggingNodeId(null); // Stop dragging
+                setDraggingSizeId(null); // Stop resizing
+            };
+
+            // Handle resizing of the node
+            const handleResizeStart = (event, nodeId) => {
+                setDraggingSizeId(nodeId);
+            };
+
+            const handleResizeMove = (event) => {
+                if (draggingSizeId !== null) {
+                    setDraggingNodeId(null);
+                    const newSize = Math.max(10, event.clientX / 10); // Example logic for resizing
+                    setNodes((prevNodes) =>
+                        prevNodes.map(node => 
+                            node.id === draggingSizeId ? { ...node, size: newSize } : node
+                        )
+                    );
+                }
+            };
+
+            // Handle zooming and panning
+            const handleWheel = (event) => {
+                event.preventDefault();
+                const delta = event.deltaY;
+                const zoomOut = delta > 0; // If scrolling down, zoom out
+
+                // Update zoom level
+                setCurrentZoom((prevZoom) => {
+                    const newZoom = zoomOut
+                        ? Math.max(minZoom, prevZoom * zoomStep)
+                        : Math.min(maxZoom, prevZoom / zoomStep);
+                    
+                    return newZoom;
+                });
+
+                // Calculate zoom center
+                const rect = svgRef.current.getBoundingClientRect();
+                const zoomX = (event.clientX - rect.left) / currentZoom;
+                const zoomY = (event.clientY - rect.top) / currentZoom;
+
+                // Adjust the translate positions
+                setTransformOrigin(`${zoomX}px ${zoomY}px`);
+            };
+
+            // Global drag event handlers
+            useEffect(() => {
+                const handleArrowKeyPress = (event) => {
+                    let xOffset = 0;
+                    let yOffset = 0;
+                    const moveDistance = 5; // Adjust movement speed
+
+                    // Adjust offset based on arrow key
+                    switch (event.key) {
+                        case 'ArrowUp':
+                            yOffset = -moveDistance;
+                            break;
+                        case 'ArrowDown':
+                            yOffset = moveDistance;
+                            break;
+                        case 'ArrowLeft':
+                            xOffset = -moveDistance;
+                            break;
+                        case 'ArrowRight':
+                            xOffset = moveDistance;
+                            break;
+                        default:
+                            return; // Only listen to arrow keys
+                    }
+
+                    // Update positions of all nodes
+                    setNodes((prevNodes) =>
+                        prevNodes.map(node => ({
+                            ...node,
+                            x: node.x + xOffset,
+                            y: node.y + yOffset
+                        }))
+                    );
+                };
+
+                // Attach listeners for keyboard and wheel events
+                window.addEventListener('keydown', handleArrowKeyPress);
+                window.addEventListener('wheel', handleWheel, { passive: false });
+
+                // Cleanup listeners on unmount
+                return () => {
+                    window.removeEventListener('keydown', handleArrowKeyPress);
+                    window.removeEventListener('wheel', handleWheel);
+                };
+            }, []);
+
+            return (
+                <div 
+                    id="interactive-area" 
+                    onMouseMove={handleMouseMove} 
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp} // Stop dragging and resizing when mouse leaves the area
+                >
+                    <svg
+                        ref={svgRef}
+                        width="100%"
+                        height="100%"
+                        style={{ 
+                            transform: `scale(${currentZoom})`, 
+                            transformOrigin: transformOrigin
+                        }}
+                        onDoubleClick={handleDoubleClick}
+                        onMouseMove={handleResizeMove}
+                    >
+                        {nodes.map(node => (
+                            <g
+                                key={node.id}
+                                transform={`translate(${node.x}, ${node.y})`}
+                                onMouseDown={(e) => handleMouseDown(e, node.id)} // Add mouse down event
+                            >
+                                <circle cx="0" cy="0" r={node.size} fill="red" />
+                                <circle cx="0" cy="0" r={node.size + 5} className="hitbox" />
+                                {/* Text Input centered within the node */}
+                                <foreignObject x="-20" y="-10" width="40" height="20">
+                                    <input
+                                        type="text"
+                                        className="text-input"
+                                        value={node.label}
+                                        onChange={(e) => updateLabel(node.id, e.target.value)}
+                                        placeholder={`ID: ${node.id}`} // Placeholder showing ID
+                                    />
+                                </foreignObject>
+                                {/* Resizing handle (an arrow icon or a simple rectangle) */}
+                                <rect 
+                                    className="resize-handle" 
+                                    x={node.size + 5} 
+                                    y={-10} 
+                                    width="10" 
+                                    height="20" 
+                                    fill="blue" 
+                                    onMouseDown={(e) => handleResizeStart(e, node.id)} 
+                                />
+                            </g>
+                        ))}
+                    </svg>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<InteractiveArea />, document.getElementById('app'));
+    </script>
+</body>
+</html> -->
+
+
+
+<!-- // Make users selectable
+document.querySelectorAll('.user').forEach(user => {
+        user.style.position = 'relative';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'user-checkbox';
+        checkbox.style = 'position: absolute; top: 10px; left: 10px; z-index: 10;';
+        checkbox.style.display = 'none';
+        
+        user.insertBefore(checkbox, user.firstChild);
+    });
+    
+    // Select all button
+    document.getElementById('select-all-btn').addEventListener('click', function() {
+        document.querySelectorAll('.user-checkbox').forEach(checkbox => {
+            checkbox.checked = true;
+            checkbox.style.display = 'block';
+        });
+        document.getElementById('move-selected-btn').disabled = false;
+        document.getElementById('remove-selected-btn').disabled = false;
+    }); -->
+
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MindSync - Collaborative Mindmapping</title>
+  <style>
+    /* General Styles */
+    :root {
+      --primary: #4a9ff5;
+      --primary-light: #6db4fd;
+      --primary-dark: #3272b8;
+      --secondary: #f0f4f8;
+      --danger: #e25a5a;
+      --success: #4caf50;
+      --warning: #ffc107;
+      --dark: #2c3e50;
+      --gray: #95a5a6;
+      --light-gray: #ecf0f1;
+      --card-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      --border-radius: 12px;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      background-color: #f9fafb;
+      color: #333;
+      line-height: 1.6;
+    }
+    
+    button {
+      cursor: pointer;
+      border: none;
+      outline: none;
+      border-radius: 6px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    
+    /* Dashboard Layout */
+    .dashboard {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .navbar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      background-color: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--card-shadow);
+      margin-bottom: 20px;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    
+    .logo-icon {
+      background-color: var(--primary);
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .content-area {
+      display: flex;
+      width: 100%;
+      gap: 20px;
+    }
+    
+    .sidebar {
+      width: 300px;
+      background-color: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--card-shadow);
+      padding: 20px;
+    }
+    
+    .main-panel {
+      flex: 1;
+      background-color: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--card-shadow);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    /* Timer Component */
+    .timer-widget {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      margin-bottom: 20px;
+      width: 100%;
+      border-bottom: 1px solid var(--light-gray);
+    }
+    
+    .timer-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .timer-circle {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      margin-bottom: 20px;
+    }
+    
+    .timer-display {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border-radius: 50%;
+    }
+    
+    .timer-time {
+      font-size: 34px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    
+    .timer-label {
+      font-size: 12px;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .progress-ring {
+      transform: rotate(-90deg);
+    }
+    
+    .timer-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .timer-button {
+      padding: 8px 16px;
+      background-color: var(--primary);
+      color: white;
+      font-size: 14px;
+    }
+    
+    .timer-button:hover {
+      background-color: var(--primary-dark);
+    }
+    
+    .timer-button.start {
+      background-color: var(--primary);
+    }
+    
+    .timer-button.pause {
+      background-color: var(--warning);
+    }
+    
+    .timer-button.reset {
+      background-color: var(--dark);
+    }
+    
+    .timer-adjust {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .adjust-button {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--secondary);
+      color: var(--dark);
+      border-radius: 6px;
+      font-size: 18px;
+    }
+    
+    .adjust-button:hover {
+      background-color: var(--light-gray);
+    }
+    
+    .adjust-amount {
+      width: 60px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--secondary);
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    
+    /* News Popup */
+    .news-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .news-popup {
+      width: 500px;
+      max-width: 90%;
+      background-color: white;
+      border-radius: var(--border-radius);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+    }
+    
+    .news-header {
+      padding: 16px 20px;
+      background-color: var(--secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--light-gray);
+    }
+    
+    .news-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--dark);
+    }
+    
+    .news-counter {
+      background-color: var(--primary);
+      color: white;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin-left: 8px;
+    }
+    
+    .close-button {
+      background: none;
+      color: var(--gray);
+      font-size: 22px;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+    
+    .close-button:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+      color: var(--dark);
+    }
+    
+    .news-content {
+      padding: 20px;
+    }
+    
+    .news-item-title {
+      display: flex;
+      align-items: start;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    
+    .priority-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-top: 8px;
+    }
+    
+    .priority-high {
+      background-color: var(--danger);
+    }
+    
+    .priority-medium {
+      background-color: var(--warning);
+    }
+    
+    .priority-low {
+      background-color: var(--success);
+    }
+    
+    .news-item-heading {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    
+    .news-item-text {
+      color: var(--dark);
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    
+    .news-date {
+      font-size: 12px;
+      color: var(--gray);
+      margin-bottom: 15px;
+    }
+    
+    .news-footer {
+      padding: 12px 20px;
+      background-color: var(--secondary);
+      display: flex;
+      justify-content: flex-end;
+      border-top: 1px solid var(--light-gray);
+    }
+    
+    .news-button {
+      padding: 8px 16px;
+      background-color: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .news-button:hover {
+      background-color: var(--primary-dark);
+    }
+    
+    /* Animation classes */
+    .pulse {
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.05);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    
+    .finished-animation {
+      animation: ping 1s cubic-bezier(0, 0, 0.2, 1);
+    }
+    
+    @keyframes ping {
+      75%, 100% {
+        transform: scale(1.2);
+        opacity: 0;
+      }
+    }
+    
+    /* Utility classes */
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Navigation bar -->
+    <div class="navbar">
+      <div class="logo">
+        <div class="logo-icon">MS</div>
+        MindSync
+      </div>
+      <div class="user-controls">
+        <button class="news-indicator" id="newsButton">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 19h1a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H8"></path>
+            <path d="M16 16c0 1.7-1.3 3-3 3H2"></path>
+            <path d="M16 5c0-1.7-1.3-3-3-3H2"></path>
+            <path d="M2 8h5"></path>
+            <path d="M2 16h5"></path>
+            <path d="M2 12h9"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Main content area -->
+    <div class="content-area">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <h3>MindSync Tools</h3>
+        <!-- Sidebar content will go here -->
+      </div>
+      
+      <!-- Main panel -->
+      <div class="main-panel">
+        <!-- Timer Widget -->
+        <div class="timer-widget">
+          <div class="timer-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            Focus Timer
+          </div>
+          
+          <div class="timer-circle" id="timerCircle">
+            <svg width="180" height="180" viewBox="0 0 100 100" class="progress-ring">
+              <!-- Background circle -->
+              <circle cx="50" cy="50" r="45" fill="none" stroke="#ecf0f1" stroke-width="6"></circle>
+              <!-- Progress circle -->
+              <circle id="progressRing" cx="50" cy="50" r="45" fill="none" stroke="#4a9ff5" stroke-width="6" stroke-linecap="round" 
+                stroke-dasharray="282.7" stroke-dashoffset="0"></circle>
+            </svg>
+            <div class="timer-display">
+              <div class="timer-time" id="timerDisplay">05:00</div>
+              <div class="timer-label">FOCUS TIME</div>
+            </div>
+          </div>
+          
+          <div class="timer-controls">
+            <button class="timer-button start" id="startButton">Start</button>
+            <button class="timer-button pause hidden" id="pauseButton">Pause</button>
+            <button class="timer-button reset" id="resetButton">Reset</button>
+          </div>
+          
+          <div class="timer-adjust">
+            <button class="adjust-button" id="minusOneMinute">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+            <div class="adjust-amount" id="adjustAmount">1m</div>
+            <button class="adjust-button" id="plusOneMinute">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Some placeholder content -->
+        <div style="width: 100%; text-align: center; padding: 40px 0;">
+          <p>Your mindmap workspace will appear here.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- News Popup -->
+  <div class="news-overlay hidden" id="newsOverlay">
+    <div class="news-popup">
+      <div class="news-header">
+        <div class="news-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+          What's New
+          <span class="news-counter" id="newsCounter">1/2</span>
+        </div>
+        <button class="close-button" id="closeNewsButton">×</button>
+      </div>
+      <div class="news-content" id="newsContent">
+        <!-- News item will be inserted here by JavaScript -->
+      </div>
+      <div class="news-footer">
+        <button class="news-button" id="nextNewsButton">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // DOM Elements
+    const timerDisplay = document.getElementById('timerDisplay');
+    const progressRing = document.getElementById('progressRing');
+    const timerCircle = document.getElementById('timerCircle');
+    const startButton = document.getElementById('startButton');
+    const pauseButton = document.getElementById('pauseButton');
+    const resetButton = document.getElementById('resetButton');
+    const minusOneMinute = document.getElementById('minusOneMinute');
+    const plusOneMinute = document.getElementById('plusOneMinute');
+    const adjustAmount = document.getElementById('adjustAmount');
+    
+    const newsButton = document.getElementById('newsButton');
+    const newsOverlay = document.getElementById('newsOverlay');
+    const closeNewsButton = document.getElementById('closeNewsButton');
+    const newsContent = document.getElementById('newsContent');
+    const newsCounter = document.getElementById('newsCounter');
+    const nextNewsButton = document.getElementById('nextNewsButton');
+    
+    // Timer variables
+    let time = 300; // 5 minutes in seconds
+    let originalTime = 300; // To calculate progress percentage
+    let isRunning = false;
+    let timerInterval;
+    let adjustmentValue = 60; // Default adjustment: 1 minute
+    
+    // News variables
+    const newsItems = [
+      {
+        id: 1,
+        title: "Mind Sync 2.0 Launch",
+        content: "We've completely redesigned our collaborative features with AI-powered suggestions. Try the new neural linking capability!",
+        date: "2025-04-05",
+        priority: "high"
+      },
+      {
+        id: 2,
+        title: "New Themes Available",
+        content: "10 new futuristic themes have been added to the theme gallery. Express yourself with the 'Quantum' and 'Neural Network' designs.",
+        date: "2025-04-01",
+        priority: "medium"
+      }
+    ];
+    let currentNewsIndex = 0;
+    let readNews = [];
+    
+    // Format seconds to mm:ss
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+    
+    // Update timer display
+    function updateTimerDisplay() {
+      timerDisplay.textContent = formatTime(time);
+      
+      // Calculate progress percentage
+      const progress = (originalTime - time) / originalTime;
+      const circumference = 2 * Math.PI * 45; // 2πr
+      const offset = circumference - (progress * circumference);
+      progressRing.style.strokeDasharray = `${circumference}`;
+      progressRing.style.strokeDashoffset = offset;
+      
+      // Add pulsing effect when time is running low
+      if (time < 60) {
+        timerCircle.classList.add('pulse');
+      } else {
+        timerCircle.classList.remove('pulse');
+      }
+    }
+    
+    // Start the timer
+    function startTimer() {
+      if (!isRunning) {
+        isRunning = true;
+        startButton.classList.add('hidden');
+        pauseButton.classList.remove('hidden');
+        
+        timerInterval = setInterval(() => {
+          if (time > 0) {
+            time--;
+            updateTimerDisplay();
+          } else {
+            stopTimer();
+            timerCircle.classList.add('finished-animation');
+            setTimeout(() => {
+              timerCircle.classList.remove('finished-animation');
+            }, 1000);
+          }
+        }, 1000);
+      }
+    }
+    
+    // Pause the timer
+    function pauseTimer() {
+      if (isRunning) {
+        isRunning = false;
+        clearInterval(timerInterval);
+        startButton.classList.remove('hidden');
+        pauseButton.classList.add('hidden');
+      }
+    }
+    
+    // Stop the timer
+    function stopTimer() {
+      isRunning = false;
+      clearInterval(timerInterval);
+      startButton.classList.remove('hidden');
+      pauseButton.classList.add('hidden');
+    }
+    
+    // Reset the timer
+    function resetTimer() {
+      stopTimer();
+      time = 300; // 5 minutes default
+      originalTime = 300;
+      updateTimerDisplay();
+      timerCircle.classList.remove('pulse');
+    }
+    
+    // Adjust timer by value
+    function adjustTimer(seconds) {
+      const newTime = Math.max(60, time + seconds); // Minimum time: 1 minute
+      time = newTime;
+      
+      // If adjusting upward, reset pulsing
+      if (seconds > 0 && time >= 60) {
+        timerCircle.classList.remove('pulse');
+      }
+      
+      // Update original time for progress calculation if not running
+      if (!isRunning) {
+        originalTime = time;
+      }
+      
+      updateTimerDisplay();
+    }
+    
+    // Toggle adjustment value
+    function toggleAdjustmentValue() {
+      if (adjustmentValue === 60) {
+        adjustmentValue = 300; // 5 minutes
+        adjustAmount.textContent = '5m';
+      } else {
+        adjustmentValue = 60; // 1 minute
+        adjustAmount.textContent = '1m';
+      }
+    }
+    
+    // Show news popup
+    function showNewsPopup() {
+      newsOverlay.classList.remove('hidden');
+      displayCurrentNews();
+    }
+    
+    // Display current news item
+    function displayCurrentNews() {
+      const news = newsItems[currentNewsIndex];
+      newsCounter.textContent = `${currentNewsIndex + 1}/${newsItems.length}`;
+      
+      // Update next button text for last item
+      if (currentNewsIndex === newsItems.length - 1) {
+        nextNewsButton.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          Got it
+        `;
+      } else {
+        nextNewsButton.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          Next
+        `;
+      }
+      
+      // Create news content
+      newsContent.innerHTML = `
+        <div class="news-item-title">
+          <div class="priority-indicator priority-${news.priority}"></div>
+          <h3 class="news-item-heading">${news.title}</h3>
+        </div>
+        <p class="news-item-text">${news.content}</p>
+        <div class="news-date">Posted on ${news.date}</div>
+      `;
+    }
+    
+    // Mark current news as read and move to next
+    function nextNews() {
+      readNews.push(newsItems[currentNewsIndex].id);
+      
+      if (currentNewsIndex < newsItems.length - 1) {
+        currentNewsIndex++;
+        displayCurrentNews();
+      } else {
+        closeNewsPopup();
+      }
+    }
+    
+    // Close news popup
+    function closeNewsPopup() {
+      newsOverlay.classList.add('hidden');
+    }
+    
+    // Initial display
+    updateTimerDisplay();
+    
+    // Show news on page load (simulating user login)
+    // In a real app, this would be conditionally based on whether the user has unread news
+    setTimeout(showNewsPopup, 500);
+    
+    // Event listeners
+    startButton.addEventListener('click', startTimer);
+    pauseButton.addEventListener('click', pauseTimer);
+    resetButton.addEventListener('click', resetTimer);
+    minusOneMinute.addEventListener('click', () => adjustTimer(-adjustmentValue));
+    plusOneMinute.addEventListener('click', () => adjustTimer(adjustmentValue));
+    adjustAmount.addEventListener('click', toggleAdjustmentValue);
+    
+    newsButton.addEventListener('click', showNewsPopup);
+    closeNewsButton.addEventListener('click', closeNewsPopup);
+    nextNewsButton.addEventListener('click', nextNews);
+  </script>
+</body>
+</html>

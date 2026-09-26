@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <link rel="icon" href="/static/img/icon.png" type="image/png">
+    <title>Nod-Z</title> 
+    
+    <!-- CSS files -->               
+    <link rel="stylesheet" href="{% static 'css/constelcss.css' %}">
+    <link rel="stylesheet" href="{% static 'css/interface.css' %}">
+    <link rel="stylesheet" href="{% static 'css/calendar.css' %}">
+
+    <!-- JS files -->
+    <script src="{% static 'js/STLviewer.js' %}"></script>
+    <script src="{% static 'js/colorWheel.js' %}"></script>
+    <script src="{% static 'js/customThree.js' %}"></script>
+    <script src="{% static 'js/customSVG.js' %}"></script>
+    <script src="{% static 'js/customhtml2canvas.js' %}"></script>
+    <script src="{% static 'js/calendar.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/velocity/1.5.2/velocity.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/svg2pdf.js@2.1.0/dist/svg2pdf.umd.min.js"></script>
+
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> -->
+
+
+
+ 
+
+    <!-- React -->
+    <!-- <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script> -->
+ 
+</head> 
+
+<body>
+ 
+      
+    <div id="interactive-area">
+        <div id="log" type="hidden" style="display: none;">0</div>
+        <div id="layer" style="display: none;">1</div>
+    </div>
+ 
+      <div id="brand-container">
+        <img id="logo" style="width:200px" src="/static/img/logo.svg" >
+    </div>
+    <div id="customCursor"></div>
+    <div id="calendarOverlay" class="overlay"></div>
+
+  
+    <div id="button-container">
+        <button class="menuBtn" id="tutorialButton"></button>
+        <button class="menuBtn" id="templateButton"></button>  
+        <button class="menuBtn" id="soundButton" class="soundoff"></button>
+        <button class="menuBtn" id="darkButton"></button>
+        <button class="menuBtn" id="fullscreenButton"></button>   
+        <button class="menuBtn" id="linksButton"></button>  
+        <button class="menuBtn" id="flagButton"></button>          
+        <button class="menuBtn" id="originButton"></button>
+        <button id="layerButton" class="dropdown-button"><span>&#9662;</span></button>
+        <span id="prevsearch" class="arrow-button prev">&lt;</span>        
+        <input id="semanticsearch" type="text" autocomplete="off"/>        
+        <span id="nextsearch" class="arrow-button next">&gt;</span>
+        <button class="menuBtn" id="exportButton" class="export"></button>
+        <button class="menuBtn" id="shareButton"></button>
+        <button class="menuBtn" id="notificationButton" data-count="0"></button>
+        <button class="menuBtn" id="profileButton"></button>     
+    </div>
+
+
+    <div class="indicator" id="indicator"></div>
+
+    <div class="dropdown" id="layersList">            
+        <div class="dropdown-content" id="dropdown-content">
+            <!-- Universes will be dynamically added here -->
+            <div class="dropdown-item new" id="create-layer-btn">New dimension</div>
+        </div>
+    </div>
+
+    <div class="modal" id="edit-modal">
+        <div class="modal-content" id="edit">
+            <div>Dimension Name</div>
+            <div style="display: flex; flex-direction: row;align-items: center;">
+                <input type="text" id="layer-name-input" placeholder="Enter new name" />
+                <span id="delete-layer" class="delete-layer" style="display: none;">
+                    <img src="/static/img/delete.svg" width="20" height="20" alt="Delete" class="icon">
+                </span>
+            </div>
+        </div>
+    </div>
+    
+
+    <!-- <audio id="music" loop><source src="static\sound\atmosphere.mp3"  type="audio/mpeg"> </source></audio> -->
+
+    <div class="triangle-container top-left counter-zero">
+        <div class="triangle"></div>
+        <div id="top-left-corner" class="counter">1</div>
+    </div>
+    <div class="triangle-container top-right counter-zero">
+        <div class="triangle"></div>
+        <div id="top-right-corner" class="counter">2</div>
+    </div>
+    <div class="triangle-container bottom-left counter-zero">
+        <div class="triangle"></div>
+        <div id="bottom-left-corner" class="counter">3</div>
+    </div>
+    <div class="triangle-container bottom-right counter-zero">
+        <div class="triangle"></div>
+        <div id="bottom-right-corner" class="counter">0</div>
+    </div>
+
+    {% include "tutorial.html" %}
+    {% include "templates.html" %}
+    {% include "profile.html" %}  
+    {% include "smileys.html" %} 
+    {% include "export.html"%} 
+    {% include "admin/users.html"%} 
+
+    <script src="static\js\elementsCreation.js"></script>
+    <script src="static\js\LSD.js"></script>
+    <script src="static\js\mouseEvents.js"></script>
+    <script src="static\js\keyEvents.js"></script>
+    <script src="static\js\userInteractions.js"></script>
+    <script src="static\js\zoom.js"></script>
+    <script src="static\js\interface.js"></script>
+    <script src="static\js\dragUniverse.js"></script>
+    <script src="static\js\dragSelected.js"></script>
+    <script src="static\js\canvas.js"></script>
+    <script src="static\js\4D.js"></script>
+    <script src="static\js\export.js"></script>
+    <script src="static\js\admin.js"></script>
+    
+    <script src="https://www.youtube.com/iframe_api"></script> 
+    
+</body>
+
+</html>

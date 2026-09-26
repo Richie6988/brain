@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html>
+    <head> 
+        <style>
+            /* Base styles */
+            .users-dashboard-content {
+                /* font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; */
+                max-width: 100%;
+                height: 100%;
+                margin: 0 auto;
+                padding: 20px;
+                position: relative;
+                border-radius: 10px;
+                box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+                animation: fadeIn 0.3s ease-in-out;
+                overflow: auto;
+                background-color: #f8f9fa;
+            }
+            
+            /* Filter panel - more compact and organized */
+            .filter-panel {
+                display: grid;
+                grid-template-columns: 80% 20%;
+                align-content: baseline;
+                gap: 12px;
+                padding: 16px;
+                background-color: #f8f9fa;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                margin-top: 10px;
+                border: 1px solid #e0e0e0;
+            }
+            
+            .filter-group {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                width: 100%;
+                height: 100%;
+            }
+            
+            .filter-group label {
+                font-size: 13px;
+                font-weight: 600;
+                margin-bottom: 4px;
+                color: #555;
+            }
+
+            .filter-group input  {
+                padding: 8px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            
+            .date-inputs {
+                display: flex;
+                gap: 8px;
+            }
+            
+            .date-inputs input {
+                flex: 1;
+            }
+            
+            .filter-actions {
+                grid-column: 2;
+                display: flex;
+                justify-content: center;
+                gap: 10px;
+                align-self: end;
+                margin-bottom: 2px;
+            }
+            
+            .filter-actions button {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: 500;
+                transition: all 0.2s;
+                font-size: 10px;
+            }
+            
+            .reset-button {
+                background-color: #f1f1f1;
+                color: #333;
+            }
+            
+            .reset-button:hover {
+                background-color: #e0e0e0;
+            }
+            
+            .apply-button {
+                background-color: #4a6cf7;
+                color: white;
+            }
+            
+            .apply-button:hover {
+                background-color: #3a5cd8;
+            }
+            
+            /* User counter */
+            .user-counter {
+                font-size: 16px;
+                font-weight: 500;
+                margin-bottom: 15px;
+                color: #444;
+            }
+            
+            /* Table styles - more modern with sortable headers */
+            .users-table-container {
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                overflow: auto;
+            }
+            
+            .users-table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            
+            .users-table th {
+                background-color: #f4f6f8;
+                font-weight: 600;
+                text-align: left;
+                padding: 12px 16px;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                border-bottom: 2px solid #e0e0e0;
+            }
+            
+            .users-table tbody tr {
+                border-bottom: 1px solid #eee;
+                transition: background-color 0.15s;
+            }
+            
+            .users-table tbody tr:hover {
+                background-color: #f9f9ff;
+            }
+            
+            .users-table tbody tr:nth-child(even) {
+                background-color: #fafafa;
+            }
+            
+            .users-table td {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+            
+            /* Column header filter styles */
+            .column-header {
+                display: flex;
+                align-items: center;
+                cursor: pointer;
+            }
+            
+            .sort-icon {
+                margin-left: 5px;
+                opacity: 0.5;
+                transition: opacity 0.2s;
+            }
+            
+            .column-header:hover .sort-icon {
+                opacity: 1;
+            }
+            
+            .filter-icon {
+                margin-left: auto;
+                cursor: pointer;
+                width: 16px;
+                height: 16px;
+                opacity: 0.5;
+                transition: opacity 0.2s;
+            }
+            
+            .column-header:hover .filter-icon {
+                opacity: 1;
+            }
+            
+            .active-filter .filter-icon,
+            .active-sort .sort-icon {
+                opacity: 1;
+                color: #4a6cf7;
+            }
+            
+            /* Column filter dropdown */
+            .column-filter-dropdown {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                z-index: 9999; /* max priority within UI layers */
+                background-color: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+                padding: 16px;
+                min-width: 240px;
+                display: flex;
+                flex-direction: column;
+                transition: all 0.2s ease-in-out;
+            }
+
+            .column-filter-dropdown.show {
+                display: none;
+            }
+
+            .column-filter-dropdown input,
+            .column-filter-dropdown select {
+                box-sizing: border-box;
+                width: 100%;
+                padding: 10px 12px;
+                margin-bottom: 12px;
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                font-size: 14px;
+                transition: border-color 0.2s;
+            }
+
+            .column-filter-dropdown input:focus,
+            .column-filter-dropdown select:focus {
+                outline: none;
+                border-color: #4a6cf7;
+                box-shadow: 0 0 0 3px rgba(74, 108, 247, 0.15);
+            }
+
+            .column-filter-dropdown .filter-controls {
+                display: flex;
+                justify-content: space-between;
+                gap: 8px;
+            }
+
+            .column-filter-dropdown .filter-controls button {
+                flex: 1;
+                padding: 8px 0;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 13px;
+                cursor: pointer;
+                transition: background-color 0.2s ease;
+            }
+
+            .column-filter-dropdown .clear-filter {
+                background-color: #f5f5f5;
+                color: #444;
+            }
+
+            .column-filter-dropdown .clear-filter:hover {
+                background-color: #e0e0e0;
+            }
+
+            .column-filter-dropdown .apply-filter {
+                background-color: #4a6cf7;
+                color: #ffffff;
+            }
+
+            .column-filter-dropdown .apply-filter:hover {
+                background-color: #3a5de0;
+            }
+
+            
+            /* Premium badge */
+            .premium-badge {
+                background-color: #ffcb6b;
+                color: #876200;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 500;
+            }
+            
+            /* Responsive table */
+            @media (max-width: 1024px) {
+                .filter-panel {
+                    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                }
+            }
+            
+            @media (max-width: 768px) {
+                .users-table-container {
+                    overflow-x: auto;
+                }
+            }
+            
+            /* Additional filter indicators */
+            .active-filters {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            
+            .filter-tag {
+                display: flex;
+                align-items: center;
+                background-color: #eef2ff;
+                border: 1px solid #d0d7f7;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 13px;
+                color: #3a5cd8;
+            }
+            
+            .filter-tag .remove-filter {
+                margin-left: 6px;
+                cursor: pointer;
+                opacity: 0.7;
+            }
+            
+            .filter-tag .remove-filter:hover {
+                opacity: 1;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="users-dashboard" class="overlay">
+            <div class="users-dashboard-content">
+                <span class="close-btn" onclick="closePopup('users-dashboard')">&times;</span> 
+                <!-- Quick search and key filters -->
+                <div class="filter-panel">
+                    <div class="filter-group">
+                        <label for="keywordFilter">Search</label>
+                        <input type="text" id="keywordFilter" placeholder="Name, email, country..." onkeyup="applyFilters()">
+                    </div>
+             
+                    <div class="filter-actions">
+                        <button class="submit-button" style="height: 25px;" onclick="resetFilters()">Reset Filters</button>
+                        <button class="submit-button" style="height: 25px; background-color: #4a6cf7;" onclick="extractData()">Export .csv</button>
+                    </div>
+                </div>
+                
+                <!-- Active filters display -->
+                <div class="active-filters" id="activeFilters"></div>
+                
+                <!-- User count -->
+                <div class="user-counter">Users Found: <span id="userCount">245</span></div>
+                
+                <!-- Table with column header filtering -->
+                <div class="users-table-container">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <div class="column-header" data-column="name" onclick="sortTable('name')">
+                                        <span>Name</span>
+                                        <span class="sort-icon">↓</span>
+                                        <span class="filter-icon" onclick="toggleColumnFilter(event, 'name')">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div id="nameFilter" class="column-filter-dropdown show">
+                                        <input type="text" placeholder="Filter by name..." onkeyup="filterColumn('name', this.value)">
+                                        <div class="filter-controls">
+                                            <button class="clear-filter" onclick="clearColumnFilter('name')">Clear</button>
+                                            <button class="submit-button" onclick="applyColumnFilter('name')">Apply</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="column-header" data-column="country" onclick="sortTable('country')">
+                                        <span>Country</span>
+                                        <span class="sort-icon">↓</span>
+                                        <span class="filter-icon" onclick="toggleColumnFilter(event, 'country')">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div id="countryFilter" class="column-filter-dropdown show">
+                                        <select multiple onchange="filterColumn('country', this.value)">
+                                            <!-- Will be populated dynamically -->
+                                        </select>
+                                        <div class="filter-controls">
+                                            <button class="clear-filter" onclick="clearColumnFilter('country')">Clear</button>
+                                            <button class="submit-button" onclick="applyColumnFilter('country')">Apply</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="column-header" data-column="email" onclick="sortTable('email')">
+                                        <span>Email</span>
+                                        <span class="sort-icon">↓</span>
+                                        <span class="filter-icon" onclick="toggleColumnFilter(event, 'email')">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div id="emailFilter" class="column-filter-dropdown show">
+                                        <input type="text" placeholder="Filter by email..." onkeyup="filterColumn('email', this.value)">
+                                        <div class="filter-controls">
+                                            <button class="clear-filter" onclick="clearColumnFilter('email')">Clear</button>
+                                            <button class="submit-button" onclick="applyColumnFilter('email')">Apply</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="column-header" data-column="joinDate" onclick="sortTable('joinDate')">
+                                        <span>Join Date</span>
+                                        <span class="sort-icon">↓</span>
+                                        <span class="filter-icon" onclick="toggleColumnFilter(event, 'joinDate')">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div id="joinDateFilter" class="column-filter-dropdown show">
+                                        <label>From:</label>
+                                        <input type="date" id="joinDateStart">
+                                        <label>To:</label>
+                                        <input type="date" id="joinDateEnd">
+                                        <div class="filter-controls">
+                                            <button class="clear-filter" onclick="clearColumnFilter('joinDate')">Clear</button>
+                                            <button class="submit-button" onclick="applyColumnFilter('joinDate')">Apply</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="column-header" data-column="premium" onclick="sortTable('premium')">
+                                        <span>Premium</span>
+                                        <span class="sort-icon">↓</span>
+                                        <span class="filter-icon" onclick="toggleColumnFilter(event, 'premium')">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div id="premiumColumnFilter" class="column-filter-dropdown show">
+                                        <select onchange="filterColumn('premium', this.value)">
+                                            <option value="">All</option>
+                                            <option value="true">Yes</option>
+                                            <option value="false">No</option>
+                                        </select>
+                                        <div class="filter-controls">
+                                            <button class="clear-filter" onclick="clearColumnFilter('premium')">Clear</button>
+                                            <button class="submit-button" onclick="applyColumnFilter('premium')">Apply</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="column-header" data-column="cumulatedPremium" onclick="sortTable('cumulatedPremium')">
+                                        <span>Premium Weeks</span>
+                                        <span class="sort-icon">↓</span>
+                                        <span class="filter-icon" onclick="toggleColumnFilter(event, 'cumulatedPremium')">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div id="cumulatedPremiumFilter" class="column-filter-dropdown show">
+                                        <label>Min weeks:</label>
+                                        <input type="number" id="cumulatedPremiumMin" min="0">
+                                        <label>Max weeks:</label>
+                                        <input type="number" id="cumulatedPremiumMax" min="0">
+                                        <div class="filter-controls">
+                                            <button class="clear-filter" onclick="clearColumnFilter('cumulatedPremium')">Clear</button>
+                                            <button class="submit-button" onclick="applyColumnFilter('cumulatedPremium')">Apply</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="column-header" data-column="nodes" onclick="sortTable('nodes')">
+                                        <span>Nodes</span>
+                                        <span class="sort-icon">↓</span>
+                                        <span class="filter-icon" onclick="toggleColumnFilter(event, 'nodes')">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div id="nodesFilter" class="column-filter-dropdown show">
+                                        <label>Min nodes:</label>
+                                        <input type="number" id="nodesMin" min="0">
+                                        <label>Max nodes:</label>
+                                        <input type="number" id="nodesMax" min="0">
+                                        <div class="filter-controls">
+                                            <button class="clear-filter" onclick="clearColumnFilter('nodes')">Clear</button>
+                                            <button class="submit-button" onclick="applyColumnFilter('nodes')">Apply</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="column-header" data-column="referrees" onclick="sortTable('referrees')">
+                                        <span>Referrees</span>
+                                        <span class="sort-icon">↓</span>
+                                        <span class="filter-icon" onclick="toggleColumnFilter(event, 'referrees')">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div id="referreesFilter" class="column-filter-dropdown show">
+                                        <label>Min referrees:</label>
+                                        <input type="number" id="referreesMin" min="0">
+                                        <label>Max referrees:</label>
+                                        <input type="number" id="referreesMax" min="0">
+                                        <div class="filter-controls">
+                                            <button class="clear-filter" onclick="clearColumnFilter('referrees')">Clear</button>
+                                            <button class="submit-button" onclick="applyColumnFilter('referrees')">Apply</button>
+                                        </div>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTable" style="height: 100%;">
+                            
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <script>
+
+            
+                // Populate country filter with unique countries
+                function populateCountryFilter() {
+                    const filter = document.getElementById('countryFilter').querySelector('select');
+                    
+                    filter.innerHTML = '';
+                    countries.forEach(country => {
+                        const option = document.createElement('option');
+                        option.value = country;
+                        option.textContent = country;
+                        filter.appendChild(option);
+                    });
+                }
+
+                // Store active filters
+                const activeFilters = {
+                    column: {},
+                    global: {}
+                };
+
+                // Toggle date filter inputs based on selection
+                function toggleDateInputs() {
+                    const dateType = document.getElementById('dateTypeFilter').value;
+                    const container = document.getElementById('dateFiltersContainer');
+                    const endDate = document.getElementById('dateFilterEnd');
+                    
+                    if (dateType === '') {
+                        container.style.display = 'none';
+                    } else {
+                        container.style.display = 'flex';
+                        if (dateType === 'between') {
+                            endDate.style.display = 'block';
+                        } else {
+                            endDate.style.display = 'none';
+                        }
+                    }
+                    
+                    applyFilters();
+                }
+
+                // Show/hide column filter dropdowns
+                function toggleColumnFilter(event, column) {
+                    event.stopPropagation(); // Prevent sorting when clicking filter icon
+                    
+                    // Close all other filters first
+                    document.querySelectorAll('.column-filter-dropdown').forEach(dropdown => {
+                        if (dropdown.id !== `${column}Filter`) {
+                            dropdown.classList.add('show');
+                        }
+                    });
+                    
+                    const filter = document.getElementById(`${column}Filter`);
+                    filter.classList.toggle('show');
+                    
+                    // Position the dropdown correctly
+                    const headerRect = event.currentTarget.getBoundingClientRect();
+                    console.log(headerRect)
+                    filter.style.top = `${headerRect.top}`;
+                    filter.style.left = `${headerRect.left}`;
+                }
+
+                // Close dropdowns when clicking elsewhere
+                document.addEventListener('click', function(event) {
+                    if (!event.target.closest('.filter-icon') && !event.target.closest('.column-filter-dropdown')) {
+                        document.querySelectorAll('.column-filter-dropdown').forEach(dropdown => {
+                            dropdown.classList.add('show');
+                        });
+                    }
+                });
+
+                // Sort table by column
+                function sortTable(column) {
+                    // This would sort the table by the specified column
+                    // For demo purposes, we'll just highlight the sort icon
+                    const header = document.querySelector(`.column-header[data-column="${column}"]`);
+                    
+                    // Toggle sort direction
+                    const sortIcon = header.querySelector('.sort-icon');
+                    if (sortIcon.textContent === '↓') {
+                        sortIcon.textContent = '↑';
+                    } else {
+                        sortIcon.textContent = '↓';
+                    }
+                    
+                    // Remove active sort from other columns
+                    document.querySelectorAll('.column-header').forEach(h => {
+                        if (h !== header) {
+                            h.classList.remove('active-sort');
+                            h.querySelector('.sort-icon').textContent = '↓';
+                        }
+                    });
+                    
+                    header.classList.add('active-sort');
+                    
+                    // In a real implementation, you would sort the data here
+                    console.log(`Sorting by ${column} ${sortIcon.textContent === '↑' ? 'ascending' : 'descending'}`);
+                    
+                    // Then update table content
+                    updateTable();
+                }
+
+                // Filter by column
+                function filterColumn(column, value) {
+                    // Store filter value for this column
+                    if (!value || value === '') {
+                        delete activeFilters.column[column];
+                    } else {
+                        activeFilters.column[column] = value;
+                    }
+                }
+
+                // Apply column filter and close dropdown
+                function applyColumnFilter(column) {
+                    document.getElementById(`${column}Filter`).classList.add('show');
+                    
+                    // Special handling for range inputs (nodes, cumulatedPremium, etc)
+                    if (column === 'nodes') {
+                        const min = document.getElementById('nodesMin').value;
+                        const max = document.getElementById('nodesMax').value;
+                        if (min || max) {
+                            activeFilters.column[column] = { min, max };
+                        }
+                    } else if (column === 'cumulatedPremium') {
+                        const min = document.getElementById('cumulatedPremiumMin').value;
+                        const max = document.getElementById('cumulatedPremiumMax').value;
+                        if (min || max) {
+                            activeFilters.column[column] = { min, max };
+                        }
+                    } else if (column === 'referrees') {
+                        const min = document.getElementById('referreesMin').value;
+                        const max = document.getElementById('referreesMax').value;
+                        if (min || max) {
+                            activeFilters.column[column] = { min, max };
+                        }
+                    } else if (column === 'joinDate') {
+                        const start = document.getElementById('joinDateStart').value;
+                        const end = document.getElementById('joinDateEnd').value;
+                        if (start || end) {
+                            activeFilters.column[column] = { start, end };
+                        }
+                    }
+                    
+                    // Mark column header as filtered
+                    const header = document.querySelector(`.column-header[data-column="${column}"]`);
+                    if (activeFilters.column[column]) {
+                        header.classList.add('active-filter');
+                    } else {
+                        header.classList.remove('active-filter');
+                    }
+                    
+                    updateActiveFiltersDisplay();
+                    updateTable();
+                }
+
+                // Clear column filter
+                function clearColumnFilter(column) {
+                    // Clear inputs in the filter dropdown
+                    const filter = document.getElementById(`${column}Filter`);
+                    filter.querySelectorAll('input').forEach(input => {
+                        input.value = '';
+                    });
+                    filter.querySelectorAll('select').forEach(select => {
+                        select.selectedIndex = 0;
+                    });
+                    
+                    // Remove from active filters
+                    delete activeFilters.column[column];
+                    
+                    // Remove active filter class from header
+                    const header = document.querySelector(`.column-header[data-column="${column}"]`);
+                    header.classList.remove('active-filter');
+                    
+                    updateActiveFiltersDisplay();
+                    updateTable();
+                }
+
+                // Apply all filters (both global and column)
+                function applyFilters() {
+                    // Get global filter values
+                    const keyword = document.getElementById('keywordFilter').value;
+                    const premium = document.getElementById('premiumFilter').value;
+                    const dateType = document.getElementById('dateTypeFilter').value;
+                    
+                    // Store global filters
+                    if (keyword) activeFilters.global.keyword = keyword;
+                    else delete activeFilters.global.keyword;
+                    
+                    if (premium) activeFilters.global.premium = premium;
+                    else delete activeFilters.global.premium;
+                    
+                    if (dateType) {
+                        const start = document.getElementById('dateFilterStart').value;
+                        const end = document.getElementById('dateFilterEnd').value;
+                        
+                        if (start || end) {
+                            activeFilters.global.joinDate = { type: dateType, start, end };
+                        } else {
+                            delete activeFilters.global.joinDate;
+                        }
+                    } else {
+                        delete activeFilters.global.joinDate;
+                    }
+                    
+                    updateActiveFiltersDisplay();
+                    updateTable();
+                }
+
+                // Reset all filters
+                function resetFilters() {
+                    // Clear all filter inputs
+                    document.querySelectorAll('.filter-panel input, .filter-panel select').forEach(input => {
+                        input.value = '';
+                    });
+                    
+                    document.querySelectorAll('.column-filter-dropdown input, .column-filter-dropdown select').forEach(input => {
+                        input.value = '';
+                    });
+                    
+                    // Reset active filters
+                    activeFilters.column = {};
+                    activeFilters.global = {};
+                    
+                    // Remove active filter classes
+                    document.querySelectorAll('.column-header').forEach(header => {
+                        header.classList.remove('active-filter');
+                    });
+                    
+                    updateActiveFiltersDisplay();
+                    updateTable();
+                }
+
+                // Update active filters display
+                function updateActiveFiltersDisplay() {
+                    const container = document.getElementById('activeFilters');
+                    container.innerHTML = '';
+                    
+                    // Add global filters
+                    Object.keys(activeFilters.global).forEach(key => {
+                        let value = activeFilters.global[key];
+                        let displayText = '';
+                        
+                        if (key === 'joinDate') {
+                            if (value.type === 'before') {
+                                displayText = `Join: Before ${value.start}`;
+                            } else if (value.type === 'after') {
+                                displayText = `Join: After ${value.start}`;
+                            } else if (value.type === 'between') {
+                                displayText = `Join: ${value.start} to ${value.end}`;
+                            }
+                        } else if (key === 'premium') {
+                            displayText = value === 'true' ? 'Premium: Yes' : 'Premium: No';
+                        } else {
+                            displayText = `${key}: ${value}`;
+                        }
+                        
+                        addFilterTag(container, key, displayText);
+                    });
+                    
+                    // Add column filters
+                    Object.keys(activeFilters.column).forEach(key => {
+                        let value = activeFilters.column[key];
+                        let displayText = '';
+                        
+                        if (typeof value === 'object') {
+                            if (value.min && value.max) {
+                                displayText = `${key}: ${value.min} - ${value.max}`;
+                            } else if (value.min) {
+                                displayText = `${key}: Min ${value.min}`;
+                            } else if (value.max) {
+                                displayText = `${key}: Max ${value.max}`;
+                            } else if (value.start && value.end) {
+                                displayText = `${key}: ${value.start} to ${value.end}`;
+                            } else if (value.start) {
+                                displayText = `${key}: From ${value.start}`;
+                            } else if (value.end) {
+                                // Continue from where the code was cut off
+                                displayText = `${key}: Until ${value.end}`;
+                            }
+                        } else if (key === 'premium') {
+                            displayText = value === 'true' ? `${key}: Yes` : `${key}: No`;
+                        } else {
+                            displayText = `${key}: ${value}`;
+                        }
+                        
+                        addFilterTag(container, key, displayText);
+                    });
+                }
+
+                // Add a filter tag to the active filters display
+                function addFilterTag(container, key, text) {
+                    const tag = document.createElement('div');
+                    tag.className = 'filter-tag';
+                    tag.innerHTML = `
+                        ${text}
+                        <span class="remove-filter" onclick="removeFilter('${key}')">&times;</span>
+                    `;
+                    container.appendChild(tag);
+                }
+
+                // Remove a filter when clicking the X on a filter tag
+                function removeFilter(key) {
+                    if (activeFilters.global[key]) {
+                        delete activeFilters.global[key];
+                        
+                        // Reset the corresponding input
+                        if (key === 'keyword') {
+                            document.getElementById('keywordFilter').value = '';
+                        } else if (key === 'premium') {
+                            document.getElementById('premiumFilter').value = '';
+                        } else if (key === 'joinDate') {
+                            document.getElementById('dateTypeFilter').value = '';
+                            document.getElementById('dateFilterStart').value = '';
+                            document.getElementById('dateFilterEnd').value = '';
+                            document.getElementById('dateFiltersContainer').style.display = 'none';
+                        }
+                    } else if (activeFilters.column[key]) {
+                        delete activeFilters.column[key];
+                        
+                        // Remove active filter class from header
+                        const header = document.querySelector(`.column-header[data-column="${key}"]`);
+                        if (header) {
+                            header.classList.remove('active-filter');
+                        }
+                    }
+                    
+                    updateActiveFiltersDisplay();
+                    updateTable();
+                }
+
+                let selectedCountries = [];
+                function updateTable() {
+                    const keyword = document.getElementById("keywordFilter").value.toLowerCase();
+                    const countElement = document.getElementById('userCount');
+
+                    // const premium = document.getElementById("premiumFilter").value;
+
+                    // if (selectedCountries.includes(document.getElementById("countryFilter").value)){
+                    //     selectedCountries = selectedCountries.filter(country => country !== document.getElementById("countryFilter").value);
+                    // } else if (document.getElementById("countryFilter").value !== '') {
+                    //     selectedCountries.push(document.getElementById("countryFilter").value);
+                    // }
+                    const totalFilters = Object.keys(activeFilters.global).length + 
+                                        Object.keys(activeFilters.column).length;
+
+
+                    // const dateType = document.getElementById("dateTypeFilter").value;
+                    const joinDateStart = activeFilters.column?.['joinDate']?.start || 0;
+                    const joinDateEnd = activeFilters.column?.['joinDate']?.end || Infinity;
+                    const nodesMin = activeFilters.column?.['nodes']?.min || 0;
+                    const nodesMax = activeFilters.column?.['nodes']?.max || Infinity;
+                    const refMin = activeFilters.column?.['referrees']?.min || 0;
+                    const refMax = activeFilters.column?.['referrees']?.max || Infinity;
+                    console.log(nodesMin,refMax)
+                    const rows = document.querySelectorAll("#userTable tr");
+                    let userCount = 0;
+                    rows.forEach(row => {
+                        const [nameCell, countryCell, emailCell, dateCell, premiumCell, cumulPremiumCell, nodesCell, refCell] = row.cells;
+                        const username = nameCell.textContent.toLowerCase();
+                        const email = emailCell.textContent.toLowerCase();
+                        const country = countryCell.textContent;
+                        const joinDate = dateCell.textContent;
+                        const isPremium = premiumCell.textContent;
+                        const cumulPremium = cumulPremiumCell.textContent;
+                        const nodes = parseInt(nodesCell.textContent) || 0;
+                        const referrees = parseInt(refCell.textContent) || 0;
+                    
+                        // Multi-Select Country Filter
+                        const countryPass = selectedCountries.length === 0 || selectedCountries.includes(country);
+                        // Final Filter Conditions
+                        const show = (!keyword || username.includes(keyword) || email.includes(keyword) || country.includes(keyword)) &&
+                                    (!premium || isPremium === premium) &&
+                                    countryPass &&
+                                    //(joinDate >= joinDateStart && joinDate <= joinDateEnd) &&
+                                    (nodes >= nodesMin && nodes <= nodesMax) &&
+                                    (referrees >= refMin && referrees <= refMax);
+                        
+                        row.style.display = show ? "" : "none";
+                        if (show) userCount++;
+                    });
+                    
+                    
+                    let currentCount = parseInt(countElement.textContent);
+                    const step = Math.ceil(Math.abs(userCount - currentCount) / 20);
+                    
+                    const updateCounter = () => {
+                        if (currentCount < userCount) {
+                            currentCount = Math.min(currentCount + step, userCount);
+                        } else if (currentCount > userCount) {
+                            currentCount = Math.max(currentCount - step, userCount);
+                        }
+                       
+                        countElement.textContent = userCount;
+                        
+                        if (currentCount !== userCount) {
+                            requestAnimationFrame(updateCounter);
+                        }
+                    };
+                    
+                    updateCounter();
+                    // countElement.textContent = userCount;
+                }
+                
+                
+                // Update the table with filtered data
+                function updateTableOld() {
+
+                    const countElement = document.getElementById('userCount');
+                    
+                    // Count active filters
+                    const totalFilters = Object.keys(activeFilters.global).length + 
+                                        Object.keys(activeFilters.column).length;
+                    
+                    // Simulate fewer results as more filters are applied
+                    let newCount = 245;
+                    if (totalFilters > 0) {
+                        newCount = Math.floor(245 / (totalFilters + 1));
+                    }
+                    
+                    // Update the counter with an animation
+                    let currentCount = parseInt(countElement.textContent);
+                    const step = Math.ceil(Math.abs(newCount - currentCount) / 20);
+                    
+                    const updateCounter = () => {
+                        if (currentCount < newCount) {
+                            currentCount = Math.min(currentCount + step, newCount);
+                        } else if (currentCount > newCount) {
+                            currentCount = Math.max(currentCount - step, newCount);
+                        }
+                        
+                        countElement.textContent = currentCount;
+                        
+                        if (currentCount !== newCount) {
+                            requestAnimationFrame(updateCounter);
+                        }
+                    };
+                    
+                    updateCounter();
+                    
+                    // This is where you would update the table rows to show filtered data
+                    console.log('Table updated with filters:', activeFilters);
+                }
+
+
+
+                // Initialize the dashboard
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Generate sample data
+                    // const sampleUsers = generateSampleData(20);
+                    
+                    // Populate country filter dropdown
+                    populateCountryFilter();
+                    
+                    // Populate table with sample data
+                    // populateTable(sampleUsers);
+                    
+                    // Add click handlers to close dropdowns when clicking outside
+                    document.addEventListener('click', function(event) {
+                        if (!event.target.closest('.column-filter-dropdown') && 
+                            !event.target.closest('.filter-icon')) {
+                            document.querySelectorAll('.column-filter-dropdown').forEach(dropdown => {
+                                dropdown.classList.add('show');
+                            });
+                        }
+                    });
+                });
+            </script> 
+        </div>
+    </body> 
+</html> 

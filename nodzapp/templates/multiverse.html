@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google-Grade Multiuser Overlay</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: #f4f4f4;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #multiverse_container {
+            position: fixed;
+            right: -400px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 350px;
+            height: 90vh;
+            background: #ffffff;
+            box-shadow: -4px 0 12px rgba(0, 0, 0, 0.2);
+            transition: right 0.3s ease;
+            padding: 20px;
+            border-radius: 12px 0 0 12px;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+        }
+
+        #multiverse_container.show {
+            right: 0;
+        }
+
+        #multiverse_indicator {
+            position: fixed;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 12px;
+            height: 80px;
+            background-color: #007bff;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+            z-index: 999;
+        }
+
+        #multiverse_indicator:hover {
+            background: #0056b3;
+        }
+
+        .block {
+            background: white;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        h2, h3 {
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        h2 {
+            font-size: 18px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            font-size: 15px;
+            margin-top: 15px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 10px;
+        }
+
+        .tab {
+            padding: 8px 15px;
+            background: #f0f0f0;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            margin-right: 5px;
+            font-size: 14px;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab.active {
+            background: #fff;
+            border-bottom: 3px solid #007bff;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .user {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            cursor: grab;
+            margin-bottom: 8px;
+            transition: background 0.2s;
+        }
+
+        .user:hover {
+            background: #f0f0f0;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .user-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .user-name {
+            font-size: 14px;
+        }
+
+        .user-status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .actions {
+            display: flex;
+        }
+
+        .actions button {
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.2s;
+            margin-left: 5px;
+            font-size: 12px;
+            background: #f0f0f0;
+        }
+
+        .accept { background: #d4edda; color: #28a745; }
+        .reject { background: #f8d7da; color: #dc3545; }
+        .mute { background: #fff3cd; color: #856404; }
+        .follow { background: #d1ecf1; color: #0c5460; }
+        .askfollow { background: #e2e3e5; color: #383d41; }
+        .kick { background: #f8d7da; color: #721c24; }
+
+        .actions button:hover {
+            transform: scale(1.1);
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .option-btn {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: none;
+            font-size: 13px;
+        }
+
+        .option-btn:hover {
+            background: #e9ecef;
+        }
+
+        .option-icon {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .stats-table tr {
+            border-bottom: 1px solid #eee;
+        }
+
+        .stats-table tr:last-child {
+            border-bottom: none;
+        }
+
+        .stats-table td {
+            padding: 8px 4px;
+            font-size: 13px;
+        }
+
+        .stats-table td:last-child {
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .saloon {
+            background: #f0f7ff;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .saloon-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 14px;
+            color: #007bff;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+
+        .drop-target {
+            min-height: 50px;
+            border: 2px dashed #ccc;
+            border-radius: 6px;
+            margin-top: 10px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 13px;
+        }
+
+        .drop-target.dragging-over {
+            background: #f0f7ff;
+            border-color: #007bff;
+        }
+
+        /* Timer Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            width: 300px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .timer-display {
+            font-size: 32px;
+            font-weight: 700;
+            text-align: center;
+            margin: 20px 0;
+            color: #007bff;
+        }
+
+        .timer-controls {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .timer-btn {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .timer-btn.start { background: #28a745; color: white; }
+        .timer-btn.pause { background: #ffc107; color: black; }
+        .timer-btn.reset { background: #dc3545; color: white; }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #777;
+        }
+
+        
+
+        /* Container Sections */
+        .section {
+            margin-bottom: 15px;
+            overflow-y: auto;
+        }
+
+        .section.users {
+            flex: 2;
+        }
+
+        .section.options {
+            flex: 1;
+        }
+
+        .section.stats {
+            flex: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div id="multiverse_indicator"></div>
+    <div id="multiverse_container">
+        <h2>Multiuser Panel</h2>
+        
+        <!-- Users Section -->
+        <div class="section users">
+            <div class="tabs">
+                <div class="tab active" data-tab="attendees">Attendees</div>
+                <div class="tab" data-tab="waiting">Waiting Room</div>
+                <div class="tab" data-tab="saloons">Saloons</div>
+            </div>
+            
+            <!-- Attendees Tab -->
+            <div id="attendees" class="tab-content active">
+                <div class="user" draggable="true">
+                    <div class="user-info">
+                        <div class="user-avatar">JD</div>
+                        <div>
+                            <div class="user-name">John Doe</div>
+                            <div class="user-status">Active</div>
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <button class="mute" title="Mute">🔇</button>
+                        <button class="follow" title="Follow">👁️</button>
+                        <button class="askfollow" title="Ask to follow">🔄</button>
+                        <button class="kick" title="Kick">❌</button>
+                    </div>
+                </div>
+                
+                <div class="user" draggable="true">
+                    <div class="user-info">
+                        <div class="user-avatar">AS</div>
+                        <div>
+                            <div class="user-name">Alice Smith</div>
+                            <div class="user-status">Speaking</div>
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <button class="mute" title="Mute">🔇</button>
+                        <button class="follow" title="Follow">👁️</button>
+                        <button class="askfollow" title="Ask to follow">🔄</button>
+                        <button class="kick" title="Kick">❌</button>
+                    </div>
+                </div>
+                
+                <div class="user" draggable="true">
+                    <div class="user-info">
+                        <div class="user-avatar">RJ</div>
+                        <div>
+                            <div class="user-name">Robert Johnson</div>
+                            <div class="user-status">Muted</div>
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <button class="mute" title="Unmute">🔊</button>
+                        <button class="follow" title="Follow">👁️</button>
+                        <button class="askfollow" title="Ask to follow">🔄</button>
+                        <button class="kick" title="Kick">❌</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Waiting Room Tab -->
+            <div id="waiting" class="tab-content">
+                <div class="user" draggable="true">
+                    <div class="user-info">
+                        <div class="user-avatar">EP</div>
+                        <div>
+                            <div class="user-name">Emily Parker</div>
+                            <div class="user-status">Waiting (2m)</div>
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <button class="accept" title="Accept">✓</button>
+                        <button class="reject" title="Reject">✕</button>
+                    </div>
+                </div>
+                
+                <div class="user" draggable="true">
+                    <div class="user-info">
+                        <div class="user-avatar">TW</div>
+                        <div>
+                            <div class="user-name">Thomas Wilson</div>
+                            <div class="user-status">Waiting (5m)</div>
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <button class="accept" title="Accept">✓</button>
+                        <button class="reject" title="Reject">✕</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Saloons Tab -->
+            <div id="saloons" class="tab-content">
+                <div class="saloon">
+                    <div class="saloon-header">
+                        <span>Team Alpha</span>
+                        <span>3 users</span>
+                    </div>
+                    <div class="user" draggable="true">
+                        <div class="user-info">
+                            <div class="user-avatar">MJ</div>
+                            <div>
+                                <div class="user-name">Michael Jackson</div>
+                                <div class="user-status">Active</div>
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button class="mute" title="Mute">🔇</button>
+                            <button class="follow" title="Follow">👁️</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="saloon">
+                    <div class="saloon-header">
+                        <span>Team Beta</span>
+                        <span>2 users</span>
+                    </div>
+                    <div class="user" draggable="true">
+                        <div class="user-info">
+                            <div class="user-avatar">SJ</div>
+                            <div>
+                                <div class="user-name">Sarah Johnson</div>
+                                <div class="user-status">Active</div>
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button class="mute" title="Mute">🔇</button>
+                            <button class="follow" title="Follow">👁️</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="user" style="justify-content: center; background: #f0f0f0; cursor: pointer;">
+                    <div class="user-name">+ Create New Saloon</div>
+                </div>
+                
+                <div class="drop-target">
+                    Drop users here to create a new saloon
+                </div>
+            </div>
+        </div>
+        
+        <!-- Options Section -->
+        <div class="section options">
+            <h3>Options</h3>
+            <div class="options-grid">
+                <button class="option-btn" id="follow-btn">
+                    <span class="option-icon">🔄</span> Ask to follow
+                </button>
+                <button class="option-btn" id="mute-all-btn">
+                    <span class="option-icon">🔇</span> Mute Everyone
+                </button>
+                <button class="option-btn" id="local-sound-btn">
+                    <span class="option-icon">🔊</span> Local Sound
+                </button>
+                <button class="option-btn" id="overall-sound-btn">
+                    <span class="option-icon">🎵</span> Overall Sound
+                </button>
+                <button class="option-btn" id="timer-btn">
+                    <span class="option-icon">⏱️</span> Start Timer
+                </button>
+                <button class="option-btn" id="poll-btn">
+                    <span class="option-icon">📊</span> Start Poll
+                </button>
+                <button class="option-btn" id="likes-btn">
+                    <span class="option-icon">👍</span> Toggle Likes
+                </button>
+                <button class="option-btn" id="game-btn">
+                    <span class="option-icon">🎮</span> Start Game
+                </button>
+            </div>
+        </div>
+        
+        <!-- Statistics Section -->
+        <div class="section stats">
+            <h3>Statistics</h3>
+            <table class="stats-table">
+                <tr>
+                    <td>Connected Users</td>
+                    <td>12</td>
+                </tr>
+                <tr>
+                    <td>Objects Created</td>
+                    <td>36</td>
+                </tr>
+                <tr>
+                    <td>Most Liked</td>
+                    <td>John Doe (24)</td>
+                </tr>
+                <tr>
+                    <td>Active Time</td>
+                    <td>01:23:45</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Timer Modal -->
+    <div class="modal" id="timer-modal">
+        <div class="modal-content">
+            <button class="close-btn" id="close-timer">×</button>
+            <h3 style="text-align: center;">Session Timer</h3>
+            <div class="timer-display" id="timer-display">00:00:00</div>
+            <div class="timer-controls">
+                <button class="timer-btn start" id="start-timer">Start</button>
+                <button class="timer-btn pause" id="pause-timer">Pause</button>
+                <button class="timer-btn reset" id="reset-timer">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toggle sidebar visibility
+        document.getElementById('multiverse_indicator').addEventListener('click', function() {
+            document.getElementById('multiverse_container').classList.toggle('show');
+        });
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                
+                // Hide all tab content
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to clicked tab
+                this.classList.add('active');
+                
+                // Show corresponding tab content
+                const tabId = this.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+
+        // Drag and drop functionality
+        let draggedElement = null;
+
+        // Add drag events to users
+        document.querySelectorAll('.user').forEach(user => {
+            user.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                setTimeout(() => this.style.opacity = '0.4', 0);
+                e.dataTransfer.setData('text/plain', ''); // Required for Firefox
+            });
+
+            user.addEventListener('dragend', function() {
+                this.style.opacity = '1';
+            });
+        });
+
+        // Add drop zone behavior
+        document.querySelectorAll('#attendees, #waiting, .saloon, .drop-target').forEach(zone => {
+            zone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                if (this.classList.contains('drop-target')) {
+                    this.classList.add('dragging-over');
+                }
+            });
+
+            zone.addEventListener('dragleave', function() {
+                if (this.classList.contains('drop-target')) {
+                    this.classList.remove('dragging-over');
+                }
+            });
+
+            zone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                if (this.classList.contains('drop-target')) {
+                    this.classList.remove('dragging-over');
+                    
+                    // Create a new saloon
+                    const saloonName = prompt('Enter a name for the new saloon:');
+                    if (saloonName) {
+                        const newSaloon = document.createElement('div');
+                        newSaloon.className = 'saloon';
+                        newSaloon.innerHTML = `
+                            <div class="saloon-header">
+                                <span>${saloonName}</span>
+                                <span>1 user</span>
+                            </div>
+                        `;
+                        
+                        // Add the dragged user to the new saloon
+                        if (draggedElement) {
+                            const userClone = draggedElement.cloneNode(true);
+                            draggedElement.remove();
+                            newSaloon.appendChild(userClone);
+                        }
+                        
+                        // Add the new saloon before the drop target
+                        document.getElementById('saloons').insertBefore(newSaloon, this);
+                    }
+                } else if (draggedElement && this !== draggedElement.parentNode) {
+                    // Move user to this container
+                    this.appendChild(draggedElement);
+                    
+                    // If moving to attendees from waiting room, change buttons
+                    if (this.id === 'attendees' && draggedElement.querySelector('.accept')) {
+                        const actionsDiv = draggedElement.querySelector('.actions');
+                        actionsDiv.innerHTML = `
+                            <button class="mute" title="Mute">🔇</button>
+                            <button class="follow" title="Follow">👁️</button>
+                            <button class="askfollow" title="Ask to follow">🔄</button>
+                            <button class="kick" title="Kick">❌</button>
+                        `;
+                    }
+                }
+            });
+        });
+
+        // User actions
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('accept')) {
+                const user = e.target.closest('.user');
+                document.getElementById('attendees').appendChild(user);
+                
+                // Replace accept/reject buttons with attendee actions
+                const actionsDiv = user.querySelector('.actions');
+                actionsDiv.innerHTML = `
+                    <button class="mute" title="Mute">🔇</button>
+                    <button class="follow" title="Follow">👁️</button>
+                    <button class="askfollow" title="Ask to follow">🔄</button>
+                    <button class="kick" title="Kick">❌</button>
+                `;
+            } else if (e.target.classList.contains('reject') || e.target.classList.contains('kick')) {
+                e.target.closest('.user').remove();
+            }
+        });
+
+        // Timer functionality
+        let timerInterval;
+        let seconds = 0;
+        let minutes = 0;
+        let hours = 0;
+        let isRunning = false;
+
+        document.getElementById('timer-btn').addEventListener('click', function() {
+            document.getElementById('timer-modal').classList.add('show');
+        });
+
+        document.getElementById('close-timer').addEventListener('click', function() {
+            document.getElementById('timer-modal').classList.remove('show');
+        });
+
+        document.getElementById('start-timer').addEventListener('click', startTimer);
+        document.getElementById('pause-timer').addEventListener('click', pauseTimer);
+        document.getElementById('reset-timer').addEventListener('click', resetTimer);
+
+        function startTimer() {
+            if (!isRunning) {
+                isRunning = true;
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            seconds = 0;
+            minutes = 0;
+            hours = 0;
+            updateTimerDisplay();
+        }
+
+        function updateTimer() {
+            seconds++;
+            
+            if (seconds >= 60) {
+                seconds = 0;
+                minutes++;
+                
+                if (minutes >= 60) {
+                    minutes = 0;
+                    hours++;
+                }
+            }
+            
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const display = document.getElementById('timer-display');
+            display.textContent = `${padZero(hours)}:${padZero(minutes)}:${padZero(seconds)}`;
+        }
+
+        function padZero(num) {
+            return num.toString().padStart(2, '0');
+        }
+
+        // Option button handlers
+        document.getElementById('mute-all-btn').addEventListener('click', function() {
+            alert('All users have been muted');
+        });
+
+        document.getElementById('likes-btn').addEventListener('click', function() {
+            this.classList.toggle('active');
+            const icon = this.querySelector('.option-icon');
+            if (this.classList.contains('active')) {
+                icon.textContent = '👎';
+                this.querySelector('span:not(.option-icon)').textContent = 'Hide Likes';
+            } else {
+                icon.textContent = '👍';
+                this.querySelector('span:not(.option-icon)').textContent = 'Show Likes';
+            }
+        });
+    </script>
+</body>
+</html>

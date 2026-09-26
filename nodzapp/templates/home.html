@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nod-Z</title>
+    <link rel="icon" href="/static/img/icon.png" type="image/png">
+    <link rel="stylesheet" href="static\css\home.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="parallax-container">
+    <div class="parallax-content">
+    <div class="container">
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Welcome to Nod-Z</h1>
+                <p class="tagline">The Multidimensional Mind Mapping Tool</p>
+                <p class="description">Nod-Z is a new generation mind mapping tool that helps you visualize your data like never before. With its user-friendly interface and media-rich features, Nod-Z allows you to create beautiful and collaborative mind maps effortlessly.</p>
+                <button class="submit-button" onclick="window.location.href='you';">Start Mapping Now</button>
+            </div>
+            <div class="media">
+                <img src="/static/img/logo.svg" alt="Nod-Z Flag Image">
+            </div>
+        </section>
+ 
+        <section class="features">
+            <div class="feature">
+                <h3>Interactive Mind Maps</h3>
+                <p>Create dynamic mind maps and navigate data like a multidimensional space voyager!</p>
+                <img src="/static/img/capture1.png" alt="Interactive Mind Maps">
+            </div>
+            <div class="feature">
+                <h3>Media Integration</h3>
+                <p>Embed images, videos, and documents directly into your mind maps.</p>
+                <img src="/static/img/capture1.png" alt="Media Integration">
+            </div>
+            <div class="feature">
+                <h3>Enhanced Collaboration </h3>
+                <p>Fosters idea generation and collaboration in both individual and collaborative workspaces designed for organizations and companies.</p>
+                <img src="/static/img/capture1.png" alt="Enhance Collaboration">
+            </div>
+        </section>
+
+        <section class="pricing">
+            <div class="pricing-card">
+                <h3>Discovery Plan</h3>
+                <p>$0</p>
+                <ul>
+                    <li>Basic features</li>
+                    <li>30 days trial-period</li>
+                </ul>
+                <button class="submit-button" onclick="window.location.href='you';">Try It !</button>
+            </div>
+            <div class="pricing-card">
+                <h3>Basic Plan</h3>
+                <p>$9.99/month</p>
+                <ul>
+                    <li>All features included</li>
+                    <li>Collaborative space</li>
+                </ul>
+                <button class="submit-button" onclick="window.location.href='you';">Sign Up</button>
+            </div>
+            <div class="pricing-card">
+                <h3>Organization Plan</h3>
+                <p>tailored</p>
+                <ul>
+                    <li>On-demand features</li>
+                    <li>Premium support</li>
+                </ul>
+                <button class="submit-button" onclick="window.location.href='contact';">Contact</button>
+            </div>
+        </section>
+
+        <section class="testimonials">
+            <h2>What Our Users Say</h2>
+            <div class="testimonials-container">
+                <!-- Testimonials section content goes here -->
+                <div class="testimonial">
+                    <p>"Nod-z has completely transformed the way I organize my thoughts. Highly recommended!"</p>
+                    <p>- John Doe, CEO</p>
+                </div>
+                <div class="testimonial">
+                    <p>"Amazing tool! It's so intuitive and user-friendly. I love it!"</p>
+                    <p>- Jane Smith, Designer</p>
+                </div>
+                <div class="testimonial">
+                    <p>"Nod-z has been a game-changer for our team. Collaboration has never been easier!"</p>
+                    <p>- David Johnson, Project Manager</p>
+                </div>
+                <div class="testimonial">
+                    <p>"I've tried many mind mapping tools, but Nod-z stands out with its simplicity and versatility."</p>
+                    <p>- Emily Brown, Freelancer</p>
+                </div>
+            </div>
+        </section>
+              
+    </div>
+</div>
+</div>
+
+    <footer class="footer">
+        <span style="padding-bottom: 5px;">&copy; 2023-{% now "Y" %} Nod-Z. All rights reserved. | <a href="privacy">Privacy Policy</a> | <a href="terms">Terms of Service</a> | <a href="contact">Contact</a></span>
+        <span class="social-links">
+            <a href="#"><img width="15" height="15" src="/static/img/youtube-logo.png" alt="Youtube"></a>
+            <a href="#"><img width="15" height="15" src="/static/img/X-logo.svg" alt="X"></a>
+            <a href="#"><img width="15" height="15" src="/static/img/linkedin-logo.svg" alt="LinkedIn"></a>
+        </span>  
+    </footer>
+
+    <script>
+        
+        function cycleTestimonials() {
+        const testimonials = document.querySelectorAll('.testimonial');
+        let currentIndex = 0;
+
+        function showTestimonial(index) {
+            testimonials.forEach((testimonial, i) => {
+                if (i === index) {
+                    testimonial.classList.add('active');
+                } else {
+                    testimonial.classList.remove('active');
+                }
+            });
+        }
+
+        setInterval(() => {
+            showTestimonial(currentIndex);
+            currentIndex = (currentIndex + 1) % testimonials.length;
+        }, 5000);
+    }
+
+    // Call the function to cycle through testimonials
+    cycleTestimonials();
+
+    document.addEventListener('contextmenu', function() {
+        event.preventDefault();
+    });
+
+    document.addEventListener('mousedown', function() {
+        event.preventDefault();
+    });
+
+    </script>
+
+</body>
+
+</html>
