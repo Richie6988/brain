@@ -130,8 +130,6 @@ class Node(models.Model):
     # Additional fields based on node type
     text_content = models.TextField(null=True, blank=True)
     image_content = models.ImageField(upload_to=user_layer_upload_to, null=True, blank=True)
-    video_content = models.TextField(null=True, blank=True)
-    video_link = models.TextField(null=True, blank=True)
     canvas_content = models.TextField(null=True, blank=True)
     file_name = models.TextField(null=True, blank=True)
     file = models.FileField(upload_to=user_layer_upload_to, null=True)

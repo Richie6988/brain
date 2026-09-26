@@ -600,20 +600,18 @@
                 nodeCategoryChart = new Chart(pieCtx, {
                     type: 'pie',  // Pie chart type
                     data: {
-                        labels: ['Text', 'Image', 'Video', 'Files', 'Sketch'],  // Node categories
+                        labels: ['Text', 'Image', 'Files', 'Sketch'],  // Node categories
                         datasets: [{
-                            data: [text_nodes, image_nodes, videoSearch, file_nodes, sketch_nodes],  
+                            data: [text_nodes, image_nodes, file_nodes, sketch_nodes],  
                             backgroundColor: [
                                 'rgba(255, 159, 64, 0.7)',  // Text - Warm Orange
                                 'rgba(75, 192, 192, 0.7)',  // Image - Soft Teal
-                                'rgba(54, 162, 235, 0.7)',  // Video - Sky Blue
                                 'rgba(153, 102, 255, 0.7)',  // Files - Purple
                                 'rgba(255, 99, 132, 0.7)'   // Sketch - Light Pink
                             ],
                             borderColor: [
                                 'rgba(255, 159, 64, 1)',  // Text - Warm Orange Border
                                 'rgba(75, 192, 192, 1)',  // Image - Soft Teal Border
-                                'rgba(54, 162, 235, 1)',  // Video - Sky Blue Border
                                 'rgba(153, 102, 255, 1)', // Files - Purple Border
                                 'rgba(255, 99, 132, 1)'   
                             ],

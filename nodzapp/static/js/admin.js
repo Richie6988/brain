@@ -324,7 +324,6 @@ function adminload(userID,layer){
     loadingSpinner.style.display = 'block';
     isLoading = true;
     selectedNodes.length = 0;
-    players = [];
     currentNode = null;
     const csrfToken = getCookie('nodz_csrftoken');
     fetch('/admin-loading/', {

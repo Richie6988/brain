@@ -36,7 +36,6 @@ urlpatterns = [
     path('upload-file/', views.upload_file, name='upload_file'),
     path('load-file/', views.load_file, name='load_file'),
     path('download-file/', views.download_file, name='download_file'),
-    path('YTsearch/', views.YTsearch, name='YTsearch'),
     path('process-payment/', views.process_payment, name='process_payment'),
     path('cancel-subscription/', views.cancel_subscription, name='cancel_subscription'),
     path('generate_invite/<str:node_ids>/', views.generate_invite, name='generate_invite'),

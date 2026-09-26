@@ -554,7 +554,7 @@ function nodeSizing(nodeGroup,w,h) {
     input.style.bottom = (foreignObject.getAttribute('height') - input.scrollHeight)/2 +'px';
     input.style.width = '100%';
 
-    if (nodeGroup.getAttribute('type') === 'video' || nodeGroup.getAttribute('type') === 'canvas') {
+    if (nodeGroup.getAttribute('type') === 'canvas') {
         w = Math.max(w,200);
         h = Math.max(h,200);            
     } else  if(nodeGroup.getAttribute('textcontent') === '') {
@@ -600,7 +600,7 @@ function nodeSizing(nodeGroup,w,h) {
         square.setAttribute('height', 2 * hitboxRadius);
     }
     
-    let canvas = nodeGroup.children[0].children[4];
+    let canvas = nodeGroup.children[0].children[3];
     if (nodeGroup.getAttribute('type') === 'canvas' && (w > parseFloat(canvas.getAttribute('width')) || h > parseFloat(canvas.getAttribute('height')))) {
         console.log('max canvas size')
         return;
@@ -742,20 +742,6 @@ function nodeSizing(nodeGroup,w,h) {
     canvasColorButtonfo.setAttribute('x', centerX - hitboxRadius - 53); 
     canvasColorButtonfo.setAttribute('y', centerY -60);
 
-    // VIDEO
-
-    let videoinput = nodeGroup.children[0].children[3].children[1];
-    let leftButton = nodeGroup.children[0].children[3].children[2];
-    let rightButton = nodeGroup.children[0].children[3].children[3];
-
-    videoinput.setAttribute('x', centerX ); 
-    videoinput.setAttribute('y', centerY + 0.9*hitboxRadius);
-
-    leftButton.setAttribute('x', centerX -100); 
-    leftButton.setAttribute('y', centerY + 0.9*hitboxRadius);
-
-    rightButton.setAttribute('x', centerX +100); 
-    rightButton.setAttribute('y', centerY + 0.9*hitboxRadius);
 
 
     // NODE PARAMS 

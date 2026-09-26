@@ -12,6 +12,8 @@ Ce qui a changé pour l'utilisateur : `/login/` ne plante plus, la date de créa
 - Nodz peut être servi sous un chemin (`NODZ_URL_PREFIX=/nodz`) : statiques, `{% url %}`, appels `fetch` (via `static/js/base.js`), WebSocket et CSS relatifs. Déploiement de test sous `https://paintit.click/nodz/`.
 - Cookies renommés `nodz_sessionid` / `nodz_csrftoken` (limités au préfixe) pour cohabiter avec paintit sur le même domaine. Les sessions existantes sont déconnectées une fois.
 - WebSocket multi-utilisateurs : ne pointe plus sur `ws://localhost:8000`.
+- Tutoriel supprimé (fenêtre d'aide et parcours guidé) ; ses nodes de démonstration provoquaient les erreurs de sélection, de glisser et de copier-coller. Il reviendra sous forme d'aide par l'IA.
+- Intégration YouTube supprimée : type de node Video, lecteur, recherche, colonnes `video_content` / `video_link` (migration 0015). Les dépendances `requests` et `beautifulsoup4` disparaissent avec elle.
 
 ## Phase 0 : fork propre
 

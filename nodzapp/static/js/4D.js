@@ -1,8 +1,7 @@
 let tunnel;
 document.addEventListener('keydown', function(event) {
-    const videoinput = Array.from(document.getElementsByClassName("videoinput"));
    
-    if (event.key === 'Enter' && selectedNodes.length > 0 && !isTyping  && !overlay && videoinput.every(element => event.target !== element)) {
+    if (event.key === 'Enter' && selectedNodes.length > 0 && !isTyping  && !overlay) {
         if (JSON.parse(selectedNodes[selectedNodes.length - 1].getAttribute('quantum')).length === 0) {    
             tunnel = true;
             copynodes(tunnel);

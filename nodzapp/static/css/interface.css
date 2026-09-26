@@ -725,68 +725,6 @@
 }
 
 
-/* VIDEO */
-/* Style for the videocontainer */
-.videocontainer {
-  width: 100%;
-  height: calc(100% - 35px); 
-  display: flex;
-}
-
-.videoinput {
-  text-align: center;
-  margin-top: 10px;
-  margin-bottom: 20px;
-  width: 130px;
-  position: absolute;
-  left:calc(50% - 65px);
-  background: transparent;
-  border: none;
-  color:#6e7c85;
-  overflow: hidden;
-  white-space: nowrap;
-  animation: scroll 5s linear infinite;
-}
-
-.videoinput::placeholder {
-  color: #6e7c85; 
-}
-
-.search-button-left {
-  position: absolute;
-  left:5%;
-  bottom: 0px;
-  width: 25px;
-  height: 25px;
-  z-index: 9999;
-  font-family: 'Cascadia Code', monospace;  
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6748a67e;
-  margin: 5px;
-}
-
-
-.search-button-right {
-  position: absolute;
-  left:calc(95% - 35px);
-  bottom: 0px;
-  width: 25px;
-  height: 25px;
-  z-index: 9999;
-  font-family: 'Cascadia Code', monospace;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6748a67e;
-  margin: 5px;
-}
-
-.search-button-loading {
-  color: #242428de;
-}
-
 /*//////////////////////  LOADING  //////////////////////*/
 
 /*  loading spinner  */

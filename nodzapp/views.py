@@ -437,8 +437,6 @@ def save_node(request):
                     layer=layer_instance,
                     text_content=group_data['textContent'],
                     image_content=group_data['imgContent'],
-                    video_link=group_data['videoLink'],
-                    video_content=group_data['videoContent'],
                     canvas_content=group_data['canvasContent'],                 
                     file_name=group_data['fileName'],
                     file=newfile,
@@ -682,14 +680,13 @@ def loading(request):
         formatted_profile.append({'name':'text_nodes', 'value': Node.objects.filter(user=user,type='text',archive=False).count()})
         formatted_profile.append({'name':'image_nodes', 'value': Node.objects.filter(user=user,type='image',archive=False).count()})
         formatted_profile.append({'name':'file_nodes', 'value': Node.objects.filter(user=user,type='file',archive=False).count()})
-        formatted_profile.append({'name':'video_nodes', 'value': Node.objects.filter(user=user,type='video',archive=False).count()})
         formatted_profile.append({'name':'sketch_nodes', 'value': Node.objects.filter(user=user,type='canvas',archive=False).count()})
 
         layer_instance = Layer.objects.get(user=user, layer_id=layer)                          
         # Retrieve all groups and link data from the database
         nodes = Node.objects.filter(user=user,archive=False, layer=layer_instance).values('node_id', 'x_coordinate', 'y_coordinate', 'layer__layer_id',
                                           'type', 'color','shape','likes', 'radius', 'rank', 'quantum',
-                                          'text_content','image_content','canvas_content','video_content', 'video_link',
+                                          'text_content','image_content','canvas_content',
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
         templates = Template.objects.filter(user=user,archive=False,layer=layer_instance).values('template_id', 'x_coordinate', 'y_coordinate','type','lock','size')
@@ -772,7 +769,6 @@ def get_profile(request):
         formatted_profile.append({'name':'text_nodes', 'value': Node.objects.filter(user=user,type='text',archive=False).count()})
         formatted_profile.append({'name':'image_nodes', 'value': Node.objects.filter(user=user,type='image',archive=False).count()})
         formatted_profile.append({'name':'file_nodes', 'value': Node.objects.filter(user=user,type='file',archive=False).count()})
-        formatted_profile.append({'name':'video_nodes', 'value': Node.objects.filter(user=user,type='video',archive=False).count()})
         formatted_profile.append({'name':'sketch_nodes', 'value': Node.objects.filter(user=user,type='canvas',archive=False).count()})
         data = {
             'profile': formatted_profile,   
@@ -817,7 +813,7 @@ def semantic_search(request):
 
         search = json_data[0]['search']
  
-        nodes = Node.objects.filter(user=user,archive=False).values('node_id','layer__layer_id','text_content','video_content','image_content','file_name','file_text_content','created_at','modified_at')
+        nodes = Node.objects.filter(user=user,archive=False).values('node_id','layer__layer_id','text_content','image_content','file_name','file_text_content','created_at','modified_at')
         ranked_nodes = []
         for node in nodes:
             # Calculate matching score based on criteria
@@ -848,7 +844,6 @@ def calculate_matching_score(node, criteria):
     textcontent = html.unescape(node.get('text_content', '').lower()) if node.get('text_content') is not None else ''
     filename = node.get('file_name', '').lower() if node.get('file_name') is not None else ''
     filetextcontent = node.get('file_text_content', '').lower() if node.get('file_text_content') is not None else ''
-    videocontent = node.get('video_content', '').lower() if node.get('video_content') is not None else ''
     imagecontent = node.get('image_content', '').lower() if node.get('image_content') is not None else ''
 
     # Extract created_at and modified_at, handle None values
@@ -860,7 +855,6 @@ def calculate_matching_score(node, criteria):
     node_words = set(textcontent.split())
     filename_words = set(filename.split())
     file_words = set(filetextcontent.split())
-    video_words = set(videocontent.split())
     image_words = set(imagecontent.split())
     # Initialize an empty set for search_list
     search_list = set()
@@ -868,7 +862,6 @@ def calculate_matching_score(node, criteria):
     # Add node_words, imagecontent, filename, and file_words to search_list
     search_list.update(node_words)
     search_list.update(filename_words)
-    search_list.update(video_words)
     search_list.update(image_words)
   
     # print('criteria_words',criteria_words)
@@ -1214,34 +1207,6 @@ def convert_pptx_to_pdf(input_path, output_pdf_path):
     except subprocess.CalledProcessError as e:
         print(f"Error during conversion: {e}")
 
-############################## YOUTUBE HANDLING ##############################
-
-import requests
-from bs4 import BeautifulSoup
-
-def YTsearch(request):
- 
-    query = json.loads(request.body)
-    # Construct YouTube search URL
-    youtube_url = 'https://www.youtube.com/results?search_query=' + query
-    # Send GET request to YouTube
-    response = requests.get(youtube_url)
-    if response.status_code == 200:
-        # Parse HTML content
-        soup = BeautifulSoup(response.content, 'html.parser')
-        html_content = str(soup)
-        # Find all script tags containing JSON data
-        json_strings = re.findall(r'{"videoId":"(.*?)"', str(response.content))
-     
-        video_ids = ['v='+json_string for json_string in json_strings]
-
-        
-        # Return the extracted video IDs as a JSON response
-        return JsonResponse({'video_ids': video_ids})
-    
-    else:
-        # Return an error response if the request fails
-        return JsonResponse({'error': 'Failed to fetch YouTube search results'}, status=500)
 
 
 
@@ -1487,8 +1452,6 @@ def shared_nodes(request):
             'text_content': node.text_content,
             'image_content': node.image_content.url if node.image_content else '',
             'canvas_content': node.canvas_content,
-            'video_content': node.video_content,
-            'video_link': node.video_link,
             'file_name': node.file_name,
             'notification': node.notification,
             'lock': node.lock,
@@ -1703,14 +1666,13 @@ def admin_loading(request):
         formatted_profile.append({'name':'text_nodes', 'value': Node.objects.filter(user=user,type='text',archive=False).count()})
         formatted_profile.append({'name':'image_nodes', 'value': Node.objects.filter(user=user,type='image',archive=False).count()})
         formatted_profile.append({'name':'file_nodes', 'value': Node.objects.filter(user=user,type='file',archive=False).count()})
-        formatted_profile.append({'name':'video_nodes', 'value': Node.objects.filter(user=user,type='video',archive=False).count()})
         formatted_profile.append({'name':'sketch_nodes', 'value': Node.objects.filter(user=user,type='canvas',archive=False).count()})
 
         layer_instance = Layer.objects.get(user=user, layer_id=layer)                          
         # Retrieve all groups and link data from the database
         nodes = Node.objects.filter(user=user,archive=False, layer=layer_instance).values('node_id', 'x_coordinate', 'y_coordinate', 'layer__layer_id',
                                           'type', 'color','shape','likes', 'radius', 'rank', 'quantum',
-                                          'text_content','image_content','canvas_content','video_content', 'video_link',
+                                          'text_content','image_content','canvas_content',
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
         templates = Template.objects.filter(user=user,archive=False,layer=layer_instance).values('template_id', 'x_coordinate', 'y_coordinate','type','lock','size')

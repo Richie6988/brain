@@ -46,9 +46,6 @@ function nodeGestion (node) {
     const category = isOnScreen(node);   
     if (category !== 4) {
         node.style.display = 'none'; 
-        if (node.getAttribute('type') === 'video') {
-            pauseVideoIfOutOfViewport(parseInt(node.getAttribute('id').match(/\d+/)[0], 10));
-        } 
         categoryCounts[category]++;    
     } else {
         node.style.display = 'block';        

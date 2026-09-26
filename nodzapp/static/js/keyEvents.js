@@ -406,16 +406,12 @@ function pastenodes(tunnel) {
             const fileName = element.getAttribute('filename');
             pasteNode.children[5].children[2].children[0].textContent = element.children[5].children[2].children[0].textContent;
             
-            // Video
-            pasteNode.setAttribute('videocontent',element.getAttribute('videocontent'));   
-            pasteNode.setAttribute('videolink',element.getAttribute('videolink'));                
-            pasteNode.children[0].children[3].children[1].value = element.getAttribute('videolink');
             // Canvas
             pasteNode.setAttribute('canvascontent',element.getAttribute('canvascontent'));
             var drawingDataString = pasteNode.getAttribute('canvascontent');
             // Parse the string back into an array of objects
             var drawingData = JSON.parse(drawingDataString);              
-            redrawCanvas(pasteNode.children[0].children[4].id,0, drawingData);
+            redrawCanvas(pasteNode.children[0].children[3].id,0, drawingData);
 
             pasteNode.children[1].setAttribute('r', parseFloat(element.children[1].getAttribute('r')));
 
@@ -562,7 +558,6 @@ function cancel()   {
             node.text_content = node.getAttribute('textcontent');
             node.image_content = node.getAttribute('imagecontent');
             node.canvas_content = node.getAttribute('canvascontent');
-            node.video_content = node.getAttribute('videocontent');
             node.file_name = node.getAttribute('filename');
             node.file = node.getAttribute('file');
             node.quantum = node.getAttribute('quantum');

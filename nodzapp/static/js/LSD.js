@@ -68,7 +68,6 @@ function load(layer,nodeID){
     loadingSpinner.style.display = 'block';
     isLoading = true;
     selectedNodes.length = 0;
-    players = [];
     currentNode = null;
     const csrfToken = getCookie('nodz_csrftoken');
     fetch('/loading/', {
@@ -234,10 +233,7 @@ function displayNode(node) {
     newNode.setAttribute('canvascontent', node.canvas_content);
     var drawingDataString = newNode.getAttribute('canvascontent');
     var drawingData = JSON.parse(drawingDataString);              
-    redrawCanvas(newNode.children[0].children[4].id,0, drawingData);
-    newNode.setAttribute('videocontent', node.video_content);
-    newNode.setAttribute('videolink', node.video_link);
-    newNode.children[0].children[3].children[1].value  =  newNode.getAttribute('videolink');
+    redrawCanvas(newNode.children[0].children[3].id,0, drawingData);
     newNode.setAttribute('filename', node.file_name);
     newNode.setAttribute('file', node.file);
     newNode.children[5].children[2].children[0].textContent = node.file_name;        
@@ -328,7 +324,6 @@ let nodes = 0;
 let text_nodes = 0;
 let image_nodes = 0;
 let file_nodes = 0;
-let video_nodes = 0;
 let sketch_nodes = 0;
 function loadUser(param) {
     if (param.name === "username") {
@@ -361,8 +356,6 @@ function loadUser(param) {
         image_nodes = param.value;
     } else if (param.name === "file_nodes") {
         file_nodes = param.value;
-    } else if (param.name === "video_nodes") {
-        video_nodes = param.value;
     } else if (param.name === "sketch_nodes") {
         sketch_nodes = param.value;
     } 
@@ -466,8 +459,6 @@ function save(nodeGroup,tunnel){
         const layer = nodeGroup.getAttribute('layer');
         const textContent = nodeGroup.getAttribute('textcontent');
         const imgContent = nodeGroup.getAttribute('imagecontent');
-        const videoLink = nodeGroup.getAttribute('videolink');
-        const videoContent = nodeGroup.getAttribute('videocontent');
         const canvasContent = nodeGroup.getAttribute('canvascontent');
         const fileName = nodeGroup.getAttribute('filename');
         const file = nodeGroup.getAttribute('file');    
@@ -489,8 +480,6 @@ function save(nodeGroup,tunnel){
             layer: layer,
             textContent: textContent,
             imgContent: imgContent,
-            videoLink: videoLink,
-            videoContent: videoContent,
             canvasContent: canvasContent,
             links: links,
             siblings: siblings,
@@ -689,7 +678,6 @@ function deleteNode(nodes) {
         if(!quantum) {
             data.push({id: parseInt(node.getAttribute('id').match(/\d+/)[0], 10)}); 
         }
-        players = players.filter((player, index) => index !== parseInt(node.getAttribute('id').match(/\d+/)[0], 10));
         universe.removeChild(node);                   
     });
 

@@ -112,8 +112,6 @@ function createNode(x,y,id) {
     nodeGroup.setAttribute('quantum', JSON.stringify([]));
     nodeGroup.setAttribute('textcontent', '');
     nodeGroup.setAttribute('imagecontent', '');
-    nodeGroup.setAttribute('videolink','');
-    nodeGroup.setAttribute('videocontent','Nod-Z');
     nodeGroup.setAttribute('canvascontent',JSON.stringify([]));
     nodeGroup.setAttribute('file',nodeID);
     nodeGroup.setAttribute('filename','');
@@ -169,7 +167,6 @@ function createNode(x,y,id) {
     const options = [
         { text: 'Text' },
         { text: 'Image' },
-        { text: 'Video' },
         { text: 'File' },
         { text: 'Canvas' },
       ];
@@ -192,7 +189,6 @@ function createNode(x,y,id) {
         fileGroup.style.display = 'none';
         input.style.display = 'none';
         canvas.style.display = 'none'; 
-        videoContainer.style.display = 'none';
         // foreignObject.style.background = 'transparent';
         hideParams(nodeGroup);
 
@@ -287,24 +283,6 @@ function createNode(x,y,id) {
                     }            
                 } 
             });            
-            break;
-        case 'video':
-            // console.log('Video option selected');
-            nodeGroup.setAttribute('type', 'video');
-            nodeSizing(nodeGroup,200,200); 
-            video.style.display = 'block';
-            videoinput.style.display = 'block';
-            videoContainer.style.display = 'block';
-            foreignObject.style.background = 'black';
-            const match = nodeGroup.id.match(/\d+/);
-            const number = match ? parseInt(match[0]) : null;  
-
-            const playerElement = document.getElementById(`videoplayer-${number}`);
-    
-            if (!playerElement.querySelector('iframe')) {
-                loadYouTubeVideo(number);
-            }                  
-                        
             break;
         case 'file':
             // console.log('Document option selected');
@@ -744,125 +722,6 @@ function createNode(x,y,id) {
     fileGroup.appendChild(fileButton3fo);
     foreignObject.appendChild(fileContainer);
 
-    /////////////// VIDEO /////////////////////
-    
-    var videoContainer = document.createElement("div");
-    videoContainer.className = 'videocontainer';
-    var video = document.createElement("div");
-    video.style.width = '100%';
-    video.style.height = '100%';
-    const videoplayerID = `videoplayer-${count}`;
-    video.setAttribute('id', videoplayerID);
-  
-    // Create the left button
-    var leftButton = document.createElement("button");
-    leftButton.innerHTML = '&lt;';
-    leftButton.className = 'arrow-button search-button-left';
-    leftButton.id = `leftButton-${count}`;
-
-    leftButton.addEventListener('mouseover', function(event) {
-        createTooltip (leftButton.id,'Previous video',event);
-    });
-
-    // Create the right button
-    var rightButton = document.createElement("button");
-    rightButton.innerHTML = '&gt;';
-    rightButton.className = 'arrow-button search-button-right';
-    rightButton.id = `rightButton-${count}`;
-
-    rightButton.addEventListener('mouseover', function(event) {
-        createTooltip (rightButton.id,'Next video',event);
-    });
-
-    // Create the input element for search
-    var videoinput = document.createElement('input');
-    videoinput.setAttribute('type', 'text');
-    const videoinputID = `videoinput-${count}`;
-    videoinput.setAttribute('id', videoinputID);
-    videoinput.setAttribute('placeholder', 'Enter YouTube link for specific video / Keywords to create a personalized playlist');
-    videoinput.setAttribute('autocomplete', 'off');
-    videoinput.className = 'videoinput';
-
-    scrollPlaceholder(videoinput,videoinput.getAttribute('placeholder'),80);
-
-
-    videoinput.onmousedown = function() {
-        isTyping = true;
-    };
-
-    videoinput.addEventListener('keydown', function(event) {
-        if (event.key === 'Enter') {
-            // Prevent the default form submission behavior
-            event.preventDefault();
-            const match = nodeGroup.id.match(/\d+/);
-            const number = match ? parseInt(match[0]) : null;            
-            loadYouTubeVideo(number);               
-        }
-    });
-
-    videoinput.addEventListener('input', function() {
-        isTyping = true;
-    });
-    videoinput.addEventListener('blur', function() {
-        isTyping = false;
-    });
-    videoinput.addEventListener('mouseover', function() {
-        if(!this.disabled) {
-            this.value = ''; 
-        }
-    });
-    videoinput.addEventListener('mouseout', function() {
-        if(!this.disabled) {
-            this.value = nodeGroup.getAttribute('videolink'); 
-        }        
-    });
-
-
-    leftButton.addEventListener('mousedown', function() {
-        if (videoSearch.length !== 0) {
-            if (videoIndex === 0) {
-                videoIndex = videoSearch.length - 1;
-            } else {
-                videoIndex -= 1;
-            }
-            
-            videoinput.value = videoSearch[videoIndex];
-            nodeGroup.setAttribute('videolink',videoSearch[videoIndex])
-            const match = nodeGroup.id.match(/\d+/);
-            const number = match ? parseInt(match[0]) : null;    
-            if(intervalId === null)  {
-                loadYouTubeVideo(number);  
-            } 
-        }   
-    });
-
-    rightButton.addEventListener('mousedown', function() {
-        if (videoSearch.length !== 0) {
-            if (videoIndex === videoSearch.length - 1) {
-                videoIndex = 0;
-            } else {
-                videoIndex += 1;
-            }
-            
-            videoinput.value = videoSearch[videoIndex];
-            nodeGroup.setAttribute('videolink',videoSearch[videoIndex])
-            const match = nodeGroup.id.match(/\d+/);
-            const number = match ? parseInt(match[0]) : null;    
-            if(intervalId === null)  {
-                loadYouTubeVideo(number);  
-            }
-        }  
-    });
-
-
-    videoContainer.appendChild(video);
-    videoContainer.appendChild(videoinput);
-    videoContainer.appendChild(leftButton);
-    videoContainer.appendChild(rightButton);
-    
-    foreignObject.appendChild(videoContainer);
-    
-
     /////////////// CANVAS ///////////////////// 
 
     var canvas = document.createElement("canvas");
@@ -1148,7 +1007,7 @@ function createNode(x,y,id) {
    
     //////////////////// INTERACTIONS WITHIN NODE ////////////////////
     nodeGroup.addEventListener('mousedown', function(event) {
-        if(!input.contains(event.target) && !nodetypedropdown.contains(event.target) && !fontdropdown.contains(event.target) && !videoinput.contains(event.target) && !slider.contains(event.target)){
+        if(!input.contains(event.target) && !nodetypedropdown.contains(event.target) && !fontdropdown.contains(event.target) && !slider.contains(event.target)){
             event.preventDefault();
         }            
     });
@@ -1196,10 +1055,6 @@ function createNode(x,y,id) {
         if(nodeGroup.getAttribute('lock') === '1') { 
             event.preventDefault();
             return;
-        } else if (nodeGroup.getAttribute('type') === 'video' && hitbox.style.fill === 'none' && !videoinput.disabled) { 
-            videoinput.style.display = 'block';
-            leftButton.style.display = 'block';
-            rightButton.style.display = 'block';
         } else if (nodeGroup.getAttribute('type') === 'canvas' && hitbox.style.fill === 'none') {        
             canvasStyleGroup.setAttribute('visibility', 'visible');  
         } else if(nodeGroup.getAttribute('type') === 'file' && hitbox.style.fill === 'none') {              
@@ -1236,10 +1091,6 @@ function createNode(x,y,id) {
             canvasStyleGroup.setAttribute('visibility', 'visible');  
         } else  if (nodeGroup.getAttribute('type') === 'image') {
             img.style.display = 'block';                   
-        } else if (nodeGroup.getAttribute('type') === 'video') { 
-            videoinput.style.display = 'block';
-            leftButton.style.display = 'block';
-            rightButton.style.display = 'block';
         }
     });
 
@@ -1888,7 +1739,7 @@ function createNode(x,y,id) {
 
     // Handle supperposition of nodes of different sizes
     nodeGroup.addEventListener('mouseover', function(event) {
-        if(!isTyping && nodeGroup.getAttribute('type') !== 'video' && nodeGroup.getAttribute('type') !== 'file' && !typeGroup.contains(event.target)){
+        if(!isTyping && nodeGroup.getAttribute('type') !== 'file' && !typeGroup.contains(event.target)){
             const mouseoverX = parseFloat(nodeGroup.getAttribute('x'));
             const mouseoverY = parseFloat(nodeGroup.getAttribute('y'));
             const mouseoverRadius = parseFloat(nodeGroup.children[1].getAttribute('r'));
@@ -1907,8 +1758,6 @@ function createNode(x,y,id) {
                 }
             });
 
-        } else if (nodeGroup.getAttribute('type') === 'video' && hitbox.contains(event.target)) {
-            semanticsearch.blur();
         }
      
         if(selectedNodes.includes(nodeGroup)){ 
@@ -2097,12 +1946,6 @@ function createNode(x,y,id) {
     nodetypedropdown.addEventListener('change', function() {
         hitbox.setAttribute('class', 'hitbox'); 
         selectedNodes.length = 0;  
-        const match = nodeGroup.id.match(/\d+/);
-        const number = match ? parseInt(match[0]) : null;     
-       
-        if (nodetypedropdown.value !== 'video' && players[number]) {
-            players[number].pauseVideo();
-        }
     });
 
     typeGroup.addEventListener('mouseout', function(event) {
