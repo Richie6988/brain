@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-# Installation initiale de Nodz sur le VPS (à lancer en root), sans toucher à paintit.
-#   DOMAIN=nodz.example.com bash install.sh [branche]
-# Prérequis : un enregistrement DNS A de $DOMAIN vers ce serveur (pour le certificat HTTPS).
+# Installation initiale de Nodz sur le VPS de paintit (à lancer en root), servi sous https://$DOMAIN$PREFIX/.
+#   bash install.sh [branche]
+# Seule modification de paintit : une ligne `include snippets/nodz.conf;` dans son site nginx
+# (sauvegarde préalable, retour arrière automatique si `nginx -t` échoue).
 set -euo pipefail
 
-DOMAIN=${DOMAIN:?"DOMAIN=<domaine> requis"}
+DOMAIN=${DOMAIN:-paintit.click}
+PREFIX=${PREFIX:-/nodz}
+PAINTIT_SITE=${PAINTIT_SITE:-/etc/nginx/sites-available/paintit}
 BRANCH=${1:-main}
 APP_USER=nodz
 APP_DIR=/home/$APP_USER/brain
 PORT=8001
 
 [ "$(id -u)" = 0 ] || { echo "À lancer en root"; exit 1; }
+[ -f "$PAINTIT_SITE" ] || { echo "Site nginx de paintit introuvable : $PAINTIT_SITE (PAINTIT_SITE=...)"; exit 1; }
 command -v python3.12 >/dev/null || { echo "python3.12 introuvable (Ubuntu 24.04 l'inclut ; sinon : add-apt-repository ppa:deadsnakes/ppa)"; exit 1; }
 if ss -ltn "sport = :$PORT" | grep -q LISTEN; then echo "Port $PORT déjà utilisé"; exit 1; fi
 
-apt-get install -y -q python3.12-venv nginx certbot python3-certbot-nginx git curl >/dev/null
+apt-get install -y -q python3.12-venv git curl >/dev/null
 id $APP_USER >/dev/null 2>&1 || adduser --disabled-password --gecos "" $APP_USER
 usermod -aG www-data $APP_USER
 
@@ -32,6 +36,7 @@ DJANGO_SECRET_KEY=$SECRET
 DJANGO_DEBUG=0
 DJANGO_ALLOWED_HOSTS=$DOMAIN,127.0.0.1
 DJANGO_CSRF_TRUSTED_ORIGINS=https://$DOMAIN
+NODZ_URL_PREFIX=$PREFIX
 SQLITE_PATH=$APP_DIR/db.sqlite3
 EOF
     chown $APP_USER: .env && chmod 600 .env
@@ -49,21 +54,39 @@ systemctl enable --now nodz
 sleep 3
 curl -fsS -H "Host: 127.0.0.1" http://127.0.0.1:$PORT/healthz && echo
 
-# nginx : d'abord en HTTP seul pour obtenir le certificat, puis la config complète.
-cat > /etc/nginx/sites-available/nodz <<EOF
-server {
-    listen 80;
-    listen [::]:80;
-    server_name $DOMAIN;
-    location / { proxy_pass http://127.0.0.1:$PORT; }
-}
-EOF
-ln -sf /etc/nginx/sites-available/nodz /etc/nginx/sites-enabled/nodz
-nginx -t && systemctl reload nginx
-certbot certonly --nginx -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email --keep-until-expiring
-sed "s/test.nodz.example/$DOMAIN/g" deploy/nginx-nodz.conf > /etc/nginx/sites-available/nodz
-nginx -t && systemctl reload nginx
+# nginx : bloc /nodz/ inclus dans le site HTTPS de paintit.
+cp deploy/nginx-nodz-path.conf /etc/nginx/snippets/nodz.conf
+if ! grep -q "include snippets/nodz.conf;" "$PAINTIT_SITE"; then
+    cp "$PAINTIT_SITE" "$PAINTIT_SITE.bak-nodz"
+    python3 - "$PAINTIT_SITE" "$DOMAIN" <<'PY'
+import re, sys
+path, domain = sys.argv[1], sys.argv[2]
+conf = open(path).read()
+# Bloc server qui écoute en 443 et sert exactement le domaine (pas la variante www).
+for m in re.finditer(r'server\s*\{', conf):
+    start = m.end()
+    depth, i = 1, start
+    while depth:
+        depth += {'{': 1, '}': -1}.get(conf[i], 0)
+        i += 1
+    block = conf[start:i]
+    name = re.search(r'server_name\s+' + re.escape(domain) + r'\s*;', block)
+    if re.search(r'listen\s+443', block) and name:
+        at = start + name.end()
+        conf = conf[:at] + '\n    include snippets/nodz.conf;' + conf[at:]
+        open(path, 'w').write(conf)
+        break
+else:
+    sys.exit('Bloc server HTTPS de ' + domain + ' introuvable')
+PY
+    if ! nginx -t; then
+        mv "$PAINTIT_SITE.bak-nodz" "$PAINTIT_SITE"
+        echo "nginx -t en échec : site paintit restauré"; exit 1
+    fi
+fi
+systemctl reload nginx
+curl -fsS "https://$DOMAIN$PREFIX/healthz" && echo
 
 echo
-echo "Nodz installé : https://$DOMAIN/universe"
+echo "Nodz installé : https://$DOMAIN$PREFIX/universe"
 echo "Créer ton compte : sudo -u $APP_USER $APP_DIR/.venv/bin/python $APP_DIR/manage.py bootstrap --email <toi> --password <mot de passe>"

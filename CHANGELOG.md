@@ -9,6 +9,9 @@ Ce qui a changé pour l'utilisateur : `/login/` ne plante plus, la date de créa
 - Librairies auparavant chargées depuis des CDN non versionnés, désormais embarquées dans `static/vendor/` avec leur licence : htmx 2.0.11, jQuery 3.6.0, Chart.js 4.5.1, Velocity 1.5.2, jsPDF 2.5.1, svg2pdf.js 2.1.0.
 - Déploiement : service systemd Daphne, site nginx avec WebSocket, script `deploy/update.sh`, `Procfile`.
 - CI GitHub Actions : compilation, `check --deploy`, migrations, collectstatic, tests.
+- Nodz peut être servi sous un chemin (`NODZ_URL_PREFIX=/nodz`) : statiques, `{% url %}`, appels `fetch` (via `static/js/base.js`), WebSocket et CSS relatifs. Déploiement de test sous `https://paintit.click/nodz/`.
+- Cookies renommés `nodz_sessionid` / `nodz_csrftoken` (limités au préfixe) pour cohabiter avec paintit sur le même domaine. Les sessions existantes sont déconnectées une fois.
+- WebSocket multi-utilisateurs : ne pointe plus sur `ws://localhost:8000`.
 
 ## Phase 0 : fork propre
 

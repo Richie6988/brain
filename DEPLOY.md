@@ -1,48 +1,34 @@
 # Déploiement du serveur de test
 
-Cible : un VPS Linux (Debian/Ubuntu) avec nginx, même schéma que paintit, mais servi par **Daphne** (ASGI) car Nodz utilise un WebSocket (`/ws/`).
+Nodz est servi sous **https://paintit.click/nodz/**, sur le même VPS que paintit, par **Daphne** (ASGI, car Nodz utilise un WebSocket).
 
-## Installation en une commande (même VPS que paintit)
+- Nodz tourne sous l'utilisateur `nodz`, dans `/home/nodz/brain`, sur `127.0.0.1:8001`.
+- Seule modification de paintit : la ligne `include snippets/nodz.conf;` dans son bloc `server` HTTPS (fichier `deploy/nginx-nodz-path.conf`).
+- Les cookies de Nodz s'appellent `nodz_sessionid` et `nodz_csrftoken`, limités à `/nodz/` : aucune collision avec les sessions de paintit.
 
-Prérequis : un enregistrement DNS A du domaine choisi (ex. `nodz.paintit.click`) vers le serveur. Paintit n'est pas touché : Nodz tourne sous l'utilisateur `nodz`, sur le port 8001, avec son propre site nginx.
+## Installation en une commande
 
 ```bash
 ssh root@<serveur>
 curl -fsSL https://raw.githubusercontent.com/Richie6988/brain/main/deploy/install.sh -o install.sh
-DOMAIN=nodz.paintit.click bash install.sh main
+bash install.sh main
 sudo -u nodz /home/nodz/brain/.venv/bin/python /home/nodz/brain/manage.py bootstrap --email <toi> --password <mot de passe>
 ```
 
-Le script est idempotent (relançable), génère `.env` avec une clé secrète aléatoire, installe le service systemd et la règle sudoers de redémarrage, obtient le certificat Let's Encrypt puis active la config nginx complète. Il s'arrête si le port 8001 est déjà pris.
+Le script est relançable. Il installe le venv, génère `.env` (clé secrète aléatoire, `NODZ_URL_PREFIX=/nodz`), migre, installe le service systemd et la règle sudoers de redémarrage, copie le bloc nginx dans `/etc/nginx/snippets/nodz.conf` puis ajoute l'`include` au site de paintit. Avant de toucher au site de paintit, il le sauvegarde (`.bak-nodz`) et le restaure si `nginx -t` échoue. Il s'arrête si le port 8001 est déjà pris ou si le site de paintit est introuvable (`PAINTIT_SITE=...` pour un autre chemin que `/etc/nginx/sites-available/paintit`).
 
-## Première installation (détail manuel)
-
-```bash
-sudo adduser --disabled-password nodz && sudo usermod -aG www-data nodz
-sudo apt install python3.12-venv nginx certbot python3-certbot-nginx libreoffice-core  # libreoffice : conversion docx/pptx
-sudo -iu nodz
-git clone https://github.com/Richie6988/brain && cd brain
-python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env   # puis éditer, voir ci-dessous
-.venv/bin/python manage.py migrate && .venv/bin/python manage.py collectstatic --noinput
-.venv/bin/python manage.py bootstrap --email <toi> --password <mot de passe>
-exit
-sudo cp /home/nodz/brain/deploy/nodz.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now nodz
-sudo cp /home/nodz/brain/deploy/nginx-nodz.conf /etc/nginx/sites-available/nodz   # remplacer test.nodz.example
-sudo ln -s /etc/nginx/sites-available/nodz /etc/nginx/sites-enabled/ && sudo certbot --nginx -d <domaine> && sudo nginx -t && sudo systemctl reload nginx
-```
-
-`.env` de test :
+`.env` généré :
 
 ```
-DJANGO_SECRET_KEY=<python -c "import secrets; print(secrets.token_urlsafe(50))">
+DJANGO_SECRET_KEY=<aléatoire>
 DJANGO_DEBUG=0
-DJANGO_ALLOWED_HOSTS=<domaine>,127.0.0.1
-DJANGO_CSRF_TRUSTED_ORIGINS=https://<domaine>
+DJANGO_ALLOWED_HOSTS=paintit.click,127.0.0.1
+DJANGO_CSRF_TRUSTED_ORIGINS=https://paintit.click
+NODZ_URL_PREFIX=/nodz
 SQLITE_PATH=/home/nodz/brain/db.sqlite3
 ```
 
-`127.0.0.1` dans `DJANGO_ALLOWED_HOSTS` sert au healthcheck local du script de mise à jour.
+`127.0.0.1` dans `DJANGO_ALLOWED_HOSTS` sert au healthcheck local.
 
 ## Mises à jour
 
@@ -50,7 +36,14 @@ SQLITE_PATH=/home/nodz/brain/db.sqlite3
 sudo -iu nodz /home/nodz/brain/deploy/update.sh
 ```
 
-Le script fait `git pull`, installe les dépendances, migre, collecte les statiques, lance `check --deploy`, redémarre le service et interroge `/healthz`. L'utilisateur `nodz` doit pouvoir lancer `sudo systemctl restart nodz` (règle sudoers dédiée).
+Le script fait `git pull`, installe les dépendances, migre, collecte les statiques, lance `check --deploy`, redémarre le service et interroge `/healthz`.
+
+## Désinstallation
+
+```bash
+sed -i '/include snippets\/nodz.conf;/d' /etc/nginx/sites-available/paintit && nginx -t && systemctl reload nginx
+systemctl disable --now nodz && rm /etc/systemd/system/nodz.service /etc/sudoers.d/nodz /etc/nginx/snippets/nodz.conf
+```
 
 ## Limites connues du serveur de test
 
@@ -58,3 +51,4 @@ Le script fait `git pull`, installe les dépendances, migre, collecte les statiq
 - SQLite : sauvegarder `db.sqlite3` et `nodzapp/media/` (fichiers des utilisateurs, jamais exposés directement par nginx).
 - `GeoLite2-Country.mmdb` absent : la géolocalisation à l'inscription est inactive.
 - Stripe non configuré : les pages premium ne fonctionneront pas.
+- LibreOffice non installé par le script : `apt install libreoffice-core` pour la conversion docx/pptx.
