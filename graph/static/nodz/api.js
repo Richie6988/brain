@@ -1,6 +1,8 @@
 // Client de /api/v1 : chargement d'un plan et sauvegarde incrémentale groupée (débounce).
 
 const BASE = document.documentElement.dataset.base || '';
+// URL absolue : sur /universe, base.js préfixe déjà les fetch('/...') ; une URL complète n'est jamais préfixée deux fois.
+const endpoint = path => `${window.location.origin}${BASE}/api/v1/${path}`;
 
 function csrfToken() {
     const match = document.cookie.match(/(?:^|;\s*)nodz_csrftoken=([^;]+)/);
@@ -8,7 +10,7 @@ function csrfToken() {
 }
 
 function send(method, path, body) {
-    return fetch(`${BASE}/api/v1/${path}`, {
+    return fetch(endpoint(path), {
         method,
         credentials: 'same-origin',
         headers: method === 'GET' ? {} : { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
@@ -52,7 +54,7 @@ async function stream(path, body, onEvent) {
 async function upload(file) {
     const form = new FormData();
     form.append('file', file);
-    const response = await fetch(`${BASE}/api/v1/files`, {
+    const response = await fetch(endpoint('files'), {
         method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': csrfToken() }, body: form,
     });
     if (!response.ok) throw await failure(response);
@@ -62,7 +64,7 @@ async function upload(file) {
 export const api = {
     request,
     upload,
-    fileUrl: (id, download = false) => `${BASE}/api/v1/files/${id}${download ? '?download=1' : ''}`,
+    fileUrl: (id, download = false) => endpoint(`files/${id}${download ? '?download=1' : ''}`),
     layers: () => request('GET', 'layers'),
     graph: layerId => request('GET', `layers/${layerId}/graph`),
     changes: batch => request('POST', 'changes', batch),

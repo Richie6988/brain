@@ -44,16 +44,16 @@ async function loadGuardian() {
 let queue = Promise.resolve();
 
 async function ask(node, text) {
-    if (!guardian) await loadGuardian();
-    if (!guardian?.enabled || !guardian.model) {
-        if (!asleep) say('Le Gardien dort : donne-lui un modèle dans Agents & modèles.', 'notice');
-        asleep = true;
-        return;
-    }
-    node.classList.add('gardien-thinking');
     const agents = new Map();
     let actions = Promise.resolve();
     try {
+        if (!guardian) await loadGuardian();
+        if (!guardian?.enabled || !guardian.model) {
+            if (!asleep) say('Le Gardien dort : donne-lui un modèle dans Agents & modèles.', 'notice');
+            asleep = true;
+            return;
+        }
+        node.classList.add('gardien-thinking');
         await api.command({ prompt: text, context: { ...bridge.context(), origin: node.id } }, (type, data) => {
             if (type === 'text' || type === 'notice') say(data.text, type);
             else if (type === 'error') say(data.message, 'error');
