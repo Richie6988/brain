@@ -72,6 +72,11 @@ export function createNavigation({ viewport, store, view }) {
             const { zoom, tx, ty } = viewport.state;
             yield* centerOn((viewport.center.x + origin.x) * zoom + tx, (viewport.center.y + origin.y) * zoom + ty, offsetY);
         },
+        // Molette (pinch) : crans au point écran (x, y) jusqu'à `target`.
+        *zoom(target, x = screenCenter().x, y = screenCenter().y) {
+            viewport.pointerMoved();
+            yield* zoomTo(target, x, y);
+        },
         // Recul jusqu'à `zoom` au centre de l'écran, puis centrage du point (x, y) du plan.
         *frame(x, y, zoom, offsetY = 0) {
             const c = screenCenter();

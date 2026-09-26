@@ -136,6 +136,8 @@ l'utilisateur voie l'IA « agir » dans l'espace, au lieu d'un résultat qui app
 
 L'utilisateur est dans un vaisseau que le Gardien pilote : `focus`, `overview` et `travel` sont des
 étapes de caméra jouées dans l'ordre après les écritures (`camera.js`), avec une légende à l'arrivée.
+Le Gardien n'a pas de caméra à lui : il rejoue les gestes de l'humain (`navigation.js` décompose Tab,
+focus, molette et glissé en pas élémentaires ; l'humain les joue d'un coup, le Gardien avec un tempo).
 Pendant la réflexion la caméra recule lentement ; sans travelling prévu, elle cadre les nodes créés.
 Tout geste de l'utilisateur annule la file : il garde toujours la main.
 

@@ -4,7 +4,7 @@
 import { api } from './api.js';
 import { createCamera } from './camera.js';
 
-export function bindCommand({ svg, store, viewport, sync }) {
+export function bindCommand({ svg, store, viewport, view, nav, sync }) {
     const form = document.getElementById('command');
     const prompt = document.getElementById('prompt');
     const reply = document.getElementById('reply');
@@ -21,7 +21,7 @@ export function bindCommand({ svg, store, viewport, sync }) {
     }
 
     const camera = createCamera({
-        svg, store, viewport,
+        svg, store, viewport, view, nav,
         dispatch: (name, params) => store.dispatch(name, params),
         caption: text => line(text, 'guide'),
         covered: () => window.innerHeight - document.getElementById('dock').getBoundingClientRect().top,

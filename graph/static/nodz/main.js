@@ -24,9 +24,9 @@ const sync = createSync(store, { onError: error => { status.textContent = `Sauve
 const view = createRenderer({ svg, universe, store, viewport, dispatch: (name, params) => store.dispatch(name, params) });
 const nav = createNavigation({ viewport, store, view });
 bindInteractions({ svg, store, viewport, view, sync, nav });
+bindCommand({ svg, store, viewport, view, nav, sync });
 bindToolbar({ svg, store, nav });
 bindNodeTools({ store, viewport, view, nav, icons: Object.fromEntries(Object.entries(document.getElementById('node-tools').dataset).map(([k, v]) => [k.replace(/^icon/, '').toLowerCase(), v])) });
-bindCommand({ svg, store, viewport, sync });
 bindLibrary();
 
 async function loadLayer(layerId) {
