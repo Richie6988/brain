@@ -13,20 +13,28 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-u57^n5n(itx44)a_8*q5m1)*$p5f2apd_@06aky%p-jor=*%f3'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', '0') == '1'
 
-ALLOWED_HOSTS = []
+if not SECRET_KEY or (not DEBUG and SECRET_KEY.startswith('dev-only')):
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY must be set (see .env.example)')
+
+ALLOWED_HOSTS = [h for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') if h]
 
 
 # Application definition
@@ -78,8 +86,6 @@ MIDDLEWARE = [
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 ROOT_URLCONF = 'nodz.urls'
-
-WKHTMLTOPDF_CMD = BASE_DIR.parent.parent / 'Lib/site-packages'
 
 TEMPLATES = [
     {
@@ -168,15 +174,17 @@ LOGOUT_REDIRECT_URL = 'index'
 
 
 # Add your email configuration
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587  # or the port your SMTP server uses
-EMAIL_USE_TLS = True  # or False if your SMTP server doesn't use TLS
-EMAIL_HOST_USER = 'rage@reg.com'  # Your email address
-EMAIL_HOST_PASSWORD = 'saxw vwml mohp ysgl'  # Your email password
-DEFAULT_FROM_EMAIL = 'rage@reg.com'  # Default sender address contact@nodz.com
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_BACKEND = (
+    'django.core.mail.backends.smtp.EmailBackend'
+    if EMAIL_HOST
+    else 'django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', '1') == '1'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'nodz@localhost')
 
-# Monetization
-STRIPE_SECRET_KEY = 'your_stripe_secret_key'
-STRIPE_PUBLISHABLE_KEY = 'your_stripe_publishable_key'
-
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')

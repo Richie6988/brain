@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+db.sqlite3
+nodzapp/media/
+/static/
+GeoLite2-*.mmdb
+node_modules/
