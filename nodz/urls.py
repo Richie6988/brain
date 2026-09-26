@@ -30,6 +30,7 @@ def healthz(request):
 
 urlpatterns = [
     path('healthz', healthz),
+    path('api/v1/toolbox/', include('toolbox.urls')),
     path('api/v1/', include('graph.urls')),
     path('next', graph_views.next_page, name='next'),
     path('admin/', admin.site.urls),

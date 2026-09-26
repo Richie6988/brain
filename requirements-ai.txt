@@ -1,0 +1,4 @@
+# Inférence locale (optionnelle) : sans ce paquet, Nodz fonctionne sans IA.
+# Compilation depuis les sources : apt-get install build-essential cmake
+# GPU NVIDIA : CMAKE_ARGS="-DGGML_CUDA=on" pip install -r requirements-ai.txt
+llama-cpp-python==0.3.35

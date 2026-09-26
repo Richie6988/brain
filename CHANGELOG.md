@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 4 (en cours) : boîte à outils IA intégrée
+
+Ce qui a changé pour l'utilisateur : rien à l'écran pour l'instant. Le serveur sait chercher et télécharger des modèles Hugging Face, les faire tourner en local et gérer une bibliothèque d'agents ; la barre de commande s'appuiera dessus.
+
+- App `toolbox`, portée de SquidMind (qui n'est plus un service à part) : modèles locaux (`LocalModel`), agents (`Agent`), broker à priorités, moteur llama-cpp-python optionnel (`requirements-ai.txt`).
+- API `/api/v1/toolbox` : état du moteur, recherche et fichiers Hugging Face, recommandations, téléchargement et suppression de modèles (staff), agents par utilisateur (quatre agents de départ : Gardien, Rédacteur, Codeur, Illustrateur).
+- Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX`, `LLM_GPU_LAYERS`, `LLM_THREADS`.
+
 ## Phase 3 (en cours) : nouvelle interface
 
 Ce qui a changé pour l'utilisateur : une nouvelle interface est disponible sur `/next`, à côté de `/universe`. Même navigation au pixel près (zoom, pan, glisser, sélection, téléportation), mais construite sur le nouveau modèle : nodes texte, liens, portails, annuler/refaire (Ctrl+Z / Ctrl+Y), sauvegarde automatique.

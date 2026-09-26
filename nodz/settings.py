@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'nodzapp',
     'graph',
+    'toolbox',
     # 'widget_tweaks',
     # 'django_tex',
     # 'wkhtmltopdf',
@@ -186,6 +187,13 @@ STORAGES = {
 }
 MEDIA_URL = (FORCE_SCRIPT_NAME or '') + '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'nodzapp/media')
+
+# Boîte à outils IA (modèles locaux GGUF téléchargés depuis Hugging Face).
+MODELS_DIR = Path(os.environ.get('MODELS_DIR') or BASE_DIR / 'var' / 'models')
+HF_TOKEN = os.environ.get('HF_TOKEN', '')
+LLM_CTX = int(os.environ.get('LLM_CTX', '4096'))
+LLM_GPU_LAYERS = int(os.environ.get('LLM_GPU_LAYERS', '0'))  # -1 = tout sur le GPU
+LLM_THREADS = int(os.environ.get('LLM_THREADS', '0'))  # 0 = automatique
 
 LOGGING = {
     'version': 1,

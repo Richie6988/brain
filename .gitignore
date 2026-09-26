@@ -7,3 +7,4 @@ nodzapp/media/
 /static/
 GeoLite2-*.mmdb
 node_modules/
+var/
