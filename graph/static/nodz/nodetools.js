@@ -3,7 +3,6 @@
 // - au survol de l'anneau d'un node libre : poignée de taille sur le bord droit ;
 // - sur un node relié par portail : bouton de voyage vers l'autre plan.
 
-const TYPES = [['text', 'Texte'], ['image', 'Image'], ['file', 'Fichier'], ['video', 'Vidéo'], ['audio', 'Audio'], ['model3d', '3D'], ['code', 'Code']];
 const SHAPES = ['circle', 'square', 'none'];  // cycle de v1
 
 export function bindNodeTools({ store, viewport, view, nav, icons }) {

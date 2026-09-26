@@ -1,11 +1,12 @@
 import json
 import uuid
+from unittest import mock
 
 from django.test import Client, TestCase
 
 from nodzapp.models import NodzUser
 
-from .models import AIRun, AuditLog, Edge, Node, NodeRevision
+from .models import AIRun, AuditLog, Edge, Node, NodeRevision, StoredFile
 
 
 def uid():
@@ -170,10 +171,13 @@ class LegacyMigrationTests(TestCase):
         a = self.v2(1)
         self.assertEqual((a.x, a.y, a.radius, a.origin, a.content_type), (10, -20, 80, 'import', 'text'))
         self.assertEqual(a.payload, {'text': {'html': '<b>A</b>'}})
-        self.assertEqual(self.v2(2).payload, {'text': {'html': 'chat'}, 'image': {'path': 'uploads/1/1/cat.png'}})
+        cat = StoredFile.objects.get(file='uploads/1/1/cat.png')
+        self.assertEqual((cat.name, cat.mime), ('cat.png', 'image/png'))
+        self.assertEqual(self.v2(2).payload, {'text': {'html': 'chat'}, 'image': {'file': str(cat.id), 'name': 'cat.png'}})
         c = self.v2(3)
-        self.assertEqual((c.content_type, c.shape, c.radius), ('text', 'circle', 62.5))
-        self.assertEqual(c.payload['legacy'], {'type': 'canvas', 'canvas': '[{"x": 1}]', 'notification': '2026-10-01'})
+        self.assertEqual((c.content_type, c.shape, c.radius), ('drawing', 'circle', 62.5))
+        self.assertEqual(c.payload['drawing'], {'ops': [{'x': 1}]})
+        self.assertEqual(c.payload['legacy'], {'notification': '2026-10-01'})
         d = self.v2(4)
         self.assertEqual((d.content_type, d.file.name, d.file.extracted_text), ('file', 'doc.pdf', 'contrat'))
         self.assertEqual(self.v2(5).status, 'archived')
@@ -204,6 +208,50 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(len(graph['nodes']), 3)  # le node archivé n'est pas servi
         self.assertEqual(len(graph['edges']), 2)
         self.assertEqual(len(graph['portal_ends']), 1)
+
+
+class FileApiTests(TestCase):
+    def setUp(self):
+        import tempfile
+
+        self.media = tempfile.TemporaryDirectory()
+        self.addCleanup(self.media.cleanup)
+        override = self.settings(MEDIA_ROOT=self.media.name)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456')
+        self.client.force_login(self.user)
+
+    def upload(self, name, content, mime='text/plain'):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        return self.client.post('/api/v1/files', {'file': SimpleUploadedFile(name, content, content_type=mime)})
+
+    def test_upload_extracts_text_and_serves_owner_only(self):
+        from .models import StoredFile
+
+        r = self.upload('notes.txt', 'Kyoto et Nara'.encode())
+        self.assertEqual(r.status_code, 201, r.content)
+        data = r.json()
+        self.assertEqual((data['name'], data['mime'], data['size']), ('notes.txt', 'text/plain', 13))
+        self.assertEqual(StoredFile.objects.get().extracted_text, 'Kyoto et Nara')
+        r = self.client.get(f"/api/v1/files/{data['id']}")
+        self.assertEqual(b''.join(r.streaming_content), b'Kyoto et Nara')
+        self.assertIn('inline', r['Content-Disposition'])
+        self.assertIn('attachment', self.client.get(f"/api/v1/files/{data['id']}?download=1")['Content-Disposition'])
+        other = NodzUser.objects.create_user(email='b@nodz.local', password='pw-123456')
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(f"/api/v1/files/{data['id']}").status_code, 404)
+
+    def test_upload_errors(self):
+        from . import api
+
+        self.assertEqual(self.client.post('/api/v1/files', {}).status_code, 400)
+        with mock.patch.object(api, 'MAX_UPLOAD', 4):
+            self.assertEqual(self.upload('big.bin', b'12345', 'application/octet-stream').status_code, 400)
+        self.assertEqual(self.upload('broken.pdf', b'pas un pdf', 'application/pdf').status_code, 201)
+        self.client.logout()
+        self.assertEqual(self.upload('x.txt', b'x').status_code, 401)
 
 
 class NextPageTests(TestCase):

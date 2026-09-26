@@ -1,5 +1,5 @@
 {% load static %}<!DOCTYPE html>
-<html lang="fr" data-base="{{ NODZ_BASE }}">
+<html lang="fr" data-base="{{ NODZ_BASE }}" data-icons="{% static 'img/' %}" data-three="{% static 'js/customThree.js' %}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -34,7 +34,7 @@
         data-icon-hide="{% static 'img/hide.svg' %}" data-icon-lock="{% static 'img/lock.svg' %}" data-icon-unlock="{% static 'img/unlock.svg' %}">
         <select class="type" aria-label="Type du node">
             <option value="text">Texte</option><option value="image">Image</option><option value="file">Fichier</option>
-            <option value="video">Vidéo</option><option value="audio">Audio</option><option value="model3d">3D</option><option value="code">Code</option>
+            <option value="video">Vidéo</option><option value="audio">Audio</option><option value="model3d">3D</option><option value="code">Code</option><option value="drawing">Dessin</option>
         </select>
         <label class="color" title="Couleur"><img src="{% static 'img/colorpicking.svg' %}" alt=""><input type="color" aria-label="Couleur"></label>
         <button type="button" class="shape" title="Forme"><img alt=""></button>

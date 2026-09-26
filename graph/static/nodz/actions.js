@@ -18,10 +18,10 @@ export const actions = {
     create_node: {
         description: 'Crée un node sur le plan courant, à la position donnée (coordonnées univers).',
         params: { x: 'number', y: 'number', content_type: 'text|image|file|video|audio|model3d|code', text: 'string?', color: 'string?' },
-        run(store, { x, y, content_type = 'text', text, color, id = uuid() }) {
+        run(store, { x, y, content_type = 'text', text, color, id = uuid(), payload = {} }) {
             const node = {
                 id, layer: store.state.layerId, x, y, radius: 62.5, shape: 'circle', color: color || randomColor(),
-                lock: false, content_type, payload: text ? { text: { html: text } } : {}, status: 'accepted', version: 0,
+                lock: false, content_type, payload: text ? { ...payload, text: { html: text } } : payload, status: 'accepted', version: 0,
             };
             const undo = () => { store.write.removeNode(id); return redo; };
             const redo = () => { store.write.putNode({ ...node }); return undo; };

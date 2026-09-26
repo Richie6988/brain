@@ -2,7 +2,9 @@
 // Comportements repris de v1 : molette = pan, pinch = zoom au pointeur, glisser à vide = pan,
 // Ctrl + glisser = sélection rectangle, glisser l'anneau d'un node = déplacer la sélection,
 // double-clic ou Espace = créer un node sous le pointeur, Entrée = téléporter, Tab = saut de zoom,
-// double-clic sur l'anneau = focus, flèches = déplacer la vue.
+// double-clic sur l'anneau = focus, flèches = déplacer la vue, clic droit glissé d'un node à l'autre = lien.
+
+import { api } from './api.js';
 
 const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
@@ -87,6 +89,30 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
         scrolling = requestAnimationFrame(edgeScroll);
     }
 
+    // Fichiers déposés sur le canevas : un node par fichier, du type qui lui correspond, au point de dépôt.
+    const typeOf = file => (file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video'
+        : file.type.startsWith('audio/') ? 'audio' : /\.stl$/i.test(file.name) ? 'model3d' : 'file');
+    svg.addEventListener('dragover', event => {
+        if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+    });
+    svg.addEventListener('drop', async event => {
+        if (!event.dataTransfer.files.length) return;
+        event.preventDefault();
+        const origin = viewport.toUniverse(event.clientX, event.clientY);
+        for (const [i, file] of [...event.dataTransfer.files].entries()) {
+            try {
+                const meta = await api.upload(file);
+                const type = typeOf(file);
+                dispatch('create_node', {
+                    x: origin.x + i * 160, y: origin.y, content_type: type,
+                    payload: { [type]: { file: meta.id, name: meta.name, mime: meta.mime, size: meta.size } },
+                });
+            } catch (error) {
+                document.getElementById('status').textContent = `${file.name} : ${error.message}`;
+            }
+        }
+    });
+
     // Liens (v1) : au survol, flèche vers l'extrémité la plus éloignée ; clic = voyage ; Suppr = supprimer.
     let hoveredEdge = null;
     function hoverEdge(id, x, y) {
@@ -113,6 +139,22 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
         if (event.deltaY !== Math.round(event.deltaY) && ctrlDown) return;
         viewport.wheel(event);
     }, { passive: false });
+
+    // Clic droit glissé d'un node à un autre : lien direct (élastique pendant le geste).
+    const band = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    band.setAttribute('class', 'link-band');
+    svg.appendChild(band);
+    svg.addEventListener('contextmenu', event => event.preventDefault());  // comme v1
+    svg.addEventListener('pointerdown', event => {
+        if (event.button !== 2) return;
+        const source = view.ringAt(event.clientX, event.clientY) || view.nodeIdAt(event.target);
+        if (!source) return;
+        const c = view.screenCenter(source);
+        Object.entries({ x1: c.x, y1: c.y, x2: event.clientX, y2: event.clientY }).forEach(([k, v]) => band.setAttribute(k, v));
+        band.style.stroke = store.state.nodes.get(source).color;
+        gesture = { type: 'link', source };
+        svg.setPointerCapture(event.pointerId);
+    });
 
     svg.addEventListener('pointerdown', event => {
         if (event.button !== 0) return;
@@ -159,6 +201,9 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
             gesture.x = event.clientX;
             gesture.y = event.clientY;
             if (!scrolling) scrolling = requestAnimationFrame(edgeScroll);
+        } else if (gesture.type === 'link') {
+            band.setAttribute('x2', event.clientX);
+            band.setAttribute('y2', event.clientY);
         } else if (gesture.type === 'rect') {
             const x = Math.min(gesture.x0, event.clientX);
             const y = Math.min(gesture.y0, event.clientY);
@@ -180,6 +225,12 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
                 });
             dispatch('select', { ids: [...new Set([...store.state.selection, ...inside])] });
             ['width', 'height'].forEach(k => rect.setAttribute(k, 0));
+        }
+        if (gesture?.type === 'link') {
+            ['x1', 'y1', 'x2', 'y2'].forEach(k => band.setAttribute(k, 0));
+            const target = view.ringAt(event.clientX, event.clientY)
+                || view.nodeIdAt(document.elementFromPoint(event.clientX, event.clientY) || svg);
+            if (target && target !== gesture.source) dispatch('link_nodes', { source: gesture.source, target });
         }
         if (gesture?.type === 'drag') {
             store.commit(gesture.outer);

@@ -68,7 +68,7 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
             return;
         }
         view.content.replaceChildren();
-        const content = renderer.mount(node, { dispatch });
+        const content = renderer.mount(node, { dispatch, viewport });
         view.content.appendChild(content);
         view.mounted = { type: node.content_type, el: content };
     }
@@ -224,8 +224,10 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
         focusContent(id) {
             const view = views.get(id);
             if (!view) return;
-            mountContent(store.state.nodes.get(id), view);
-            view.mounted.el.focus?.();
+            const node = store.state.nodes.get(id);
+            mountContent(node, view);
+            const renderer = renderers[node.content_type] || renderers.fallback;
+            if (renderer.focus) renderer.focus(view.mounted.el);
         },
         transformOf: id => views.get(id)?.root.getAttribute('transform'),
     };

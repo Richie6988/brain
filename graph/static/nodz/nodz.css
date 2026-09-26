@@ -1,5 +1,5 @@
 :root {
-    --bg: #05070d;
+    --bg: #050c17;  /* fond de v1 */
     --ink: #e8e6f0;
     --accent: #f3ee58;
     --muted: #6848a6;
@@ -24,8 +24,59 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
     text-align: center; outline: none; overflow: hidden; word-break: break-word; font-size: 16px; cursor: text;
 }
 .node-placeholder { color: var(--muted); font-style: italic; }
+.node-text { color: #379be7; }  /* couleur du texte de v1 */
+
+/* Contenus : un seul type monté à la fois, dans le carré inscrit du node. */
+.node-text-box, .node-media, .node-code-box, .node-drawing { position: relative; width: 100%; height: 100%; }
+.text-tools, .draw-tools {
+    position: absolute; display: none; gap: 2px; align-items: center; padding: 3px 5px; border-radius: 10px;
+    background: rgba(39, 9, 39, 0.85); border: 1px solid var(--line);
+}
+.text-tools { left: 50%; top: calc(100% + 2px); transform: translateX(-50%); }
+.node-text-box:focus-within .text-tools { display: flex; }
+.text-tools button, .draw-tools button, .text-color, .draw-color {
+    width: 20px; height: 20px; min-height: 0; padding: 0; border: 0; background: transparent; cursor: pointer; display: grid; place-items: center; position: relative;
+}
+.text-tools img, .draw-tools img, .text-color img, .draw-color img { width: 16px; height: 16px; pointer-events: none; }
+.text-tools select { min-height: 0; height: 20px; padding: 0 2px; font-size: 10px; border-radius: 6px; }
+.text-color input, .draw-color input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.emoji-picker {
+    position: absolute; top: calc(100% + 4px); left: 0; display: grid; grid-template-columns: repeat(6, 26px); gap: 2px; padding: 4px;
+    border-radius: 10px; background: var(--panel); border: 1px solid var(--line);
+}
+.emoji-picker[hidden] { display: none; }
+.emoji-picker button { width: 26px; height: 26px; font-size: 16px; }
+.node-media { display: grid; place-items: center; overflow: hidden; border-radius: 8px; }
+.node-media > img, .node-media > video { max-width: 100%; max-height: 100%; object-fit: contain; }
+.node-media > audio { width: 100%; }
+.node-media.loading { opacity: 0.5; }
+.node-empty {
+    display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 0; padding: 6px; border: 1px dashed var(--muted);
+    border-radius: 10px; background: transparent; font-size: 11px; color: var(--muted);
+}
+.node-empty img { width: 22px; height: 22px; }
+.file-card { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.file-card iframe { flex: 1; width: 100%; border: 0; border-radius: 6px; background: #fff; }
+.file-icon { width: 40%; max-height: 50%; }
+.file-bar { display: flex; align-items: center; gap: 4px; width: 100%; }
+.file-name { flex: 1; font-size: 11px; color: #379be7; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center; }
+.file-action { width: 18px; height: 18px; min-height: 0; padding: 0; border: 0; background: transparent; display: grid; place-items: center; }
+.file-action img { width: 16px; height: 16px; }
+.stl-stage { width: 100%; height: 100%; display: grid; place-items: center; font-size: 11px; color: var(--muted); cursor: grab; }
+.node-code-box { display: flex; flex-direction: column; }
+.node-code-lang { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+.node-code {
+    flex: 1; width: 100%; resize: none; border: 0; outline: none; background: rgba(0, 0, 0, 0.35); border-radius: 6px; padding: 4px;
+    font: 11px/1.35 'Cascadia Code', ui-monospace, monospace; color: #9cdcfe; white-space: pre; overflow: auto;
+}
+.node-canvas { width: 100%; height: 100%; display: block; border-radius: 6px; background: rgba(255, 255, 255, 0.03); cursor: crosshair; touch-action: none; }
+.draw-tools { right: calc(100% + 6px); top: 50%; transform: translateY(-50%); flex-direction: column; }
+.node-group.selected .draw-tools, .node-drawing:hover .draw-tools { display: flex; }
+.draw-tools .active { background: rgba(243, 238, 88, 0.3); border-radius: 50%; }
+.draw-tools input[type="range"] { width: 20px; height: 60px; writing-mode: vertical-lr; direction: rtl; }
 .edge { stroke-width: 3px; pointer-events: none; }
 .edge.hover { stroke-width: 5px; }
+.link-band { stroke-width: 3px; stroke-dasharray: 6 6; pointer-events: none; }
 .edge-hit { stroke: transparent; stroke-width: 14px; pointer-events: stroke; }
 #nodz[data-links="neutral"] .edge { stroke: #379be7 !important; }
 #nodz[data-links="hidden"] .edges { display: none; }

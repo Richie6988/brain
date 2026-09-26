@@ -48,7 +48,20 @@ async function stream(path, body, onEvent) {
     }
 }
 
+// Envoi d'un fichier (multipart) : renvoie {id, name, mime, size}.
+async function upload(file) {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await fetch(`${BASE}/api/v1/files`, {
+        method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': csrfToken() }, body: form,
+    });
+    if (!response.ok) throw await failure(response);
+    return response.json();
+}
+
 export const api = {
+    upload,
+    fileUrl: (id, download = false) => `${BASE}/api/v1/files/${id}${download ? '?download=1' : ''}`,
     layers: () => request('GET', 'layers'),
     graph: layerId => request('GET', `layers/${layerId}/graph`),
     changes: batch => request('POST', 'changes', batch),
