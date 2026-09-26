@@ -169,8 +169,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'nodzapp/media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'nodzapp.NodzUser'
 
-LOGIN_REDIRECT_URL = 'index'
-LOGOUT_REDIRECT_URL = 'index' 
+LOGIN_REDIRECT_URL = 'universe'
+LOGOUT_REDIRECT_URL = 'home'
 
 
 # Add your email configuration

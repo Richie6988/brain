@@ -1438,36 +1438,6 @@ from django.urls import reverse
 from django.db.models import Q
 
 
-@login_required
-def generate_invite(request, node_ids):
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': 'User must be logged in'}, status=403)
-
-    user = request.user
-    params = Param.objects.filter(user=user)
-    # Parse node_ids and validate nodes belong to the user
-    node_ids = node_ids.split(',')
-    nodes = Node.objects.filter(user=user, node_id__in=node_ids)
-    # Get related links
-    links = Link.objects.filter(Q(user=user) & (Q(linkA__in=node_ids) | Q(linkB__in=node_ids)))
-
-    if not nodes.exists():
-        return JsonResponse({'error': 'No valid nodes selected'}, status=404)
-
-    invite = Invite.objects.create(
-        invited_by=request.user,
-        expires_at=timezone.now() + timezone.timedelta(days=1),  # 1-day expiry
-        max_access=5
-    )
-    invite.params.set(params)
-    invite.nodes.set(nodes)
-    invite.links.set(links)
-
-    # Generate the link
-    invite_link = request.build_absolute_uri(reverse('invite_access', args=[invite.token]))
-    return JsonResponse({'invite_link': invite_link})
-
-
 from django.shortcuts import redirect, get_object_or_404
 from django.http import JsonResponse
 from django.utils import timezone
@@ -1618,7 +1588,6 @@ def get_file(request, token, filename):
 validation_codes = {}
 
 # View to send the validation code to the user's email
-@csrf_exempt
 def send_validation_code(request):
     if request.method == 'POST':
         email = request.POST.get('email')
@@ -1645,7 +1614,6 @@ def send_validation_code(request):
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 # View to verify the code entered by the user
-@csrf_exempt
 def verify_validation_code(request):
     if request.method == 'POST':
         email = request.POST.get('email')
