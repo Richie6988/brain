@@ -1268,7 +1268,7 @@ def referree(request, r_id):
     try:
         referrer = NodzUser.objects.get(id=r_id)        
         # Redirect the user to /you/ with the r_id as a query parameter
-        return redirect(f'/universe?r={r_id}')
+        return redirect(f"{reverse('universe')}?r={r_id}")
     except NodzUser.DoesNotExist:
         return HttpResponse('Referrer not found.', status=404)
 

@@ -550,7 +550,7 @@ async function exportSVGToPDF(svgElement, filename = 'Nod-Z.pdf') {
     const height = (bbox.height)*0.3 + 10;
 
     const img = new Image(); 
-    img.src = "/static/img/logo_img.png"; 
+    img.src = NODZ_BASE + "/static/img/logo_img.png"; 
     const logoScale = 0.002*(width+height)/2;
     console.log(logoScale);
     const imgHeight = Math.max(49.5,49.5*logoScale);

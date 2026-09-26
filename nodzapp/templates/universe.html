@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-base="{{ NODZ_BASE }}">
 {% load static %}
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, user-scalable=no">
-    <link rel="icon" href="/static/img/icon.png" type="image/png">
+    <link rel="icon" href="{% static 'img/icon.png' %}" type="image/png">
     <title>Nod-Z</title> 
     
     <!-- CSS files -->               
@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{% static 'css/calendar.css' %}">
 
     <!-- JS files -->
+    <script src="{% static 'js/base.js' %}"></script>
     <script src="{% static 'js/STLviewer.js' %}"></script>
     <script src="{% static 'js/colorWheel.js' %}"></script>
     <script src="{% static 'js/customThree.js' %}"></script>
@@ -47,7 +48,7 @@
     </div>
  
       <div id="brand-container">
-        <img id="logo" style="width:200px" src="/static/img/logo.svg" >
+        <img id="logo" style="width:200px" src="{% static 'img/logo.svg' %}" >
     </div>
     <div id="customCursor"></div>
     <div id="calendarOverlay" class="overlay"></div>
@@ -88,7 +89,7 @@
             <div style="display: flex; flex-direction: row;align-items: center;">
                 <input type="text" id="layer-name-input" placeholder="Enter new name" />
                 <span id="delete-layer" class="delete-layer" style="display: none;">
-                    <img src="/static/img/delete.svg" width="20" height="20" alt="Delete" class="icon">
+                    <img src="{% static 'img/delete.svg' %}" width="20" height="20" alt="Delete" class="icon">
                 </span>
             </div>
         </div>

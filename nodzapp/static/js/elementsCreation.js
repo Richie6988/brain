@@ -1757,7 +1757,7 @@ function createNode(x,y,id) {
             formData.append('nodeID', nodeID);
             formData.append('layer', layerNumber);
 
-            const csrfToken = getCookie('csrftoken');            
+            const csrfToken = getCookie('nodz_csrftoken');            
             spinner.style.display = 'block';
             fetch(this.getAttribute('hx-post'), {
                 method: 'POST',
@@ -1862,7 +1862,7 @@ function createNode(x,y,id) {
       
         const tagName = nodeGroup.getAttribute('filename');
         const id = parseInt(nodeGroup.id.match(/\d+/)[0], 10);
-        const csrfToken = getCookie('csrftoken');
+        const csrfToken = getCookie('nodz_csrftoken');
 
         fetch('/download-file/', {
             method: 'POST',

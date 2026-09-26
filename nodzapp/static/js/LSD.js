@@ -36,7 +36,7 @@ observer.observe(log, config);
 
 
 function referrer(rId){
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     const data = [];
     data.push({ 
         referrer: rId, 
@@ -70,7 +70,7 @@ function load(layer,nodeID){
     selectedNodes.length = 0;
     players = [];
     currentNode = null;
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     fetch('/loading/', {
         method: 'POST',
         headers: {
@@ -404,7 +404,7 @@ function loadParams(param) {
 }
 
 function loadFile(nodeID, fileName, spinner, filePreview, fileContainer) {
-    const csrfToken = getCookie('csrftoken');            
+    const csrfToken = getCookie('nodz_csrftoken');            
     fetch('/load-file/', {
         method: 'POST',
         headers: {
@@ -526,7 +526,7 @@ function save(nodeGroup,tunnel){
             fullscreen: fullscreen,
         })
 
-        const csrfToken = getCookie('csrftoken');
+        const csrfToken = getCookie('nodz_csrftoken');
 
         fetch('/save-node/', {
             method: 'POST',
@@ -563,7 +563,7 @@ function saveQuantum(id,tunnelid){
         layer: layer,
     });
 
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
 
     fetch('/save-quantum/', {
         method: 'POST',
@@ -600,7 +600,7 @@ function deleteQuantum(id){
         id: parseInt(id.match(/\d+/)[0], 10),
     });
 
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
 
     fetch('/delete-quantum/', {
         method: 'POST',
@@ -698,7 +698,7 @@ function deleteNode(nodes) {
 }
 
 function deleteFetch (data){
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     // Set up headers
     const headers = {
         'Content-Type': 'application/json',

@@ -64,3 +64,13 @@ class DeploymentTests(TestCase):
         response = self.client.get('/healthz')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {'status': 'ok'})
+
+    def test_universe_exposes_url_prefix_and_loads_base_js_first(self):
+        html = self.client.get('/universe').content.decode()
+        self.assertIn('data-base=""', html)
+        self.assertLess(html.index('js/base.js'), html.index('js/STLviewer.js'))
+
+    def test_cookies_do_not_collide_with_paintit(self):
+        response = self.client.get('/login/')
+        self.assertIn('nodz_csrftoken', response.cookies)
+        self.assertNotIn('csrftoken', response.cookies)

@@ -221,7 +221,7 @@ semanticsearch.addEventListener('mousedown', function() {
 
 
 function searchrequest(data){
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     resultsprio = 0;
    
     // Set up headers
@@ -928,7 +928,7 @@ function multiUsers() {
     
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token'); 
-    const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/?token=${token}`);
+    const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${NODZ_BASE}/ws/?token=${token}`);
 
     // Listen for socket events
     socket.onopen = function() {

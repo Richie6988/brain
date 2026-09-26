@@ -199,7 +199,7 @@ function administration() {
 // }
 
 function getUsers() {    
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     fetch('/admin-users/', {
         method: 'POST',
         headers: {
@@ -210,7 +210,7 @@ function getUsers() {
         if (!response.ok) {
             if (response.status === 403) {  
                 alert("Access denied. Logging out...");
-                window.location.href = '/logout/'; 
+                window.location.href = NODZ_BASE + '/logout/'; 
             }
             throw new Error('Network response was not ok');
         } 
@@ -326,7 +326,7 @@ function adminload(userID,layer){
     selectedNodes.length = 0;
     players = [];
     currentNode = null;
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     fetch('/admin-loading/', {
         method: 'POST',
         headers: {

@@ -1,3 +1,4 @@
+{% load static %}
 <style>
     /* Scrollbar Styling */
     ::-webkit-scrollbar {
@@ -226,7 +227,7 @@
         font-size: 16px;   
         color: white;     
         background-color: transparent; 
-        background-image: url('/static/img/mail.svg');
+        background-image: url('{% static 'img/mail.svg' %}');
         background-size: contain; 
         background-repeat: no-repeat; 
         background-position: center center;
@@ -345,15 +346,15 @@
                     </p>
                 </div>
                 
-                <form id="payment-form" action="/process-payment" method="POST">
+                <form id="payment-form" action="{% url 'process_payment' %}" method="POST">
                     <!-- Terms Agreement -->
                     <div class="form-group">
                         <input type="checkbox" id="agree-terms" name="agree-terms" required>
                         <span for="agree-terms">
                             I agree to the 
-                            <a href="/terms" style="color:#663399" target="_blank">Terms and Conditions</a> 
+                            <a href="{% url 'terms' %}" style="color:#663399" target="_blank">Terms and Conditions</a> 
                             and 
-                            <a href="/privacy" style="color:#663399" target="_blank">Privacy Policy</a>.
+                            <a href="{% url 'privacy' %}" style="color:#663399" target="_blank">Privacy Policy</a>.
                         </span>
                     </div>
                     <!-- Plan Selection -->
@@ -410,7 +411,7 @@
                 return;
             }
             const data = [{message: message}];      
-            const csrfToken = getCookie('csrftoken');
+            const csrfToken = getCookie('nodz_csrftoken');
 
             // Send the feedback using fetch
             fetch('/submit-feedback/', {
@@ -491,7 +492,7 @@
 
         function deleteAccount() {
             const data = [];      
-            const csrfToken = getCookie('csrftoken');
+            const csrfToken = getCookie('nodz_csrftoken');
             fetch('/delete-account/', {
                 method: 'POST',
                 headers: {
@@ -534,7 +535,7 @@
         let nodeCategoryChart;
         function getProfile() {
             const data = [];      
-            const csrfToken = getCookie('csrftoken');
+            const csrfToken = getCookie('nodz_csrftoken');
             fetch('/get-profile/', {
                 method: 'POST',
                 headers: {
@@ -663,7 +664,7 @@
         }
 
         function saveProfile(data) {    
-            const csrfToken = getCookie('csrftoken');
+            const csrfToken = getCookie('nodz_csrftoken');
             fetch('/save-profile/', {
                 method: 'POST',
                 headers: {
@@ -850,7 +851,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-CSRFToken': getCookie('nodz_csrftoken'),
                 },
                 body: `email=${encodeURIComponent(email)}`
             });
@@ -879,7 +880,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-CSRFToken': getCookie('nodz_csrftoken'),
                 },
                 body: `email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`
             });
@@ -991,7 +992,7 @@
         document.getElementById('payment-form').addEventListener('submit', async (e) => {
             e.preventDefault();    
             const plan = document.getElementById('plan').value;
-            const csrfToken = getCookie('csrftoken');
+            const csrfToken = getCookie('nodz_csrftoken');
 
             // Send request to your Django backend to create a PaymentIntent
             const response = await fetch('/process-payment/', {

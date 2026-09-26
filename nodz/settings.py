@@ -35,6 +35,13 @@ if not SECRET_KEY or (not DEBUG and SECRET_KEY.startswith('dev-only')):
     raise ImproperlyConfigured('DJANGO_SECRET_KEY must be set (see .env.example)')
 
 ALLOWED_HOSTS = [h for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') if h]
+
+# Préfixe d'URL quand Nodz est servi sous un chemin (ex. /nodz derrière le nginx de paintit).
+FORCE_SCRIPT_NAME = os.environ.get('NODZ_URL_PREFIX', '').rstrip('/') or None
+# Noms propres à Nodz : sur un domaine partagé, sessionid/csrftoken entreraient en collision.
+SESSION_COOKIE_NAME = 'nodz_sessionid'
+CSRF_COOKIE_NAME = 'nodz_csrftoken'
+SESSION_COOKIE_PATH = CSRF_COOKIE_PATH = (FORCE_SCRIPT_NAME or '') + '/'
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o]
 
 if not DEBUG:
@@ -109,6 +116,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'nodzapp.context_processors.nodz_base',
             ],
         },
     },
@@ -165,7 +173,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = (FORCE_SCRIPT_NAME or '') + '/static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'nodzapp/static'),
     # Add more app static directories if necessary
@@ -175,7 +183,7 @@ STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
 }
-MEDIA_URL = 'media/'
+MEDIA_URL = (FORCE_SCRIPT_NAME or '') + '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'nodzapp/media')
 
 LOGGING = {

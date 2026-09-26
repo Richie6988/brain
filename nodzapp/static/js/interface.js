@@ -100,7 +100,7 @@ styleElement.id = 'linksButton-style';
 document.head.appendChild(styleElement);
 styleElement.textContent = `
 #linksButton::after {
-    background: url('/static/img/gradlink.svg') no-repeat center/cover;
+    background: url('${NODZ_BASE}/static/img/gradlink.svg') no-repeat center/cover;
     background-size: 90%;
 }`;
 
@@ -112,7 +112,7 @@ document.getElementById('linksButton').addEventListener('click', function() {
     if (linkState === 0){
         styleElement.textContent = `
         #linksButton::after {
-            background: url('/static/img/link.svg') no-repeat center/cover;
+            background: url('${NODZ_BASE}/static/img/link.svg') no-repeat center/cover;
             background-size: 90%;
         }`;
 
@@ -130,7 +130,7 @@ document.getElementById('linksButton').addEventListener('click', function() {
     } else if (linkState === 1){
         styleElement.textContent = `
         #linksButton::after {
-            background: url('/static/img/nolink.svg') no-repeat center/cover;
+            background: url('${NODZ_BASE}/static/img/nolink.svg') no-repeat center/cover;
             background-size: 90%;
         }`;
 
@@ -141,7 +141,7 @@ document.getElementById('linksButton').addEventListener('click', function() {
     } else {
         styleElement.textContent = `
         #linksButton::after {
-            background: url('/static/img/gradlink.svg') no-repeat center/cover;
+            background: url('${NODZ_BASE}/static/img/gradlink.svg') no-repeat center/cover;
             background-size: 90%;
         }`;
 
@@ -975,7 +975,7 @@ function login() {
             buttonContainer.style.display = 'none';     
         }
         pendingLogin = true;        
-        iframe.src = '/login/';    
+        iframe.src = NODZ_BASE + '/login/';    
     });
     buttonContainer.appendChild(loginButton);
 
@@ -1387,7 +1387,7 @@ function extractYouTubeVideoId(url,counter) {
         stopAlternatingColor(document.getElementById(`leftButton-${counter}`),document.getElementById(`rightButton-${counter}`));
         return match ? match[1] : null;
     } else {
-        const csrfToken = getCookie('csrftoken');
+        const csrfToken = getCookie('nodz_csrftoken');
   
         fetch('YTsearch/', {
             method: 'POST',

@@ -239,7 +239,7 @@ function saveLayers() {
       layercounter: layerCounter,
       layer: layerNumber,
     });
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     fetch('/save-layers/', {
         method: 'POST',
         headers: {
@@ -265,7 +265,7 @@ function deleteLayer(layer,index) {
         layerid: layerid,
         layername: layerName,
     });    
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('nodz_csrftoken');
     fetch('/delete-layer/', {
         method: 'POST',
         headers: {

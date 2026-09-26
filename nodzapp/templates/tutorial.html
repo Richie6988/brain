@@ -1,3 +1,4 @@
+{% load static %}
 <head>
     <style>
         .tutorialContent {
@@ -185,37 +186,37 @@
                                 <!-- Text Mode Buttons -->
                                 <foreignObject class="stylebutton" x="55" y="125">
                                     <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
-                                        <img src="/static/img/select-light.svg" style="width:10px;height:10px" alt="Bold" class="stylebuttonimg"/>
+                                        <img src="{% static 'img/select-light.svg' %}" style="width:10px;height:10px" alt="Bold" class="stylebuttonimg"/>
                                     </div>                                
                                 </foreignObject>
 
                                 <foreignObject class="stylebutton" x="70" y="125">
                                     <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
-                                        <img src="/static/img/bold-light.svg" style="width:10px;height:10px" alt="Bold" class="stylebuttonimg"/>
+                                        <img src="{% static 'img/bold-light.svg' %}" style="width:10px;height:10px" alt="Bold" class="stylebuttonimg"/>
                                     </div>
                                 </foreignObject>
                                 
                                 <foreignObject class="stylebutton" x="83" y="125" width="20" height="20">
                                     <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
-                                        <img src="/static/img/italic-light.svg" style="width:10px;height:10px" alt="Italic" class="stylebuttonimg"/>
+                                        <img src="{% static 'img/italic-light.svg' %}" style="width:10px;height:10px" alt="Italic" class="stylebuttonimg"/>
                                     </div>
                                 </foreignObject>
                                 
                                 <foreignObject class="stylebutton" x="95" y="125" width="25" height="25">
                                     <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
-                                        <img src="/static/img/underline-light.svg" alt="Underline" class="stylebuttonimg"/>
+                                        <img src="{% static 'img/underline-light.svg' %}" alt="Underline" class="stylebuttonimg"/>
                                     </div>
                                 </foreignObject>
                                 
                                 <foreignObject class="stylebutton" x="110" y="125" width="25" height="25">
                                     <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
-                                        <img src="/static/img/colorpicking-light.svg" style="width:10px;height:10px" alt="Font Color" class="stylebuttonimg"/>
+                                        <img src="{% static 'img/colorpicking-light.svg' %}" style="width:10px;height:10px" alt="Font Color" class="stylebuttonimg"/>
                                     </div>
                                 </foreignObject>
                                 
                                 <foreignObject class="stylebutton" x="125" y="125" width="25" height="25">
                                     <div xmlns="http://www.w3.org/1999/xhtml" class="stylebuttoncontainer">
-                                        <img src="/static/img/smiley-light.svg" alt="Smiley" class="stylebuttonimg"/>
+                                        <img src="{% static 'img/smiley-light.svg' %}" alt="Smiley" class="stylebuttonimg"/>
                                     </div>
                                 </foreignObject>
                             </g>
@@ -232,7 +233,7 @@
                                 <circle class="hitbox" cx="100" cy="100" r="60" style="stroke:#a64896"></circle>
                                 <foreignObject x="40" y="40" width="120" height="120">
                                     <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center;">
-                                        <img src="/static/img/owl.png" alt="Node Image" style="max-width:69%; max-height:69%; object-fit: contain;"/>
+                                        <img src="{% static 'img/owl.png' %}" alt="Node Image" style="max-width:69%; max-height:69%; object-fit: contain;"/>
                                     </div>
                                 </foreignObject>
                             </g>
@@ -249,7 +250,7 @@
                                 <circle class="hitbox" cx="100" cy="100" r="60" style="stroke:#48a677"></circle>
                                 <foreignObject x="40" y="40" width="120" height="120">
                                     <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center;">
-                                        <img src="/static/img/videoplayer.svg" alt="Node Image" style="max-width:69%; max-height:69%; object-fit: contain;"/>
+                                        <img src="{% static 'img/videoplayer.svg' %}" alt="Node Image" style="max-width:69%; max-height:69%; object-fit: contain;"/>
                                         <div style="width:100%; height:7%; display:flex; justify-content:center; align-items:center;">
                                             <span class="arrow-button prev">&lt;</span>        
                                             <input type="text" style="width: 50%;" autocomplete="off"/>        

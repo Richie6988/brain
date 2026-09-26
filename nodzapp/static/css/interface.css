@@ -142,28 +142,28 @@
 }
 
 #originButton::after {
-  background: url('/static/img/reset.svg')no-repeat center/cover;
+  background: url('../img/reset.svg')no-repeat center/cover;
   background-size: 90%;
 }
 
 #linksButton::after {
-  background: url('/static/img/gradlink.svg')no-repeat center/cover;
+  background: url('../img/gradlink.svg')no-repeat center/cover;
   background-size: 90%;
 }
 
 
 #flagButton::after {
-  background: url('/static/img/flag.svg')no-repeat center/cover;
+  background: url('../img/flag.svg')no-repeat center/cover;
   background-size: 70%;
 }
 
 #fullscreenButton::after {
-  background: url('/static/img/full-screen.svg')no-repeat center/cover;
+  background: url('../img/full-screen.svg')no-repeat center/cover;
   background-size: 65%;
 }
 
 #tutorialButton::after {
-  background: url('/static/img/tuto.svg')no-repeat center/cover;
+  background: url('../img/tuto.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
@@ -190,26 +190,26 @@
 }
 
 #shareButton::after {
-  background: url('/static/img/share.svg')no-repeat center/cover;
+  background: url('../img/share.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
 .export::after {
-  background: url('/static/img/export.svg')no-repeat center/cover;
+  background: url('../img/export.svg')no-repeat center/cover;
   background-size: 80%;
 }
 .save::after {
-  background: url('/static/img/save.svg')no-repeat center/cover;
+  background: url('../img/save.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
 #profileButton::after {
-  background: url('/static/img/profile.svg')no-repeat center/cover;
+  background: url('../img/profile.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
 #notificationButton::after {
-  background: url('/static/img/bell.svg')no-repeat center/cover;
+  background: url('../img/bell.svg')no-repeat center/cover;
   background-size: 100%;
 }
 
@@ -229,7 +229,7 @@
 }
 
 #darkButton::after {
-  background: url('/static/img/darklight.svg')no-repeat center/cover;
+  background: url('../img/darklight.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
@@ -238,26 +238,26 @@
 }
 
 .soundon::after {
-  background: url('/static/img/soundon.svg')no-repeat center/cover;
+  background: url('../img/soundon.svg')no-repeat center/cover;
   background-size: 100%;
 }
 .soundoff::after {
-  background: url('/static/img/nosound.svg')no-repeat center/cover;
+  background: url('../img/nosound.svg')no-repeat center/cover;
   background-size: 100%;
 }
 
 #templateButton::after {
-  background: url('/static/img/template.svg')no-repeat center/cover;
+  background: url('../img/template.svg')no-repeat center/cover;
   background-size: 80%;
 }
 
 #quantumButton::after {
-  background: url('/static/img/quantum.svg')no-repeat center/cover;
+  background: url('../img/quantum.svg')no-repeat center/cover;
   background-size: 100%;
 }
 
 #statsButton::after {
-  background: url('/static/img/stats.svg')no-repeat center/cover;
+  background: url('../img/stats.svg')no-repeat center/cover;
   background-size: 80%;
 }
 #statsButton {
@@ -265,7 +265,7 @@
 }
 
 #usersButton::after {
-  background: url('/static/img/users.svg')no-repeat center/cover;
+  background: url('../img/users.svg')no-repeat center/cover;
   background-size: 80%;
 }
 #usersButton {
@@ -1042,7 +1042,7 @@
   /* left: -10px; Adjust as needed */
   width: 20px;
   height: 20px;
-  background-image: url('/static/img/pen-cursor.svg');
+  background-image: url('../img/pen-cursor.svg');
   background-size: contain;
   background-repeat: no-repeat;
   pointer-events: none; /* Allow clicks to pass through */
