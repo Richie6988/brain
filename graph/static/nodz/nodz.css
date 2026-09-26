@@ -1,0 +1,32 @@
+:root {
+    --bg: #05070d;
+    --ink: #e8e6f0;
+    --accent: #f3ee58;
+    --muted: #6848a6;
+    color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; overflow: hidden; }
+#nodz { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; user-select: none; }
+.ring { fill: none; stroke-width: 4px; }
+.ring-hit { fill: none; stroke: transparent; stroke-width: 16px; pointer-events: stroke; cursor: grab; }
+.node-group.selected .ring { stroke: var(--accent) !important; stroke-width: 7px; }
+.node-group.draft { opacity: 0.55; }
+.node-group.portal .ring { stroke-dasharray: 10 6; }
+.node-group[data-shape="none"] .ring { stroke: transparent !important; }
+.content { overflow: visible; }
+.node-text, .node-placeholder {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    text-align: center; outline: none; overflow: hidden; word-break: break-word; font-size: 16px; cursor: text;
+}
+.node-placeholder { color: var(--muted); font-style: italic; }
+.edge { stroke: var(--muted); stroke-width: 2px; }
+.selection-box { fill: rgba(243, 238, 88, 0.08); stroke: var(--accent); stroke-dasharray: 4 4; }
+#login { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); }
+#login[hidden] { display: none; }
+#login .panel { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+#login button, #login a {
+    min-width: 160px; min-height: 44px; border: 1px solid var(--muted); border-radius: 8px;
+    background: transparent; color: var(--ink); font-size: 16px; text-decoration: none; display: grid; place-items: center; cursor: pointer;
+}
+#status { position: fixed; left: 16px; bottom: 16px; font-size: 13px; color: var(--muted); }

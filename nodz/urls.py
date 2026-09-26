@@ -19,6 +19,8 @@ from django.db import connection
 from django.http import JsonResponse
 from django.urls import path, include
 
+from graph import views as graph_views
+
 
 def healthz(request):
     with connection.cursor() as cursor:
@@ -29,6 +31,7 @@ def healthz(request):
 urlpatterns = [
     path('healthz', healthz),
     path('api/v1/', include('graph.urls')),
+    path('next', graph_views.next_page, name='next'),
     path('admin/', admin.site.urls),
     path('', include('nodzapp.urls')),
 ]
