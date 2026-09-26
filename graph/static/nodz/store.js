@@ -12,6 +12,7 @@ export function createStore() {
         nodes: new Map(),    // id → {id, layer, x, y, radius, shape, color, lock, content_type, payload, status, version}
         edges: new Map(),    // id → {id, source, target, kind}
         selection: [],       // ids, dans l'ordre de sélection
+        portalEnds: new Map(),  // id d'un node d'un autre plan relié par portail → id de son plan
     };
     const listeners = new Map();
     const dirty = { nodes: new Set(), edges: new Set(), layers: new Set(), deletedNodes: new Set(), deletedEdges: new Set() };
@@ -85,6 +86,13 @@ export function createStore() {
             if (!listeners.has(event)) listeners.set(event, []);
             listeners.get(event).push(fn);
         },
+        once(event, fn) {
+            const wrapper = detail => {
+                listeners.set(event, listeners.get(event).filter(f => f !== wrapper));
+                fn(detail);
+            };
+            this.on(event, wrapper);
+        },
         register(catalog) { actions = catalog; },
         catalog: () => actions,
         // Exécute une action du catalogue. `record: false` pour les actions sans historique (sélection).
@@ -148,6 +156,7 @@ export function createStore() {
                 };
                 steps.push(swap(map.get(id), next));
             };
+            nodes.filter(n => n.layer !== state.layerId).forEach(n => state.portalEnds.set(n.id, n.layer));
             nodes.filter(n => n.layer === state.layerId).forEach(n => {
                 track(state.nodes, n.id, n, write.putNode, write.removeNode);
                 state.nodes.set(n.id, n);
@@ -174,13 +183,14 @@ export function createStore() {
             return steps.length ? combine(steps) : null;
         },
         // Chargement depuis le serveur : n'est pas une modification.
-        hydrate({ layers, layer, nodes, edges }) {
+        hydrate({ layers, layer, nodes, edges, portal_ends: ends = [] }) {
             if (layers) layers.forEach(l => state.layers.set(l.id, l));
             if (layer) state.layerId = layer.id;
             state.nodes.clear();
             state.edges.clear();
             nodes.forEach(n => state.nodes.set(n.id, n));
             edges.forEach(e => state.edges.set(e.id, e));
+            state.portalEnds = new Map(ends.map(end => [end.id, end.layer]));
             state.selection = [];
             emit('store:hydrated');
         },

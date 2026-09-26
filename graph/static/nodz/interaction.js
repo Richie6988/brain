@@ -44,6 +44,49 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
         if (selection.length) dispatch('select', { ids: [] });
     }
 
+    // Copier, couper, coller (v1) : collage au pointeur autour du barycentre ; un couper-coller
+    // garde les identifiants (le node revient, historique compris), un second collage fait des copies.
+    let clipboard = null;
+    function copy(cut) {
+        const ids = new Set(store.state.selection);
+        if (!ids.size) return;
+        const nodes = [...ids].map(id => ({ ...store.state.nodes.get(id) }));
+        const edges = [...store.state.edges.values()].filter(e => e.kind === 'link' && ids.has(e.source) && ids.has(e.target)).map(e => ({ ...e }));
+        const bx = nodes.reduce((sum, n) => sum + n.x, 0) / nodes.length;
+        const by = nodes.reduce((sum, n) => sum + n.y, 0) / nodes.length;
+        clipboard = { nodes, edges, bx, by, cut };
+        if (cut) dispatch('delete_nodes', { ids: [...ids] });
+        dispatch('select', { ids: [] });
+    }
+    function paste() {
+        if (!clipboard) return;
+        const { nodes, edges, bx, by, cut } = clipboard;
+        const p = viewport.toUniverse(pointer.x, pointer.y);
+        const ids = new Map(nodes.map(n => [n.id, cut ? n.id : crypto.randomUUID()]));
+        const placed = nodes.map(n => ({ ...n, id: ids.get(n.id), x: p.x + n.x - bx, y: p.y + n.y - by, version: 0 }));
+        dispatch('paste_nodes', {
+            nodes: placed,
+            edges: edges.map(e => ({ ...e, id: cut ? e.id : crypto.randomUUID(), source: ids.get(e.source), target: ids.get(e.target) })),
+        });
+        clipboard = { ...clipboard, cut: false };
+        dispatch('select', { ids: placed.map(n => n.id) });
+    }
+
+    // Glisser près d'un bord (v1) : la vue défile et la sélection suit le pointeur.
+    let scrolling = null;
+    function edgeScroll() {
+        scrolling = null;
+        if (gesture?.type !== 'drag') return;
+        const margin = 50;
+        const speed = d => (d < margin ? (margin - d) / margin * 12 : 0);
+        const dx = speed(pointer.x) - speed(window.innerWidth - pointer.x);
+        const dy = speed(pointer.y) - speed(window.innerHeight - pointer.y);
+        if (!dx && !dy) return;
+        viewport.pan(dx, dy);
+        dispatch('move_nodes', { ids: store.state.selection, dx: -dx / viewport.state.zoom, dy: -dy / viewport.state.zoom });
+        scrolling = requestAnimationFrame(edgeScroll);
+    }
+
     // Liens (v1) : au survol, flèche vers l'extrémité la plus éloignée ; clic = voyage ; Suppr = supprimer.
     let hoveredEdge = null;
     function hoverEdge(id, x, y) {
@@ -89,6 +132,7 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
             blurEditing();
             if (!store.state.selection.includes(nodeId)) dispatch('select', { ids: [...store.state.selection, nodeId] });
             gesture = { type: 'drag', x: event.clientX, y: event.clientY, outer: store.begin() };
+            document.body.classList.add('dragging');
         } else if (!nodeId) {
             event.preventDefault();
             blurEditing();
@@ -114,6 +158,7 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
             dispatch('move_nodes', { ids: store.state.selection, dx: (event.clientX - gesture.x) / zoom, dy: (event.clientY - gesture.y) / zoom });
             gesture.x = event.clientX;
             gesture.y = event.clientY;
+            if (!scrolling) scrolling = requestAnimationFrame(edgeScroll);
         } else if (gesture.type === 'rect') {
             const x = Math.min(gesture.x0, event.clientX);
             const y = Math.min(gesture.y0, event.clientY);
@@ -136,19 +181,22 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
             dispatch('select', { ids: [...new Set([...store.state.selection, ...inside])] });
             ['width', 'height'].forEach(k => rect.setAttribute(k, 0));
         }
-        if (gesture?.type === 'drag') store.commit(gesture.outer);
+        if (gesture?.type === 'drag') {
+            store.commit(gesture.outer);
+            document.body.classList.remove('dragging');
+        }
         gesture = null;
     });
 
-    svg.addEventListener('dblclick', event => {
-        // La capture du pointeur (drag) envoie le double-clic au SVG : on regarde sous le pointeur.
-        const target = document.elementFromPoint(event.clientX, event.clientY) || event.target;
-        const nodeId = view.nodeIdAt(target);
-        if (nodeId && target.classList?.contains('ring-hit')) {
-            nav.play(nav.gestures.focus(nodeId));
+    document.addEventListener('dblclick', event => {
+        if (!svg.contains(event.target) && !event.target.closest?.('#size-handle')) return;
+        // Test géométrique (v1) : la capture du pointeur et la poignée de taille masquent la cible réelle.
+        const ringId = view.ringAt(event.clientX, event.clientY);
+        if (ringId) {
+            nav.play(nav.gestures.focus(ringId));
             return;
         }
-        if (nodeId) return;
+        if (view.nodeIdAt(document.elementFromPoint(event.clientX, event.clientY) || event.target)) return;
         event.preventDefault();
         createAtPointer();
     });
@@ -171,6 +219,11 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
         } else if ((event.key === 'Delete' || event.key === 'Backspace') && selection.length) {
             event.preventDefault();
             dispatch('delete_nodes', { ids: [...selection] });
+        } else if (mod && ['c', 'x'].includes(event.key.toLowerCase())) {
+            copy(event.key.toLowerCase() === 'x');
+        } else if (mod && event.key.toLowerCase() === 'v') {
+            event.preventDefault();
+            paste();
         } else if (mod && event.key.toLowerCase() === 'a') {
             event.preventDefault();
             dispatch('select', { ids: [...store.state.nodes.values()].filter(n => n.layer === store.state.layerId).map(n => n.id) });

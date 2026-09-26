@@ -195,6 +195,20 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
         viewOf: id => views.get(id),
         nodeIdAt: target => target.closest?.('.node-group')?.dataset.id,
         edgeIdAt: target => target.closest?.('.edge-hit')?.dataset.edge,
+        // Zone de l'anneau au point écran (x, y), géométrique comme selectionArea de v1 :
+        // entre 0,7 r et r + 10 du centre (carré : même bande sur le bord du carré).
+        ringAt(x, y) {
+            const { zoom } = viewport.state;
+            const hit = [...store.state.nodes.values()].reverse().find(node => {
+                if (node.layer !== store.state.layerId) return false;
+                const c = this.screenCenter(node.id);
+                const dx = Math.abs(x - c.x) / zoom;
+                const dy = Math.abs(y - c.y) / zoom;
+                const d = node.shape === 'square' ? Math.max(dx, dy) : Math.hypot(dx, dy);
+                return d >= 0.7 * node.radius && d <= node.radius + 10;
+            });
+            return hit?.id;
+        },
         edgeLine: id => edgeViews.get(id)?.line,
         // Point de l'anneau (bord droit) en coordonnées écran : cible pour sélectionner et glisser.
         ringPoint(id) {

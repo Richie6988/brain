@@ -20,9 +20,6 @@ export function bindToolbar({ svg, store, nav }) {
     let matches = [];
     let cursor = -1;
 
-    // Un bouton ne garde pas le focus : les raccourcis du canevas restent actifs.
-    $('toolbar').addEventListener('click', event => event.target.closest('button')?.blur());
-
     $('fullscreen-button').addEventListener('click', () => {
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});

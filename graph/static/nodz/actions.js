@@ -88,6 +88,53 @@ export const actions = {
             return redo();
         },
     },
+    paste_nodes: {
+        description: 'Colle des nodes complets (et leurs liens) sur le plan courant.',
+        params: { nodes: 'node[]', edges: 'edge[]' },
+        run(store, { nodes, edges = [] }) {
+            const layer = store.state.layerId;
+            const placed = nodes.map(n => ({ ...n, layer, status: 'accepted' }));
+            const redo = () => {
+                placed.forEach(n => store.write.putNode({ ...n }));
+                edges.forEach(e => store.write.putEdge({ ...e }));
+                return undo;
+            };
+            const undo = () => {
+                edges.forEach(e => store.write.removeEdge(e.id));
+                placed.forEach(n => store.write.removeNode(n.id));
+                return redo;
+            };
+            return redo();
+        },
+    },
+    move_to_layer: {
+        description: "Envoie des nodes sur un autre plan ; leurs liens vers ceux qui restent deviennent des portails.",
+        params: { ids: 'node_id[]', layer: 'layer_id' },
+        run(store, { ids, layer }) {
+            if (!store.state.layers.has(layer) || layer === store.state.layerId) return null;
+            const nodes = ids.map(id => store.state.nodes.get(id)).filter(n => n && !n.lock).map(n => ({ ...n }));
+            const moved = new Set(nodes.map(n => n.id));
+            const edges = [...store.state.edges.values()]
+                .filter(e => moved.has(e.source) !== moved.has(e.target)).map(e => ({ ...e }));
+            const redo = () => {
+                nodes.forEach(n => {
+                    store.write.putNode({ ...n, layer });
+                    store.state.portalEnds.set(n.id, layer);
+                });
+                edges.forEach(e => store.write.putEdge({ ...e, kind: 'portal' }));
+                return undo;
+            };
+            const undo = () => {
+                nodes.forEach(n => {
+                    store.write.putNode({ ...n });
+                    store.state.portalEnds.delete(n.id);
+                });
+                edges.forEach(e => store.write.putEdge({ ...e }));
+                return redo;
+            };
+            return nodes.length ? redo() : null;
+        },
+    },
     unlink: {
         description: 'Supprime un lien.',
         params: { id: 'edge_id' },

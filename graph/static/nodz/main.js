@@ -6,6 +6,7 @@ import { bindCommand } from './command.js';
 import { bindInteractions } from './interaction.js';
 import { bindLibrary } from './library.js';
 import { createNavigation } from './navigation.js';
+import { bindNodeTools } from './nodetools.js';
 import { createRenderer } from './render.js';
 import { createStore } from './store.js';
 import { bindToolbar } from './toolbar.js';
@@ -24,6 +25,7 @@ const view = createRenderer({ svg, universe, store, viewport, dispatch: (name, p
 const nav = createNavigation({ viewport, store, view });
 bindInteractions({ svg, store, viewport, view, sync, nav });
 bindToolbar({ svg, store, nav });
+bindNodeTools({ store, viewport, view, nav, icons: Object.fromEntries(Object.entries(document.getElementById('node-tools').dataset).map(([k, v]) => [k.replace(/^icon/, '').toLowerCase(), v])) });
 bindCommand({ svg, store, viewport, sync });
 bindLibrary();
 
@@ -67,6 +69,11 @@ document.getElementById('guest').addEventListener('click', async () => {
     await boot();
 });
 window.addEventListener('beforeunload', () => sync.flush());
+// Les commandes du canevas (barre haute, outils du node) ne gardent pas le focus : les raccourcis restent actifs.
+['click', 'change'].forEach(type => document.addEventListener(type, event => {
+    const control = event.target.closest?.('#toolbar button, .anchor button, .anchor select');
+    if (control) control.blur();
+}));
 
 // Point d'accès du banc tests/feel : même observables que l'ancienne interface.
 window.__nodzFeel = {
