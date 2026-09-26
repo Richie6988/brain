@@ -396,6 +396,27 @@ class GuardianTests(TestCase):
         self.assertEqual(entry.payload['text']['html'], 'Voyage au Japon')
         self.assertTrue(all(e.target.status == Node.Status.DRAFT for e in portals))
 
+    def test_camera_steps_follow_writes(self):
+        from graph.models import Layer
+
+        self.run_guardian(json.dumps({'say': 'Visite.', 'actions': [
+            {'op': 'focus', 'ref': 'n1', 'zoom': 50, 'text': 'Ton idée'},
+            {'op': 'create', 'ref': 'new1', 'text': 'Kyoto'},
+            {'op': 'focus', 'ref': 'new1'},
+            {'op': 'portal', 'ref': 'n1', 'name': 'Budget'},
+            {'op': 'travel', 'name': 'budget', 'text': 'Le budget'},
+            {'op': 'overview'},
+            {'op': 'travel', 'name': 'Nulle part'},
+        ]}))
+        kinds = self.kinds()
+        self.assertLess(kinds.index('changes'), kinds.index('camera'))
+        steps = [d for k, d in self.events if k == 'camera']
+        self.assertEqual([s['action'] for s in steps], ['focus', 'focus', 'travel', 'overview'])
+        self.assertEqual((steps[0]['node'], steps[0]['zoom'], steps[0]['text']), (str(self.idea.id), 8.0, 'Ton idée'))
+        self.assertIsNone(steps[1]['zoom'])
+        self.assertEqual(steps[2]['layer'], str(Layer.objects.get(name='Budget').id))
+        self.assertIn('Nulle part', [d['message'] for k, d in self.events if k == 'error'][0])
+
     def test_plug_agent_and_inventory_loop(self):
         other = LocalModel.objects.create(repo='org/coder', filename='Qwen2.5-Coder-7B-Q4_K_M.gguf', status=LocalModel.Status.READY)
         Agent.objects.filter(name='Codeur').update(model=None)

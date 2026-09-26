@@ -20,7 +20,7 @@ const viewport = createViewport(universe);
 const sync = createSync(store, { onError: error => { status.textContent = `Sauvegarde impossible : ${error.message}`; } });
 const view = createRenderer({ svg, universe, store, viewport, dispatch: (name, params) => store.dispatch(name, params) });
 bindInteractions({ svg, store, viewport, view, sync });
-bindCommand({ store, viewport, sync });
+bindCommand({ svg, store, viewport, sync });
 bindLibrary();
 
 async function loadLayer(layerId) {

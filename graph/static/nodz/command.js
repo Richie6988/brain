@@ -2,8 +2,9 @@
 // sont appliqués au store au fil de l'eau et forment un seul pas d'annulation.
 
 import { api } from './api.js';
+import { createCamera } from './camera.js';
 
-export function bindCommand({ store, viewport, sync }) {
+export function bindCommand({ svg, store, viewport, sync }) {
     const form = document.getElementById('command');
     const prompt = document.getElementById('prompt');
     const reply = document.getElementById('reply');
@@ -18,6 +19,13 @@ export function bindCommand({ store, viewport, sync }) {
         reply.scrollTop = reply.scrollHeight;
         return item;
     }
+
+    const camera = createCamera({
+        svg, store, viewport,
+        dispatch: (name, params) => store.dispatch(name, params),
+        caption: text => line(text, 'guide'),
+        covered: () => window.innerHeight - document.getElementById('dock').getBoundingClientRect().top,
+    });
 
     function grow() {
         prompt.style.height = 'auto';
@@ -35,6 +43,10 @@ export function bindCommand({ store, viewport, sync }) {
         grow();
         const inverses = [];
         const drafts = new Map();  // node → ligne de progression de l'agent
+        const created = [];
+        let guided = false;
+        camera.cancel();
+        camera.drift();
         try {
             await sync.flush();
             await api.command({
@@ -43,11 +55,17 @@ export function bindCommand({ store, viewport, sync }) {
                 selection: store.state.selection,
                 view: viewport.toUniverse(window.innerWidth / 2, window.innerHeight / 2),
             }, (type, data) => {
+                if (type !== 'start' && type !== 'agent_text') camera.stopDrift();
                 if (type === 'text' || type === 'notice') line(data.text, type);
+                else if (type === 'camera') {
+                    guided = true;
+                    camera.play([data]);
+                }
                 else if (type === 'error') line(data.message, 'error');
                 else if (type === 'agent') drafts.set(data.node, line(`${data.agent} : ${data.task}`, 'agent'));
                 else if (type === 'agent_text') drafts.get(data.node)?.classList.add('working');
                 else if (type === 'changes') {
+                    created.push(...data.nodes.filter(n => !store.state.nodes.has(n.id)).map(n => n.id));
                     const inverse = store.applyRemote(data);
                     if (inverse) inverses.push(inverse);
                 }
@@ -55,6 +73,8 @@ export function bindCommand({ store, viewport, sync }) {
         } catch (error) {
             line(error.message, 'error');
         } finally {
+            camera.stopDrift();
+            if (!guided && created.length) camera.follow(created);
             drafts.forEach(item => item.classList.remove('working'));
             store.record(inverses);
             busy = false;

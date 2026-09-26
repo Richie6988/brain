@@ -70,6 +70,20 @@ export function createViewport(universe, { width = window.innerWidth, height = w
                 y: Math.round((clientY - center.y - state.rootY) / state.zoom),
             };
         },
+        // Caméra pilotée (travellings du Gardien) : place la vue directement en gardant les
+        // invariants dont dépendent la molette et toUniverse :
+        // rootX = -(tx + center.x·(zoom − 1)), rootY = ty + center.y·(zoom − 1).
+        setCamera(tx, ty, zoom) {
+            state.zoomLabel = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)).toFixed(3);
+            state.zoom = Number(state.zoomLabel);
+            state.tx = Number(tx.toFixed(5));
+            state.ty = Number(ty.toFixed(5));
+            state.rootX = -(state.tx + center.x * (state.zoom - 1));
+            state.rootY = state.ty + center.y * (state.zoom - 1);
+            state.anchor = null;
+            apply();
+        },
+        limits: { min: MIN_ZOOM, max: MAX_ZOOM },
         toScreen(x, y) {
             return { x: x * state.zoom + state.tx, y: y * state.zoom + state.ty };
         },

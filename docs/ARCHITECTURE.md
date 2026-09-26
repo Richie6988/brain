@@ -134,6 +134,11 @@ forme, taille, verrou), `set_type`, `move_nodes`, `delete_nodes`, `link_nodes`, 
 Les changements sont animés (apparition, déplacement, caméra qui suit via `focus`) pour que
 l'utilisateur voie l'IA « agir » dans l'espace, au lieu d'un résultat qui apparaît d'un coup.
 
+L'utilisateur est dans un vaisseau que le Gardien pilote : `focus`, `overview` et `travel` sont des
+étapes de caméra jouées dans l'ordre après les écritures (`camera.js`), avec une légende à l'arrivée.
+Pendant la réflexion la caméra recule lentement ; sans travelling prévu, elle cadre les nodes créés.
+Tout geste de l'utilisateur annule la file : il garde toujours la main.
+
 ## Boîte à outils IA (app `toolbox`)
 
 La boîte à outils de SquidMind est portée dans Nodz ; plus de service séparé.

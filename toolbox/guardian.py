@@ -27,7 +27,7 @@ RADIUS = 62.5
 MAX_CONTEXT_NODES = 60
 MAX_ROUNDS = 3  # un tour de plus après chaque lecture (inventaire)
 OPS = ['create', 'update', 'style', 'set_type', 'link', 'unlink', 'portal', 'archive', 'cleanup',
-       'delegate', 'plug_agent', 'inventory']
+       'delegate', 'plug_agent', 'inventory', 'focus', 'overview', 'travel']
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
 
 PLAN_SCHEMA = {
@@ -56,6 +56,7 @@ PLAN_SCHEMA = {
                     'agent': {'type': 'string'},
                     'model': {'type': 'string'},
                     'task': {'type': 'string'},
+                    'zoom': {'type': 'number'},
                 },
             },
         },
@@ -63,7 +64,8 @@ PLAN_SCHEMA = {
 }
 
 SYSTEM = """Tu es le Gardien de l'univers Nodz : une carte spatiale de nodes (idées) reliés entre eux,
-répartis sur des plans reliés par des portails.
+répartis sur des plans reliés par des portails. Tu pilotes le vaisseau de l'utilisateur à travers cet
+espace : tes travellings de caméra le guident (tutoriels, visites, montrer ce que tu viens de faire).
 Tu réponds uniquement en JSON : {"say": phrase courte pour l'utilisateur, "actions": [...]}.
 Actions possibles :
 - {"op":"create","ref":"new1","text":"...","near":"n3","color":"#4D96FF","shape":"circle"} : nouveau node
@@ -81,6 +83,10 @@ Actions possibles :
 - {"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou n2","near":"n1"} : confie la
   production à un agent ; son résultat est publié dans le node `ref` (créé s'il est nouveau).
 - {"op":"plug_agent","agent":"<nom>","model":"<partie du nom du modèle>"} : branche un modèle sur un agent.
+- {"op":"focus","ref":"n2","zoom":1.5,"text":"légende"} : travelling vers un node (zoom 0.1 à 8), puis
+  affiche la légende. Enchaîne plusieurs focus pour une visite guidée ou un tutoriel.
+- {"op":"overview","text":"..."} : prend du recul pour montrer tout le plan.
+- {"op":"travel","name":"<plan>","text":"..."} : voyage vers un autre plan.
 - {"op":"inventory"} : liste les plans, les agents et les modèles ; tu recevras la réponse et pourras continuer.
 Délègue tout contenu long (rédaction, code) ; écris toi-même seulement les titres courts.
 N'archive que ce que l'utilisateur demande ou ce qui est manifestement vide ou en double.
@@ -301,6 +307,25 @@ class Guardian:
         agent.save(update_fields=['model'])
         self.emit('notice', {'text': f'{agent.name} utilise maintenant {model.filename}'})
 
+    # --- navigation : jouée par le client après les écritures, dans l'ordre
+
+    def op_focus(self, action, batch, agents):
+        zoom = action.get('zoom')
+        batch['camera'].append({'action': 'focus', 'node': self.existing(action.get('ref')), 'text': action.get('text', ''),
+                                'zoom': min(max(float(zoom), 0.1), 8.0) if isinstance(zoom, (int, float)) else None})
+
+    def op_overview(self, action, batch, agents):
+        batch['camera'].append({'action': 'overview', 'text': action.get('text', '')})
+
+    def op_travel(self, action, batch, agents):
+        name = (action.get('name') or '').strip()
+        created = next((l for l in batch['layers'] if l['name'].lower() == name.lower()), None)
+        layer = created or Layer.objects.filter(owner=self.user, name__iexact=name).exclude(kind=Layer.Kind.ARCHIVE).first()
+        if layer is None:
+            raise ChangeError(f'plan introuvable : {name!r}')
+        layer_id = created['id'] if created else str(layer.id)
+        batch['camera'].append({'action': 'travel', 'layer': layer_id, 'text': action.get('text', '')})
+
     def op_inventory(self, action, batch, agents):
         batch['reads'].append(self.inventory())
 
@@ -319,7 +344,7 @@ class Guardian:
 
     def execute(self, actions, agents):
         batch = {'layers': [], 'nodes': {}, 'portals': [], 'edges': [], 'unlinked': [], 'deleted': [],
-                 'jobs': [], 'reads': []}
+                 'jobs': [], 'reads': [], 'camera': []}
         for action in actions:
             op = action.get('op')
             tool = getattr(self, f'op_{op}', None) if op in OPS else None
@@ -337,6 +362,8 @@ class Guardian:
         batch['nodes'].update({p['id']: p for p in batch['portals']})
         if batch['layers'] or batch['nodes'] or batch['edges'] or batch['unlinked'] or batch['deleted']:
             self.apply(batch)
+        for step in batch['camera']:
+            self.emit('camera', step)
         return batch['jobs'], batch['reads']
 
     def delegate(self, agent, task, ref):
