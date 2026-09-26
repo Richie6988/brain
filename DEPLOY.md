@@ -2,7 +2,20 @@
 
 Cible : un VPS Linux (Debian/Ubuntu) avec nginx, même schéma que paintit, mais servi par **Daphne** (ASGI) car Nodz utilise un WebSocket (`/ws/`).
 
-## Première installation
+## Installation en une commande (même VPS que paintit)
+
+Prérequis : un enregistrement DNS A du domaine choisi (ex. `nodz.paintit.click`) vers le serveur. Paintit n'est pas touché : Nodz tourne sous l'utilisateur `nodz`, sur le port 8001, avec son propre site nginx.
+
+```bash
+ssh root@<serveur>
+curl -fsSL https://raw.githubusercontent.com/Richie6988/brain/main/deploy/install.sh -o install.sh
+DOMAIN=nodz.paintit.click bash install.sh main
+sudo -u nodz /home/nodz/brain/.venv/bin/python /home/nodz/brain/manage.py bootstrap --email <toi> --password <mot de passe>
+```
+
+Le script est idempotent (relançable), génère `.env` avec une clé secrète aléatoire, installe le service systemd et la règle sudoers de redémarrage, obtient le certificat Let's Encrypt puis active la config nginx complète. Il s'arrête si le port 8001 est déjà pris.
+
+## Première installation (détail manuel)
 
 ```bash
 sudo adduser --disabled-password nodz && sudo usermod -aG www-data nodz
