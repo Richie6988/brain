@@ -1,5 +1,15 @@
 # Changelog
 
+## Phase 1 (partielle) : version déployable en test
+
+Ce qui a changé pour l'utilisateur : `/login/` ne plante plus, la date de création d'un node reste fixe, et Nodz fonctionne sans aucun CDN externe. Un serveur de test peut être installé en suivant `DEPLOY.md`.
+
+- Corrections de l'audit : `Node.created_at` (auto_now_add), `uploaded_at` supprimé, doublon `generate_invite` supprimé, CSRF rétabli sur les codes de validation email, chemins statiques via `{% static %}`, redirection après connexion.
+- Production : WhiteNoise pour les statiques, cookies sécurisés et en-tête proxy HTTPS hors debug, `CSRF_TRUSTED_ORIGINS` et chemin SQLite configurables, logs console, endpoint `/healthz`.
+- Librairies auparavant chargées depuis des CDN non versionnés, désormais embarquées dans `static/vendor/` avec leur licence : htmx 2.0.11, jQuery 3.6.0, Chart.js 4.5.1, Velocity 1.5.2, jsPDF 2.5.1, svg2pdf.js 2.1.0.
+- Déploiement : service systemd Daphne, site nginx avec WebSocket, script `deploy/update.sh`, `Procfile`.
+- CI GitHub Actions : compilation, `check --deploy`, migrations, collectstatic, tests.
+
 ## Phase 0 : fork propre
 
 Ce qui a changé pour l'utilisateur : rien dans l'interface. Nodz s'installe en local en 5 commandes, avec une base vide et un utilisateur local prêt à l'emploi.
