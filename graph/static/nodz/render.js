@@ -16,10 +16,11 @@ function el(name, attrs = {}, parent) {
 
 export function createRenderer({ svg, universe, store, viewport, dispatch }) {
     const { center } = viewport;
+    const defs = el('defs', {}, universe);
     const edgeLayer = el('g', { class: 'edges' }, universe);
     const nodeLayer = el('g', { class: 'nodes' }, universe);
     const views = new Map();      // id node → {root, ring, hit, content, mounted}
-    const edgeViews = new Map();  // id arête → <line>
+    const edgeViews = new Map();  // id arête → {line, hit, gradient}
     let frame = null;
 
     function nodeTransform(node) {
@@ -29,9 +30,11 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
     function createView(node) {
         const root = el('g', { class: 'node-group', 'data-id': node.id }, nodeLayer);
         const ring = el('circle', { class: 'ring', cx: center.x, cy: center.y }, root);
+        const square = el('rect', { class: 'square' }, root);
         const hit = el('circle', { class: 'ring-hit', cx: center.x, cy: center.y }, root);
+        const squareHit = el('rect', { class: 'ring-hit' }, root);
         const content = el('foreignObject', { class: 'content' }, root);
-        const view = { root, ring, hit, content, mounted: null };
+        const view = { root, ring, square, hit, squareHit, content, mounted: null };
         views.set(node.id, view);
         return view;
     }
@@ -44,7 +47,11 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
         view.root.classList.toggle('locked', node.lock);
         view.root.dataset.shape = node.shape;
         [view.ring, view.hit].forEach(c => c.setAttribute('r', r));
+        // Carré de v1 : même centre, côté 2r (le cercle y est inscrit).
+        [view.square, view.squareHit].forEach(q => Object.entries({ x: center.x - r, y: center.y - r, width: 2 * r, height: 2 * r })
+            .forEach(([k, v]) => q.setAttribute(k, v)));
         view.ring.style.stroke = node.shape === 'none' ? 'transparent' : node.color;
+        view.square.style.stroke = node.color;
         const side = r * Math.SQRT2;
         Object.entries({ x: center.x - side / 2, y: center.y - side / 2, width: side, height: side })
             .forEach(([k, v]) => view.content.setAttribute(k, v));
@@ -82,23 +89,53 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
         return { x: node.x + center.x, y: node.y + center.y };
     }
 
+    // Point du bord d'un node dans la direction `angle` (cercle, ou carré de côté 2r), comme v1.
+    function border(node, angle) {
+        const c = nodeCenter(node);
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        const t = node.shape === 'square'
+            ? Math.min(dx ? node.radius / Math.abs(dx) : Infinity, dy ? node.radius / Math.abs(dy) : Infinity)
+            : node.radius;
+        return { x: c.x + t * dx, y: c.y + t * dy };
+    }
+
+    function removeEdgeView(id) {
+        const edgeView = edgeViews.get(id);
+        if (!edgeView) return;
+        [edgeView.line, edgeView.hit, edgeView.gradient].forEach(e => e.remove());
+        edgeViews.delete(id);
+    }
+
+    // Lien de bord à bord, en dégradé de la couleur d'un node à l'autre (arrêts à 11 % et 88 %, v1).
     function updateEdge(edge) {
         const a = store.state.nodes.get(edge.source);
         const b = store.state.nodes.get(edge.target);
-        let line = edgeViews.get(edge.id);
         if (!a || !b) {  // portail : l'autre extrémité est sur un autre plan
-            line?.remove();
-            edgeViews.delete(edge.id);
+            removeEdgeView(edge.id);
             [a, b].filter(Boolean).forEach(n => views.get(n.id)?.root.classList.add('portal'));
             return;
         }
-        if (!line) {
-            line = el('line', { class: `edge ${edge.kind}` }, edgeLayer);
-            edgeViews.set(edge.id, line);
+        let edgeView = edgeViews.get(edge.id);
+        if (!edgeView) {
+            const gradient = el('linearGradient', { id: `g-${edge.id}`, gradientUnits: 'userSpaceOnUse' }, defs);
+            el('stop', { offset: '11%' }, gradient);
+            el('stop', { offset: '88%' }, gradient);
+            const line = el('line', { class: `edge ${edge.kind}` }, edgeLayer);
+            line.style.stroke = `url(#g-${edge.id})`;
+            const hit = el('line', { class: 'edge-hit', 'data-edge': edge.id }, edgeLayer);
+            edgeView = { line, hit, gradient };
+            edgeViews.set(edge.id, edgeView);
         }
         const p = nodeCenter(a);
         const q = nodeCenter(b);
-        Object.entries({ x1: p.x, y1: p.y, x2: q.x, y2: q.y }).forEach(([k, v]) => line.setAttribute(k, v));
+        const angle = Math.atan2(q.y - p.y, q.x - p.x);
+        const start = border(a, angle);
+        const end = border(b, angle + Math.PI);
+        const ends = { x1: start.x, y1: start.y, x2: end.x, y2: end.y };
+        [edgeView.line, edgeView.hit, edgeView.gradient].forEach(e => Object.entries(ends).forEach(([k, v]) => e.setAttribute(k, v)));
+        edgeView.gradient.children[0].style.stopColor = a.color;
+        edgeView.gradient.children[1].style.stopColor = b.color;
     }
 
     // Culling : une passe par frame, sans requête DOM ; les nodes hors écran n'ont pas de contenu.
@@ -127,8 +164,7 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
 
     function renderAll() {
         views.forEach((_, id) => removeView(id));
-        edgeViews.forEach(line => line.remove());
-        edgeViews.clear();
+        [...edgeViews.keys()].forEach(removeEdgeView);
         store.state.nodes.forEach(updateView);
         store.state.edges.forEach(updateEdge);
         renderSelection(store.state.selection);
@@ -149,7 +185,7 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
     });
     store.on('node:removed', node => node && removeView(node.id));
     store.on('edge:changed', updateEdge);
-    store.on('edge:removed', edge => { edgeViews.get(edge?.id)?.remove(); edgeViews.delete(edge?.id); });
+    store.on('edge:removed', edge => edge && removeEdgeView(edge.id));
     store.on('selection:changed', renderSelection);
     store.on('store:hydrated', renderAll);
     viewport.onChange(schedule);
@@ -158,9 +194,12 @@ export function createRenderer({ svg, universe, store, viewport, dispatch }) {
     return {
         viewOf: id => views.get(id),
         nodeIdAt: target => target.closest?.('.node-group')?.dataset.id,
+        edgeIdAt: target => target.closest?.('.edge-hit')?.dataset.edge,
+        edgeLine: id => edgeViews.get(id)?.line,
         // Point de l'anneau (bord droit) en coordonnées écran : cible pour sélectionner et glisser.
         ringPoint(id) {
-            const rect = views.get(id).ring.getBoundingClientRect();
+            const v = views.get(id);
+            const rect = (store.state.nodes.get(id).shape === 'square' ? v.square : v.ring).getBoundingClientRect();
             return { x: rect.right - 3, y: rect.top + rect.height / 2 };
         },
         screenCenter(id) {

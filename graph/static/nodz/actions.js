@@ -88,6 +88,17 @@ export const actions = {
             return redo();
         },
     },
+    unlink: {
+        description: 'Supprime un lien.',
+        params: { id: 'edge_id' },
+        run(store, { id }) {
+            const edge = store.state.edges.get(id);
+            if (!edge) return null;
+            const undo = () => { store.write.putEdge({ ...edge }); return redo; };
+            const redo = () => { store.write.removeEdge(id); return undo; };
+            return redo();
+        },
+    },
     teleport: {
         description: "Emmène un node dans un nouveau plan, relié à l'original par un portail, et y déplace la vue.",
         params: { id: 'node_id?', name: 'string?' },

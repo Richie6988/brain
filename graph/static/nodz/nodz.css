@@ -12,9 +12,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 #nodz { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; user-select: none; }
 .ring { fill: none; stroke-width: 4px; }
 .ring-hit { fill: none; stroke: transparent; stroke-width: 16px; pointer-events: stroke; cursor: grab; }
-.node-group.selected .ring { stroke: var(--accent) !important; stroke-width: 7px; }
+.square { fill: none; stroke-width: 4px; }
+.node-group[data-shape="square"] circle, .node-group:not([data-shape="square"]) rect { display: none; }
+.node-group.selected .ring, .node-group.selected .square { stroke: var(--accent) !important; stroke-width: 7px; stroke-linejoin: round; }
 .node-group.draft { opacity: 0.55; }
-.node-group.portal .ring { stroke-dasharray: 10 6; }
+.node-group.portal .ring, .node-group.portal .square { stroke-dasharray: 10 6; }
 .node-group[data-shape="none"] .ring { stroke: transparent !important; }
 .content { overflow: visible; }
 .node-text, .node-placeholder {
@@ -22,7 +24,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
     text-align: center; outline: none; overflow: hidden; word-break: break-word; font-size: 16px; cursor: text;
 }
 .node-placeholder { color: var(--muted); font-style: italic; }
-.edge { stroke: var(--muted); stroke-width: 2px; }
+.edge { stroke-width: 3px; pointer-events: none; }
+.edge.hover { stroke-width: 5px; }
+.edge-hit { stroke: transparent; stroke-width: 14px; pointer-events: stroke; }
+#nodz[data-links="neutral"] .edge { stroke: #379be7 !important; }
+#nodz[data-links="hidden"] .edges { display: none; }
 .selection-box { fill: rgba(243, 238, 88, 0.08); stroke: var(--accent); stroke-dasharray: 4 4; }
 #login { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); }
 #login[hidden] { display: none; }

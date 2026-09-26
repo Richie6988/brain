@@ -19,13 +19,50 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
     const editing = () => document.activeElement?.closest?.('.node-group');
     const blurEditing = () => { if (editing()) document.activeElement.blur(); };
 
-    function createAtPointer() {
+    function createAtPointer(color) {
         const { x, y } = viewport.toUniverse(pointer.x, pointer.y);
-        const inverse = store.dispatch('create_node', { x, y });
-        const id = [...store.state.nodes.keys()].at(-1);
+        const id = crypto.randomUUID();
+        store.dispatch('create_node', { x, y, id, color });
         requestAnimationFrame(() => view.focusContent(id));
-        return inverse;
+        return id;
     }
+
+    // Espace (v1) : un node sélectionné = nouveau node de même couleur relié à lui ; 2 à 22 nodes
+    // sélectionnés = les relier deux à deux ; sinon un node libre. Un seul pas d'annulation.
+    function space() {
+        const selection = store.state.selection;
+        store.transaction(() => {
+            if (selection.length === 1) {
+                const source = store.state.nodes.get(selection[0]);
+                dispatch('link_nodes', { source: source.id, target: createAtPointer(source.color) });
+            } else if (selection.length > 1 && selection.length < 23) {
+                selection.forEach((a, i) => selection.slice(i + 1).forEach(b => dispatch('link_nodes', { source: a, target: b })));
+            } else {
+                createAtPointer();
+            }
+        });
+        if (selection.length) dispatch('select', { ids: [] });
+    }
+
+    // Liens (v1) : au survol, flèche vers l'extrémité la plus éloignée ; clic = voyage ; Suppr = supprimer.
+    let hoveredEdge = null;
+    function hoverEdge(id, x, y) {
+        if (hoveredEdge && hoveredEdge !== id) view.edgeLine(hoveredEdge)?.classList.remove('hover');
+        hoveredEdge = id;
+        if (!id) return svg.style.removeProperty('cursor');
+        const line = view.edgeLine(id);
+        line.classList.add('hover');
+        line.style.strokeWidth = viewport.state.zoom < 0.5 ? '7.5px' : '';
+        const edge = store.state.edges.get(id);
+        const a = view.screenCenter(edge.source);
+        const b = view.screenCenter(edge.target);
+        const [near, far] = Math.hypot(x - a.x, y - a.y) < Math.hypot(x - b.x, y - b.y) ? [a, b] : [b, a];
+        const angle = Math.atan2(far.y - near.y, far.x - near.x) * 180 / Math.PI;
+        const arrow = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#1E90FF" transform="rotate(${angle.toFixed(1)})"><polygon points="12 2, 20 12, 12 22, 10 20, 14 12, 10 4"/></svg>`;
+        svg.style.cursor = `url("data:image/svg+xml;base64,${btoa(arrow)}") 16 16, pointer`;
+    }
+    svg.addEventListener('pointerover', event => { if (!gesture) hoverEdge(view.edgeIdAt(event.target), event.clientX, event.clientY); });
+    svg.addEventListener('pointerout', event => { if (view.edgeIdAt(event.target)) hoverEdge(null); });
 
     svg.addEventListener('wheel', event => {
         event.preventDefault();
@@ -40,6 +77,12 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
         pointer.y = event.clientY;
         const nodeId = view.nodeIdAt(event.target);
         const onRing = event.target.classList?.contains('ring-hit');
+        const edgeId = view.edgeIdAt(event.target);
+        if (edgeId && !ctrlDown) {
+            hoverEdge(null);
+            nav.play(nav.gestures.travelLink(edgeId, event.clientX, event.clientY));
+            return;
+        }
         if (ctrlDown) {
             gesture = { type: 'rect', x0: event.clientX, y0: event.clientY };
         } else if (nodeId && onRing) {
@@ -117,7 +160,11 @@ export function bindInteractions({ svg, store, viewport, view, sync, nav }) {
         const mod = event.ctrlKey || event.metaKey;
         if (event.key === ' ') {
             event.preventDefault();
-            createAtPointer();
+            space();
+        } else if ((event.key === 'Delete' || event.key === 'Backspace') && hoveredEdge) {
+            event.preventDefault();
+            dispatch('unlink', { id: hoveredEdge });
+            hoverEdge(null);
         } else if (event.key === 'Enter' && selection.length) {
             event.preventDefault();
             dispatch('teleport', { id: selection.at(-1) });
