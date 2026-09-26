@@ -1,0 +1,198 @@
+{
+  "viewport": "1280x800",
+  "steps": [
+    {
+      "name": "création",
+      "universe": "translate(0,0) scale(1)",
+      "zoom": 1,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "pan molette",
+      "universe": "translate(-90.00000, 135.00000) scale(1)",
+      "zoom": 1,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "zoom avant centré",
+      "universe": "translate(-350.91000, 58.06500) scale(1.669)",
+      "zoom": 1.669,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "zoom arrière centré",
+      "universe": "translate(-178.53000, 108.89500) scale(1.227)",
+      "zoom": 1.227,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "glisser univers",
+      "universe": "translate(-288.53000, 48.89500) scale(1.227)",
+      "zoom": 1.227,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": []
+    },
+    {
+      "name": "sélection rectangle",
+      "universe": "translate(-288.53000, 48.89500) scale(1.227)",
+      "zoom": 1.227,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-220,-70) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(120,-100) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(-40,120) scale(1)"
+        ]
+      ],
+      "selected": [
+        "N-1",
+        "N-2",
+        "N-3"
+      ]
+    },
+    {
+      "name": "drag sélection",
+      "universe": "translate(-288.53000, 48.89500) scale(1.227)",
+      "zoom": 1.227,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-154.80030, -29.25020) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(185.19970, -59.25020) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(25.19970, 160.74980) scale(1)"
+        ]
+      ],
+      "selected": [
+        "N-2",
+        "N-3"
+      ]
+    },
+    {
+      "name": "resélection",
+      "universe": "translate(-288.53000, 48.89500) scale(1.227)",
+      "zoom": 1.227,
+      "layer": 1,
+      "nodes": [
+        [
+          "N-1",
+          "translate(-154.80030, -29.25020) scale(1)"
+        ],
+        [
+          "N-2",
+          "translate(185.19970, -59.25020) scale(1)"
+        ],
+        [
+          "N-3",
+          "translate(25.19970, 160.74980) scale(1)"
+        ]
+      ],
+      "selected": [
+        "N-2",
+        "N-3",
+        "N-1"
+      ]
+    },
+    {
+      "name": "téléportation",
+      "universe": "translate(0,0) scale(1)",
+      "zoom": 1,
+      "layer": 2,
+      "nodes": [
+        [
+          "N-4",
+          "translate(0,0) scale(1)"
+        ]
+      ],
+      "selected": []
+    }
+  ],
+  "errors": []
+}
