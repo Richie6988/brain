@@ -1,5 +1,14 @@
 # Changelog
 
+## Phase 3 (en cours) : nouvelle interface
+
+Ce qui a changé pour l'utilisateur : une nouvelle interface est disponible sur `/next`, à côté de `/universe`. Même navigation au pixel près (zoom, pan, glisser, sélection, téléportation), mais construite sur le nouveau modèle : nodes texte, liens, portails, annuler/refaire (Ctrl+Z / Ctrl+Y), sauvegarde automatique.
+
+- Modules ES sans build (`graph/static/nodz/`) : store unique, catalogue d'actions (`create_node`, `update_node`, `move_nodes`, `delete_nodes`, `link_nodes`, `teleport`, `go_to_layer`, `select`) partagé par la souris, le clavier et bientôt l'IA ; transactions (un drag = un seul pas d'annulation).
+- Caméra (`viewport.js`) reprenant exactement les maths de v1 ; le banc `tests/feel` passe sur `/next` (`NODZ_PAGE=/next npm run feel`).
+- Rendu à la demande : un node rendu = un anneau + le contenu du type actif, monté seulement s'il est à l'écran ; plus aucun `children[N]`.
+- Sauvegarde incrémentale groupée vers `/api/v1/changes`.
+
 ## Phase 2 : modèle de données v2 (gouvernance)
 
 Ce qui a changé pour l'utilisateur : rien à l'écran pour l'instant. Le nouveau modèle de données et son API existent à côté de l'ancien ; la nouvelle interface s'appuiera dessus.

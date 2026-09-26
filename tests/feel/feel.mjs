@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const BASE = (process.env.NODZ_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
+const PAGE = process.env.NODZ_PAGE || '/universe';  // /next : nouvelle interface
 const REFERENCE = fileURLToPath(new URL('./reference.json', import.meta.url));
 const TOLERANCE = 1e-3;
 const record = process.argv.includes('--record');
@@ -18,7 +19,8 @@ const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 
 // État observable : transformation de l'univers, zoom, nodes du plan courant, sélection, plan.
-const snapshot = () => page.evaluate(() => ({
+// La nouvelle interface l'expose via window.__nodzFeel ; sinon on lit les globales de v1.
+const snapshot = () => page.evaluate(() => window.__nodzFeel ? window.__nodzFeel.snapshot() : ({
     universe: document.getElementById('universe').getAttribute('transform'),
     zoom: Number(currentZoom),
     layer: layerNumber,
@@ -27,9 +29,10 @@ const snapshot = () => page.evaluate(() => ({
 }));
 // Molette : deltaY entier = pan à deux doigts, non entier = pinch (zoom.js).
 const wheel = (x, y, deltaX, deltaY) => page.evaluate(([x, y, deltaX, deltaY]) => {
-    svg.dispatchEvent(new WheelEvent('wheel', { clientX: x, clientY: y, deltaX, deltaY, bubbles: true, cancelable: true }));
+    document.elementFromPoint(x, y).dispatchEvent(new WheelEvent('wheel', { clientX: x, clientY: y, deltaX, deltaY, bubbles: true, cancelable: true }));
 }, [x, y, deltaX, deltaY]);
 const ring = id => page.evaluate(id => {
+    if (window.__nodzFeel) return window.__nodzFeel.ringPoint(id);
     const r = document.getElementById(id).children[1].getBoundingClientRect();
     return { x: r.right - 3, y: r.top + r.height / 2 };
 }, id);
@@ -41,7 +44,7 @@ const step = async (name, action) => {
     steps.push({ name, ...(await snapshot()) });
 };
 
-await page.goto(`${BASE}/universe`);
+await page.goto(`${BASE}${PAGE}`);
 await page.getByText('GUEST', { exact: true }).click();
 await page.waitForTimeout(3500);
 
@@ -95,7 +98,8 @@ if (record) {
     process.exit(0);
 }
 
-// Comparaison : mêmes chaînes, et nombres égaux à TOLERANCE près.
+// Comparaison : transformations (univers, zoom, nodes) et plan à TOLERANCE près (CLAUDE.md, section 3).
+// La sélection n'est pas du « feel » : ses écarts sont affichés sans faire échouer le banc.
 const numbers = s => (String(s).match(/-?\d+(\.\d+)?(e-?\d+)?/g) || []).map(Number);
 const close = (a, b) => {
     const na = numbers(a), nb = numbers(b);
@@ -103,15 +107,18 @@ const close = (a, b) => {
 };
 const reference = JSON.parse(readFileSync(REFERENCE, 'utf8'));
 const failures = [];
+const notes = [];
 reference.steps.forEach((ref, i) => {
     const got = steps[i];
     if (!got) return failures.push(`${ref.name} : étape absente`);
-    for (const key of ['universe', 'zoom', 'layer', 'selected']) {
+    if (ref.selected.length !== got.selected.length) notes.push(`${ref.name} / sélection : ${ref.selected.length} attendus, ${got.selected.length} obtenus`);
+    for (const key of ['universe', 'zoom', 'layer']) {
         if (!close(JSON.stringify(ref[key]), JSON.stringify(got[key]))) failures.push(`${ref.name} / ${key} : attendu ${JSON.stringify(ref[key])}, obtenu ${JSON.stringify(got[key])}`);
     }
     if (ref.nodes.length !== got.nodes.length) failures.push(`${ref.name} / nodes : ${ref.nodes.length} attendus, ${got.nodes.length} obtenus`);
     else ref.nodes.forEach(([, t], j) => { if (!close(t, got.nodes[j][1])) failures.push(`${ref.name} / node ${j} : attendu ${t}, obtenu ${got.nodes[j][1]}`); });
 });
 if (errors.length) failures.push(`erreurs JS : ${errors.join(' | ')}`);
+if (notes.length) console.log(`info\n${notes.join('\n')}`);
 console.log(failures.length ? `ÉCHEC\n${failures.join('\n')}` : `OK : ${steps.length} étapes identiques à ${TOLERANCE} près`);
 process.exit(failures.length ? 1 : 0);

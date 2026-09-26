@@ -204,3 +204,13 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(len(graph['nodes']), 3)  # le node archivé n'est pas servi
         self.assertEqual(len(graph['edges']), 2)
         self.assertEqual(len(graph['portal_ends']), 1)
+
+
+class NextPageTests(TestCase):
+    def test_next_page_loads_modules_and_sets_csrf_cookie(self):
+        response = self.client.get('/next')
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('type="module"', html)
+        self.assertIn('nodz/main.js', html)
+        self.assertIn('nodz_csrftoken', response.cookies)
