@@ -937,6 +937,7 @@ function createNode(x,y,id) {
 
     input.addEventListener('blur', function() {
         styleGroup.setAttribute('visibility', 'hidden'); 
+        nodeGroup.setAttribute('textcontent', input.innerHTML); // avant save : sinon le texte tapé n'est enregistré qu'à la sauvegarde suivante
         save(nodeGroup);
     });
 
