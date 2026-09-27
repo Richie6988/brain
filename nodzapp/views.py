@@ -1222,11 +1222,12 @@ def terms(request):
 def contact(request): 
     return render(request, "contact.html")
 
-from django.contrib.auth import logout
 def universe(request):   
     r_id = request.GET.get('r')
     context = {'r': r_id} 
-    logout(request)
+    # Plus de logout ici : un autre onglet, un rechargement ou un préchargement de /universe
+    # déconnectait la page ouverte (sauvegardes, profil et IA refusés). La page affiche toujours
+    # LOGIN / GUEST ; la déconnexion se fait par le profil.
     return render(request, "universe.html", context)
 
 def referree(request, r_id):

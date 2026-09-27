@@ -18,6 +18,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Consignes** : consignes par défaut écrites pour le Gardien (méthode, ton, règles) et pour chaque agent (Rédacteur, Codeur, Illustrateur, outils), visibles et modifiables dans Agents & modèles, avec retour aux consignes par défaut. Le format et les outils du Gardien restent fixes : une consigne réécrite ne les retire pas.
 
+**Session conservée** : ouvrir `/universe` ne déconnecte plus. Un autre onglet, un rechargement ou un préchargement déconnectait la page ouverte (sauvegardes, profil, modèles et Gardien refusés). La fenêtre LOGIN / GUEST s'affiche toujours ; la déconnexion se fait par le profil. Un refus 401 dit s'il manque le cookie ou si la session est inconnue.
+
 **Filtres globaux** (haut centre) : origine des nodes (Moi, Messages envoyés au Gardien, IA) et période de dernière modification (24 h, 7 j, 30 j) ; les nodes écartés et leurs liens s'estompent et ne captent plus la souris, rien n'est modifié dans Nodz. Les origines sont notées côté serveur (`NodeMark`, migration 0005) quand un message part au Gardien et quand l'IA crée un node.
 
 **Le Gardien fait ce qu'il annonce** : un plan annoncé sans aucune action relance aussitôt le modèle (« rien n'a été fait, donne les actions ») ; les actions invalides lui sont renvoyées pour correction ; le node-réponse dit ce qui a été fait, au passé, et avoue l'échec quand rien n'a pu être fait. Le type d'un node (texte, image…) est de nouveau changé par le bon menu (le pont prenait le menu des polices).

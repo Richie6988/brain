@@ -81,3 +81,11 @@ class DeploymentTests(TestCase):
         response = self.client.get('/login/')
         self.assertIn('nodz_csrftoken', response.cookies)
         self.assertNotIn('csrftoken', response.cookies)
+
+
+class UniverseSessionTests(TestCase):
+    def test_opening_universe_keeps_the_session(self):
+        user = NodzUser.objects.create_user(email='s@nodz.local', password='x')
+        self.client.force_login(user)
+        self.assertEqual(self.client.get('/universe').status_code, 200)  # un autre onglet, un rechargement
+        self.assertEqual(self.client.get('/api/v1/toolbox/status').status_code, 200)
