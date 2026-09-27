@@ -67,17 +67,18 @@ class Perception:
         marks = dict(NodeMark.objects.filter(owner=self.user, node_id__in=numbers).values_list('node_id', 'origin'))
         return rows, marks
 
-    def objects(self, page, links, full=(), limits=None):
-        """Objets des nodes de la page (dans l'ordre donné), texte entier pour ceux de `full`."""
+    def objects(self, page, links, full=(), limits=None, scale=1.0):
+        """Objets des nodes de la page (dans l'ordre donné), texte entier pour ceux de `full` ; `scale` réduit les
+        budgets de texte quand le contexte du modèle déborde."""
         rows, marks = self.rows([n['id'] for n in page])
         neighbours = {}
         for a, b in links:
             neighbours.setdefault(a, []).append(b)
             neighbours.setdefault(b, []).append(a)
-        budget, out = TEXT_TOTAL, []
+        budget, out = int(TEXT_TOTAL * scale), []
         for n in page:
             ref, row = n['id'], rows.get(n['id'])
-            cap = (limits or {}).get(ref, TEXT_FULL) if ref in full else min(TEXT_NODE, max(budget, 0))
+            cap = int((limits or {}).get(ref, TEXT_FULL) * scale) if ref in full else min(int(TEXT_NODE * scale), max(budget, 0))
             obj = self.describe(ref, row, marks.get(number(ref)), page=n, cap=cap)
             if ref not in full:
                 budget -= len(obj.get('texte', ''))

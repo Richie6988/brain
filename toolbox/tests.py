@@ -366,12 +366,12 @@ class FitTests(SimpleTestCase):
         self.assertEqual((summary['gpu_layers'], summary['layers']), (28, 28))
         part, _ = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=3000)
         self.assertTrue(0 < part['n_gpu_layers'] < 28)
-        self.assertGreaterEqual(part['n_ctx'], 2048)
+        self.assertGreaterEqual(part['n_ctx'], 8192)
         cpu, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=8000, offload=False)
         self.assertEqual((cpu['n_gpu_layers'], summary['gpu_offload']), (0, False))  # compilé sans CUDA
         self.assertEqual(cpu['n_ctx'], 8192)  # sur CPU, contexte auto plafonné : pas de swap
         small, _ = self.resolve({'n_gpu_layers': 'max', 'n_ctx': 'auto'}, vram=0, ram=3800)
-        self.assertEqual((small['n_gpu_layers'], small['n_ctx']), (-1, 2048))  # peu de RAM : contexte minimal
+        self.assertEqual((small['n_gpu_layers'], small['n_ctx']), (-1, 8192))  # peu de RAM : plancher du Gardien (à 2048, son prompt ne tient pas)
         fixed, _ = self.resolve({'n_gpu_layers': 12, 'n_ctx': 8192}, vram=8000)
         self.assertEqual((fixed['n_gpu_layers'], fixed['n_ctx']), (12, 8192))
 
@@ -935,6 +935,34 @@ class GuardianTests(TestCase):
         created = [a['text'] for a in self.actions() if a['op'] == 'create']
         self.assertEqual(created[:3], ['Niveau 1', 'Niveau 2', 'Niveau 3'])
         self.assertEqual(sum(a['op'] == 'link' for a in self.actions()), 2)
+
+    def test_a_prompt_too_long_for_the_model_is_shortened(self):
+        # llama-cpp-python lève ValueError quand le prompt dépasse le contexte : le Gardien montre moins de nodes et de
+        # texte et réessaie, au lieu d'une « erreur interne » ; sans issue, un message clair.
+        class SmallContext(ScriptedEngine):
+            def __init__(self, limit, *replies):
+                super().__init__(*replies)
+                self.limit, self.sizes = limit, []
+
+            def chat(self, model, messages, **kw):
+                size = sum(len(m['content']) for m in messages[1:])
+                self.sizes.append(size)
+                if size > self.limit:
+                    raise ValueError(f'Requested tokens ({size}) exceed context window of {self.limit}')
+                return super().chat(model, messages, **kw)
+
+        from .guardian import Guardian, PlanError
+
+        nodes = [{'id': f'N-{i}', 'text': f'Idée {i} ' * 60, 'x': i * 10, 'y': 0, 'r': 20} for i in range(1, 41)]
+        context = {**self.CONTEXT, 'nodes': nodes, 'links': [], 'selection': []}
+        engine = SmallContext(4000, json.dumps({'plan': [], 'say': 'Fait.', 'actions': []}))
+        Guardian(self.user, engine, lambda k, d: self.events.append((k, d))).handle('organise', context)
+        self.assertGreater(engine.sizes[0], 4000)
+        self.assertLessEqual(engine.sizes[-1], 4000)
+        self.assertEqual([d['text'] for k, d in self.events if k == 'text'], ['Fait.'])
+        self.assertIn('Mon contexte est plein : je regarde moins de nodes…', [d['text'] for k, d in self.events if k == 'intent'])
+        with self.assertRaisesRegex(PlanError, 'trop longue pour le contexte'):
+            Guardian(self.user, SmallContext(10), lambda k, d: None).handle('organise', context)
 
     def test_put_writes_a_node_as_it_is_read(self):
         # put : le même objet qu'en lecture ; nouveau node avec liens et enfants, node existant restylé et relié.

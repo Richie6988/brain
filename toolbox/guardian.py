@@ -281,6 +281,7 @@ class Guardian(IaquaOps):
         self.perception = perception.Perception(user)  # chaque node vu en un objet (texte, liens, auteur, portail…)
         self.seen = set()  # actions déjà exécutées pendant cette demande : un tour suivant ne les refait pas
         self.asked = False  # une question posée à l'humain : on attend sa réponse
+        self.scale = 1.0  # part du contexte montrée au modèle (réduite si son contexte déborde)
 
     # --- contexte envoyé par la page
 
@@ -306,7 +307,8 @@ class Guardian(IaquaOps):
                         key=lambda n: math.dist((_number(n.get('x')), _number(n.get('y'))), center))
         # Les plus proches de la vue, listés dans l'ordre des identifiants : d'une demande à l'autre la liste change
         # peu et llama.cpp réutilise sa lecture (sinon, un léger déplacement réordonne tout et tout est relu).
-        self.context = sorted((selected + others)[:MAX_CONTEXT_NODES], key=lambda n: node_id(n['id']) or 0)
+        self.nearest = (selected + others)[:MAX_CONTEXT_NODES]  # du plus proche au plus loin (raccourci si trop long)
+        self.context = sorted(self.nearest, key=lambda n: node_id(n['id']) or 0)
         self.history = [(h['role'], ' '.join(multiline(str(h.get('text') or '')).split())[:HISTORY_TEXT])
                         for h in (context.get('history') or [])[-HISTORY:]
                         if isinstance(h, dict) and h.get('role') in ('user', 'guardian') and h.get('text')]
@@ -334,7 +336,9 @@ class Guardian(IaquaOps):
         cited = list(dict.fromkeys(re.findall(r'N-\d+', request)))[:4]
         limits = dict((i, len(text) or 1) for i, text in self.attached)  # nodes joints : dans le budget de load()
         full = {*limits, *self.selection[:3], *([self.origin] if self.origin else []), *cited}
-        view = self.perception.objects(self.context, self.links, full=full, limits=limits)
+        shown = self.context if self.scale >= 1 else sorted(self.nearest[:max(6, int(len(self.nearest) * self.scale))],
+                                                            key=lambda n: node_id(n['id']) or 0)
+        view = self.perception.objects(shown, self.links, full=full, limits=limits, scale=self.scale)
         away = self.perception.outside([ref for ref in cited if ref not in self.nodes])
         talk = ['Échanges récents (du plus ancien au plus récent) :',
                 *(f"{'Humain' if role == 'user' else 'Toi'} : {text}" for role, text in self.history)] if self.history else []
@@ -855,6 +859,28 @@ class Guardian(IaquaOps):
         return (SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
                 .replace('{guidelines}', guidelines or guardian.system_prompt or prompts.GUARDIAN))
 
+    def plan_call(self, guardian, messages, round_, request):
+        """Appel du modèle pour un plan. Un prompt plus long que le contexte du modèle (ValueError de llama-cpp-python)
+        est raccourci, moins de nodes et de texte puis les plus anciens tours, avant d'abandonner clairement."""
+        while True:
+            try:
+                # Le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
+                return self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT, owner='gardien',
+                                        on_text=lambda piece: self.emit('thinking', {'round': round_, 'text': piece}),
+                                        **{'temperature': 0.2, **guardian.params})  # plan : peu créatif par défaut
+            except ValueError as e:
+                if 'context window' not in str(e):
+                    raise
+                if self.scale > 0.2:
+                    self.scale /= 2
+                    messages[1]['content'] = self.prompt(request)
+                elif len(messages) > 3:
+                    del messages[2:4]  # le plus ancien tour : réponse du modèle et ce qu'il a lu
+                else:
+                    raise PlanError(f"demande trop longue pour le contexte de son modèle ({e}) : augmente le contexte "
+                                    'dans Agents & modèles, ou prends moins de nodes') from None
+                self.emit('intent', {'text': 'Mon contexte est plein : je regarde moins de nodes…'})
+
     def warm(self):
         """Préchauffage : le modèle du Gardien lit son prompt système en arrière-plan (sur CPU, plusieurs minutes pour
         un 7B), pour que la première demande ne lise que le message. Faux s'il était déjà lu."""
@@ -880,9 +906,7 @@ class Guardian(IaquaOps):
             for round_ in range(MAX_ROUNDS):
                 self.emit('intent', {'text': 'Je lis ton message et le plan…' if round_ == 0 else 'Je lis ce que j\'ai trouvé et je continue…'})
                 # Le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
-                raw = self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT, owner='gardien',
-                                       on_text=lambda piece, r=round_: self.emit('thinking', {'round': r, 'text': piece}),
-                                       **{'temperature': 0.2, **guardian.params})  # plan : peu créatif par défaut
+                raw = self.plan_call(guardian, messages, round_, request)
                 last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
                 if last:
                     self.timings.append(last)
