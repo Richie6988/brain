@@ -683,14 +683,17 @@ class GuardianTests(TestCase):
         ]}
         self.run_guardian(json.dumps(plan))
         ops = self.actions()
-        self.assertEqual([a['op'] for a in ops], ['create', 'create', 'link', 'style', 'set_type', 'cleanup'])
+        self.assertEqual([a['op'] for a in ops], ['create', 'create', 'link', 'style', 'set_type', 'create', 'cleanup'])
         kyoto, tokyo = ops[0], ops[1]
         self.assertEqual((kyoto['text'], kyoto['color'], kyoto['shape']), ('Kyoto &lt;3', '#FF6B6B', 'square'))
         points = [(0, 0), (400, 0), (kyoto['x'], kyoto['y']), (tokyo['x'], tokyo['y'])]
         self.assertTrue(all(math.dist(a, b) >= 100 for i, a in enumerate(points) for b in points[i + 1:]))
         self.assertEqual((ops[3]['radius'], ops[3]['lock'], ops[3]['shape']), (400.0, True, 'none'))
-        self.assertEqual(ops[5]['refs'], ['N-2'])
-        self.assertEqual(len(self.errors()), 3)  # couleur invalide, référence inconnue, create sur un node existant
+        self.assertEqual(ops[6]['refs'], ['N-2'])
+        # « create N-1 » : un petit modèle confond identifiant et référence ; un nouveau node près de N-1
+        self.assertEqual((ops[5]['ref'][:4], ops[5]['text']), ('auto', 'doublon'))
+        self.assertLess(math.dist((ops[5]['x'], ops[5]['y']), (0, 0)), 400)
+        self.assertEqual(len(self.errors()), 2)  # couleur invalide, référence inconnue
 
     def test_navigation_and_portal(self):
         plan = {'say': 'Visite.', 'actions': [
@@ -886,6 +889,43 @@ class GuardianTests(TestCase):
         goto = [a for a in self.actions() if a['op'] == 'goto']
         self.assertEqual(goto, [{'op': 'goto', 'ref': 'N-45', 'layer': 2, 'text': 'Ton budget'}])
         self.assertIn('search_nodes', self.errors()[0])
+
+    def test_the_guardian_follows_the_conversation_and_reads_cited_nodes(self):
+        # Il suit la conversation (derniers échanges du chat) et lit en entier les nodes cités, sans outil de lecture ;
+        # le contexte est listé dans l'ordre des identifiants (stable d'une demande à l'autre : cache de llama.cpp).
+        long = 'Jour 1 : Kyoto. ' * 30
+        context = {**self.CONTEXT, 'view': {'x': 400, 'y': 0},
+                   'nodes': [*self.CONTEXT['nodes'], {'id': 'N-9', 'text': long, 'x': 900, 'y': 0, 'r': 20}],
+                   'history': [{'role': 'user', 'text': 'crée un plan de voyage'}, {'role': 'guardian', 'text': 'Un arbre ou une liste ?'},
+                               {'role': 'notice', 'text': 'ignoré'}, {'role': 'user', 'text': 'Arbre'}]}
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Fait.', 'actions': []}), context=context)
+        user = engine.calls[0]['messages'][1]['content']
+        self.assertLess(user.index('N-1 :'), user.index('N-2 :'))  # ordre des identifiants, pas des distances
+        self.assertLess(user.index('N-2 :'), user.index('N-9 :'))
+        self.assertIn('Humain : crée un plan de voyage\nToi : Un arbre ou une liste ?\nHumain : Arbre', user)
+        self.assertNotIn('ignoré', user)
+        self.assertLess(user.index('Échanges récents'), user.index('Demande'))
+        from .guardian import Guardian
+
+        g = Guardian(self.user, ScriptedEngine(), lambda k, d: None)
+        g.load(context)
+        prompt = g.prompt('résume N-9 et N-404')
+        self.assertIn('[N-9]\n' + long.strip()[:200], prompt)  # texte complet, pas les 80 caractères du contexte
+        self.assertIn('[N-404]\n(introuvable)', prompt)
+
+    def test_the_guardian_asks_and_accepts_intuitive_forms(self):
+        # ask : question et choix envoyés au chat, la demande s'arrête là (on attend l'humain) ;
+        # create avec children : une carte mentale.
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': '', 'actions': [
+            {'op': 'ask', 'text': 'Un arbre ou une matrice ?', 'choices': ['Arbre', 'Matrice', 'Arbre', '']}]}))
+        self.assertEqual([d for k, d in self.events if k == 'ask'], [{'text': 'Un arbre ou une matrice ?', 'choices': ['Arbre', 'Matrice']}])
+        self.assertEqual(len(engine.calls), 1)
+        self.events = []
+        self.run_guardian(json.dumps({'plan': ['Créer'], 'say': 'Fait.', 'actions': [
+            {'op': 'create', 'ref': 'new1', 'text': 'Niveau 1', 'children': ['Niveau 2', 'Niveau 3']}]}))
+        created = [a['text'] for a in self.actions() if a['op'] == 'create']
+        self.assertEqual(created[:3], ['Niveau 1', 'Niveau 2', 'Niveau 3'])
+        self.assertEqual(sum(a['op'] == 'link' for a in self.actions()), 2)
 
     def test_an_unexpected_error_fails_one_action_only(self):
         # Un outil qui plante sur une action inattendue : l'action échoue seule (type d'erreur affiché), la demande
@@ -1476,10 +1516,10 @@ class IaquaToolsTests(TestCase):
         self.assertNotIn('execute_bash', tools.enabled(guardian, self.user))
         guardian.tools_allowed = ['create', 'execute_bash']
         guardian.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help'])  # pas administrateur
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask'])  # pas administrateur ; ask (parler à l'humain) toujours permis
         self.user.is_staff = True
         self.user.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help'])  # GUARDIAN_SHELL=0
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask'])  # GUARDIAN_SHELL=0
         with self.settings(GUARDIAN_SHELL=True):
             self.assertIn('execute_bash', tools.enabled(guardian, self.user))
             engine = self.run_guardian([{'op': 'execute_bash', 'command': 'echo bonjour > salut.txt && cat salut.txt'}])

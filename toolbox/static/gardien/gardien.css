@@ -493,3 +493,33 @@ body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255,
 }
 #ga-watching[hidden] { display: none; }
 #ga-watching button { font: inherit; color: #c0392b; background: #fff; border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+
+/* Question du Gardien : ses choix en pastilles cliquables sous la bulle ; la réponse choisie reste marquée. */
+.gc-question p { border: 1px solid rgba(184, 154, 242, 0.45); }
+.gc-choices { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 2px 0; }
+.gc-choices button {
+    font: 11px 'Cascadia Code', monospace; color: #e2e8f0; cursor: pointer; padding: 5px 12px; border-radius: 999px;
+    background: rgba(104, 72, 166, 0.25); border: 1px solid rgba(184, 154, 242, 0.55); transition: background-color 0.15s, transform 0.15s;
+}
+.gc-choices button:hover:not(:disabled) { background: linear-gradient(135deg, #6848A6, #1E90FF); transform: translateY(-1px); }
+.gc-choices button:disabled { cursor: default; opacity: 0.45; }
+.gc-choices button.on { opacity: 1; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); border-color: transparent; }
+body:has(.universe.lightmode) .gc-choices button { color: #440852; background: rgba(68, 8, 82, 0.06); }
+
+/* Présence du Gardien : son avatar glisse jusqu'au node où il travaille, avec ce qu'il fait ; il ne capte aucun geste. */
+#gardien-presence {
+    position: fixed; left: 0; top: 0; z-index: 40; display: flex; align-items: center; gap: 6px; pointer-events: none;
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s;
+}
+#gardien-presence[hidden] { display: flex; opacity: 0; }
+#gardien-presence i {
+    width: 22px; height: 22px; flex: none; border-radius: 50%; background: #fff url('agents.svg') no-repeat center / 65%;
+    box-shadow: 0 0 0 2px #b89af2, 0 0 14px rgba(104, 72, 166, 0.8);
+}
+#gardien-presence.working i { animation: gp-pulse 0.9s ease-in-out infinite; }
+#gardien-presence span {
+    max-width: 220px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font: 10px 'Cascadia Code', monospace; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF);
+}
+#gardien-presence span:empty { display: none; }
+@keyframes gp-pulse { 50% { box-shadow: 0 0 0 4px #b89af2, 0 0 22px rgba(30, 144, 255, 0.9); } }

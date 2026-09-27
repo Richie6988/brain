@@ -129,11 +129,28 @@ export function createChat({ onSend, onMemory = () => {} }) {
         return h('li', { class: `gc-think${entry.label ? '' : ' live'}` }, details, copyButton(entry));
     }
 
+    // Question du Gardien : ses choix sont des boutons ; un clic répond (comme un message écrit), une seule fois.
+    function choices(entry) {
+        if (!entry.choices?.length) return null;
+        const row = h('div', { class: 'gc-choices' }, entry.choices.map(choice => {
+            const button = h('button', { type: 'button', class: entry.answer === choice ? 'on' : '' }, choice);
+            button.disabled = !!entry.answer;
+            button.addEventListener('click', () => {
+                entry.answer = choice;
+                store();
+                row.querySelectorAll('button').forEach(b => { b.disabled = true; b.classList.toggle('on', b === button); });
+                onSend(choice, []);
+            });
+            return button;
+        }));
+        return row;
+    }
+
     function line(entry) {
         if (entry.role === 'think') return thinking(entry);
         const { role, text, from } = entry;
-        return h('li', { class: `gc-${role}` }, from ? h('small', {}, from) : null, h('p', {}, text),
-            role === 'notice' ? null : copyButton(entry));
+        return h('li', { class: `gc-${role}${entry.choices ? ' gc-question' : ''}` }, from ? h('small', {}, from) : null, h('p', {}, text),
+            choices(entry), role === 'notice' ? null : copyButton(entry));
     }
     function render() {
         log.replaceChildren(...(history.length ? history.map(line)
@@ -149,13 +166,14 @@ export function createChat({ onSend, onMemory = () => {} }) {
 
     render();
     return {
-        // role : user, guardian, notice, error ; from : d'où vient le message (node N-12…)
-        add(role, text, from) {
+        // role : user, guardian, notice, error ; from : d'où vient le message (node N-12…) ; choices : question
+        add(role, text, from, choices) {
             if (!text) return;
-            history.push({ role, text, from });
+            const entry = { role, text, from, ...(choices?.length ? { choices } : {}) };
+            history.push(entry);
             history = history.slice(-KEEP);
             store();
-            log.append(line({ role, text, from }));
+            log.append(line(entry));
             log.querySelector('.gc-hint')?.remove();
             log.scrollTop = log.scrollHeight;
             if (panel.hidden && role !== 'user') {
@@ -194,6 +212,10 @@ export function createChat({ onSend, onMemory = () => {} }) {
                     store();
                 },
             };
+        },
+        // Derniers échanges (humain, Gardien) rappelés au Gardien : il suit la conversation.
+        recent(n = 6) {
+            return history.filter(e => e.role === 'user' || e.role === 'guardian').slice(-n).map(({ role, text }) => ({ role, text }));
         },
         status(text) { status.textContent = text || ''; },
         busy(on) {

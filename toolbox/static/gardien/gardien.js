@@ -14,6 +14,7 @@ import { createFilters } from './filters.js';
 import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';
 import { createPending } from './pending.js';
+import { createPresence } from './presence.js';
 import { createTour } from './tour.js';
 
 const toast = document.getElementById('gardien-toast');
@@ -93,6 +94,7 @@ const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node 
 const tour = createTour({ bridge, say });
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
+const presence = createPresence();  // l'avatar du Gardien là où il travaille
 
 // Le Gardien dans l'univers : dimension « Gardien » avec le node Prompt système, le node Outils, un node par
 // famille puis un node par outil (nom, rôle, comment l'appeler). Le Gardien relit ces nodes à chaque demande.
@@ -188,6 +190,7 @@ let queue = Promise.resolve();
 // s'affichent dans le chat ; depuis un node, les réponses courtes passent aussi en toast.
 async function ask(node, text, attached = []) {
     let actions = Promise.resolve();
+    const history = chat.recent();  // la conversation jusqu'ici : le Gardien la suit
     chat.add('user', text, node ? `node ${node.id}` : attached.length ? `${attached.length} nodes joints` : '');
     if (typeof admin !== 'undefined' && admin) return chat.add('notice', 'Univers d\'un autre compte, en lecture : le Gardien n\'y agit pas.');
     const reply = (kind, message) => {
@@ -228,7 +231,9 @@ async function ask(node, text, attached = []) {
             think.append(piece);
         };
         const context = bridge.context();
-        await api.command({ prompt: text, context: { ...context, ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}) } }, (type, data) => {
+        let doing = '';  // dernière intention annoncée : l'étiquette de l'avatar du Gardien
+        await api.command({ prompt: text, context: { ...context, ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
+            ...(history.length ? { history } : {}) } }, (type, data) => {
             if (type === 'thinking') thought(data);
             else if (type === 'text' || type === 'notice') reply(type, data.text);
             else if (type === 'queued') {
@@ -238,11 +243,15 @@ async function ask(node, text, attached = []) {
             } else if (type === 'plan') follow.plan(data.steps);
             else if (type === 'timing') timing = data;
             // Intentions et gestes s'enchaînent : chaque étape s'affiche quand la page l'exécute.
-            else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); });
+            else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); doing = data.text; });
+            // Question à l'humain : ses choix sont des boutons dans le chat, qui s'ouvre.
+            else if (type === 'ask') actions = actions.then(() => { chat.add('guardian', data.text, '', data.choices); chat.open(); if (node) say(data.text, 'text'); });
             else if (type === 'error') actions = actions.then(() => { follow.step(data.message, 'error'); chat.add('error', data.message); });
             else if (type === 'agent') actions = actions.then(() => follow.step(`${data.agent} ${data.role === 'image' ? 'dessine' : 'écrit'} : ${data.task}`, 'agent'));
             else if (type === 'action') {
-                actions = actions.then(() => perform(data)).catch(error => follow.step(error.message, 'error'));
+                actions = actions.then(() => perform(data))
+                    .then(() => presence.at(bridge.idOf(data.ref || data.target || data.source), doing))
+                    .catch(error => follow.step(error.message, 'error'));
                 if (data.op === 'create') created.push(data.ref);
             }
         });
@@ -261,6 +270,7 @@ async function ask(node, text, attached = []) {
         reply('error', error.message);
     } finally {
         node?.classList.remove('gardien-thinking');
+        presence.leave();
         chat.busy(false);
     }
 }

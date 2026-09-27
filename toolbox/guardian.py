@@ -34,6 +34,8 @@ IMAGE_RADIUS = 180  # node image (nodeSizing 250 × 250)
 MAX_CONTEXT_NODES = 40  # nodes proches de la vue dans le prompt (chaque jeton du prompt coûte sur CPU)
 CONTEXT_TEXT = 80  # caractères par node du contexte
 ATTACHED_TEXT, ATTACHED_TOTAL = 2000, 8000  # nodes joints à la demande : texte complet, dans cette limite
+CITED_TEXT = 1500  # nodes cités par leur identifiant dans la demande (« lis N-171 ») : texte complet, sans lecture
+HISTORY, HISTORY_TEXT = 6, 200  # derniers échanges du chat rappelés au Gardien (il suit la conversation)
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
 SHAPES = ['circle', 'square', 'none']
@@ -77,6 +79,7 @@ PLAN_SCHEMA = {
                     'query': {'type': 'string'},
                     'url': {'type': 'string'},
                     'children': {'type': 'array', 'items': {'type': 'string'}},
+                    'choices': {'type': 'array', 'items': {'type': 'string'}},  # ask : réponses proposées à l'humain
                     # gabarits (build, template_save, backdrop)
                     'layout': {'type': 'string', 'enum': layouts.LAYOUTS},
                     'type': {'type': 'string', 'enum': layouts.BACKDROPS},
@@ -118,6 +121,12 @@ L'utilisateur t'écrit dans un node (le node message) ; tu réponds uniquement e
 n'appelle aucune action (simple question), `plan` et `actions` sont vides et `say` répond.
 `say` est écrit dans un node relié au node message : au passé (« J'ai relié… »), jamais « je vais ».
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
+Exemples (imite leur forme) :
+« bonjour » → {"plan": [], "say": "Bonjour ! Je peux créer, relier, ranger tes nodes ou te faire visiter. Que veux-tu faire ?", "actions": []}
+« ajoute Voyage relié à N-3 » → {"plan": ["Créer Voyage", "Le relier à N-3"], "say": "J'ai créé « Voyage » et je l'ai relié à N-3.", "actions": [{"op":"create","ref":"new1","near":"N-3","text":"Voyage"}, {"op":"link","source":"N-3","target":"new1"}]}
+« arbre de compétences d'un jeu » → {"plan": ["Construire l'arbre"], "say": "J'ai construit l'arbre de compétences.", "actions": [{"op":"build","layout":"tree","items":["Compétences","  Combat","    Épée","  Magie","    Feu"],"title":"Compétences"}]}
+« résume N-12 » (son texte complet est donné) → {"plan": [], "say": "N-12 dit que…", "actions": []}
+« fais quelque chose avec ça » (ambigu) → {"plan": [], "say": "", "actions": [{"op":"ask","text":"Je le résume ou j'en fais une carte mentale ?","choices":["Résumer","Carte mentale"]}]}
 {tools}
 Tes consignes :
 {guidelines}
@@ -200,6 +209,7 @@ def intent(action, nodes):
     name = lambda ref: f"« {short(nodes[ref]['text'], 24)} »" if nodes.get(ref, {}).get('text') else (ref or '?')
     op = action.get('op')
     return {
+        'ask': lambda a: 'Je te pose une question',
         'create': lambda a: f"Je crée « {short(a.get('text'))} »",
         'update': lambda a: f"Je réécris {name(a.get('ref'))}",
         'style': lambda a: f"Je change l'apparence de {name(a.get('ref'))}",
@@ -267,6 +277,7 @@ class Guardian(IaquaOps):
         self.docs = {}  # modes d'emploi réécrits dans les nodes d'outils de l'univers
         self.timings = []  # mesures des appels au modèle (engine.stats[…]['last'])
         self.seen = set()  # actions déjà exécutées pendant cette demande : un tour suivant ne les refait pas
+        self.asked = False  # une question posée à l'humain : on attend sa réponse
 
     # --- contexte envoyé par la page
 
@@ -290,7 +301,13 @@ class Guardian(IaquaOps):
         selected = [by_id[i] for i in selection if i in by_id]
         others = sorted((n for n in nodes if n['id'] not in selection),
                         key=lambda n: math.dist((_number(n.get('x')), _number(n.get('y'))), center))
-        self.context = (selected + others)[:MAX_CONTEXT_NODES]
+        # Les plus proches de la vue, listés dans l'ordre des identifiants : d'une demande à l'autre la liste change
+        # peu et llama.cpp réutilise sa lecture (sinon, un léger déplacement réordonne tout et tout est relu).
+        self.context = sorted((selected + others)[:MAX_CONTEXT_NODES], key=lambda n: node_id(n['id']) or 0)
+        self.raw = {n['id']: str(n.get('text') or '') for n in nodes}
+        self.history = [(h['role'], ' '.join(multiline(str(h.get('text') or '')).split())[:HISTORY_TEXT])
+                        for h in (context.get('history') or [])[-HISTORY:]
+                        if isinstance(h, dict) and h.get('role') in ('user', 'guardian') and h.get('text')]
         for n in nodes:
             self.nodes[n['id']] = {'x': _number(n.get('x')), 'y': _number(n.get('y')), 'r': _number(n.get('r'), RADIUS),
                                    'text': plain(n.get('text', '')), 'color': n.get('color', '')}
@@ -299,7 +316,7 @@ class Guardian(IaquaOps):
         first = self.nodes.get(origin) or (self.nodes.get(selected[0]['id']) if selected else None)
         self.anchor = (first['x'], first['y']) if first else center
         known = {n['id'] for n in self.context}
-        self.links = [(a, b) for a, b in (context.get('links') or []) if a in known and b in known]
+        self.links = sorted((a, b) for a, b in (context.get('links') or []) if a in known and b in known)
         self.selection = [n['id'] for n in selected]
         self.origin = origin if origin in self.nodes else None
         self.layer = context.get('layer') or {}
@@ -313,14 +330,30 @@ class Guardian(IaquaOps):
         lines = [f"{n['id']} : {self.nodes[n['id']]['text'][:CONTEXT_TEXT] or '(vide)'}" for n in self.context if n['id'] not in joined]
         block = ['Nodes joints à cette demande (texte complet, à utiliser comme contexte) :',
                  *(f'[{i}]\n{text or "(vide)"}' for i, text in self.attached)] if self.attached else []
+        cited = [ref for ref in dict.fromkeys(re.findall(r'N-\d+', request)) if ref not in joined][:4]
+        cited_block = ['Nodes cités (texte complet, inutile de les lire) :',
+                       *(f'[{ref}]\n{self.cited_text(ref)}' for ref in cited)] if cited else []
+        talk = ['Échanges récents (du plus ancien au plus récent) :',
+                *(f"{'Humain' if role == 'user' else 'Toi'} : {text}" for role, text in self.history)] if self.history else []
         return '\n'.join([
             f"Dimension : {self.layer.get('name') or 'sans nom'}",
             *block,
             'Nodes :', *(lines or ['(aucun)']),
             'Liens : ' + (', '.join(f'{a}-{b}' for a, b in self.links) or 'aucun'),
+            *talk,  # après le contexte, qui change peu : seule la fin du message est relue
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
+            *cited_block,
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
         ])
+
+    def cited_text(self, ref):
+        """Texte complet d'un node cité : celui de la page, sinon celui de la base (autre dimension)."""
+        if ref in self.raw:
+            return multiline(self.raw[ref])[:CITED_TEXT] or '(vide)'
+        node = Node.objects.filter(user=self.user, archive=False, node_id=node_id(ref)).first()
+        if node is None:
+            return '(introuvable)'
+        return ((node.file_text_content or multiline(node.text_content) or node.file_name or '')[:CITED_TEXT]) or '(vide)'
 
     # --- validation des actions
 
@@ -356,6 +389,17 @@ class Guardian(IaquaOps):
         self.nodes[action['ref']]['text'] = plain(action.get('text', ''))
         return {'op': 'create', 'ref': action['ref'], 'x': x, 'y': y, 'text': text_html(action.get('text', '')),
                 'color': self.color(action), 'shape': action.get('shape') if action.get('shape') in SHAPES else None}
+
+    def op_ask(self, action, agents):
+        """Question à l'humain, avec des choix cliquables dans le chat : la demande s'arrête là, sa réponse arrive
+        comme un nouveau message (avec cet échange dans les échanges récents)."""
+        text = ' '.join(str(action.get('text') or '').split())[:300]
+        if not text:
+            raise PlanError('question vide (text)')
+        choices = list(dict.fromkeys(c for c in (' '.join(str(c).split())[:60] for c in action.get('choices') or []) if c))[:4]
+        self.asked = True
+        self.emit('ask', {'text': text, 'choices': choices})
+        return None
 
     def op_update(self, action, agents):
         return {'op': 'update', 'ref': self.existing(action.get('ref')), 'text': text_html(action.get('text', ''))}
@@ -724,8 +768,13 @@ class Guardian(IaquaOps):
                     raise PlanError(f'action inconnue : {op!r}')
                 if op not in self.allowed:
                     raise PlanError(f"outil désactivé dans Agents & modèles : {op}")
-                if op in ('create', 'delegate', 'mindmap') and not str(action.get('ref', '')).startswith(('new', 'N-')):
+                if op == 'create' and action.get('ref') in self.nodes and str(action.get('ref')).startswith('N-'):
+                    # « create N-172 » : un nouveau node près de N-172 (petit modèle qui confond identifiant et référence)
+                    action = {**action, 'near': action.get('near') or action['ref'], 'ref': f'auto{len(self.nodes) + 1}'}
+                if op in ('create', 'delegate', 'mindmap') and not str(action.get('ref', '')).startswith(('new', 'N-', 'auto')):
                     action = {**action, 'ref': f'auto{len(self.nodes) + 1}'}  # référence manquante
+                if op == 'create' and action.get('children'):
+                    op, action = 'mindmap', {**action, 'op': 'mindmap'}  # un node et ses enfants : une carte mentale
                 self.emit('intent', {'text': intent(action, self.nodes)})
                 reads = len(self.reads)
                 event = getattr(self, f'op_{op}')(action, agents)
@@ -844,8 +893,8 @@ class Guardian(IaquaOps):
                 read = read or bool(reads)
                 for job in jobs:  # (agent, consigne, node) ou, pour une retouche d'image, plus l'image source
                     self.delegate(*job)
-                if cut:
-                    break  # un modèle qui boucle bouclerait encore au tour suivant
+                if cut or self.asked:
+                    break  # boucle : elle recommencerait ; question : on attend la réponse de l'humain
                 # Tour suivant si le modèle a lu, s'est trompé, ou a annoncé un plan sans rien faire.
                 feedback = list(reads)
                 if self.failed:

@@ -9,6 +9,11 @@ Outils administrateur (admin) : ils exécutent du code sur le serveur, donc comp
 NODZ, IAQUA, BOTH = 'nodz', 'iaqua', 'nodz+iaqua'
 
 TOOLS = [
+    # --- Dialogue : le Gardien parle avec son humain
+    {'op': 'ask', 'category': 'Dialogue', 'source': NODZ, 'label': 'Poser une question à l\'humain',
+     'doc': '{"op":"ask","text":"Un arbre ou une matrice ?","choices":["Arbre","Matrice"]} : si la demande est ambiguë, UNE '
+            'question courte avec 2 à 4 choix ; l\'humain répond d\'un clic et sa réponse arrive comme un nouveau message. '
+            'N\'ajoute pas d\'autre action avec elle.'},
     # --- Nodes
     {'op': 'create', 'category': 'Nodes', 'source': NODZ, 'label': 'Créer un node',
      'doc': '{"op":"create","ref":"new1","text":"...","near":"N-3","color":"#4D96FF","shape":"circle"} : nouveau node '
@@ -207,7 +212,7 @@ TOOLS = [
 BY_OP = {t['op']: t for t in TOOLS}
 
 # Outils décrits en entier dans le prompt ; les autres n'y ont qu'une ligne (mode d'emploi par tool_help).
-CORE = {'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
+CORE = {'ask', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
 
 
 def available(op, user):
@@ -221,7 +226,8 @@ def enabled(agent, user):
     """Opérations permises au Gardien : celles cochées (tools_allowed), sinon celles actives par défaut."""
     allowed = [op for op in agent.tools_allowed or [] if op in BY_OP]
     ops = allowed or [t['op'] for t in TOOLS if t.get('default', not t.get('admin'))]
-    return [op for op in ops if available(op, user)] + (['tool_help'] if 'tool_help' not in ops else [])
+    # tool_help et ask (parler à l'humain) restent toujours permis, même avec une liste d'outils cochés d'avant.
+    return [op for op in ops if available(op, user)] + [op for op in ('tool_help', 'ask') if op not in ops]
 
 
 def usage(op, docs=None):
