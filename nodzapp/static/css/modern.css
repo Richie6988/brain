@@ -100,7 +100,12 @@ body:has(.universe.lightmode) {
 
 /* --- Liste des dimensions */
 
+@keyframes nz-rise { from { opacity: 0; transform: translate(-50%, 8px); } }
+
+/* Ancrée au-dessus de son bouton du dock (position fixée à l'ouverture), plus au milieu de l'écran. */
 .dropdown-content {
+    position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); max-height: min(60vh, 440px); z-index: 1000;
+    animation: nz-rise 0.16s ease-out;
     min-width: 230px; padding: 6px; box-sizing: border-box;
     background: var(--nz-glass-strong); border: 1px solid var(--nz-line); border-radius: 16px;
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--nz-shadow);
@@ -226,6 +231,9 @@ body:has(.universe.lightmode) {
 
 /* --- Node : barres d'outils et poignée de taille, au style du Gardien. Aucune taille ni position changée :
    les boutons gardent leur place (le feel ne bouge pas), seules les icônes changent d'apparence. */
+
+/* Texte en cours d'écriture : pas l'anneau de focus du navigateur (le node le coupe en deux traits), un curseur violet. */
+.node-text-input:focus { outline: none; caret-color: #b89af2; }
 
 /* Icônes des barres (format, couleur, forme, verrou, calendrier, portail, fichiers, dessin) : les SVG de
    img/ sont dessinés à trait (clair, prune en mode clair, violet vif quand l'outil est actif). */

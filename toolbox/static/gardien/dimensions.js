@@ -85,9 +85,13 @@ export function createDimensions() {
     document.addEventListener('mousedown', event => {
         if (list.style.display === 'block' && !list.contains(event.target) && !event.target.closest?.('.dropdown-button')) list.style.display = 'none';
     }, true);
-    // À l'ouverture : nombres à jour et curseur dans la recherche.
-    document.querySelector('.dropdown-button').addEventListener('click', () => {
+    // À l'ouverture : placée au-dessus du bouton, nombres à jour et curseur dans la recherche.
+    const button = document.querySelector('.dropdown-button');
+    button.addEventListener('click', () => {
         if (list.style.display !== 'block') return;
+        const r = button.getBoundingClientRect();  // au-dessus du bouton, centrée sur lui
+        list.style.left = `${r.left + r.width / 2}px`;
+        list.style.bottom = `${innerHeight - r.top + 12}px`;
         search.value = '';
         query = '';
         refresh().then(() => search.focus());  // après le nouveau rendu, qui replace le champ
