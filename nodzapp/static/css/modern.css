@@ -14,6 +14,26 @@
     --nz-blue: #1E90FF;
     --nz-glow: 0 0 0 1px rgba(104, 72, 166, 0.7), 0 6px 18px rgba(104, 72, 166, 0.4);
     --nz-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    /* Fenêtres : même langage que la pastille, le chat et le lecteur du Gardien (verre sombre, liseré violet) */
+    --nz-card: rgba(5, 12, 23, 0.92);
+    --nz-card-line: rgba(104, 72, 166, 0.6);
+    --nz-card-text: #e2e8f0;
+    --nz-card-title: #b89af2;
+    --nz-inner: rgba(148, 163, 184, 0.08);
+    --nz-field: rgba(148, 163, 184, 0.12);
+    --nz-field-line: rgba(148, 163, 184, 0.3);
+    --nz-gradient: linear-gradient(135deg, #6848A6, #1E90FF);
+    --nz-card-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(104, 72, 166, 0.25);
+}
+body:has(.universe.lightmode) {
+    --nz-card: rgba(255, 255, 255, 0.96);
+    --nz-card-line: rgba(104, 72, 166, 0.35);
+    --nz-card-text: #440852;
+    --nz-card-title: #6848A6;
+    --nz-inner: #fff;
+    --nz-field: rgba(68, 8, 82, 0.05);
+    --nz-field-line: rgba(68, 8, 82, 0.2);
+    --nz-card-shadow: 0 16px 40px rgba(68, 8, 82, 0.18);
 }
 
 /* --- Barre de boutons : toujours visible en bas, dans le style de la tour de contrôle (haut gauche).
@@ -104,44 +124,58 @@
 /* Renommer une dimension */
 #edit-modal { background: rgba(5, 12, 23, 0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
 #edit-modal .modal-content {
-    width: 280px; padding: 18px 20px; border-radius: 18px; background: #fbfaff; color: var(--nz-plum);
-    border: 1px solid rgba(68, 8, 82, 0.18); box-shadow: var(--nz-shadow); font-size: 13px;
+    width: 300px; padding: 16px 18px; border-radius: 18px; background: var(--nz-card); color: var(--nz-card-title);
+    border: 1px solid var(--nz-card-line); box-shadow: var(--nz-card-shadow); font: 12px 'Cascadia Code', monospace; letter-spacing: 0.04em;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 #layer-name-input {
-    box-sizing: border-box; width: 100%; padding: 9px 14px; border-radius: 999px; border: 1px solid #d9cdea;
-    font: 13px 'Cascadia Code', monospace; color: var(--nz-plum); outline: none;
+    box-sizing: border-box; width: 100%; margin-top: 8px; padding: 9px 14px; border-radius: 12px; border: 1px solid var(--nz-field-line);
+    background: var(--nz-field); font: 13px 'Cascadia Code', monospace; color: var(--nz-card-text); outline: none;
 }
-#layer-name-input:focus { border-color: var(--nz-violet); box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.18); }
+#layer-name-input:focus { border-color: rgba(184, 154, 242, 0.8); box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.25); }
 
 /* --- Popups, boutons et accueil */
 
-.popup {
-    border: 1px solid rgba(68, 8, 82, 0.2); border-radius: 22px; background: #fbfaff;
-    box-shadow: var(--nz-shadow);
+.popup, #export .exportContent, #templates .templatesContent {
+    border: 1px solid var(--nz-card-line); border-radius: 18px; background: var(--nz-card); color: var(--nz-card-text);
+    box-shadow: var(--nz-card-shadow); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    font-family: 'Cascadia Code', monospace;
 }
+.popup .smallmessage, #export .toggle-label { color: var(--nz-card-text); font-family: 'Cascadia Code', monospace; }
+.popup .message { background: var(--nz-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.popup input:not([type=checkbox]):not([type=radio]), .popup textarea, .popup select {
+    background: var(--nz-field); color: var(--nz-card-text); border: 1px solid var(--nz-field-line); border-radius: 12px;
+    font-family: 'Cascadia Code', monospace;
+}
+.popup input:focus, .popup textarea:focus { outline: none; border-color: rgba(184, 154, 242, 0.8); }
+#templates .template-model { background: #fff; border-radius: 14px; border: 1px solid var(--nz-card-line); }
+#templates .template-model:hover { box-shadow: 0 0 0 2px #6848A6, 0 0 18px rgba(30, 144, 255, 0.45); }
 .submit-button {
-    border-radius: 999px; padding: 10px 26px; letter-spacing: 0.04em;
-    background: linear-gradient(135deg, #7a55c4, #4b0082); box-shadow: 0 6px 16px rgba(75, 0, 130, 0.35);
+    border-radius: 999px; padding: 9px 24px; letter-spacing: 0.04em; font: 600 12px 'Cascadia Code', monospace; color: #fff;
+    background: var(--nz-gradient); border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 0 14px rgba(104, 72, 166, 0.45);
     transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s;
 }
-.submit-button:hover:enabled { background: linear-gradient(135deg, #8a63d6, #56009a); transform: translateY(-1px); box-shadow: 0 10px 22px rgba(75, 0, 130, 0.45); }
+.submit-button:hover:enabled { background: var(--nz-gradient); filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 0 20px rgba(30, 144, 255, 0.6); }
 .submit-button.secondary { background: rgba(255, 255, 255, 0.06); color: var(--nz-text); box-shadow: inset 0 0 0 1px var(--nz-line); }
 .submit-button.secondary:hover:enabled { background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.5); }
 #loginPopup { box-shadow: none; }
 #loginPopup .log-button { min-width: 132px; padding: 11px 26px !important; font: 600 14px 'Cascadia Code', monospace; }
 #loginPopup .popupbutton-container { gap: 16px; justify-content: center; width: auto; }
+#loginPopup { background: transparent; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
 #loginPopup .message { font-weight: 700; letter-spacing: 0.02em; }
 .close-btn { width: 34px; height: 34px; top: 10px; right: 12px; display: grid; place-items: center; border-radius: 50%; font-size: 24px; line-height: 1; transition: background-color 0.2s, transform 0.2s; }
-.close-btn:hover { background: rgba(104, 72, 166, 0.12); transform: rotate(90deg); }
+.close-btn { color: var(--nz-card-title); }
+.close-btn:hover { background: rgba(104, 72, 166, 0.3); transform: rotate(90deg); }
 
 /* --- Profil */
 
 #profile .profile-content {
-    border-radius: 22px; border: 1px solid rgba(68, 8, 82, 0.15); background: #fbfaff; box-shadow: var(--nz-shadow);
+    border-radius: 18px; border: 1px solid var(--nz-card-line); background: var(--nz-card); color: var(--nz-card-text); box-shadow: var(--nz-card-shadow);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
-#profile .section-title { color: var(--nz-plum); border-bottom: 1px solid #e6def2; }
-#profile .field-container { align-items: center; padding: 6px 0; border-bottom: 1px solid #efe9f7; }
-#profile .field-label { color: var(--nz-violet); font-weight: 600; }
+#profile .section-title { color: var(--nz-card-title); border-bottom: 1px solid var(--nz-field-line); }
+#profile .field-container { align-items: center; padding: 6px 0; border-bottom: 1px solid var(--nz-field-line); }
+#profile .field-label { color: var(--nz-card-title); font-weight: 600; }
 #profile .edit-icon.icon { font-size: 0; width: 16px; height: 16px; cursor: pointer; opacity: 0.6; background: url('../img/edit-light.svg') center / contain no-repeat; }
 #profile .edit-icon.icon:hover { opacity: 1; }
 
@@ -150,11 +184,11 @@
 #profile .section-title { margin: 22px 0 12px; font-size: 1.15rem; letter-spacing: 0.02em; }
 #profile .section-title:first-of-type { margin-top: 0; font-size: 1.4rem; }
 #profile #userProfile, #profile .user-stats, #profile [data-field="Referee"], #profile .subscription {
-    background: #fff; border: 1px solid #ece6f5; border-radius: 16px; padding: 10px 18px; margin-bottom: 14px;
+    background: var(--nz-inner); border: 1px solid var(--nz-field-line); border-radius: 14px; padding: 10px 18px; margin-bottom: 14px;
 }
 #profile #userProfile .field-container { grid-template-columns: 150px 1fr 24px; justify-items: start; gap: 12px; padding: 9px 0; }
 #profile #userProfile .field-container:last-child { border-bottom: none; }
-#profile .field-value { font-size: 0.95rem; color: #1f1633; }
+#profile .field-value { font-size: 0.95rem; color: var(--nz-card-text); }
 #profile .user-stats { grid-template: none; grid-template-columns: 220px 1fr; align-items: center; gap: 12px; padding: 16px 18px; }
 #profile .user-stats .message { margin: 0; }
 #profile #nodesKPI { font-size: 3.4rem; line-height: 1; background: linear-gradient(135deg, #6848A6, #1E90FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -165,7 +199,7 @@
 #profile [data-field="Referee"] p { margin: 0; }
 #profile #referrerKPI { font-size: 1.6rem; color: #6848A6; margin: 0; }
 #profile .subscription-upgrade > .subscription-upgrade {
-    background: linear-gradient(135deg, #f6f1ff, #eef6ff) !important; box-shadow: none !important; border: 1px solid #e3dcef; max-width: none !important; margin: 6px 0 14px !important;
+    background: var(--nz-inner) !important; box-shadow: none !important; border: 1px solid var(--nz-card-line); max-width: none !important; margin: 6px 0 14px !important;
 }
 #profile .subscription-upgrade > .subscription-upgrade > p:first-child { font-size: 1.2rem !important; }
 #profile #feedback { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px 18px; padding: 0 !important; }
@@ -177,7 +211,12 @@
 }
 #profile #plan { width: auto !important; border-radius: 999px !important; padding: 8px 16px !important; background: #2b2438 !important; }
 #profile #pay-button { width: auto !important; margin-left: 10px; }
-#profile #feedback-input { border: 1px solid #e3dcef; border-radius: 12px; padding: 10px 12px; font: 13px 'Cascadia Code', monospace; resize: vertical; }
+#profile #feedback-input { border: 1px solid var(--nz-field-line) !important; border-radius: 12px; padding: 10px 12px; font: 13px 'Cascadia Code', monospace; resize: vertical;
+    background: var(--nz-field) !important; color: var(--nz-card-text); }
+#profile .subscription-upgrade { background: transparent; color: var(--nz-card-text); }
+#profile .subscription-upgrade p, #profile #feedback li p { color: var(--nz-card-text) !important; }
+#profile .subscription-upgrade > .subscription-upgrade > p:first-child { background: var(--nz-gradient); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
+#profile .subscription-upgrade a { color: #1E90FF; }
 #profile #feedback-input:focus { outline: none; border-color: #6848A6; box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.15); }
 #profile .danger-button { position: static; margin: 0 auto; border-radius: 999px; }
 @media (max-width: 700px) {

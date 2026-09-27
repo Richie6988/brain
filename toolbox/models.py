@@ -248,3 +248,10 @@ class ForgedTool(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['owner', 'name'], name='unique_forged_tool')]
+
+
+class Preference(models.Model):
+    """Réglages d'interface d'un compte, gardés sur le serveur : dimensions épinglées."""
+
+    owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='nodz_preference')
+    pinned_layers = models.JSONField(default=list, blank=True)  # numéros de dimension (layer_id), dans l'ordre d'épinglage

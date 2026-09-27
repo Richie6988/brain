@@ -1103,6 +1103,22 @@ class CudaBuildTests(TestCase):
         self.assertEqual(r.status_code, 400)
 
 
+class DimensionsTests(TestCase):
+    def test_pinned_dimensions_and_counts(self):
+        from nodzapp.models import Layer, Node
+
+        user = NodzUser.objects.create_user(email='d@nodz.local', password='pw-123456')
+        home, budget = Layer.objects.create(user=user, layer_name='Home'), Layer.objects.create(user=user, layer_name='Budget')
+        Node.objects.create(user=user, layer=budget, node_id=1)
+        Node.objects.create(user=user, layer=budget, node_id=2, archive=True)
+        self.client.force_login(user)
+        r = self.client.patch('/api/v1/toolbox/dimensions', {'pinned': [budget.layer_id, 99, budget.layer_id]}, content_type='application/json')
+        self.assertEqual(r.json(), {'pinned': [budget.layer_id], 'counts': {str(budget.layer_id): 1}})  # dimension inconnue écartée
+        self.assertEqual(self.client.get('/api/v1/toolbox/dimensions').json()['pinned'], [budget.layer_id])
+        self.assertEqual(self.client.patch('/api/v1/toolbox/dimensions', {'pinned': 'x'}, content_type='application/json').status_code, 400)
+        self.assertEqual(home.layer_id, 1)
+
+
 class AdminConsoleTests(TestCase):
     def setUp(self):
         from .models import GuardianLog, Schedule

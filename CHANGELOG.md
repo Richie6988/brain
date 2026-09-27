@@ -44,6 +44,10 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **CUDA depuis l'interface** : quand la carte NVIDIA est là mais llama-cpp-python compilé sans CUDA, le dialogue de réglages propose « Compiler avec CUDA » (administrateur) : `deploy/cuda.sh` vérifie la carte et nvcc, compile, contrôle que l'offload GPU est actif, avec le journal en direct, puis « Redémarrer Nodz » (si le compte du serveur en a le droit, voir DEPLOY.md).
 
+**Liste des dimensions** : champ de recherche en tête (le curseur y est dès l'ouverture, Entrée ouvre la première trouvée, Échap efface), dimensions épinglées juste après la dimension courante (épingle sur chaque ligne, gardée sur le serveur, migration `0007_preferences`), nombre de nodes de chaque dimension, liste défilante quand elle est longue.
+
+**Vieilles fenêtres de Nodz au style du Gardien** : renommage de dimension (portail), popups (partage, suppression, connexion), export, galerie de modèles et profil passent au verre sombre à liseré violet, en Cascadia Code, avec des champs sombres et des boutons en dégradé violet vers bleu ; variante claire en mode Light. Le chat et les filtres n'apparaissent qu'une fois connecté ; la bulle du chat est au-dessus du coin, hors du chemin des gestes.
+
 **Profil** en cartes (identité, activité, parrainage, Premium, avis), coches dessinées au lieu d'emoji ; nouvelle icône du bouton Agents.
 
 **Session conservée** : ouvrir `/universe` ne déconnecte plus. Un autre onglet, un rechargement ou un préchargement déconnectait la page ouverte (sauvegardes, profil, modèles et Gardien refusés). La fenêtre LOGIN / GUEST s'affiche toujours ; la déconnexion se fait par le profil. Un refus 401 dit s'il manque le cookie ou si la session est inconnue.

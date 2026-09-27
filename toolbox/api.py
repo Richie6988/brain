@@ -14,18 +14,19 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import connection
+from django.db.models import Count
 from django.http import FileResponse, JsonResponse, StreamingHttpResponse
 
 from graph.api import api, unauthenticated
 from graph.services import ChangeError
-from nodzapp.models import Node
+from nodzapp.models import Layer, Node
 
 from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable
 from .guardian import Guardian, PlanError
-from .models import Agent, LocalModel, NodeMark
+from .models import Agent, LocalModel, NodeMark, Preference
 from .runtime import broker, dispatcher, engine
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,21 @@ def status(request, body):
                          'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
                          'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR), 'param_spec': model_params.SPEC,
                          'imaging': bool(imaging.binary()), 'gpu_offload': engine.gpu_offload(), 'packs': {k: p['label'] for k, p in hub.PACKS.items()}})
+
+
+@api('GET', 'PATCH')
+def dimensions(request, body):
+    """Liste des dimensions : épinglées (gardées sur le serveur) et nombre de nodes de chacune."""
+    prefs, _ = Preference.objects.get_or_create(owner=request.user)
+    if request.method == 'PATCH':
+        pinned = body.get('pinned') if isinstance(body, dict) else None
+        if not isinstance(pinned, list) or not all(isinstance(i, int) for i in pinned):
+            raise ChangeError('pinned : liste de numéros de dimension')
+        mine = set(Layer.objects.filter(user=request.user).values_list('layer_id', flat=True))
+        prefs.pinned_layers = [i for i in dict.fromkeys(pinned) if i in mine][:50]
+        prefs.save(update_fields=['pinned_layers'])
+    counts = dict(Node.objects.filter(user=request.user, archive=False).values_list('layer__layer_id').annotate(n=Count('id')))
+    return JsonResponse({'pinned': prefs.pinned_layers, 'counts': {str(k): v for k, v in counts.items()}})
 
 
 @api('GET', 'POST')

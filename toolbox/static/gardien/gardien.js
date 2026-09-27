@@ -9,6 +9,7 @@ import { createAdmin } from './admin.js';
 import { api } from './api.js';
 import { createBridge } from './bridge.js';
 import { createChat } from './chat.js';
+import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
 import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';
@@ -75,7 +76,15 @@ const follow = (() => {
 svg.addEventListener('mousedown', () => document.body.classList.add('gardien-gesture'), true);
 window.addEventListener('mouseup', () => requestAnimationFrame(() => document.body.classList.remove('gardien-gesture')), true);
 
+// Chat et filtres n'apparaissent qu'une fois connecté (LOGIN ou GUEST de Nodz).
+const signedIn = setInterval(() => {
+    if (typeof isLoggedIn === 'undefined' || !isLoggedIn) return;
+    document.body.classList.add('gardien-ready');
+    clearInterval(signedIn);
+}, 400);
+
 const filters = createFilters();
+createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node) });
 const tour = createTour({ bridge, say });
