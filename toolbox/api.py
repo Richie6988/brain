@@ -9,6 +9,7 @@ import json
 import logging
 import queue
 import threading
+import time
 from pathlib import Path
 
 from django.conf import settings
@@ -19,7 +20,7 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Node
 
-from . import gguf, hub, imaging, monitor, params as model_params, prompts, tools
+from . import gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import EngineUnavailable
@@ -28,6 +29,7 @@ from .models import Agent, LocalModel, NodeMark
 from .runtime import broker, dispatcher, engine
 
 logger = logging.getLogger(__name__)
+SCHEDULES = {'checked': 0.0}  # dernière vérification des planifications (moniteur)
 
 AGENT_FIELDS = ('name', 'role', 'description', 'system_prompt', 'tools_allowed', 'params', 'enabled')
 
@@ -109,9 +111,9 @@ def pack(request, body, key):
 def tool_list(request, body):
     """Catalogue des outils du Gardien (Nodz et iAqua), ceux activés pour l'utilisateur, et les non portés."""
     guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
-    return JsonResponse({'tools': tools.TOOLS, 'enabled': tools.enabled(guardian) if guardian else [],
-                         'guardian': str(guardian.id) if guardian else None,
-                         'not_ported': [{'names': n, 'reason': r} for n, r in tools.NOT_PORTED]})
+    return JsonResponse({'tools': [{**t, 'available': tools.available(t['op'], request.user)} for t in tools.TOOLS],
+                         'enabled': tools.enabled(guardian, request.user) if guardian else [],
+                         'guardian': str(guardian.id) if guardian else None, 'shell': settings.GUARDIAN_SHELL})
 
 
 @api('GET', 'POST')
@@ -131,6 +133,36 @@ def marks(request, body):
                                    for i, c, m in nodes}})
 
 
+@api('GET', 'POST')
+def brain_map(request, body):
+    """Le Gardien dans l'univers : GET donne ce qu'il faut poser (consignes, outils par famille) ;
+    POST enregistre les nodes créés ({prompt: N-12, tools: {op: N-40}}) pour que le Gardien les relise."""
+    guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
+    if guardian is None:
+        return JsonResponse({'error': 'pas de Gardien'}, status=404)
+    if request.method == 'POST':
+        nodes = {'prompt': str(body.get('prompt', '')), 'tools': {op: str(n) for op, n in (body.get('tools') or {}).items() if op in tools.BY_OP}}
+        guardian.brain = {**guardian.brain, 'universe': nodes}
+        guardian.save(update_fields=['brain'])
+        return JsonResponse({'saved': len(nodes['tools'])})
+    ops = tools.enabled(guardian, request.user)
+    return JsonResponse({'guidelines': guardian.system_prompt or prompts.GUARDIAN, 'installed': 'universe' in guardian.brain,
+                         'tools': [{'op': t['op'], 'label': t['label'], 'category': t['category'], 'usage': t['doc']}
+                                   for t in tools.TOOLS if t['op'] in ops]})
+
+
+@api('GET')
+def workspace_file(request, body, path):
+    """Fichier de l'espace de travail de l'utilisateur (documents générés, exports), en téléchargement."""
+    try:
+        target = workspace.resolve(request.user, path)
+    except workspace.WorkspaceError:
+        target = None
+    if target is None or not target.is_file():
+        return JsonResponse({'error': 'fichier introuvable'}, status=404)
+    return FileResponse(open(target, 'rb'), as_attachment=True, filename=target.name)
+
+
 @api('GET')
 def image(request, body, name):
     """Image générée pour l'utilisateur (seulement les siennes)."""
@@ -142,7 +174,14 @@ def image(request, body, name):
 
 @api('GET')
 def system(request, body):
-    """Moniteur du serveur : CPU, RAM, GPU, disque, modèle en mémoire, file du broker."""
+    """Moniteur du serveur : CPU, RAM, GPU, disque, modèle en mémoire, file du broker.
+
+    Interrogé toutes les 3 s par les pages ouvertes : il déclenche aussi les tâches planifiées, une fois par minute.
+    """
+    now = time.monotonic()
+    if now - SCHEDULES['checked'] >= 60:
+        SCHEDULES['checked'] = now
+        iaqua.fire_due_schedules(engine)
     loaded = LocalModel.objects.filter(id=engine.loaded).first() if engine.loaded else None
     return JsonResponse({**monitor.snapshot(), 'broker': broker.state(), 'dispatch': dispatcher.state(), 'engine': engine.available(),
                          'model': {'id': str(loaded.id), 'name': loaded.label or loaded.filename,

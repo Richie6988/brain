@@ -3,7 +3,7 @@ import html
 import json
 import math
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 import tempfile
 import threading
 import time
@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from django.db import connection
+from django.utils import timezone
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 
 from nodzapp.models import NodzUser
@@ -702,8 +703,8 @@ class GuardianTests(TestCase):
     def test_disabled_tools_leave_the_prompt_and_are_refused(self):
         guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
         data = self.client.get('/api/v1/toolbox/tools').json()
-        self.assertEqual(len(data['enabled']), len(data['tools']))
-        self.assertIn('execute_bash', ' '.join(n['names'] for n in data['not_ported']))
+        self.assertEqual(set(data['enabled']), {t['op'] for t in data['tools'] if not t.get('admin') and t.get('default', True)})
+        self.assertTrue(next(t for t in data['tools'] if t['op'] == 'execute_bash')['admin'])  # porté, réservé à l'administrateur
         self.assertEqual({t['source'] for t in data['tools']}, {'nodz', 'iaqua', 'nodz+iaqua'})
         keep = [t['op'] for t in data['tools'] if t['op'] != 'archive']
         r = self.client.patch(f'/api/v1/toolbox/agents/{guardian.id}', {'tools_allowed': keep}, content_type='application/json')
@@ -721,13 +722,13 @@ class GuardianTests(TestCase):
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn(prompts.GUARDIAN, system)
-        self.assertIn('{"op":"web_search"', system)
+        self.assertIn('- web_search [L] : Recherche web', system)
         Agent.objects.filter(owner=self.user, role=Agent.Role.ORCHESTRATOR).update(system_prompt='Tu parles comme un pirate.')
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn('Tu parles comme un pirate.', system)
         self.assertNotIn(prompts.GUARDIAN, system)
-        self.assertIn('{"op":"mindmap"', system)  # une consigne réécrite ne retire pas les outils
+        self.assertIn('- mindmap : Carte mentale', system)  # une consigne réécrite ne retire pas les outils
         agents = {a['name']: a for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
         self.assertEqual(agents['Rédacteur']['default_prompt'], prompts.ROLES[Agent.Role.TEXT])
 
@@ -1042,3 +1043,255 @@ class CommandStreamTests(TransactionTestCase):
             dispatcher.done(ticket)
         self.assertEqual(r.status_code, 429)
         self.assertIn('déjà', json.loads(r.content)['error'])
+
+
+@override_settings(GUARDIAN_SHELL=False)
+class IaquaToolsTests(TestCase):
+    """Outils portés d'iAqua : chaque famille, les garde-fous et le Gardien installé dans l'univers."""
+
+    CONTEXT = {'layer': {'id': 1, 'name': 'Home'}, 'layers': [{'id': 1, 'name': 'Home'}],
+               'nodes': [{'id': 'N-1', 'text': 'Voyage', 'x': 0, 'y': 0, 'r': 20}], 'links': [], 'view': {'x': 0, 'y': 0}, 'origin': 'N-1'}
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        override = override_settings(WORKSPACE_DIR=self.root / 'ws', GUARDIAN_PYENV=self.root / 'pyenv')
+        override.enable()
+        self.addCleanup(override.disable)
+        self.user = NodzUser.objects.create_user(email='iaqua@nodz.local', password='pw-123456')
+        self.model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf', status=LocalModel.Status.READY)
+        self.client.force_login(self.user)
+        self.client.get('/api/v1/toolbox/agents')
+        Agent.objects.filter(owner=self.user).exclude(role=Agent.Role.IMAGE).update(model=self.model)
+        self.events = []
+
+    def run_guardian(self, *actions_per_round, request='organise', replies=()):
+        from .guardian import Guardian
+
+        rounds = [json.dumps({'plan': ['Agir'], 'say': 'Fait.', 'actions': actions}) for actions in actions_per_round]
+        engine = ScriptedEngine(*rounds, *replies)
+        self.events = []
+        Guardian(self.user, engine, lambda kind, data: self.events.append((kind, data))).handle(request, self.CONTEXT)
+        return engine
+
+    def errors(self):
+        return [d['message'] for k, d in self.events if k == 'error']
+
+    def reads(self, engine, call=1):
+        return '\n'.join(m['content'] for m in engine.calls[call]['messages'] if m['role'] == 'user')
+
+    def test_tasks_and_schedules(self):
+        from . import iaqua
+        from .models import Schedule, Task
+
+        engine = self.run_guardian(
+            [{'op': 'create_task', 'title': 'Écrire le programme', 'description': 'Jour par jour', 'agent': 'Rédacteur',
+              'acceptance_criteria': '3 jours', 'priority': 'high'},
+             {'op': 'update_task', 'task_id': 'task_0001', 'field': 'progress', 'value': 'plan établi'},
+             {'op': 'schedule_task', 'action': 'create', 'expr': 'daily@08:30', 'title': 'Revue du matin'},
+             {'op': 'schedule_task', 'action': 'create', 'expr': 'toutes les heures'},
+             {'op': 'list_tasks'}],
+        )
+        task = Task.objects.get(owner=self.user)
+        self.assertEqual((task.key, task.priority, task.agent.name, len(task.progress)), ('task_0001', 'high', 'Rédacteur', 1))
+        self.assertIn('task_0001 [planned, high] Écrire le programme', self.reads(engine))
+        self.assertIn('expression inconnue', self.errors()[0])
+        schedule = Schedule.objects.get(owner=self.user)
+        morning = timezone.make_aware(datetime(2026, 9, 28, 8, 31))
+        self.assertEqual([t.title for t in iaqua.fire_due_schedules(now=morning)], ['Revue du matin'])
+        self.assertEqual(iaqua.fire_due_schedules(now=morning + timedelta(hours=2)), [])  # une fois par jour
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.last_fired_at, morning)
+        self.run_guardian([{'op': 'delete_task', 'task_id': 'task_0001'}])
+        self.assertFalse(Task.objects.filter(number=1, owner=self.user).exists())
+
+    def test_run_task_with_its_agent(self):
+        from . import iaqua
+        from .models import Task
+
+        task = Task.objects.create(owner=self.user, number=1, title='Résumer', agent=Agent.objects.get(owner=self.user, name='Rédacteur'))
+        with mock.patch('toolbox.iaqua.connection'):
+            iaqua.run_task(task.pk, ScriptedEngine('Un résumé.'))
+        task.refresh_from_db()
+        self.assertEqual((task.status, task.result), ('completed', 'Un résumé.'))
+
+    def test_projects_memory_and_audit(self):
+        from nodzapp.models import Layer, Node
+
+        from .models import Project
+
+        engine = self.run_guardian([{'op': 'create_project', 'name': 'japon', 'vision': 'Deux semaines au Japon'}])
+        self.assertIn({'op': 'dimension', 'name': 'JAPON'}, [d for k, d in self.events if k == 'action'])
+        layer = Layer.objects.create(user=self.user, layer_id=2, layer_name='JAPON')
+        Node.objects.create(user=self.user, node_id=10, layer=layer, text_content='Kyoto')
+        Node.objects.create(user=self.user, node_id=11, layer=layer, text_content='')
+        engine = self.run_guardian(
+            [{'op': 'update_project_memory', 'project_name': 'Japon', 'kind': 'decision', 'content': 'Train JR Pass'},
+             {'op': 'update_project_memory', 'project_name': 'JAPON', 'kind': 'blocker', 'content': 'Visa à vérifier'},
+             {'op': 'update_project', 'project_name': 'JAPON', 'field': 'status', 'new_value': 'deleted'},
+             {'op': 'audit_project', 'project_name': 'JAPON'}, {'op': 'list_projects'}, {'op': 'plan_project', 'goal': 'itinéraire', 'project': 'JAPON'}],
+        )
+        memory = Project.objects.get(owner=self.user).memory
+        self.assertIn('Train JR Pass', memory['decisions'][0])
+        text = self.reads(engine)
+        self.assertIn('Dimension : 2 nodes, 1 vides, 2 sans lien', text)
+        self.assertIn('Visa à vérifier', text)
+        self.assertIn('JAPON [active] 0/0 tâches', text)
+        self.assertIn('Agents : ', text)
+        self.assertIn('suppression est laissée', self.errors()[0])
+
+    def test_mission_runs_plans_and_tasks(self):
+        from . import iaqua
+        from .models import Mission
+
+        self.run_guardian([{'op': 'create_project', 'name': 'NEWS'}])
+        with mock.patch('toolbox.iaqua.threading.Thread') as thread:
+            self.run_guardian([{'op': 'launch_mission', 'goal': 'Trois titres du jour', 'project': 'NEWS', 'budget': 2}])
+        mission = Mission.objects.get(owner=self.user)
+        self.assertEqual(thread.call_args.kwargs['target'], iaqua.run_mission)
+        engine = ScriptedEngine(
+            json.dumps({'done': False, 'summary': 'Je rédige', 'tasks': [{'title': 'Titres', 'agent': 'Rédacteur', 'task': 'Trois titres'}]}),
+            'Titre 1\nTitre 2\nTitre 3',
+            json.dumps({'done': True, 'summary': 'Trois titres rédigés', 'tasks': []}),
+        )
+        with mock.patch('toolbox.iaqua.connection'):
+            iaqua.run_mission(mission.pk, engine)
+        mission.refresh_from_db()
+        self.assertEqual((mission.status, mission.iterations), ('done', 2))
+        self.assertEqual(mission.project.tasks.get().result, 'Titre 1\nTitre 2\nTitre 3')
+        self.assertIn('Mission mission_0001', mission.project.memory['achievements'][0])
+        engine = self.run_guardian([{'op': 'mission_status', 'mission_id': 'mission_0001'}])
+        self.assertIn('Trois titres rédigés', self.reads(engine))
+
+    def test_skills_brain_and_logs(self):
+        engine = self.run_guardian(
+            [{'op': 'write_skill', 'skill_id': 'visite', 'name': 'Visite guidée', 'summary': 'Montrer un plan', 'steps': ['overview', 'focus']},
+             {'op': 'write_skill', 'skill_id': 'visite', 'summary': 'Montrer un plan, v2'},
+             {'op': 'record_skill_outcome', 'skill_id': 'visite', 'outcome': 'success'},
+             {'op': 'update_brain_field', 'field_path': 'style.ton', 'value': '"joueur"'},
+             {'op': 'update_user_context', 'text': 'Aime les cartes'},
+             {'op': 'list_skills'}, {'op': 'read_my_brain', 'section_path': 'style'}, {'op': 'create_task', 'title': 'x'},
+             {'op': 'get_logs', 'event_type': 'task_created'}],
+        )
+        text = self.reads(engine)
+        self.assertIn('visite v2 : Montrer un plan, v2', text)
+        self.assertIn('réussites 1', text)
+        self.assertIn('"ton": "joueur"', text)
+        self.assertIn('task_created : task_0001 x', text)
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        self.assertEqual((guardian.brain['style'], guardian.memory), ({'ton': 'joueur'}, ['Aime les cartes']))
+
+    def test_workspace_files_git_and_documents(self):
+        engine = self.run_guardian(
+            [{'op': 'write_file', 'path': 'notes/plan.md', 'content': 'Jour 1 : Tokyo'},
+             {'op': 'edit_file', 'path': 'notes/plan.md', 'search_text': 'Tokyo', 'replace_text': 'Kyoto'},
+             {'op': 'write_file', 'path': '../../etc/passwd', 'content': 'x'},
+             {'op': 'read_file', 'path': 'notes/plan.md'}, {'op': 'list_files', 'path': 'notes'},
+             {'op': 'git', 'action': 'commit', 'message': 'Plan'},
+             {'op': 'generate_docx', 'filename': 'rapport', 'title': 'Voyage', 'markdown': '# Jour 1\n- Kyoto'},
+             {'op': 'generate_pptx', 'filename': 'pitch', 'title': 'Japon', 'slides': [{'title': 'Kyoto', 'bullets': ['Temples']}]}],
+        )
+        text = self.reads(engine)
+        self.assertIn('Jour 1 : Kyoto', text)
+        self.assertIn('- plan.md (14 o)', text)
+        self.assertIn('/api/v1/toolbox/workspace/exports/rapport.docx', text)
+        self.assertIn('hors de l\'espace de travail', self.errors()[0])
+        r = self.client.get('/api/v1/toolbox/workspace/exports/pitch.pptx')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.client.get('/api/v1/toolbox/workspace/../secret').status_code, 404)
+        log = self.run_guardian([{'op': 'git', 'action': 'log'}])
+        self.assertIn('Plan', self.reads(log))
+
+    def test_email_only_to_self_without_admin(self):
+        from django.core import mail
+
+        with self.settings(EMAIL_HOST='smtp.local', EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            self.run_guardian([{'op': 'send_email', 'subject': 'Rappel', 'body': 'Kyoto'},
+                               {'op': 'send_email', 'to': 'autre@x.fr', 'subject': 'Spam', 'body': '...'}])
+        self.assertEqual([m.to for m in mail.outbox], [['iaqua@nodz.local']])
+        self.assertIn("qu'à ton adresse", self.errors()[0])
+
+    def test_admin_tools_are_gated(self):
+        from . import tools
+
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        self.assertNotIn('execute_bash', tools.enabled(guardian, self.user))
+        guardian.tools_allowed = ['create', 'execute_bash']
+        guardian.save()
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help'])  # pas administrateur
+        self.user.is_staff = True
+        self.user.save()
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help'])  # GUARDIAN_SHELL=0
+        with self.settings(GUARDIAN_SHELL=True):
+            self.assertIn('execute_bash', tools.enabled(guardian, self.user))
+            engine = self.run_guardian([{'op': 'execute_bash', 'command': 'echo bonjour > salut.txt && cat salut.txt'}])
+            self.assertIn('bonjour', self.reads(engine))
+            forge = self.run_guardian([{'op': 'forge_tool', 'action': 'create', 'name': 'double',
+                                        'code': 'import json, sys\nprint(json.dumps(json.load(sys.stdin)["n"] * 2))', 'test_input': '{"n": 2}'}])
+        self.assertIn('outil désactivé', self.errors()[0])  # forge_tool n'est pas coché
+
+    def test_delete_agent_needs_an_explicit_request(self):
+        Agent.objects.create(owner=self.user, name='Traducteur')
+        self.run_guardian([{'op': 'delete_agent', 'agent': 'Traducteur'}], request='supprime Traducteur')
+        self.assertIn('outil désactivé', self.errors()[0])  # coupé par défaut : il faut le cocher
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        guardian.tools_allowed = ['delete_agent']
+        guardian.save()
+        self.run_guardian([{'op': 'delete_agent', 'agent': 'Rédacteur'}, {'op': 'delete_agent', 'agent': 'Traducteur'}],
+                          request='range un peu')
+        self.assertIn('agent de départ', self.errors()[0])
+        self.assertIn('irréversible', self.errors()[1])
+        self.run_guardian([{'op': 'delete_agent', 'agent': 'Traducteur'}], request='supprime Traducteur')
+        self.assertFalse(Agent.objects.filter(owner=self.user, name='Traducteur').exists())
+
+    def test_mcp_server(self):
+        from . import workspace
+
+        servers = json.dumps({'docs': {'url': 'https://mcp.example/mcp', 'description': 'Documentation'}})
+        replies = [b'{"jsonrpc":"2.0","id":1,"result":{}}', b'event: message\ndata: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"42"}]}}\n\n']
+
+        class Reply:
+            def __init__(self, body):
+                self.body, self.headers = body, {'Mcp-Session-Id': 's1'}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self, n):
+                return self.body
+
+        with self.settings(MCP_SERVERS=servers), mock.patch.object(workspace.urllib.request, 'urlopen', side_effect=[Reply(b) for b in replies]) as opened:
+            self.assertEqual(workspace.mcp_call('docs', 'answer', {'q': 'vie'}), '42')
+        self.assertEqual(opened.call_args.args[0].headers['Mcp-session-id'], 's1')
+        with self.assertRaisesMessage(workspace.WorkspaceError, 'inconnu'):
+            workspace.mcp_call('absent', 'x')
+
+    def test_short_prompt_and_tool_help(self):
+        from . import tools
+
+        engine = self.run_guardian([{'op': 'tool_help', 'names': ['create_task', 'execute_bash']}])
+        system = engine.calls[0]['messages'][0]['content']
+        self.assertIn('- create_task : Créer une tâche', system)  # une ligne ; le détail par tool_help
+        self.assertIn('{"op":"create","ref":"new1"', system)  # outils essentiels en entier
+        self.assertNotIn('execute_bash', system)
+        self.assertIn(tools.BY_OP['create_task']['doc'], self.reads(engine))
+
+    def test_guardian_reads_its_universe_nodes(self):
+        from nodzapp.models import Layer, Node
+
+        layer = Layer.objects.create(user=self.user, layer_id=3, layer_name='Gardien')
+        Node.objects.create(user=self.user, node_id=50, layer=layer, text_content='Prompt système<br><br>Tu parles comme un capitaine.')
+        Node.objects.create(user=self.user, node_id=51, layer=layer, text_content='create_task<br>Mon mode d&#x27;emploi à moi')
+        Node.objects.create(user=self.user, node_id=52, layer=layer, text_content='archive', archive=True)
+        r = self.client.post('/api/v1/toolbox/brain-map', {'prompt': 'N-50', 'tools': {'create_task': 'N-51', 'archive': 'N-52', 'nope': 'N-9'}},
+                             content_type='application/json')
+        self.assertEqual(r.json(), {'saved': 2})
+        engine = self.run_guardian([{'op': 'tool_help', 'names': ['create_task']}, {'op': 'archive', 'ref': 'N-1'}])
+        system = engine.calls[0]['messages'][0]['content']
+        self.assertIn('Tu parles comme un capitaine.', system)
+        self.assertIn("Mon mode d'emploi à moi", self.reads(engine))
+        self.assertIn('outil désactivé', self.errors()[0])  # son node a été supprimé
+        self.assertTrue(self.client.get('/api/v1/toolbox/brain-map').json()['installed'])

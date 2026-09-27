@@ -1,8 +1,9 @@
-"""Catalogue des outils du Gardien : ceux de Nodz et ceux portés d'iAqua (Poseidon), en une liste.
+"""Catalogue des outils du Gardien : ceux de Nodz et tous ceux d'iAqua (Poseidon), en une liste.
 
-Chaque outil a sa ligne de consigne pour le modèle (`doc`) : le prompt du Gardien est construit à partir
-des outils activés pour son agent (Agent.tools_allowed ; vide = tous). Les outils d'iAqua qui n'ont pas
-de sens ou pas de place sur un serveur partagé sont listés à part, avec la raison.
+Chaque outil a son mode d'emploi (`doc`). Le prompt du Gardien reste court : mode d'emploi complet pour les
+outils essentiels (CORE), une ligne pour les autres, détaillés à la demande par tool_help ; un mode
+d'emploi réécrit dans le node de l'outil (dimension Gardien de l'univers) prime sur celui du catalogue.
+Outils administrateur (admin) : ils exécutent du code sur le serveur, donc compte admin et GUARDIAN_SHELL=1.
 """
 
 NODZ, IAQUA, BOTH = 'nodz', 'iaqua', 'nodz+iaqua'
@@ -68,44 +69,154 @@ TOOLS = [
     {'op': 'search_nodes', 'category': 'Lecture', 'source': BOTH, 'iaqua': 'list_files, read_project_memory', 'read': True,
      'label': 'Chercher dans tous les nodes', 'doc': '{"op":"search_nodes","query":"mots"} : cherche dans tous les nodes de l\'utilisateur, toutes dimensions.'},
     {'op': 'read_file', 'category': 'Lecture', 'source': BOTH, 'iaqua': 'read_file', 'read': True, 'label': 'Lire un document',
-     'doc': '{"op":"read_file","ref":"N-7"} : lit le texte du document d\'un node fichier.'},
+     'doc': '{"op":"read_file","ref":"N-7"} : texte du document d\'un node fichier ; {"op":"read_file","path":"notes/plan.md"} : '
+            'fichier de l\'espace de travail.'},
     {'op': 'web_search', 'category': 'Web', 'source': IAQUA, 'iaqua': 'web_search', 'read': True, 'label': 'Recherche web',
      'doc': '{"op":"web_search","query":"..."} : recherche sur le web ; cite tes sources (adresse) dans les nodes que tu crées.'},
     {'op': 'web_fetch', 'category': 'Web', 'source': IAQUA, 'iaqua': 'web_fetch', 'read': True, 'label': 'Lire une page web',
      'doc': '{"op":"web_fetch","url":"https://..."} : lit une page publique.'},
+    # --- Tâches (registre d'iAqua)
+    {'op': 'create_task', 'category': 'Tâches', 'source': IAQUA, 'iaqua': 'create_task', 'label': 'Créer une tâche',
+     'doc': '{"op":"create_task","title":"...","description":"...","acceptance_criteria":"2 à 4 critères vérifiables",'
+            '"project":"NOM","agent":"<nom>","priority":"medium","run":true} : tâche au registre ; run confie aussitôt la tâche à son agent (en fond).'},
+    {'op': 'list_tasks', 'category': 'Tâches', 'source': IAQUA, 'iaqua': 'list_tasks', 'read': True, 'label': 'Lister les tâches',
+     'doc': '{"op":"list_tasks","status":"planned","project":"NOM"} : tâches (filtres facultatifs), avec leur résultat.'},
+    {'op': 'update_task', 'category': 'Tâches', 'source': IAQUA, 'iaqua': 'update_task', 'label': 'Mettre à jour une tâche',
+     'doc': '{"op":"update_task","task_id":"task_0001","field":"status","value":"completed"} : champs title, description, '
+            'status (planned, in_progress, completed, failed), priority (low, medium, high, critical), agent, progress (note l\'étape), result.'},
+    {'op': 'delete_task', 'category': 'Tâches', 'source': IAQUA, 'iaqua': 'delete_task', 'label': 'Supprimer une tâche',
+     'doc': '{"op":"delete_task","task_id":"task_0001"} : retire la tâche du registre.'},
+    {'op': 'schedule_task', 'category': 'Tâches', 'source': IAQUA, 'iaqua': 'schedule_task', 'label': 'Tâche récurrente',
+     'doc': '{"op":"schedule_task","action":"create","expr":"daily@08:30","title":"...","agent":"<nom>"} : tâche qui revient '
+            '(daily@HH:MM, weekly:mon@HH:MM, hourly, every:30m) ; action list, delete, enable, disable avec "schedule_id":"sched_0001".'},
+    # --- Projets et missions
+    {'op': 'create_project', 'category': 'Projets et missions', 'source': BOTH, 'iaqua': 'create_project', 'label': 'Créer un projet',
+     'doc': '{"op":"create_project","name":"NOM","vision":"but en un paragraphe"} : projet avec sa mémoire, et une dimension du même nom.'},
+    {'op': 'list_projects', 'category': 'Projets et missions', 'source': IAQUA, 'iaqua': 'list_projects', 'read': True, 'label': 'Lister les projets',
+     'doc': '{"op":"list_projects"} : projets, statut et avancement des tâches.'},
+    {'op': 'plan_project', 'category': 'Projets et missions', 'source': IAQUA, 'iaqua': 'plan_project', 'read': True, 'label': 'Contexte de planification',
+     'doc': '{"op":"plan_project","goal":"but dans les mots de l\'utilisateur","project":"NOM"} : vision, mémoire, agents, tâches ouvertes et '
+            'compétences, pour découper le but en tâches.'},
+    {'op': 'update_project', 'category': 'Projets et missions', 'source': IAQUA, 'iaqua': 'update_project', 'label': 'Mettre à jour un projet',
+     'doc': '{"op":"update_project","project_name":"NOM","field":"vision","new_value":"..."} : champs name, vision, status (active, archived), '
+            'assign_agent, unassign_agent.'},
+    {'op': 'update_project_memory', 'category': 'Projets et missions', 'source': IAQUA, 'iaqua': 'update_project_memory', 'label': 'Mémoire de projet',
+     'doc': '{"op":"update_project_memory","project_name":"NOM","kind":"decision","content":"..."} : kind achievement, decision, blocker, '
+            'resolve_blocker, next_steps, agent_sync.'},
+    {'op': 'read_project_memory', 'category': 'Projets et missions', 'source': IAQUA, 'iaqua': 'read_project_memory', 'read': True,
+     'label': 'Lire la mémoire d\'un projet', 'doc': '{"op":"read_project_memory","project_name":"NOM"} : vision, réussites, décisions, bloquants, suite.'},
+    {'op': 'audit_project', 'category': 'Projets et missions', 'source': BOTH, 'iaqua': 'audit_project', 'read': True, 'label': 'Auditer un projet',
+     'doc': '{"op":"audit_project","project_name":"NOM"} : avancement des tâches, nodes vides ou isolés de sa dimension, bloquants, suite.'},
+    {'op': 'launch_mission', 'category': 'Projets et missions', 'source': IAQUA, 'iaqua': 'launch_mission', 'label': 'Mission autonome',
+     'doc': '{"op":"launch_mission","goal":"but vérifiable","project":"NOM","budget":3} : planifie, confie aux agents, audite et recommence '
+            'en fond, au plus `budget` tours.'},
+    {'op': 'mission_status', 'category': 'Projets et missions', 'source': IAQUA, 'iaqua': 'mission_status', 'read': True, 'label': 'Suivi des missions',
+     'doc': '{"op":"mission_status","mission_id":"mission_0001","abort":false} : sans identifiant, les missions récentes ; abort l\'arrête.'},
+    # --- Compétences
+    {'op': 'write_skill', 'category': 'Compétences', 'source': IAQUA, 'iaqua': 'write_skill', 'label': 'Écrire une compétence',
+     'doc': '{"op":"write_skill","skill_id":"visite_guidee","name":"...","summary":"...","steps":["étape 1","étape 2"],"triggers":"quand…"} : '
+            'recette réutilisable (nouvelle version si elle existe).'},
+    {'op': 'list_skills', 'category': 'Compétences', 'source': IAQUA, 'iaqua': 'list_skills', 'read': True, 'label': 'Lister les compétences',
+     'doc': '{"op":"list_skills"} : compétences, étapes et taux de réussite.'},
+    {'op': 'delete_skill', 'category': 'Compétences', 'source': IAQUA, 'iaqua': 'delete_skill', 'label': 'Supprimer une compétence',
+     'doc': '{"op":"delete_skill","skill_id":"..."} : retire une compétence fausse ou obsolète.'},
+    {'op': 'record_skill_outcome', 'category': 'Compétences', 'source': IAQUA, 'iaqua': 'record_skill_outcome', 'label': 'Noter une compétence',
+     'doc': '{"op":"record_skill_outcome","skill_id":"...","outcome":"success"} : success, partial ou fail, après usage.'},
+    # --- Cerveau et journal
+    {'op': 'read_my_brain', 'category': 'Mémoire', 'source': IAQUA, 'iaqua': 'read_my_brain', 'read': True, 'label': 'Lire mon cerveau',
+     'doc': '{"op":"read_my_brain","section_path":"skills.visite_guidee"} : sections guidelines, memory, tools_catalog, skills, current_state, '
+            'et tes champs libres.'},
+    {'op': 'update_brain_field', 'category': 'Mémoire', 'source': IAQUA, 'iaqua': 'update_brain_field', 'label': 'Modifier mon cerveau',
+     'doc': '{"op":"update_brain_field","field_path":"style.ton","value":"..."} : guidelines remplace tes consignes, memory ajoute un souvenir, '
+            'tout autre chemin est un champ libre (JSON accepté).'},
+    {'op': 'update_user_context', 'category': 'Mémoire', 'source': IAQUA, 'iaqua': 'update_user_context', 'label': 'Contexte utilisateur',
+     'doc': '{"op":"update_user_context","text":"..."} : comme remember.'},
+    {'op': 'get_logs', 'category': 'Mémoire', 'source': IAQUA, 'iaqua': 'get_logs', 'read': True, 'label': 'Journal',
+     'doc': '{"op":"get_logs","limit":20,"event_type":"task_created"} : tes dernières actions enregistrées.'},
+    # --- Fichiers et git (espace de travail de l'utilisateur)
+    {'op': 'write_file', 'category': 'Fichiers et git', 'source': IAQUA, 'iaqua': 'write_file', 'label': 'Écrire un fichier',
+     'doc': '{"op":"write_file","path":"notes/plan.md","content":"..."} : fichier de l\'espace de travail (dossiers créés au besoin).'},
+    {'op': 'list_files', 'category': 'Fichiers et git', 'source': IAQUA, 'iaqua': 'list_files', 'read': True, 'label': 'Lister des fichiers',
+     'doc': '{"op":"list_files","path":"."} : contenu d\'un dossier de l\'espace de travail.'},
+    {'op': 'edit_file', 'category': 'Fichiers et git', 'source': IAQUA, 'iaqua': 'edit_file', 'label': 'Modifier un fichier',
+     'doc': '{"op":"edit_file","path":"...","search_text":"texte présent une seule fois","replace_text":"..."} : remplacement ciblé.'},
+    {'op': 'git', 'category': 'Fichiers et git', 'source': IAQUA, 'iaqua': 'git', 'read': True, 'label': 'Git',
+     'doc': '{"op":"git","action":"status"} : status, diff (path facultatif), log, commit (message, files facultatif) dans l\'espace de travail.'},
+    # --- Documents et e-mail
+    {'op': 'generate_docx', 'category': 'Documents et e-mail', 'source': IAQUA, 'iaqua': 'generate_docx', 'read': True, 'label': 'Document Word',
+     'doc': '{"op":"generate_docx","filename":"rapport","title":"...","markdown":"# Titre\\n- point"} : .docx téléchargeable ; donne le lien.'},
+    {'op': 'generate_pptx', 'category': 'Documents et e-mail', 'source': IAQUA, 'iaqua': 'generate_pptx', 'read': True, 'label': 'Présentation',
+     'doc': '{"op":"generate_pptx","filename":"pitch","title":"...","slides":[{"title":"...","bullets":["..."]}]} : .pptx téléchargeable ; donne le lien.'},
+    {'op': 'send_email', 'category': 'Documents et e-mail', 'source': IAQUA, 'iaqua': 'send_email', 'label': 'Envoyer un e-mail',
+     'doc': '{"op":"send_email","subject":"...","body":"..."} : à l\'adresse de l\'utilisateur (un administrateur peut préciser "to").'},
+    # --- Images
+    {'op': 'generate_image', 'category': 'Images', 'source': IAQUA, 'iaqua': 'generate_image', 'label': 'Générer une image',
+     'doc': '{"op":"generate_image","prompt":"prompt en anglais","ref":"new1","near":"N-1"} : l\'agent d\'image dessine dans un node.'},
+    {'op': 'edit_image', 'category': 'Images', 'source': IAQUA, 'iaqua': 'edit_image', 'label': 'Retoucher une image',
+     'doc': '{"op":"edit_image","ref":"N-5","prompt":"ce qui change","strength":0.6} : img2img sur un node image ; strength de 0 (proche) à 1 (libre).'},
+    # --- Agents (compléments d'iAqua)
+    {'op': 'list_agents', 'category': 'Agents', 'source': IAQUA, 'iaqua': 'list_agents', 'read': True, 'label': 'Lister les agents',
+     'doc': '{"op":"list_agents"} : agents, rôles, modèles et descriptions.'},
+    {'op': 'list_models', 'category': 'Agents', 'source': IAQUA, 'iaqua': 'list_models', 'read': True, 'label': 'Lister les modèles',
+     'doc': '{"op":"list_models"} : modèles de la bibliothèque et leur état.'},
+    {'op': 'dispatch_to_agent', 'category': 'Agents', 'source': IAQUA, 'iaqua': 'dispatch_to_agent', 'label': 'Confier (iAqua)',
+     'doc': '{"op":"dispatch_to_agent","agent":"<nom>","task":"...","ref":"new1"} : comme delegate.'},
+    {'op': 'update_agent_field', 'category': 'Agents', 'source': IAQUA, 'iaqua': 'update_agent_field', 'label': 'Champ d\'agent',
+     'doc': '{"op":"update_agent_field","agent":"<nom>","field_path":"prompt","new_value":"..."} : description, prompt, enabled, model.'},
+    {'op': 'delete_agent', 'category': 'Agents', 'source': IAQUA, 'iaqua': 'delete_agent', 'label': 'Supprimer un agent', 'default': False,
+     'doc': '{"op":"delete_agent","agent":"<nom>"} : irréversible ; seulement si l\'utilisateur le demande en nommant l\'agent.'},
+    # --- Administrateur : exécutent du code sur le serveur (compte admin et GUARDIAN_SHELL=1)
+    {'op': 'execute_bash', 'category': 'Administrateur', 'source': IAQUA, 'iaqua': 'execute_bash', 'read': True, 'admin': True,
+     'label': 'Shell', 'doc': '{"op":"execute_bash","command":"ls -la","cwd":".","timeout":30} : commande dans l\'espace de travail.'},
+    {'op': 'pyenv', 'category': 'Administrateur', 'source': IAQUA, 'iaqua': 'pyenv', 'read': True, 'admin': True, 'label': 'Environnement Python',
+     'doc': '{"op":"pyenv","action":"install","packages":["pandas"]} : install, list, remove dans l\'environnement Python dédié.'},
+    {'op': 'forge_tool', 'category': 'Administrateur', 'source': IAQUA, 'iaqua': 'forge_tool', 'read': True, 'admin': True, 'label': 'Forger un outil',
+     'doc': '{"op":"forge_tool","action":"create","name":"convertisseur","description":"...","code":"import json,sys\\n'
+            'data=json.load(sys.stdin)\\nprint(json.dumps(...))","test_input":"{}"} : script Python testé puis enregistré ; list, delete, enable, disable.'},
+    {'op': 'run_tool', 'category': 'Administrateur', 'source': IAQUA, 'iaqua': 'forge_tool', 'read': True, 'admin': True, 'label': 'Utiliser un outil forgé',
+     'doc': '{"op":"run_tool","name":"convertisseur","input":{"...":"..."}} : exécute un outil forgé.'},
+    {'op': 'list_mcp_servers', 'category': 'Administrateur', 'source': IAQUA, 'iaqua': 'list_mcp_servers', 'read': True, 'admin': True,
+     'label': 'Serveurs MCP', 'doc': '{"op":"list_mcp_servers"} : serveurs MCP configurés (MCP_SERVERS).'},
+    {'op': 'call_mcp_tool', 'category': 'Administrateur', 'source': IAQUA, 'iaqua': 'call_mcp_tool', 'read': True, 'admin': True,
+     'label': 'Outil MCP', 'doc': '{"op":"call_mcp_tool","server":"nom","name":"tools/list","arguments":{}} : tools/list pour découvrir, puis le nom de l\'outil.'},
+    # --- Aide
+    {'op': 'tool_help', 'category': 'Lecture', 'source': NODZ, 'read': True, 'label': 'Mode d\'emploi d\'outils',
+     'doc': '{"op":"tool_help","names":["create_task","launch_mission"]} : mode d\'emploi détaillé des outils cités.'},
 ]
 BY_OP = {t['op']: t for t in TOOLS}
 
-# Outils d'iAqua non portés : la raison est affichée dans la fenêtre Outils.
-NOT_PORTED = [
-    ('execute_bash', 'Commandes sur le serveur : trop dangereux sur un serveur partagé avec des invités.'),
-    ('git', 'Dépôts de code du serveur : hors du périmètre de Nodz.'),
-    ('write_file, edit_file', 'Écriture de fichiers sur le serveur : les contenus vivent dans les nodes.'),
-    ('send_email', 'Envoi de courriels au nom du serveur : risque d\'abus.'),
-    ('list_mcp_servers, call_mcp_tool', 'Serveurs MCP : à brancher plus tard, avec une liste blanche par administrateur.'),
-    ('forge_tool, pyenv', 'Création d\'outils et environnements Python à la volée : exécution de code arbitraire.'),
-    ('schedule_task, create_task, list_tasks, update_task, delete_task', 'Tâches planifiées : prévu (rappels dans les nodes).'),
-    ('create_project, launch_mission, mission_status, audit_project, update_project, update_project_memory',
-     'Projets et missions d\'iAqua : dans Nodz, un projet est une dimension (portal, travel, mindmap).'),
-    ('generate_pptx, generate_docx', 'Export de documents : prévu (export d\'une dimension).'),
-    ('edit_image', 'Retouche d\'image : prévu avec stable-diffusion.cpp (img2img).'),
-    ('delete_agent', 'Suppression d\'agent : décision irréversible, laissée à l\'utilisateur.'),
-    ('write_skill, list_skills, delete_skill, record_skill_outcome', 'Compétences d\'iAqua : remplacées par les consignes modifiables des agents.'),
-    ('get_logs, read_my_brain', 'Journaux et état interne : visibles dans la tour de contrôle et la fenêtre Agents.'),
-]
+# Outils décrits en entier dans le prompt ; les autres n'y ont qu'une ligne (mode d'emploi par tool_help).
+CORE = {'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help'}
 
 
-def enabled(agent):
-    """Opérations permises au Gardien (tools_allowed vide = toutes)."""
+def available(op, user):
+    """Les outils administrateur exécutent du code : compte admin et GUARDIAN_SHELL=1."""
+    from django.conf import settings
+
+    return not BY_OP[op].get('admin') or bool(user and user.is_staff and settings.GUARDIAN_SHELL)
+
+
+def enabled(agent, user):
+    """Opérations permises au Gardien : celles cochées (tools_allowed), sinon celles actives par défaut."""
     allowed = [op for op in agent.tools_allowed or [] if op in BY_OP]
-    return allowed or [t['op'] for t in TOOLS]
+    ops = allowed or [t['op'] for t in TOOLS if t.get('default', not t.get('admin'))]
+    return [op for op in ops if available(op, user)] + (['tool_help'] if 'tool_help' not in ops else [])
 
 
-def prompt(ops):
-    """Lignes d'outils du prompt : actions, puis lectures."""
-    actions = [f"- {t['doc']}" for t in TOOLS if t['op'] in ops and not t.get('read')]
-    reads = [f"- {t['doc']}" for t in TOOLS if t['op'] in ops and t.get('read')]
-    lines = ['Actions possibles :', *actions]
-    if reads:
-        lines += ['Lectures (tu reçois le résultat et continues au tour suivant) :', *reads]
+def usage(op, docs=None):
+    """Mode d'emploi d'un outil : celui écrit dans son node de l'univers s'il existe, sinon le catalogue."""
+    return (docs or {}).get(op) or BY_OP[op]['doc']
+
+
+def prompt(ops, docs=None):
+    """Outils du prompt, par famille : mode d'emploi complet pour les essentiels, une ligne pour les autres."""
+    lines = ['Outils (lectures marquées [L] : tu reçois le résultat au tour suivant). Mode d\'emploi détaillé : tool_help.']
+    for category in dict.fromkeys(t['category'] for t in TOOLS):
+        tools = [t for t in TOOLS if t['category'] == category and t['op'] in ops]
+        if not tools:
+            continue
+        lines.append(f'{category} :')
+        for t in tools:
+            mark = ' [L]' if t.get('read') else ''
+            lines.append(f"- {usage(t['op'], docs)}{mark}" if t['op'] in CORE else f"- {t['op']}{mark} : {t['label']}")
     return '\n'.join(lines)

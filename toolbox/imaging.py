@@ -108,6 +108,8 @@ def generate(model, prompt, user, on_progress=lambda step, total: None, **overri
             raise ImageUnavailable(f"FLUX a besoin de ses fichiers compagnons ({', '.join(missing)}) : "
                                    'installe le pack FLUX depuis Agents & modèles')
         args += ['--vae', found['vae'], '--clip_l', found['clip_l'], '--t5xxl', found['t5xxl'], '--clip-on-cpu']
+    if p.get('init_image'):  # retouche (img2img) : l'image source et la force de la transformation
+        args += ['--init-img', p['init_image'], '--strength', str(p.get('strength', 0.6))]
     if p.get('sd_threads'):
         args += ['--threads', str(p['sd_threads'])]
     if p.get('vae_tiling'):

@@ -76,7 +76,7 @@ const capPill = cap => {
 };
 const quantColor = q => (/Q8|Q6/.test(q) ? '#0f9f6e' : /Q[45]/.test(q) ? '#1E90FF' : /Q[23]/.test(q) ? '#c47a00' : /IQ/.test(q) ? '#6848A6' : '#64748b');
 
-export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
+export function createLibrary({ onChange = () => {}, monitor = null, onInstallBrain = () => {} } = {}) {
     let state = { staff: false, machine: {}, engine: false, loaded: null, agents: [], models: [], paramSpec: [] };
     let tab = 'agents';
     let tuning = null;  // modèle dont les réglages sont ouverts (panneau pleine largeur)
@@ -189,8 +189,11 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
                     h('div', {}, h('strong', {}, agent.name), h('span', { class: 'gl-role' }, agent.role), h('small', {}, agent.description)),
                     h('label', { class: 'gl-switch', title: 'Actif' }, enabled, 'actif')),
                 select,
+                agent.role === 'orchestrator' ? h('button', { type: 'button', class: 'gl-primary', onclick: onInstallBrain,
+                    title: 'Crée la dimension Gardien : Prompt système, Outils, un node par outil avec son mode d\'emploi' }, 'Installer le Gardien dans l\'univers') : null,
                 h('details', {}, h('summary', {}, agent.system_prompt ? 'Consignes (personnalisées)' : 'Consignes'), prompt,
-                    agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement.') : null,
+                    agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement. '
+                        + 'Une fois le Gardien installé dans l\'univers, ses consignes se lisent et se réécrivent dans le node « Prompt système ».') : null,
                     reset),
                 h('details', {}, h('summary', {}, Object.keys(agent.params || {}).length ? 'Échantillonnage (propre à cet agent)' : 'Échantillonnage'),
                     h('p', { class: 'gl-hint' }, "Vide = réglages du modèle. Ces valeurs priment pour cet agent."), sampling));
@@ -222,15 +225,18 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
             ...categories.map(category => h('section', { class: 'gl-toolgroup' }, h('h3', {}, category),
                 toolbox.tools.filter(t => t.category === category).map(t => {
                     const [source, color] = SOURCES[t.source];
-                    const box = h('input', { type: 'checkbox', checked: on.has(t.op), disabled: !toolbox.guardian });
+                    const locked = !toolbox.guardian || !t.available;  // outil administrateur non autorisé ici
+                    const box = h('input', { type: 'checkbox', checked: on.has(t.op), disabled: locked,
+                        title: t.available ? '' : 'Compte administrateur et GUARDIAN_SHELL=1 dans .env' });
                     box.addEventListener('change', () => { if (box.checked) on.add(t.op); else on.delete(t.op); save(); });
                     return h('label', { class: `gl-tool ${on.has(t.op) ? '' : 'off'}` }, box,
                         h('div', {}, h('strong', {}, t.label), h('code', {}, t.op), t.read ? h('span', { class: 'gl-cap' }, 'LECTURE') : null,
+                            t.admin ? h('span', { class: 'gl-badge heavy', title: 'Exécute du code sur le serveur' }, 'ADMIN') : null,
                             h('small', {}, t.doc.replace(/^\{[^}]*\}\s*:\s*/, ''))),
                         h('span', { class: 'gl-cap', style: `color:${color};border-color:${color}55;background:${color}14`, title: t.iaqua ? `iAqua : ${t.iaqua}` : '' }, source));
                 }))),
-            h('details', { class: 'gl-toolgroup' }, h('summary', {}, `Outils d'iAqua non portés (${toolbox.not_ported.length})`),
-                toolbox.not_ported.map(n => h('div', { class: 'gl-tool off' }, h('div', {}, h('code', {}, n.names), h('small', {}, n.reason))))));
+            toolbox.shell ? null : h('p', { class: 'gl-hint' }, 'Outils ADMIN (shell, Python, outils forgés, MCP) : réservés au compte administrateur, '
+                + 'après GUARDIAN_SHELL=1 dans le .env du serveur.'));
     }
 
     // --- Bibliothèque

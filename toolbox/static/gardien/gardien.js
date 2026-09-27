@@ -72,8 +72,49 @@ const bridge = createBridge({ caption: text => say(text, 'guide') });
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 let asleep = false;   // le Gardien n'a pas de modèle : on le dit une fois, sans insister
 
+// Le Gardien dans l'univers : dimension « Gardien » avec le node Prompt système, le node Outils, un node par
+// famille puis un node par outil (nom, rôle, comment l'appeler). Le Gardien relit ces nodes à chaque demande.
+const escape = text => text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+const PALETTE = ['#4D96FF', '#33FF99', '#FF6B6B', '#FFD93D', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5', '#9BE15D', '#7FB3FF', '#FFB3C6', '#B8F2E6', '#E0AAFF', '#FFE066'];
+
+async function installBrain() {
+    const map = await api.request('GET', 'toolbox/brain-map');
+    say('Le Gardien s\'installe dans la dimension « Gardien »…', 'guide');
+    await bridge.enterDimension('Gardien');
+    const make = async (ref, x, y, text, tint, shape = 'circle') => {
+        await bridge.perform({ op: 'create', ref, x, y, text: text.split('\n').map(escape).join('<br>'), color: tint, shape });
+        return bridge.idOf(ref);
+    };
+    const link = (source, target) => bridge.perform({ op: 'link', source, target });
+    // En arbre : Prompt système à gauche, Outils au centre, une famille par ligne suivie de ses outils.
+    // Aucun lien parfaitement horizontal : le dégradé d'un lien de Nodz ne s'y affiche pas.
+    const categories = [...new Set(map.tools.map(t => t.category))];
+    const ROW = 950;
+    const top = ((categories.length - 1) * ROW) / 2;
+    const prompt = await make('brain-prompt', -3200, 400, `Prompt système\n\n${map.guidelines}`, '#f3ee58', 'square');
+    await make('brain-tools', 0, 0, 'Outils du Gardien', '#6848A6');
+    await link('brain-prompt', 'brain-tools');
+    const ids = {};
+    for (const [k, category] of categories.entries()) {
+        const cy = top - k * ROW + 140;
+        const tint = PALETTE[k % PALETTE.length];
+        const cref = `brain-cat-${k}`;
+        await make(cref, 1500, cy, category, tint);
+        await link('brain-tools', cref);
+        for (const [i, tool] of map.tools.filter(t => t.category === category).entries()) {
+            const ref = `brain-tool-${tool.op}`;
+            ids[tool.op] = await make(ref, 2500 + i * 800, cy + (i % 2 ? -220 : 220), `${tool.op}\n${tool.label}\n\n${tool.usage}`, tint);
+            await link(i ? `brain-tool-${map.tools.filter(t => t.category === category)[i - 1].op}` : cref, ref);
+        }
+    }
+    await api.request('POST', 'toolbox/brain-map', { prompt, tools: ids });
+    filters.mark([prompt, ...Object.values(ids)], 'ai');
+    await bridge.perform({ op: 'overview', text: 'Le Gardien est dans l\'univers : réécris ses nodes pour changer ses consignes et ses outils.' });
+}
+
 const monitor = createMonitor({ onSignedOut: message => say(message, 'error') });
 const library = createLibrary({
+    onInstallBrain: () => { library.close(); installBrain().catch(error => say(error.message, 'error')); },
     monitor: monitor.panel('gm-window').root,
     onChange: state => {
         guardian = state.agents.find(a => a.role === 'orchestrator') || null;

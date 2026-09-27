@@ -20,8 +20,10 @@ from graph.models import AIRun
 from nodzapp.models import Node
 
 from . import broker as priorities
-from . import imaging, prompts, tools, web
+from . import imaging, prompts, tools, web, workspace
+from .iaqua import IaquaOps
 from .engine import EngineUnavailable
+from .errors import PlanError
 from .models import Agent, LocalModel
 
 RADIUS = 85  # rayon d'un node texte de Nodz une fois dimensionné (nodeSizing 120 × 120)
@@ -34,10 +36,6 @@ OPS = [t['op'] for t in tools.TOOLS]  # catalogue commun Nodz + iAqua (tools.py)
 ROLES = [Agent.Role.TEXT, Agent.Role.CODE, Agent.Role.TOOLS]  # rôles qu'un agent créé par le Gardien peut prendre
 MAX_MEMORY = 30
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
-
-
-class PlanError(Exception):
-    """Action ou contexte invalide : signalé à l'utilisateur, le reste continue."""
 
 
 PLAN_SCHEMA = {
@@ -75,6 +73,18 @@ PLAN_SCHEMA = {
                     'prompt': {'type': 'string'},
                     'role': {'type': 'string', 'enum': ROLES},
                     'enabled': {'type': 'boolean'},
+                    # outils d'iAqua (valeurs libres en texte : JSON accepté là où il le faut)
+                    **{k: {'type': 'string'} for k in (
+                        'title', 'acceptance_criteria', 'project', 'priority', 'status', 'task_id', 'field', 'value', 'expr',
+                        'action', 'schedule_id', 'vision', 'goal', 'mission_id', 'project_name', 'new_value', 'kind', 'content',
+                        'skill_id', 'summary', 'triggers', 'outcome', 'section_path', 'field_path', 'event_type', 'path',
+                        'search_text', 'replace_text', 'message', 'filename', 'markdown', 'to', 'subject', 'body', 'command',
+                        'cwd', 'code', 'test_input', 'input', 'server', 'arguments')},
+                    **{k: {'type': 'number'} for k in ('budget', 'limit', 'strength', 'timeout')},
+                    **{k: {'type': 'boolean'} for k in ('run', 'abort')},
+                    **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('steps', 'files', 'packages', 'names')},
+                    'slides': {'type': 'array', 'items': {'type': 'object', 'properties': {
+                        'title': {'type': 'string'}, 'body': {'type': 'string'}, 'bullets': {'type': 'array', 'items': {'type': 'string'}}}}},
                 },
             },
         },
@@ -103,6 +113,12 @@ Tes consignes :
 def plain(markup, length=120):
     """Texte lisible d'un contenu HTML de node (pour le prompt)."""
     return html.unescape(' '.join(re.sub(r'<[^>]+>', ' ', markup or '').split()))[:length]
+
+
+def multiline(markup):
+    """Texte d'un node de Nodz avec ses retours à la ligne (consignes et modes d'emploi écrits dans l'univers)."""
+    text = re.sub(r'(?i)<br\s*/?>|</(div|p|li)>', '\n', markup or '')
+    return html.unescape(re.sub(r'<[^>]+>', '', text)).strip()
 
 
 def text_html(text):
@@ -176,12 +192,13 @@ def _number(value, default=0.0):
         return default
 
 
-class Guardian:
+class Guardian(IaquaOps):
     def __init__(self, user, engine, emit):
         self.user, self.engine, self.emit = user, engine, emit
         self.run = None
         self.nodes = {}  # identifiant ou référence → {x, y, r, text, new}
         self.found = {}  # nodes trouvés par search_nodes : identifiant → id de leur dimension
+        self.docs = {}  # modes d'emploi réécrits dans les nodes d'outils de l'univers
 
     # --- contexte envoyé par la page
 
@@ -392,11 +409,24 @@ class Guardian:
         return None
 
     def op_read_file(self, action, agents):
+        if action.get('path'):  # fichier de l'espace de travail (read_file d'iAqua)
+            try:
+                self.reads.append(f"Fichier {action['path']} :\n{workspace.read_file(self.user, action['path'])}")
+            except workspace.WorkspaceError as e:
+                raise PlanError(str(e)) from None
+            return None
         ref = str(action.get('ref') or '')
         node = Node.objects.filter(user=self.user, node_id=ref.removeprefix('N-')).first() if ref.startswith('N-') else None
         if node is None or not (node.file_text_content or node.text_content):
             raise PlanError(f'{ref} : aucun document lisible')
         self.reads.append(f'Contenu de {ref} ({node.file_name or node.type}) :\n{(node.file_text_content or plain(node.text_content, 4000))[:4000]}')
+        return None
+
+    def op_tool_help(self, action, agents):
+        names = [n for n in action.get('names') or [action.get('name')] if n in tools.BY_OP and n in self.allowed]
+        if not names:
+            raise PlanError('outils inconnus ou coupés : cite des noms de la liste')
+        self.reads.append('Modes d\'emploi :\n' + '\n'.join(f'- {tools.usage(n, self.docs)}' for n in names))
         return None
 
     def op_web_search(self, action, agents):
@@ -464,6 +494,22 @@ class Guardian:
             'Modèles prêts : ' + (', '.join(f'{m.filename} ({m.kind})' for m in models) or 'aucun'),
         ])
 
+    def read_universe(self, guardian):
+        """Le Gardien installé dans l'univers : le node « Prompt système » donne ses consignes, le node d'un
+        outil son mode d'emploi ; un node d'outil supprimé coupe l'outil. Renvoie les consignes (ou None)."""
+        mapping = guardian.brain.get('universe')
+        if not mapping:
+            return None
+        ids = {mapping.get('prompt'), *mapping.get('tools', {}).values()}
+        texts = {f'N-{n.node_id}': multiline(n.text_content) for n in Node.objects.filter(
+            user=self.user, archive=False, node_id__in=[int(i[2:]) for i in ids if str(i).startswith('N-') and i[2:].isdigit()])}
+        for op, node in mapping.get('tools', {}).items():
+            if node not in texts:
+                self.allowed = [o for o in self.allowed if o != op]
+            elif texts[node]:
+                self.docs[op] = texts[node]
+        return texts.get(mapping.get('prompt')) or None
+
     def execute(self, actions, agents):
         """Valide et émet les actions dans l'ordre ; une action invalide est signalée et sautée."""
         self.jobs, self.reads, self.done, self.failed = [], [], [], []
@@ -497,10 +543,10 @@ class Guardian:
         self.emit('action', self.op_create({'ref': ref, 'text': say, 'near': self.origin}, {}))
         self.emit('action', {'op': 'link', 'source': self.origin, 'target': ref})
 
-    def delegate(self, agent, task, ref):
+    def delegate(self, agent, task, ref, extra=None):
         self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task, 'role': agent.role})
         if agent.role == Agent.Role.IMAGE:
-            return self.illustrate(agent, task, ref)
+            return self.illustrate(agent, task, ref, extra or {})
         messages = [
             {'role': 'system', 'content': agent.system_prompt or prompts.default(agent.role)},
             {'role': 'user', 'content': task},
@@ -511,12 +557,12 @@ class Guardian:
         )
         self.emit('action', {'op': 'update', 'ref': ref, 'text': code_html(text) if agent.role == Agent.Role.CODE else text_html(text)})
 
-    def illustrate(self, agent, prompt, ref):
+    def illustrate(self, agent, prompt, ref, extra):
         """Image par stable-diffusion.cpp, posée dans le node `ref` ; un échec est écrit dans le node."""
         progress = lambda step, total: self.emit('intent', {'text': f'{agent.name} dessine : étape {step}/{total}'})
         try:
             with self.engine.exclusive(priorities.IMAGE, f'agent:{agent.name}'):
-                name = imaging.generate(agent.model, prompt, self.user, on_progress=progress, **agent.params)
+                name = imaging.generate(agent.model, prompt, self.user, on_progress=progress, **{**agent.params, **extra})
         except imaging.ImageUnavailable as e:
             self.emit('error', {'message': f'{agent.name} : {e}'})
             self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(f'{agent.name} : {e}')})
@@ -527,10 +573,12 @@ class Guardian:
 
     def handle(self, request, context):
         started = time.monotonic()
+        self.request = request
         self.load(context)
         agents = self.agents()
         guardian = self.guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
-        self.allowed = tools.enabled(guardian) if guardian else []
+        self.allowed = tools.enabled(guardian, self.user) if guardian else []
+        guidelines = self.read_universe(guardian) if guardian else None
         if guardian is None or guardian.model is None:
             raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
         self.run = AIRun.objects.create(
@@ -543,8 +591,8 @@ class Guardian:
                                if a.role != Agent.Role.ORCHESTRATOR and a.model_id) or '(aucun agent équipé)'
             memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
             messages = [
-                {'role': 'system', 'content': SYSTEM.replace('{tools}', tools.prompt(self.allowed)).replace('{agents}', roster).replace('{memory}', memory)
-                    .replace('{guidelines}', guardian.system_prompt or prompts.GUARDIAN)},
+                {'role': 'system', 'content': SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
+                    .replace('{guidelines}', guidelines or guardian.system_prompt or prompts.GUARDIAN)},
                 {'role': 'user', 'content': self.prompt(request)},
             ]
             say, done, steps = '', [], []
@@ -562,8 +610,8 @@ class Guardian:
                     self.emit('plan', {'steps': steps})
                 jobs, reads = self.execute(plan.get('actions') or [], agents)
                 done += self.done
-                for agent, task, ref in jobs:
-                    self.delegate(agent, task, ref)
+                for job in jobs:  # (agent, consigne, node) ou, pour une retouche d'image, plus l'image source
+                    self.delegate(*job)
                 # Tour suivant si le modèle a lu, s'est trompé, ou a annoncé un plan sans rien faire.
                 feedback = list(reads)
                 if self.failed:

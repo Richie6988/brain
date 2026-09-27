@@ -213,6 +213,18 @@ export function createBridge({ caption }) {
             saveLayerName();
             await waitLoaded();
         },
+        // Projet d'iAqua : une nouvelle dimension du même nom (bouton « New dimension » de Nodz), puis retour.
+        async dimension({ name }) {
+            if (layers.some(l => l.name.toLowerCase() === name.toLowerCase())) return;
+            const back = layerNumber;
+            createNewLayer();
+            await wait(80);
+            layerNameInput.value = name;
+            saveLayerName();
+            await waitLoaded();
+            load(back);
+            await waitLoaded();
+        },
         async travel({ layer, name }) {
             const target = layers.find(l => l.id === layer) || layers.find(l => l.name.toLowerCase() === String(name).toLowerCase());
             if (!target || target.id === layerNumber) return;
@@ -239,6 +251,20 @@ export function createBridge({ caption }) {
 
     return {
         idOf: ref => refs.get(ref) || ref,  // identifiant Nodz (N-12) d'une référence du Gardien
+        // Se rend dans la dimension `name` (créée si besoin, comme le bouton « New dimension » de Nodz) et y reste.
+        async enterDimension(name) {
+            const target = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
+            if (target && target.id === layerNumber) return;
+            if (target) {
+                load(target.id);
+            } else {
+                createNewLayer();
+                await wait(80);
+                layerNameInput.value = name;
+                saveLayerName();
+            }
+            await waitLoaded();
+        },
         // Contexte envoyé au Gardien : ce que la page montre, en coordonnées de Nodz.
         context() {
             const nodes = [...document.querySelectorAll('.node-group')].map(n => ({

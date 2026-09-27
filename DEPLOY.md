@@ -68,6 +68,21 @@ Puis, dans Agents & modèles, bouton « Installer FLUX.1 schnell » (modèle et 
 CLIP-L, T5-XXL) et choix du modèle de l'Illustrateur. FLUX demande environ 8 Go de RAM même en
 quantisation légère : sur un petit serveur, préférer un modèle SD-Turbo ou SD 1.5 en GGUF.
 
+## Tâches planifiées du Gardien
+
+Les tâches récurrentes (`schedule_task`) se déclenchent quand une page Nodz est ouverte. Pour qu'elles
+tournent aussi pages fermées, une ligne de cron :
+
+```bash
+echo '* * * * * nodz cd /home/nodz/brain && .venv/bin/python manage.py run_schedules >> var/schedules.log 2>&1' | sudo tee /etc/cron.d/nodz-schedules
+```
+
+## Outils administrateur du Gardien
+
+Shell, environnement Python, outils forgés et serveurs MCP exécutent du code sur le serveur : ils ne sont
+proposés qu'au compte administrateur, après `GUARDIAN_SHELL=1` dans `.env`, puis cochés un par un dans
+Agents & modèles, onglet Outils. Serveurs MCP : `MCP_SERVERS={"nom": {"url": "https://…/mcp", "headers": {}}}`.
+
 ## Désinstallation
 
 ```bash

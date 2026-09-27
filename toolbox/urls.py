@@ -16,6 +16,8 @@ urlpatterns = [
     path('agents/<uuid:agent_id>', api.agent_detail),
     path('packs/<str:key>', api.pack),
     path('images/<str:name>', api.image),
+    path('workspace/<path:path>', api.workspace_file),
+    path('brain-map', api.brain_map),
     path('marks', api.marks),
     path('tools', api.tool_list),
     path('command', api.command),
