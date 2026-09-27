@@ -370,6 +370,21 @@ class ToolboxApiTests(TestCase):
         self.assertEqual(status['packs'], {'flux-schnell': 'FLUX.1 schnell'})
         self.assertIn('imaging', status)
 
+    def test_marks_for_filters(self):
+        from nodzapp.models import Layer, Node
+
+        layer = Layer.objects.create(user=self.user, layer_id=1, layer_name='Home')
+        for i in (1, 2, 3):
+            Node.objects.create(user=self.user, node_id=i, layer=layer)
+        r = self.client.post('/api/v1/toolbox/marks', {'nodes': ['N-1'], 'origin': 'message'}, content_type='application/json')
+        self.assertEqual(r.json(), {'marked': 1})
+        self.client.post('/api/v1/toolbox/marks', {'nodes': ['N-1', 'N-2', 'x'], 'origin': 'ai'}, content_type='application/json')
+        nodes = self.client.get('/api/v1/toolbox/marks').json()['nodes']
+        self.assertEqual({k: v['origin'] for k, v in nodes.items()}, {'N-1': 'message', 'N-2': 'ai', 'N-3': 'user'})
+        self.assertGreater(nodes['N-3']['modified'], 0)
+        self.assertEqual(self.client.post('/api/v1/toolbox/marks', {'nodes': ['N-3'], 'origin': 'bot'},
+                                          content_type='application/json').status_code, 400)
+
     def test_system_monitor(self):
         from . import monitor
 

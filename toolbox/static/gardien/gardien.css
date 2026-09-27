@@ -80,6 +80,23 @@
 #gardien-follow ol:last-of-type::before { content: 'À venir'; display: block; color: #6848A6; letter-spacing: 0.06em; margin-bottom: 2px; }
 #gardien-follow ol:last-of-type li::before { content: '○ '; color: #6848A6; }
 
+/* Filtres globaux (haut centre) : origine et période ; les nodes écartés s'estompent */
+#gardien-filters {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px;
+    padding: 5px 8px; font: 11px 'Cascadia Code', monospace; color: #cbd5e1; background: rgba(5, 12, 23, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 14px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    opacity: 0.55; transition: opacity 0.2s, border-color 0.2s;
+}
+#gardien-filters:hover, #gardien-filters.active { opacity: 1; }
+#gardien-filters.active { border-color: rgba(104, 72, 166, 0.8); }
+#gardien-filters button { font: inherit; color: #94a3b8; background: transparent; border: 1px solid transparent; border-radius: 10px; padding: 3px 9px; cursor: pointer; }
+#gardien-filters button:hover { color: #fff; background: rgba(104, 72, 166, 0.35); }
+#gardien-filters button.on { color: #fff; background: rgba(104, 72, 166, 0.55); border-color: rgba(184, 154, 242, 0.5); }
+#gardien-filters .sep { width: 1px; height: 16px; margin: 0 4px; background: rgba(148, 163, 184, 0.3); }
+#gardien-filters .count { margin-left: 6px; color: #f3ee58; }
+#gardien-filters .count:empty { display: none; }
+.node-group.gardien-filtered, .link.gardien-filtered { opacity: 0.08; pointer-events: none; transition: opacity 0.3s; }
+
 /* Mode clair de Nodz */
 body:has(.universe.lightmode) .gm-hud { color: #5b4a78; background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }
 body:has(.universe.lightmode) .gm-hud .gm-name { color: #440852; }
@@ -87,6 +104,9 @@ body:has(.universe.lightmode) .gm-hud .gm-bar { background: rgba(68, 8, 82, 0.1)
 body:has(.universe.lightmode) .gm-hud .gm-bar i.ok { background: #10b981; }
 body:has(.universe.lightmode) #gardien-follow { color: #5b4a78; background: rgba(255, 255, 255, 0.9); }
 body:has(.universe.lightmode) #gardien-follow p { color: #440852; }
+body:has(.universe.lightmode) #gardien-filters { color: #5b4a78; background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); }
+body:has(.universe.lightmode) #gardien-filters button { color: #6848A6; }
+body:has(.universe.lightmode) #gardien-filters button.on { color: #fff; }
 body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255, 0.92); color: #440852; border-color: rgba(68, 8, 82, 0.18); }
 
 /* Fenêtre Agents & modèles */

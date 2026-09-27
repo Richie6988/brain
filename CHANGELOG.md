@@ -18,6 +18,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Consignes** : consignes par défaut écrites pour le Gardien (méthode, ton, règles) et pour chaque agent (Rédacteur, Codeur, Illustrateur, outils), visibles et modifiables dans Agents & modèles, avec retour aux consignes par défaut. Le format et les outils du Gardien restent fixes : une consigne réécrite ne les retire pas.
 
+**Filtres globaux** (haut centre) : origine des nodes (Moi, Messages envoyés au Gardien, IA) et période de dernière modification (24 h, 7 j, 30 j) ; les nodes écartés et leurs liens s'estompent et ne captent plus la souris, rien n'est modifié dans Nodz. Les origines sont notées côté serveur (`NodeMark`, migration 0005) quand un message part au Gardien et quand l'IA crée un node.
+
 **Le Gardien fait ce qu'il annonce** : un plan annoncé sans aucune action relance aussitôt le modèle (« rien n'a été fait, donne les actions ») ; les actions invalides lui sont renvoyées pour correction ; le node-réponse dit ce qui a été fait, au passé, et avoue l'échec quand rien n'a pu être fait. Le type d'un node (texte, image…) est de nouveau changé par le bon menu (le pont prenait le menu des polices).
 
 **Images : FLUX.1 schnell** avec stable-diffusion.cpp (`SD_BIN`, voir DEPLOY.md) : pack en un clic (modèle et fichiers compagnons VAE, CLIP-L, T5-XXL, quantisation légère sur petite machine), l'Illustrateur dessine dans un node image (progression dans le fil de suivi), le modèle de texte est libéré pendant le dessin, réglages d'image par modèle (taille, étapes, guidage, échantillonneur, graine, threads, VAE par tuiles, tout sur CPU). Les images générées ne sont servies qu'à leur auteur.

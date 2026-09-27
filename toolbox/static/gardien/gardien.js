@@ -7,6 +7,7 @@
 
 import { api } from './api.js';
 import { createBridge } from './bridge.js';
+import { createFilters } from './filters.js';
 import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';
 
@@ -66,6 +67,7 @@ const follow = (() => {
     };
 })();
 
+const filters = createFilters();
 const bridge = createBridge({ caption: text => say(text, 'guide') });
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 let asleep = false;   // le Gardien n'a pas de modèle : on le dit une fois, sans insister
@@ -106,7 +108,9 @@ async function ask(node, text) {
             return;
         }
         node.classList.add('gardien-thinking');
+        filters.mark([node.id], 'message');
         follow.start();
+        const created = [];
         await api.command({ prompt: text, context: { ...bridge.context(), origin: node.id } }, (type, data) => {
             if (type === 'text' || type === 'notice') say(data.text, type);
             else if (type === 'queued') follow.step(data.position === 1 ? 'Tu es le prochain : le Gardien finit une autre demande' : `En file d'attente : ${data.position}e`, 'waiting');
@@ -115,9 +119,13 @@ async function ask(node, text) {
             else if (type === 'intent') actions = actions.then(() => follow.step(data.text));
             else if (type === 'error') actions = actions.then(() => follow.step(data.message, 'error'));
             else if (type === 'agent') actions = actions.then(() => follow.step(`${data.agent} ${data.role === 'image' ? 'dessine' : 'écrit'} : ${data.task}`, 'agent'));
-            else if (type === 'action') actions = actions.then(() => bridge.perform(data)).catch(error => follow.step(error.message, 'error'));
+            else if (type === 'action') {
+                actions = actions.then(() => bridge.perform(data)).catch(error => follow.step(error.message, 'error'));
+                if (data.op === 'create') created.push(data.ref);
+            }
         });
         await actions;
+        filters.mark(created.map(bridge.idOf), 'ai');
         follow.end('Terminé');
     } catch (error) {
         follow.end(error.message);

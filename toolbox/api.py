@@ -17,13 +17,14 @@ from django.http import FileResponse, JsonResponse, StreamingHttpResponse
 
 from graph.api import api
 from graph.services import ChangeError
+from nodzapp.models import Node
 
 from . import gguf, hub, imaging, monitor, params as model_params, prompts
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import EngineUnavailable
 from .guardian import Guardian, PlanError
-from .models import Agent, LocalModel
+from .models import Agent, LocalModel, NodeMark
 from .runtime import broker, dispatcher, engine
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,23 @@ def pack(request, body, key):
     except Exception as e:
         raise Upstream(f'Hugging Face : {e}') from None
     return JsonResponse({'models': [model_to_dict(m, request.user) for m in models]}, status=202)
+
+
+@api('GET', 'POST')
+def marks(request, body):
+    """Origine et dates des nodes de l'utilisateur (filtres) ; POST marque des nodes (message, ai)."""
+    if request.method == 'POST':
+        origin = body.get('origin')
+        if origin not in NodeMark.Origin.values:
+            raise ChangeError('origine inconnue')
+        ids = {int(str(i).removeprefix('N-')) for i in body.get('nodes') or [] if str(i).removeprefix('N-').isdigit()}
+        for node_id in ids:  # un message au Gardien reste un message ; une création de l'IA, une création
+            NodeMark.objects.get_or_create(owner=request.user, node_id=node_id, defaults={'origin': origin})
+        return JsonResponse({'marked': len(ids)})
+    origins = dict(NodeMark.objects.filter(owner=request.user).values_list('node_id', 'origin'))
+    nodes = Node.objects.filter(user=request.user, archive=False).values_list('node_id', 'created_at', 'modified_at')
+    return JsonResponse({'nodes': {f'N-{i}': {'origin': origins.get(i, 'user'), 'created': c.timestamp(), 'modified': m.timestamp()}
+                                   for i, c, m in nodes}})
 
 
 @api('GET')

@@ -238,6 +238,7 @@ export function createBridge({ caption }) {
     };
 
     return {
+        idOf: ref => refs.get(ref) || ref,  // identifiant Nodz (N-12) d'une référence du Gardien
         // Contexte envoyé au Gardien : ce que la page montre, en coordonnées de Nodz.
         context() {
             const nodes = [...document.querySelectorAll('.node-group')].map(n => ({

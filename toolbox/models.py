@@ -74,3 +74,19 @@ class Agent(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class NodeMark(models.Model):
+    """Origine d'un node de Nodz (v1) : message envoyé au Gardien, ou créé par l'IA. Sans marque : écrit à la main."""
+
+    class Origin(models.TextChoices):
+        MESSAGE = 'message'
+        AI = 'ai'
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='node_marks')
+    node_id = models.PositiveIntegerField()
+    origin = models.CharField(max_length=8, choices=Origin.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['owner', 'node_id'], name='unique_mark_per_node')]
