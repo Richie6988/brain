@@ -2,8 +2,8 @@
 
 Un modèle chargé à la fois (le broker sérialise), sortie en flux, JSON contraint par grammaire
 quand un schéma est fourni (fiabilise l'orchestrateur, même avec un petit modèle sur CPU).
-Paramètres par modèle (contexte, couches GPU, threads, batch), statistiques d'usage et
-déchargement après inactivité, comme le ModelService de SquidMind.
+Réglages par modèle (params.py : GPU, cache, contexte, threads, échantillonnage), statistiques
+d'usage et déchargement après inactivité, comme le ModelService de SquidMind.
 """
 
 import threading
@@ -12,10 +12,8 @@ import time
 from django.conf import settings
 
 from . import broker as priorities
+from .params import load_options, sampling_options
 
-# Paramètres de chargement modifiables par modèle (LocalModel.params), avec leur valeur par défaut.
-LOAD_PARAMS = {'n_ctx': lambda: settings.LLM_CTX, 'n_gpu_layers': lambda: settings.LLM_GPU_LAYERS,
-               'n_threads': lambda: settings.LLM_THREADS or None, 'n_batch': lambda: 512}
 DEFAULT_TTL = 15  # minutes d'inactivité avant de libérer la mémoire
 
 
@@ -38,6 +36,7 @@ class Engine:
         self.clock = clock
         self._llm = None
         self._loaded = None  # id du LocalModel chargé
+        self._options = None  # options de chargement en vigueur
         self._ttl = DEFAULT_TTL
         self._lock = threading.Lock()
         self.stats = {}  # id du LocalModel → {loaded_at, last_used, requests, chunks}
@@ -56,15 +55,23 @@ class Engine:
             return False
         return True
 
+    @staticmethod
+    def options(model):
+        """Options de chargement : réglages du serveur (.env), puis ceux du modèle."""
+        defaults = {'n_ctx': settings.LLM_CTX, 'n_gpu_layers': settings.LLM_GPU_LAYERS, 'n_batch': 512}
+        if settings.LLM_THREADS:
+            defaults['n_threads'] = settings.LLM_THREADS
+        return {**defaults, **load_options(model.params)}
+
     def _ensure(self, model):
-        if self._loaded == model.pk:
+        options = self.options(model)
+        if self._loaded == model.pk and options == self._options:
             return self._llm
-        self.unload()
+        self.unload()  # autre modèle, ou réglages de chargement changés : on recharge
         if not model.path:
             raise EngineUnavailable(f'{model} n\'est pas téléchargé')
-        options = {key: model.params.get(key, default()) for key, default in LOAD_PARAMS.items()}
         self._llm = self.factory(model_path=model.path, verbose=False, **options)
-        self._loaded = model.pk
+        self._loaded, self._options = model.pk, options
         self._ttl = float(model.params.get('ttl', DEFAULT_TTL))
         now = self.clock()
         self.stats[model.pk] = {'loaded_at': now, 'last_used': now, 'requests': 0, 'chunks': 0}
@@ -73,7 +80,7 @@ class Engine:
 
     def unload(self):
         self._llm = None
-        self._loaded = None
+        self._loaded = self._options = None
 
     # Libère la mémoire quand le modèle n'a pas servi depuis `ttl` minutes (vérifié chaque minute).
     def _watch(self):
@@ -106,10 +113,8 @@ class Engine:
             llm = self._ensure(model)
             stats = self.stats[model.pk]
             stats['requests'] += 1
-            options = {
-                'temperature': params.get('temperature', model.params.get('temperature', 0.7)),
-                'max_tokens': params.get('max_tokens', model.params.get('max_tokens', 1024)),
-            }
+            # Réglages du modèle, puis ceux de l'appel (agent, Gardien) qui priment.
+            options = {'temperature': 0.7, 'max_tokens': 1024, **sampling_options(model.params), **sampling_options(params)}
             if json_schema:
                 options['response_format'] = {'type': 'json_object', 'schema': json_schema}
             text = []

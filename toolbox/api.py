@@ -18,10 +18,10 @@ from django.http import JsonResponse, StreamingHttpResponse
 from graph.api import api
 from graph.services import ChangeError
 
-from . import hub, monitor, prompts
+from . import gguf, hub, monitor, params as model_params, prompts
 from .broker import BrokerTimeout
 from .dispatcher import Busy
-from .engine import LOAD_PARAMS, EngineUnavailable
+from .engine import EngineUnavailable
 from .guardian import Guardian, PlanError
 from .models import Agent, LocalModel
 from .runtime import broker, dispatcher, engine
@@ -29,8 +29,6 @@ from .runtime import broker, dispatcher, engine
 logger = logging.getLogger(__name__)
 
 AGENT_FIELDS = ('name', 'role', 'description', 'system_prompt', 'tools_allowed', 'params', 'enabled')
-# Réglages d'un modèle : chargement (engine.LOAD_PARAMS), déchargement et génération.
-MODEL_PARAMS = {**{key: int for key in LOAD_PARAMS}, 'ttl': float, 'temperature': float, 'max_tokens': int}
 
 # Bibliothèque de départ : l'utilisateur choisit ensuite le modèle de chaque agent.
 DEFAULT_AGENTS = [
@@ -67,7 +65,8 @@ def model_to_dict(m, user):
             'capabilities': m.capabilities, 'quant': m.quant, 'size': m.size, 'downloaded': m.downloaded,
             'status': m.status, 'error': m.error, 'params': m.params, 'loaded': engine.loaded == m.id,
             'stats': stats if engine.loaded == m.id else None, **hub.download_state(m),
-            'agents': [a.name for a in m.agents.all() if a.owner_id == user.pk]}
+            'agents': [a.name for a in m.agents.all() if a.owner_id == user.pk],
+            'gguf': gguf.info(m.path) if m.status == LocalModel.Status.READY else {}}  # couches : curseur d'offload GPU
 
 
 def agent_to_dict(a):
@@ -87,7 +86,7 @@ def _number(value, kind, name):
 def status(request, body):
     return JsonResponse({'engine': engine.available(), 'staff': request.user.is_staff,
                          'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
-                         'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR)})
+                         'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR), 'param_spec': model_params.SPEC})
 
 
 @api('GET')
@@ -158,11 +157,10 @@ def model_detail(request, body, model_id):
             raise ChangeError('type inconnu')
         model.kind = body['kind']
     if 'params' in body:
-        params = body['params'] or {}
-        unknown = set(params) - set(MODEL_PARAMS)
-        if unknown:
-            raise ChangeError(f'réglage inconnu : {", ".join(sorted(unknown))}')
-        model.params = {key: _number(value, MODEL_PARAMS[key], key) for key, value in params.items() if value not in ('', None)}
+        try:
+            model.params = model_params.validate(body['params'])
+        except model_params.ParamError as e:
+            raise ChangeError(str(e)) from None
     model.save()
     return JsonResponse(model_to_dict(model, request.user))
 
@@ -241,6 +239,13 @@ def agent_detail(request, body, agent_id):
     for field in AGENT_FIELDS:
         if field in body:
             setattr(agent, field, body[field])
+    if 'params' in body:  # réglages d'échantillonnage propres à l'agent (priment sur ceux du modèle)
+        if set(body['params'] or {}) - set(model_params.SAMPLING):
+            raise ChangeError("un agent ne règle que l'échantillonnage")
+        try:
+            agent.params = model_params.validate(body['params'])
+        except model_params.ParamError as e:
+            raise ChangeError(str(e)) from None
     if agent.role not in Agent.Role.values:
         raise ChangeError('rôle inconnu')
     agent.save()

@@ -48,8 +48,6 @@ const CAPS = {
     vision: ['VISION', '#0f9f6e'], tools: ['OUTILS', '#c47a00'], chat: ['CHAT', '#1E90FF'], code: ['CODE', '#00a383'],
     embed: ['EMBED', '#64748b'], image: ['IMAGE', '#6848A6'], audio: ['AUDIO', '#b8447a'], reason: ['RÉFLEXION', '#c2417f'],
 };
-const PARAMS = [['n_ctx', 'Contexte', 'jetons'], ['n_gpu_layers', 'Couches GPU', '-1 = toutes'], ['n_threads', 'Threads', 'vide = auto'],
-    ['n_batch', 'Batch', '512'], ['ttl', 'Libérer après', 'minutes'], ['temperature', 'Température', '0 à 2'], ['max_tokens', 'Longueur max', 'jetons']];
 
 // --- petits outils
 
@@ -77,8 +75,9 @@ const capPill = cap => {
 const quantColor = q => (/Q8|Q6/.test(q) ? '#0f9f6e' : /Q[45]/.test(q) ? '#1E90FF' : /Q[23]/.test(q) ? '#c47a00' : /IQ/.test(q) ? '#6848A6' : '#64748b');
 
 export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
-    let state = { staff: false, machine: {}, engine: false, loaded: null, agents: [], models: [] };
+    let state = { staff: false, machine: {}, engine: false, loaded: null, agents: [], models: [], paramSpec: [] };
     let tab = 'agents';
+    let tuning = null;  // modèle dont les réglages sont ouverts (panneau pleine largeur)
     let poll = null;
     const hf = { q: '', pipeline: '', sort: 'downloads', quant: '', min_b: '', max_b: '', results: null, repo: null, files: null, error: '' };
 
@@ -130,7 +129,7 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
 
     async function refresh() {
         const [status, { agents }, { models }] = await Promise.all([tb.status(), tb.agents(), tb.models()]);
-        state = { ...state, staff: status.staff, machine: status.machine, engine: status.engine, loaded: status.loaded, agents, models };
+        state = { ...state, staff: status.staff, machine: status.machine, engine: status.engine, loaded: status.loaded, agents, models, paramSpec: status.param_spec };
         const m = state.machine;
         machineLine.replaceChildren(
             m.gpu ? `GPU ${(m.vram_mb / 1024).toFixed(1)} Go` : `Sans GPU · ${(m.ram_mb / 1024).toFixed(1)} Go de RAM`,
@@ -172,6 +171,13 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
             const custom = () => (prompt.value.trim() === agent.default_prompt.trim() ? '' : prompt.value);
             prompt.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { system_prompt: custom() }), 'Consignes enregistrées'));
             const reset = h('button', { type: 'button', disabled: !agent.system_prompt }, 'Rétablir les consignes par défaut');
+            const sampling = h('form', { class: 'gl-params-form' }, paramFields(['Échantillonnage'], agent.params || {}),
+                h('div', { class: 'gl-actions' }, h('button', { type: 'submit' }, 'Enregistrer'),
+                    h('button', { type: 'button', onclick: () => act(() => tb.updateAgent(agent.id, { params: {} }), `${agent.name} : échantillonnage du modèle`) }, 'Comme le modèle')));
+            sampling.addEventListener('submit', event => {
+                event.preventDefault();
+                act(() => tb.updateAgent(agent.id, { params: collect(sampling) }), `${agent.name} : échantillonnage enregistré`);
+            });
             reset.addEventListener('click', () => act(() => tb.updateAgent(agent.id, { system_prompt: '' }), `${agent.name} : consignes par défaut`));
             return h('article', { class: `gl-agent ${agent.role === 'orchestrator' ? 'is-guardian' : ''}` },
                 h('div', { class: 'gl-agent-head' },
@@ -180,7 +186,9 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
                 select,
                 h('details', {}, h('summary', {}, agent.system_prompt ? 'Consignes (personnalisées)' : 'Consignes'), prompt,
                     agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement.') : null,
-                    reset));
+                    reset),
+                h('details', {}, h('summary', {}, Object.keys(agent.params || {}).length ? 'Échantillonnage (propre à cet agent)' : 'Échantillonnage'),
+                    h('p', { class: 'gl-hint' }, "Vide = réglages du modèle. Ces valeurs priment pour cet agent."), sampling));
         }));
     }
 
@@ -197,7 +205,8 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
         if (!models.length) return renderWizard();
         const columns = [['guardian', 'GARDIEN', 'Lit les nodes, décide et agit', '#6848A6'],
             ['agents', 'AGENTS', 'Modèles des agents spécialisés', '#1E90FF'], ['image', 'IMAGE', 'Diffusion (à venir)', '#b8447a']];
-        panels.library.replaceChildren(h('div', { class: 'gl-board' }, columns.map(([key, label, desc, color]) => {
+        const tuned = models.find(m => m.id === tuning);
+        panels.library.replaceChildren(tuned ? tuningPanel(tuned) : '', h('div', { class: 'gl-board' }, columns.map(([key, label, desc, color]) => {
             const cards = models.filter(m => categoryOf(m) === key);
             const column = h('div', { class: 'gl-column', style: `border-top-color:${color}`, dataset: { category: key } },
                 h('div', { class: 'gl-column-head' }, h('span', { style: `color:${color}` }, label), h('span', {}, cards.length)),
@@ -241,17 +250,86 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
         return [...caps];
     }
 
+    // Champs de réglages décrits par le serveur (params.py), regroupés ; vide = valeur par défaut.
+    function paramFields(groups, cfg) {
+        const field = p => {
+            const value = cfg[p.key] ?? '';
+            let input;
+            if (p.kind === 'bool') {
+                input = h('select', { name: p.key }, [['', 'défaut'], ['true', 'oui'], ['false', 'non']].map(([v, t]) =>
+                    h('option', { value: v, selected: String(value) === v }, t)));
+            } else if (p.kind === 'choice') {
+                input = h('select', { name: p.key }, h('option', { value: '' }, 'défaut'),
+                    p.choices.map(([v, t]) => h('option', { value: v, selected: String(value) === v }, t)));
+            } else if (p.kind === 'list') {
+                input = h('input', { name: p.key, value: Array.isArray(value) ? value.join(',') : value, placeholder: p.hint || '' });
+            } else {
+                input = h('input', { name: p.key, type: 'number', value, min: p.min, max: p.max, step: p.kind === 'int' ? 1 : 'any', placeholder: p.hint || '' });
+            }
+            return h('label', { title: p.hint || '' }, p.label, input);
+        };
+        return state.paramSpec.filter(p => groups.includes(p.group)).reduce((sets, p) => {
+            let set = sets.find(f => f.dataset.group === p.group);
+            if (!set) sets.push(set = h('fieldset', { dataset: { group: p.group } }, h('legend', {}, p.group)));
+            set.append(field(p));
+            return sets;
+        }, []);
+    }
+    const collect = form => Object.fromEntries(state.paramSpec.filter(p => form.elements[p.key])
+        .map(p => [p.key, form.elements[p.key].value.trim()]).filter(([, v]) => v !== ''));
+    const summary = cfg => {
+        const set = state.paramSpec.filter(p => cfg[p.key] !== undefined);
+        const shown = (p, v) => (p.kind === 'bool' ? (v ? 'oui' : 'non') : p.kind === 'choice' ? p.choices.find(c => c[0] === String(v))?.[0] ?? v
+            : Array.isArray(v) ? v.join(' / ') : v === -1 && p.key === 'n_gpu_layers' ? 'toutes' : String(v));
+        return set.length ? set.map(p => h('span', {}, `${p.label} `, h('b', {}, shown(p, cfg[p.key])))) : [h('span', {}, 'Réglages par défaut')];
+    };
+
+    // Couches sur GPU : curseur de 0 à toutes, VRAM estimée d'après la taille du fichier.
+    function offload(m, form) {
+        const layers = m.gguf?.layers;
+        const input = form.elements.n_gpu_layers;
+        if (!layers || !input) return null;
+        const vram = state.machine.vram_mb || 0;
+        const perLayer = (m.size || 0) / layers / 1024 ** 2;  // Mo par couche (approximation)
+        const fits = vram ? Math.max(0, Math.min(layers, Math.floor((vram * 0.9 - 600) / perLayer))) : 0;  // 600 Mo : cache et tampons
+        const count = () => (input.value === '' ? null : Number(input.value) < 0 ? layers : Math.min(layers, Number(input.value)));
+        const slider = h('input', { type: 'range', min: 0, max: layers, step: 1, value: count() ?? 0, 'aria-label': 'Couches sur GPU' });
+        const note = h('small', {});
+        const show = () => {
+            const n = count();
+            note.textContent = n === null ? `Défaut du serveur · ${layers} couches`
+                : `${n} / ${layers} couches · environ ${(n * perLayer / 1024).toFixed(1)} Go de VRAM${vram ? ` sur ${(vram / 1024).toFixed(1)} Go` : ''}`;
+            note.className = n !== null && vram && n * perLayer > vram * 0.9 ? 'gl-danger' : '';
+        };
+        const set = n => { input.value = n; slider.value = n < 0 ? layers : n; show(); };
+        slider.addEventListener('input', () => set(Number(slider.value) === layers ? -1 : Number(slider.value)));
+        input.addEventListener('input', () => { slider.value = count() ?? 0; show(); });
+        show();
+        return h('div', { class: 'gl-offload' },
+            h('div', { class: 'gl-offload-head' }, h('strong', {}, 'Offload GPU'),
+                h('button', { type: 'button', onclick: () => set(0) }, 'CPU'),
+                vram ? h('button', { type: 'button', onclick: () => set(fits >= layers ? -1 : fits), title: 'Estimation selon la VRAM libre' }, `Ce qui tient (${fits >= layers ? 'tout' : fits})`) : null,
+                h('button', { type: 'button', onclick: () => set(-1) }, 'Tout sur GPU')),
+            slider, note,
+            vram ? null : h('p', { class: 'gl-hint' }, "Pas de GPU NVIDIA détecté : l'offload n'agira qu'avec un GPU et llama-cpp-python compilé pour CUDA."));
+    }
+
+    const closeTuning = () => { tuning = null; render(); };
+    function tuningPanel(m) {
+        const form = h('form', { class: 'gl-params-form' }, paramFields(['GPU', 'Mémoire et vitesse', 'Échantillonnage'], m.params || {}));
+        form.prepend(offload(m, form) || '');
+        form.append(h('div', { class: 'gl-actions' }, h('button', { type: 'submit', class: 'gl-primary' }, 'Enregistrer'),
+            h('button', { type: 'button', onclick: () => act(() => tb.updateModel(m.id, { params: {} }), 'Réglages par défaut') }, 'Tout par défaut'),
+            h('button', { type: 'button', onclick: closeTuning }, 'Fermer')));
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            act(() => tb.updateModel(m.id, { params: collect(form) }), m.loaded ? 'Réglages enregistrés : le modèle se recharge à la prochaine demande' : 'Réglages enregistrés');
+        });
+        return h('section', { class: 'gl-tuning' }, h('h3', {}, `Réglages de ${m.label || m.filename}`), form);
+    }
+
     function modelCard(m) {
         const cfg = m.params || {};
-        const editing = h('form', { class: 'gl-params-form', hidden: true },
-            PARAMS.map(([key, label, hint]) => h('label', {}, label, h('input', { name: key, value: cfg[key] ?? '', placeholder: hint, inputmode: 'decimal' }))),
-            h('div', { class: 'gl-actions' }, h('button', { type: 'submit' }, 'Enregistrer'),
-                h('button', { type: 'button', onclick: () => { editing.hidden = true; } }, 'Annuler')));
-        editing.addEventListener('submit', event => {
-            event.preventDefault();
-            const params = Object.fromEntries(PARAMS.map(([key]) => [key, editing.elements[key].value.trim()]).filter(([, v]) => v !== ''));
-            act(() => tb.updateModel(m.id, { params }), 'Réglages enregistrés (pris en compte au prochain chargement)');
-        });
         const rename = h('input', { class: 'gl-rename', value: m.label || '', placeholder: m.filename, hidden: true });
         rename.addEventListener('change', () => act(() => tb.updateModel(m.id, { label: rename.value.trim() })));
         const tiny = m.kind === 'text' && m.size && m.size < 0.8 * 1024 ** 3;
@@ -266,14 +344,16 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
                 nameCaps(m).map(capPill)),
             m.agents.length ? h('small', { class: 'gl-used' }, `Utilisé par ${m.agents.join(', ')}`) : null,
             tiny ? h('p', { class: 'gl-warning' }, 'Très petit : probablement un encodeur, pas un modèle de chat.') : null,
-            h('div', { class: 'gl-params' }, PARAMS.slice(0, 5).map(([key, label]) => h('span', {}, `${label} `, h('b', {}, cfg[key] ?? 'auto')))),
+            h('div', { class: 'gl-params' }, summary(cfg)),
+            m.gguf?.layers ? h('div', { class: 'gl-params' }, h('span', {}, 'Couches ', h('b', {}, m.gguf.layers)),
+                m.gguf.context_length ? h('span', {}, 'Contexte max ', h('b', {}, m.gguf.context_length)) : null,
+                m.gguf.architecture ? h('span', {}, 'Architecture ', h('b', {}, m.gguf.architecture)) : null) : null,
             stats ? h('div', { class: 'gl-params' }, h('span', {}, 'Chargé ', h('b', {}, ago(stats.loaded_at))),
                 h('span', {}, 'Dernier usage ', h('b', {}, ago(stats.last_used))), h('span', {}, 'Requêtes ', h('b', {}, stats.requests))) : null,
-            editing,
             h('div', { class: 'gl-actions' },
                 m.kind === 'text' && categoryOf(m) !== 'guardian'
                     ? h('button', { type: 'button', onclick: () => moveTo(m.id, 'guardian') }, 'Pour le Gardien') : null,
-                h('button', { type: 'button', ...guard(), onclick: () => { editing.hidden = !editing.hidden; } }, 'Réglages'),
+                h('button', { type: 'button', ...guard(), onclick: () => { tuning = tuning === m.id ? null : m.id; render(); } }, 'Réglages'),
                 h('button', { type: 'button', ...guard(), onclick: () => { rename.hidden = false; rename.focus(); } }, 'Renommer'),
                 h('button', { type: 'button', ...guard(), onclick: () => moveTo(m.id, m.kind === 'image' ? 'agents' : 'image') },
                     m.kind === 'image' ? '→ Texte' : '→ Image'),

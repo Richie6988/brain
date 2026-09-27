@@ -255,6 +255,59 @@ class EngineTests(TestCase):
         self.assertEqual([i.kwargs['model_path'] for i in FakeLlama.instances], ['/models/a.gguf', '/models/b.gguf'])
         self.assertEqual(engine.loaded, other.pk)
 
+    def test_gpu_options_reload_and_sampling(self):
+        engine = Engine(Broker(), factory=FakeLlama)
+        engine._watch = lambda: None
+        engine.chat(self.model, [])
+        self.model.params = {'n_gpu_layers': 20, 'main_gpu': 1, 'split_mode': '1', 'tensor_split': [0.6, 0.4],
+                             'flash_attn': True, 'type_k': 'q8_0', 'type_v': 'q4_0', 'offload_kqv': False,
+                             'top_p': 0.9, 'min_p': 0.05, 'mirostat_mode': '2', 'seed': -1, 'temperature': 0.3}
+        engine.chat(self.model, [], temperature=0.1, top_k=20)
+        self.assertEqual(len(FakeLlama.instances), 2)  # réglages de chargement changés : rechargé
+        kwargs = FakeLlama.instances[1].kwargs
+        self.assertEqual({k: kwargs[k] for k in ('n_gpu_layers', 'main_gpu', 'split_mode', 'tensor_split', 'flash_attn', 'type_k', 'type_v', 'offload_kqv')},
+                         {'n_gpu_layers': 20, 'main_gpu': 1, 'split_mode': 1, 'tensor_split': [0.6, 0.4], 'flash_attn': True,
+                          'type_k': 8, 'type_v': 2, 'offload_kqv': False})
+        call = FakeLlama.instances[1].calls[0]
+        self.assertEqual((call['temperature'], call['top_p'], call['min_p'], call['top_k'], call['mirostat_mode']), (0.1, 0.9, 0.05, 20, 2))
+        self.assertNotIn('seed', call)  # -1 = aléatoire
+        engine.chat(self.model, [])
+        self.assertEqual(len(FakeLlama.instances), 2)  # échantillonnage seul : pas de rechargement
+
+
+class ParamsTests(SimpleTestCase):
+    def test_validation(self):
+        from .params import ParamError, validate
+
+        self.assertEqual(validate({'n_gpu_layers': '-1', 'flash_attn': 'true', 'tensor_split': '3,1', 'top_k': '', 'type_k': 'q8_0'}),
+                         {'n_gpu_layers': -1, 'flash_attn': True, 'tensor_split': [3.0, 1.0], 'type_k': 'q8_0'})
+        for bad, message in [({'n_ctx': 10}, 'entre'), ({'temperature': 'chaud'}, 'nombre'), ({'type_v': 'q4_0'}, 'flash'),
+                             ({'split_mode': '7'}, 'choix'), ({'tensor_split': 'a,b'}, 'virgules'), ({'bogus': 1}, 'inconnu')]:
+            with self.assertRaisesMessage(ParamError, message):
+                validate(bad)
+
+    def test_gguf_header(self):
+        import struct
+
+        from . import gguf
+
+        def string(value):
+            data = value.encode()
+            return struct.pack('<Q', len(data)) + data
+
+        kv = [
+            string('general.architecture') + struct.pack('<I', 8) + string('qwen2'),
+            string('tokenizer.ggml.scores') + struct.pack('<IIQ', 9, 6, 3) + struct.pack('<3f', 0, 1, 2),
+            string('tokenizer.ggml.tokens') + struct.pack('<IIQ', 9, 8, 2) + string('a') + string('b'),
+            string('qwen2.block_count') + struct.pack('<II', 4, 28),
+            string('qwen2.context_length') + struct.pack('<II', 4, 32768),
+        ]
+        with tempfile.NamedTemporaryFile(suffix='.gguf') as f:
+            f.write(b'GGUF' + struct.pack('<IQQ', 3, 0, len(kv)) + b''.join(kv))
+            f.flush()
+            self.assertEqual(gguf.info(f.name), {'architecture': 'qwen2', 'layers': 28, 'context_length': 32768})
+        self.assertEqual(gguf.info('/nulle/part.gguf'), {})
+
 
 class ToolboxApiTests(TestCase):
     def setUp(self):
@@ -271,6 +324,23 @@ class ToolboxApiTests(TestCase):
         self.assertFalse(r.json()['broker']['busy'])
         self.client.logout()
         self.assertEqual(self.client.get('/api/v1/toolbox/status').status_code, 401)
+
+    def test_model_and_agent_params(self):
+        model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf', status=LocalModel.Status.READY)
+        url = f'/api/v1/toolbox/models/{model.id}'
+        self.assertEqual(self.client.patch(url, {'params': {}}, content_type='application/json').status_code, 403)
+        self.client.force_login(self.admin)
+        r = self.client.patch(url, {'params': {'n_gpu_layers': 12, 'flash_attn': 'true', 'type_v': 'q8_0'}}, content_type='application/json')
+        self.assertEqual(r.json()['params'], {'n_gpu_layers': 12, 'flash_attn': True, 'type_v': 'q8_0'})
+        r = self.client.patch(url, {'params': {'type_v': 'q8_0'}}, content_type='application/json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('flash', r.json()['error'])
+        self.assertIn('GPU', {p['group'] for p in self.client.get('/api/v1/toolbox/status').json()['param_spec']})
+        agent = self.client.get('/api/v1/toolbox/agents').json()['agents'][0]
+        r = self.client.patch(f"/api/v1/toolbox/agents/{agent['id']}", {'params': {'top_p': '0.8'}}, content_type='application/json')
+        self.assertEqual(r.json()['params'], {'top_p': 0.8})
+        r = self.client.patch(f"/api/v1/toolbox/agents/{agent['id']}", {'params': {'n_gpu_layers': 5}}, content_type='application/json')
+        self.assertEqual(r.status_code, 400)
 
     def test_system_monitor(self):
         from . import monitor
