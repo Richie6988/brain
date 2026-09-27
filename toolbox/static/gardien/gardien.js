@@ -5,7 +5,7 @@
 // de boutons ouvre la bibliothèque (agents, modèles, Hugging Face) ; la tour de contrôle (haut gauche)
 // montre les ressources du serveur.
 
-import { api } from '../nodz/api.js';
+import { api } from './api.js';
 import { createBridge } from './bridge.js';
 import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';

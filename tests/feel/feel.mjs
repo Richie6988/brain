@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const BASE = (process.env.NODZ_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
-const PAGE = process.env.NODZ_PAGE || '/universe';  // /next : nouvelle interface
+const PAGE = process.env.NODZ_PAGE || '/universe';
 const SCENARIO = process.argv.includes('--scenario') ? process.argv[process.argv.indexOf('--scenario') + 1] : 'base';
 const REFERENCE = fileURLToPath(new URL(SCENARIO === 'base' ? './reference.json' : `./reference-${SCENARIO}.json`, import.meta.url));
 const TOLERANCE = 1e-3;

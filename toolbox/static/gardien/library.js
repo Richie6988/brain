@@ -3,7 +3,7 @@
 // serveur (import des .gguf déjà copiés) et Hugging Face (recherche filtrée, choix du fichier,
 // téléchargements suivis). Consulter est ouvert à tous ; changer le serveur est réservé au staff.
 
-import { api } from '../nodz/api.js';
+import { api } from './api.js';
 
 const tb = {
     status: () => api.request('GET', 'toolbox/status'),

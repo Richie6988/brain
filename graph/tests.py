@@ -252,13 +252,3 @@ class FileApiTests(TestCase):
         self.assertEqual(self.upload('broken.pdf', b'pas un pdf', 'application/pdf').status_code, 201)
         self.client.logout()
         self.assertEqual(self.upload('x.txt', b'x').status_code, 401)
-
-
-class NextPageTests(TestCase):
-    def test_next_page_loads_modules_and_sets_csrf_cookie(self):
-        response = self.client.get('/next')
-        self.assertEqual(response.status_code, 200)
-        html = response.content.decode()
-        self.assertIn('type="module"', html)
-        self.assertIn('nodz/main.js', html)
-        self.assertIn('nodz_csrftoken', response.cookies)

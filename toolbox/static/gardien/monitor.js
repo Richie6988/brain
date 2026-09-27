@@ -2,7 +2,7 @@
 // 60 %, ambre sous 85 %, rouge au-delà), modèle en mémoire et file du broker. Une seule mesure toutes
 // les 3 s tant que la page est visible ; chaque vue créée par panel() l'affiche.
 
-import { api } from '../nodz/api.js';
+import { api } from './api.js';
 
 const PERIOD = 3000;
 const ROWS = [['cpu', 'CPU'], ['ram', 'RAM'], ['gpu', 'GPU'], ['vram', 'VRAM'], ['disk', 'Disque']];
