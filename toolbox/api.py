@@ -19,7 +19,7 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Node
 
-from . import gguf, hub, imaging, monitor, params as model_params, prompts
+from . import gguf, hub, imaging, monitor, params as model_params, prompts, tools
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import EngineUnavailable
@@ -67,7 +67,8 @@ def model_to_dict(m, user):
             'status': m.status, 'error': m.error, 'params': m.params, 'loaded': engine.loaded == m.id,
             'stats': stats if engine.loaded == m.id else None, **hub.download_state(m),
             'agents': [a.name for a in m.agents.all() if a.owner_id == user.pk],
-            'gguf': gguf.info(m.path) if m.status == LocalModel.Status.READY else {}}  # couches : curseur d'offload GPU
+            'gguf': gguf.info(m.path) if m.status == LocalModel.Status.READY else {},
+            'placement': engine.placement.get(m.id)}  # couches GPU et contexte retenus au dernier chargement  # couches : curseur d'offload GPU
 
 
 def agent_to_dict(a):
@@ -88,7 +89,7 @@ def status(request, body):
     return JsonResponse({'engine': engine.available(), 'staff': request.user.is_staff,
                          'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
                          'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR), 'param_spec': model_params.SPEC,
-                         'imaging': bool(imaging.binary()), 'packs': {k: p['label'] for k, p in hub.PACKS.items()}})
+                         'imaging': bool(imaging.binary()), 'gpu_offload': engine.gpu_offload(), 'packs': {k: p['label'] for k, p in hub.PACKS.items()}})
 
 
 @api('POST')
@@ -102,6 +103,15 @@ def pack(request, body, key):
     except Exception as e:
         raise Upstream(f'Hugging Face : {e}') from None
     return JsonResponse({'models': [model_to_dict(m, request.user) for m in models]}, status=202)
+
+
+@api('GET')
+def tool_list(request, body):
+    """Catalogue des outils du Gardien (Nodz et iAqua), ceux activés pour l'utilisateur, et les non portés."""
+    guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
+    return JsonResponse({'tools': tools.TOOLS, 'enabled': tools.enabled(guardian) if guardian else [],
+                         'guardian': str(guardian.id) if guardian else None,
+                         'not_ported': [{'names': n, 'reason': r} for n, r in tools.NOT_PORTED]})
 
 
 @api('GET', 'POST')
@@ -280,6 +290,10 @@ def agent_detail(request, body, agent_id):
     for field in AGENT_FIELDS:
         if field in body:
             setattr(agent, field, body[field])
+    if 'tools_allowed' in body:
+        unknown = set(body['tools_allowed'] or []) - set(tools.BY_OP)
+        if unknown or not isinstance(body['tools_allowed'], list):
+            raise ChangeError(f"outil inconnu : {', '.join(sorted(map(str, unknown)))}")
     if 'params' in body:  # réglages d'échantillonnage propres à l'agent (priment sur ceux du modèle)
         if set(body['params'] or {}) - set(model_params.SAMPLING):
             raise ChangeError("un agent ne règle que l'échantillonnage")

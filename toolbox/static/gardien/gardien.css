@@ -2,7 +2,7 @@
    réponse, tour de contrôle et fenêtre « Agents & modèles », dans le langage de Nodz modernisé
    (Cascadia Code, violet #6848A6, prune #440852, bleu #1E90FF, verre dépoli : voir css/modern.css). */
 
-#agentsButton::after { background: url('../img/raven.svg') no-repeat center / 80%; }
+#agentsButton::after { background: url('agents.svg') no-repeat center / 80%; }
 
 /* Un node message attend la réponse du Gardien */
 @keyframes gardien-pulse { 50% { stroke-opacity: 0.25; } }
@@ -181,6 +181,16 @@ body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255,
 .gl-offload-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .gl-offload-head strong { margin-right: auto; color: #440852; }
 .gl-offload input[type=range] { width: 100%; accent-color: #6848A6; }
+.gl-placed { color: #0f9f6e; }
+.gl-toolgroup { margin-bottom: 6px; }
+.gl-toolgroup summary { cursor: pointer; color: #6848A6; font-weight: bold; margin: 12px 0 6px; }
+.gl-tool { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 8px 10px; border: 1px solid #e3dcef; border-radius: 12px; margin-bottom: 6px; background: #fff; cursor: pointer; }
+.gl-tool.off { opacity: 0.55; background: transparent; }
+.gl-tool div { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.gl-tool small { flex-basis: 100%; color: #666; }
+.gl-tool code { color: #440852; font-size: 10px; }
+.gl-tool input { margin-top: 3px; accent-color: #6848A6; }
+.gl-advanced summary { cursor: pointer; color: #6848A6; font-weight: bold; margin-bottom: 6px; }
 .gl-tuning { border: 1px solid #6848A6; border-radius: 14px; padding: 4px 14px 14px; margin-bottom: 12px; background: #fff; }
 .gl-tuning h3 { color: #440852; }
 .gl-actions { display: flex; flex-wrap: wrap; gap: 4px; }

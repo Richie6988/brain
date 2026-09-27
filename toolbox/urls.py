@@ -17,5 +17,6 @@ urlpatterns = [
     path('packs/<str:key>', api.pack),
     path('images/<str:name>', api.image),
     path('marks', api.marks),
+    path('tools', api.tool_list),
     path('command', api.command),
 ]

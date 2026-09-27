@@ -41,7 +41,7 @@ def _value(f, kind):
 
 
 def info(path):
-    """{architecture, layers, context_length} ou {} si le fichier n'est pas lisible."""
+    """{architecture, layers, context_length, embedding, heads, kv_heads} ou {} si le fichier n'est pas lisible."""
     try:
         stat = Path(path).stat()
     except (OSError, TypeError):
@@ -70,8 +70,14 @@ def _parse(path):
                     found['layers'] = int(value)
                 elif name.endswith('.context_length'):
                     found['context_length'] = int(value)
-                if {'architecture', 'layers', 'context_length'} <= found.keys():
-                    break
+                elif name.endswith('.embedding_length'):
+                    found['embedding'] = int(value)
+                elif name.endswith('.attention.head_count'):
+                    found['heads'] = int(value) if isinstance(value, int) else None
+                elif name.endswith('.attention.head_count_kv'):
+                    found['kv_heads'] = int(value) if isinstance(value, int) else None
+                if name.startswith('tokenizer.') and 'layers' in found:
+                    break  # les métadonnées du modèle précèdent celles du tokenizer (tableaux lourds)
     except (OSError, ValueError, struct.error):
         pass
     return found

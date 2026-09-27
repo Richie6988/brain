@@ -237,6 +237,12 @@ class EngineTests(TestCase):
         self.assertEqual((text, pieces), ('Bonjour', ['Bon', 'jour']))
         llm = FakeLlama.instances[0]
         self.assertEqual(llm.kwargs['n_ctx'], 2048)
+        # Défauts d'iAqua : batch 1024, flash attention, mmap, pas de mlock, threads = cœurs physiques
+        self.assertEqual({k: llm.kwargs[k] for k in ('n_batch', 'flash_attn', 'use_mmap', 'use_mlock')},
+                         {'n_batch': 1024, 'flash_attn': True, 'use_mmap': True, 'use_mlock': False})
+        self.assertGreaterEqual(llm.kwargs['n_threads'], 4)
+        self.assertIsInstance(llm.kwargs['n_gpu_layers'], int)  # « auto » calculé avant le chargement
+        self.assertIn(self.model.pk, engine.placement)
         self.assertEqual(llm.calls[0]['response_format'], {'type': 'json_object', 'schema': {'type': 'object'}})
         self.assertEqual(llm.calls[0]['temperature'], 0)
         engine.chat(self.model, [])
@@ -287,12 +293,45 @@ class EngineTests(TestCase):
         self.assertEqual(len(FakeLlama.instances), 2)  # échantillonnage seul : pas de rechargement
 
 
+class FitTests(SimpleTestCase):
+    INFO = {'layers': 28, 'context_length': 32768, 'embedding': 3584, 'heads': 28, 'kv_heads': 4}
+
+    def resolve(self, options, vram, ram=16000, offload=True, size_mb=4700):
+        from . import fit
+
+        with tempfile.NamedTemporaryFile() as f, mock.patch.object(fit.gguf, 'info', return_value=self.INFO), \
+                mock.patch.object(fit, 'free_memory', return_value=(vram, ram)):
+            f.truncate(size_mb * 1024 ** 2)
+            return fit.resolve(f.name, options, offload)
+
+    def test_auto_fits_the_vram_like_iaqua(self):
+        from . import fit
+
+        self.assertEqual(fit.kv_bytes_per_token(self.INFO), 2 * 28 * 512 * 2)  # Qwen2.5 7B : 56 Ko par jeton
+        full, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=8000)
+        self.assertEqual(full['n_gpu_layers'], -1)  # 4,7 Go tiennent dans 8 Go : tout sur GPU
+        self.assertEqual(full['n_ctx'], 32768)  # plafonné au contexte d'entraînement
+        self.assertEqual((summary['gpu_layers'], summary['layers']), (28, 28))
+        part, _ = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=3000)
+        self.assertTrue(0 < part['n_gpu_layers'] < 28)
+        self.assertGreaterEqual(part['n_ctx'], 2048)
+        cpu, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=8000, offload=False)
+        self.assertEqual((cpu['n_gpu_layers'], summary['gpu_offload']), (0, False))  # compilé sans CUDA
+        small, _ = self.resolve({'n_gpu_layers': 'max', 'n_ctx': 'auto'}, vram=0, ram=3800)
+        self.assertEqual((small['n_gpu_layers'], small['n_ctx']), (-1, 2048))  # peu de RAM : contexte minimal
+        fixed, _ = self.resolve({'n_gpu_layers': 12, 'n_ctx': 8192}, vram=8000)
+        self.assertEqual((fixed['n_gpu_layers'], fixed['n_ctx']), (12, 8192))
+
+
 class ParamsTests(SimpleTestCase):
     def test_validation(self):
         from .params import ParamError, validate
 
-        self.assertEqual(validate({'n_gpu_layers': '-1', 'flash_attn': 'true', 'tensor_split': '3,1', 'top_k': '', 'type_k': 'q8_0'}),
-                         {'n_gpu_layers': -1, 'flash_attn': True, 'tensor_split': [3.0, 1.0], 'type_k': 'q8_0'})
+        self.assertEqual(validate({'n_gpu_layers': 'MAX', 'n_ctx': 'auto', 'flash_attn': 'true', 'tensor_split': '3,1', 'top_k': '', 'type_k': 'q8_0'}),
+                         {'n_gpu_layers': 'max', 'n_ctx': 'auto', 'flash_attn': True, 'tensor_split': [3.0, 1.0], 'type_k': 'q8_0'})
+        self.assertEqual(validate({'n_gpu_layers': -1}), {'n_gpu_layers': 'max'})  # ancienne notation
+        with self.assertRaisesMessage(ParamError, 'entre'):
+            validate({'n_gpu_layers': '-5'})
         for bad, message in [({'n_ctx': 10}, 'entre'), ({'temperature': 'chaud'}, 'nombre'), ({'type_v': 'q4_0'}, 'flash'),
                              ({'split_mode': '7'}, 'choix'), ({'tensor_split': 'a,b'}, 'virgules'), ({'bogus': 1}, 'inconnu')]:
             with self.assertRaisesMessage(ParamError, message):
@@ -347,7 +386,7 @@ class ToolboxApiTests(TestCase):
         r = self.client.patch(url, {'params': {'type_v': 'q8_0'}}, content_type='application/json')
         self.assertEqual(r.status_code, 400)
         self.assertIn('flash', r.json()['error'])
-        self.assertIn('GPU', {p['group'] for p in self.client.get('/api/v1/toolbox/status').json()['param_spec']})
+        self.assertIn('Chargement', {p['group'] for p in self.client.get('/api/v1/toolbox/status').json()['param_spec']})
         agent = self.client.get('/api/v1/toolbox/agents').json()['agents'][0]
         r = self.client.patch(f"/api/v1/toolbox/agents/{agent['id']}", {'params': {'top_p': '0.8'}}, content_type='application/json')
         self.assertEqual(r.json()['params'], {'top_p': 0.8})
@@ -659,6 +698,22 @@ class GuardianTests(TestCase):
         with self.assertRaises(PlanError):
             self.run_guardian('pas du json')
         self.assertEqual(AIRun.objects.get().status, AIRun.Status.ERROR)
+
+    def test_disabled_tools_leave_the_prompt_and_are_refused(self):
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        data = self.client.get('/api/v1/toolbox/tools').json()
+        self.assertEqual(len(data['enabled']), len(data['tools']))
+        self.assertIn('execute_bash', ' '.join(n['names'] for n in data['not_ported']))
+        self.assertEqual({t['source'] for t in data['tools']}, {'nodz', 'iaqua', 'nodz+iaqua'})
+        keep = [t['op'] for t in data['tools'] if t['op'] != 'archive']
+        r = self.client.patch(f'/api/v1/toolbox/agents/{guardian.id}', {'tools_allowed': keep}, content_type='application/json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.client.patch(f'/api/v1/toolbox/agents/{guardian.id}', {'tools_allowed': ['rm_rf']},
+                                           content_type='application/json').status_code, 400)
+        engine = self.run_guardian(json.dumps({'plan': ['Supprimer'], 'say': '', 'actions': [{'op': 'archive', 'ref': 'N-2'}]}))
+        self.assertNotIn('"op":"archive"', engine.calls[0]['messages'][0]['content'])
+        self.assertIn('désactivé', self.errors()[0])
+        self.assertNotIn('archive', [a['op'] for a in self.actions()])
 
     def test_guidelines_are_editable_but_tools_stay(self):
         from . import prompts

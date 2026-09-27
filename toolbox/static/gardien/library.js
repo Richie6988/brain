@@ -15,6 +15,7 @@ const tb = {
     modelAction: (id, action) => api.request('POST', `toolbox/models/${id}/${action}`),
     download: file => api.request('POST', 'toolbox/models', file),
     installPack: key => api.request('POST', `toolbox/packs/${key}`),
+    tools: () => api.request('GET', 'toolbox/tools'),
     recommendations: () => api.request('GET', 'toolbox/recommendations'),
     search: params => api.request('GET', `toolbox/hub/search?${new URLSearchParams(params)}`),
     files: repo => api.request('GET', `toolbox/hub/files?${new URLSearchParams({ repo })}`),
@@ -83,7 +84,7 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
     const hf = { q: '', pipeline: '', sort: 'downloads', quant: '', min_b: '', max_b: '', results: null, repo: null, files: null, error: '' };
 
     const panels = {};
-    const tabs = [['agents', 'Agents'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face']];
+    const tabs = [['agents', 'Agents'], ['tools', 'Outils'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face']];
     const nav = h('nav', { class: 'gl-tabs' }, tabs.map(([key, label]) =>
         h('button', { type: 'button', dataset: { tab: key }, onclick: () => show(key) }, label)));
     const machineLine = h('p', { class: 'gl-machine' });
@@ -131,7 +132,7 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
     async function refresh() {
         const [status, { agents }, { models }] = await Promise.all([tb.status(), tb.agents(), tb.models()]);
         state = { ...state, staff: status.staff, machine: status.machine, engine: status.engine, loaded: status.loaded, agents, models,
-            paramSpec: status.param_spec, imaging: status.imaging, packs: status.packs };
+            paramSpec: status.param_spec, imaging: status.imaging, packs: status.packs, gpuOffload: status.gpu_offload };
         const m = state.machine;
         machineLine.replaceChildren(
             m.gpu ? `GPU ${(m.vram_mb / 1024).toFixed(1)} Go` : `Sans GPU · ${(m.ram_mb / 1024).toFixed(1)} Go de RAM`,
@@ -147,13 +148,14 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
     function render() {
         nav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         Object.entries(panels).forEach(([key, panel]) => { panel.hidden = key !== tab; });
-        ({ agents: renderAgents, library: renderLibrary, server: renderServer, hub: renderHub })[tab]();
+        ({ agents: renderAgents, tools: renderTools, library: renderLibrary, server: renderServer, hub: renderHub })[tab]();
     }
 
     function show(key) {
         tab = key;
         render();
         if (key === 'server') loadServerFiles();
+        if (key === 'tools') loadTools();
         if (key === 'hub' && !hf.results) hubSearch();
     }
 
@@ -193,6 +195,42 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
                 h('details', {}, h('summary', {}, Object.keys(agent.params || {}).length ? 'Échantillonnage (propre à cet agent)' : 'Échantillonnage'),
                     h('p', { class: 'gl-hint' }, "Vide = réglages du modèle. Ces valeurs priment pour cet agent."), sampling));
         }));
+    }
+
+    // --- Outils du Gardien : Nodz et iAqua en un catalogue, activables un par un
+
+    let toolbox = null;
+    const SOURCES = { nodz: ['Nodz', '#6848A6'], iaqua: ['iAqua', '#0f9f6e'], 'nodz+iaqua': ['Nodz + iAqua', '#1E90FF'] };
+    async function loadTools() {
+        try {
+            toolbox = await tb.tools();
+            render();
+        } catch (error) {
+            report(error);
+        }
+    }
+    function renderTools() {
+        if (!toolbox) return panels.tools.replaceChildren(h('p', { class: 'gl-empty' }, 'Chargement des outils…'));
+        const on = new Set(toolbox.enabled);
+        const save = () => {
+            const all = toolbox.tools.every(t => on.has(t.op));
+            act(() => tb.updateAgent(toolbox.guardian, { tools_allowed: all ? [] : [...on] }), 'Outils du Gardien enregistrés').then(loadTools);
+        };
+        const categories = [...new Set(toolbox.tools.map(t => t.category))];
+        panels.tools.replaceChildren(
+            h('p', { class: 'gl-hint' }, `${on.size} outils actifs sur ${toolbox.tools.length}. Un outil coupé disparaît des consignes du Gardien et lui est refusé.`),
+            ...categories.map(category => h('section', { class: 'gl-toolgroup' }, h('h3', {}, category),
+                toolbox.tools.filter(t => t.category === category).map(t => {
+                    const [source, color] = SOURCES[t.source];
+                    const box = h('input', { type: 'checkbox', checked: on.has(t.op), disabled: !toolbox.guardian });
+                    box.addEventListener('change', () => { if (box.checked) on.add(t.op); else on.delete(t.op); save(); });
+                    return h('label', { class: `gl-tool ${on.has(t.op) ? '' : 'off'}` }, box,
+                        h('div', {}, h('strong', {}, t.label), h('code', {}, t.op), t.read ? h('span', { class: 'gl-cap' }, 'LECTURE') : null,
+                            h('small', {}, t.doc.replace(/^\{[^}]*\}\s*:\s*/, ''))),
+                        h('span', { class: 'gl-cap', style: `color:${color};border-color:${color}55;background:${color}14`, title: t.iaqua ? `iAqua : ${t.iaqua}` : '' }, source));
+                }))),
+            h('details', { class: 'gl-toolgroup' }, h('summary', {}, `Outils d'iAqua non portés (${toolbox.not_ported.length})`),
+                toolbox.not_ported.map(n => h('div', { class: 'gl-tool off' }, h('div', {}, h('code', {}, n.names), h('small', {}, n.reason))))));
     }
 
     // --- Bibliothèque
@@ -298,40 +336,61 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
         return set.length ? set.map(p => h('span', {}, `${p.label} `, h('b', {}, shown(p, cfg[p.key])))) : [h('span', {}, 'Réglages par défaut')];
     };
 
-    // Couches sur GPU : curseur de 0 à toutes, VRAM estimée d'après la taille du fichier.
+    // Couches GPU, comme iAqua : auto (selon la VRAM libre), max (toutes), ou un nombre au curseur.
     function offload(m, form) {
         const layers = m.gguf?.layers;
         const input = form.elements.n_gpu_layers;
-        if (!layers || !input) return null;
+        if (!input) return null;
         const vram = state.machine.vram_mb || 0;
-        const perLayer = (m.size || 0) / layers / 1024 ** 2;  // Mo par couche (approximation)
-        const fits = vram ? Math.max(0, Math.min(layers, Math.floor((vram * 0.9 - 600) / perLayer))) : 0;  // 600 Mo : cache et tampons
-        const count = () => (input.value === '' ? null : Number(input.value) < 0 ? layers : Math.min(layers, Number(input.value)));
-        const slider = h('input', { type: 'range', min: 0, max: layers, step: 1, value: count() ?? 0, 'aria-label': 'Couches sur GPU' });
+        const perLayer = layers ? (m.size || 0) / (layers + 1) / 1024 ** 2 : 0;  // Mo par couche (approximation)
+        const value = () => (input.value.trim() === '-1' ? 'max' : input.value.trim().toLowerCase());
+        const slider = layers ? h('input', { type: 'range', min: 0, max: layers, step: 1, 'aria-label': 'Couches GPU' }) : null;
         const note = h('small', {});
         const show = () => {
-            const n = count();
-            note.textContent = n === null ? `Défaut du serveur · ${layers} couches`
-                : `${n} / ${layers} couches · environ ${(n * perLayer / 1024).toFixed(1)} Go de VRAM${vram ? ` sur ${(vram / 1024).toFixed(1)} Go` : ''}`;
+            const v = value();
+            const n = v === 'max' ? layers : /^\d+$/.test(v) ? Math.min(layers || Infinity, Number(v)) : null;
+            if (slider) slider.value = n ?? 0;
+            note.textContent = v === '' || v === 'auto'
+                ? `Auto : autant de couches que la VRAM libre le permet${layers ? ` (${layers} couches)` : ''}, le reste sur CPU`
+                : `${n} / ${layers || '?'} couches sur GPU${perLayer ? ` · environ ${(n * perLayer / 1024).toFixed(1)} Go de VRAM` : ''}${vram ? ` sur ${(vram / 1024).toFixed(1)} Go` : ''}`;
             note.className = n !== null && vram && n * perLayer > vram * 0.9 ? 'gl-danger' : '';
         };
-        const set = n => { input.value = n; slider.value = n < 0 ? layers : n; show(); };
-        slider.addEventListener('input', () => set(Number(slider.value) === layers ? -1 : Number(slider.value)));
-        input.addEventListener('input', () => { slider.value = count() ?? 0; show(); });
+        const set = v => { input.value = v; show(); };
+        slider?.addEventListener('input', () => set(Number(slider.value) === layers ? 'max' : slider.value));
+        input.addEventListener('input', show);
         show();
+        const placed = m.placement;
         return h('div', { class: 'gl-offload' },
-            h('div', { class: 'gl-offload-head' }, h('strong', {}, 'Offload GPU'),
-                h('button', { type: 'button', onclick: () => set(0) }, 'CPU'),
-                vram ? h('button', { type: 'button', onclick: () => set(fits >= layers ? -1 : fits), title: 'Estimation selon la VRAM libre' }, `Ce qui tient (${fits >= layers ? 'tout' : fits})`) : null,
-                h('button', { type: 'button', onclick: () => set(-1) }, 'Tout sur GPU')),
+            h('div', { class: 'gl-offload-head' }, h('strong', {}, 'Couches GPU'),
+                h('button', { type: 'button', onclick: () => set('0') }, 'CPU'),
+                h('button', { type: 'button', onclick: () => set('auto') }, 'Auto'),
+                h('button', { type: 'button', onclick: () => set('max') }, 'Max')),
             slider, note,
-            vram ? null : h('p', { class: 'gl-hint' }, "Pas de GPU NVIDIA détecté : l'offload n'agira qu'avec un GPU et llama-cpp-python compilé pour CUDA."));
+            placed ? h('small', { class: 'gl-placed' }, `Dernier chargement : ${placed.gpu_layers} / ${placed.layers || '?'} couches sur GPU, contexte ${placed.n_ctx}`
+                + ` (VRAM libre ${(placed.vram_free_mb / 1024).toFixed(1)} Go, RAM libre ${(placed.ram_free_mb / 1024).toFixed(1)} Go)`) : null,
+            cudaNotice());
+    }
+
+    // Pourquoi l'offload GPU n'agit pas, et quoi faire.
+    function cudaNotice() {
+        if (!state.machine.gpu) return h('p', { class: 'gl-hint' }, 'Pas de GPU NVIDIA détecté (nvidia-smi) : tout tourne sur CPU.');
+        if (state.gpuOffload === false) return h('p', { class: 'gl-warning' },
+            'Carte NVIDIA détectée, mais llama-cpp-python est compilé sans CUDA : les couches restent sur CPU. Recompile-le sur le serveur : ',
+            h('code', {}, 'CMAKE_ARGS="-DGGML_CUDA=on" pip install --force-reinstall --no-cache-dir llama-cpp-python'), ' (voir DEPLOY.md).');
+        if (state.gpuOffload == null) return h('p', { class: 'gl-hint' }, 'Moteur llama-cpp-python absent (requirements-ai.txt).');
+        return null;
     }
 
     const closeTuning = () => { tuning = null; render(); };
     function tuningPanel(m) {
-        const groups = m.kind === 'image' ? ['Image'] : ['GPU', 'Mémoire et vitesse', 'Échantillonnage'];
+        const groups = m.kind === 'image' ? ['Image'] : ['Chargement', 'Avancé', 'Échantillonnage'];
         const form = h('form', { class: 'gl-params-form' }, paramFields(groups, m.params || {}));
+        const advanced = form.querySelector('fieldset[data-group="Avancé"]');
+        if (advanced) {  // replié : les réglages d'iAqua d'abord
+            const fold = h('details', { class: 'gl-advanced' }, h('summary', {}, 'Avancé (multi-GPU, cache KV, RoPE)'));
+            advanced.before(fold);
+            fold.append(advanced);
+        }
         form.prepend(offload(m, form) || '');
         form.append(h('div', { class: 'gl-actions' }, h('button', { type: 'submit', class: 'gl-primary' }, 'Enregistrer'),
             h('button', { type: 'button', onclick: () => act(() => tb.updateModel(m.id, { params: {} }), 'Réglages par défaut') }, 'Tout par défaut'),

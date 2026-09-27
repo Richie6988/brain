@@ -191,9 +191,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'nodzapp/media')
 # Boîte à outils IA (modèles locaux GGUF téléchargés depuis Hugging Face).
 MODELS_DIR = Path(os.environ.get('MODELS_DIR') or BASE_DIR / 'var' / 'models')
 HF_TOKEN = os.environ.get('HF_TOKEN', '')
-LLM_CTX = int(os.environ.get('LLM_CTX', '4096'))
-LLM_GPU_LAYERS = int(os.environ.get('LLM_GPU_LAYERS', '0'))  # -1 = tout sur le GPU
-LLM_THREADS = int(os.environ.get('LLM_THREADS', '0'))  # 0 = automatique
+# Défauts du serveur, comme iAqua : « auto » calcule au chargement (contexte, couches GPU selon la VRAM libre).
+LLM_CTX = os.environ.get('LLM_CTX', 'auto')
+LLM_GPU_LAYERS = os.environ.get('LLM_GPU_LAYERS', 'auto')  # auto, max ou un nombre
+LLM_THREADS = int(os.environ.get('LLM_THREADS', '0'))  # 0 = cœurs physiques
 SD_BIN = os.environ.get('SD_BIN', '')  # stable-diffusion.cpp (vide = cherché dans le PATH)
 GUARDIAN_WEB = os.environ.get('GUARDIAN_WEB', '1') == '1'  # recherche et lecture web par le Gardien
 GUARDIAN_WORKERS = int(os.environ.get('GUARDIAN_WORKERS', '1'))  # demandes au Gardien traitées en même temps

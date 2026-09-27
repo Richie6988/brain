@@ -20,7 +20,7 @@ from graph.models import AIRun
 from nodzapp.models import Node
 
 from . import broker as priorities
-from . import imaging, prompts, web
+from . import imaging, prompts, tools, web
 from .engine import EngineUnavailable
 from .models import Agent, LocalModel
 
@@ -30,9 +30,7 @@ MAX_CONTEXT_NODES = 60
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
 SHAPES = ['circle', 'square', 'none']
-OPS = ['create', 'update', 'style', 'set_type', 'link', 'unlink', 'portal', 'archive', 'cleanup', 'mindmap',
-       'delegate', 'plug_agent', 'create_agent', 'update_agent', 'remember', 'forget',
-       'inventory', 'search_nodes', 'read_file', 'web_search', 'web_fetch', 'focus', 'overview', 'travel', 'goto']
+OPS = [t['op'] for t in tools.TOOLS]  # catalogue commun Nodz + iAqua (tools.py)
 ROLES = [Agent.Role.TEXT, Agent.Role.CODE, Agent.Role.TOOLS]  # rôles qu'un agent créé par le Gardien peut prendre
 MAX_MEMORY = 30
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
@@ -95,40 +93,7 @@ L'utilisateur t'écrit dans un node (le node message) ; tu réponds uniquement e
 n'appelle aucune action (simple question), `plan` et `actions` sont vides et `say` répond.
 `say` est écrit dans un node relié au node message : au passé (« J'ai relié… »), jamais « je vais ».
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
-Actions possibles :
-- {"op":"create","ref":"new1","text":"...","near":"N-3","color":"#4D96FF","shape":"circle"} : nouveau node
-  placé près de `near` ; couleur et forme facultatives.
-- {"op":"update","ref":"N-2","text":"..."} : remplace le texte d'un node.
-- {"op":"style","ref":"N-2","color":"#FF6B6B","shape":"square","radius":90,"lock":true} : apparence
-  (formes : circle, square, none ; taille 20 à 400 ; lock empêche de le déplacer).
-- {"op":"set_type","ref":"N-2","content_type":"canvas"} : type du node (text, image, file, canvas = dessin).
-- {"op":"link","source":"N-1","target":"new1"} / {"op":"unlink","source":"N-1","target":"N-2"} : crée ou retire un lien.
-- {"op":"portal","ref":"N-2","name":"Recherche"} : téléporte N-2 dans une nouvelle dimension `name`, reliée par un portail.
-- {"op":"archive","ref":"N-4"} : supprime un node (annulable avec Ctrl+Z).
-- {"op":"cleanup"} : supprime les nodes vides du plan.
-- {"op":"mindmap","ref":"new1","text":"Sujet","children":["idée 1","idée 2"],"near":"N-3"} : carte mentale,
-  un node central (nouveau ou existant) entouré de ses idées, toutes reliées à lui.
-- {"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou N-2","near":"N-1"} : confie la
-  production à un agent ; son résultat est publié dans le node `ref` (créé s'il est nouveau). Pour un agent
-  d'image (Illustrateur), `task` est un prompt d'image en anglais, précis (sujet, style, lumière, cadrage) :
-  l'image est posée dans le node `ref`.
-- {"op":"plug_agent","agent":"<nom>","model":"<partie du nom du modèle>"} : branche un modèle sur un agent.
-- {"op":"create_agent","name":"Traducteur","role":"text","description":"...","prompt":"consignes","model":"qwen"} :
-  crée un agent spécialisé (rôles : text, code, tools). {"op":"update_agent","agent":"<nom>","description":"...",
-  "prompt":"...","enabled":false} : modifie ses consignes ou l'active / le désactive.
-- {"op":"remember","text":"fait durable sur l'utilisateur ou ses projets"} : tu le retrouveras à chaque demande ;
-  {"op":"forget","text":"..."} : oublie les souvenirs qui contiennent ce texte.
-- {"op":"focus","ref":"N-2","zoom":1.5,"text":"légende"} : travelling vers un node puis légende.
-  Enchaîne plusieurs focus pour une visite guidée ou un tutoriel.
-- {"op":"overview","text":"..."} : prend du recul pour montrer tout le plan.
-- {"op":"travel","name":"<dimension>","text":"..."} : voyage vers une autre dimension.
-- {"op":"goto","ref":"N-45","text":"légende"} : voyage jusqu'à un node trouvé par search_nodes, même dans une autre dimension.
-Lectures (tu reçois le résultat et continues au tour suivant) :
-- {"op":"inventory"} : dimensions, agents et modèles.
-- {"op":"search_nodes","query":"mots"} : cherche dans tous les nodes de l'utilisateur, toutes dimensions.
-- {"op":"read_file","ref":"N-7"} : lit le texte du document d'un node fichier.
-- {"op":"web_search","query":"..."} : recherche sur le web. {"op":"web_fetch","url":"https://..."} : lit une page.
-  Cite tes sources (adresse) dans les nodes que tu crées à partir du web.
+{tools}
 Agents équipés :
 {agents}
 {memory}
@@ -507,6 +472,8 @@ class Guardian:
             try:
                 if op not in OPS:
                     raise PlanError(f'action inconnue : {op!r}')
+                if op not in self.allowed:
+                    raise PlanError(f"outil désactivé dans Agents & modèles : {op}")
                 if op in ('create', 'delegate', 'mindmap') and not str(action.get('ref', '')).startswith(('new', 'N-')):
                     action = {**action, 'ref': f'auto{len(self.nodes) + 1}'}  # référence manquante
                 self.emit('intent', {'text': intent(action, self.nodes)})
@@ -563,6 +530,7 @@ class Guardian:
         self.load(context)
         agents = self.agents()
         guardian = self.guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
+        self.allowed = tools.enabled(guardian) if guardian else []
         if guardian is None or guardian.model is None:
             raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
         self.run = AIRun.objects.create(
@@ -575,7 +543,7 @@ class Guardian:
                                if a.role != Agent.Role.ORCHESTRATOR and a.model_id) or '(aucun agent équipé)'
             memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
             messages = [
-                {'role': 'system', 'content': SYSTEM.replace('{agents}', roster).replace('{memory}', memory)
+                {'role': 'system', 'content': SYSTEM.replace('{tools}', tools.prompt(self.allowed)).replace('{agents}', roster).replace('{memory}', memory)
                     .replace('{guidelines}', guardian.system_prompt or prompts.GUARDIAN)},
                 {'role': 'user', 'content': self.prompt(request)},
             ]

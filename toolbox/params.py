@@ -10,44 +10,40 @@ pas gênée tant qu'on ne la règle pas.
 KV_TYPES = {'f16': 1, 'q8_0': 8, 'q4_0': 2}
 
 SPEC = [
-    # --- GPU
-    {'key': 'n_gpu_layers', 'group': 'GPU', 'label': 'Couches sur GPU', 'kind': 'int', 'min': -1, 'max': 999, 'load': True,
-     'hint': '-1 = toutes, 0 = tout sur CPU'},
-    {'key': 'main_gpu', 'group': 'GPU', 'label': 'GPU principal', 'kind': 'int', 'min': 0, 'max': 15, 'load': True,
+    # --- Chargement : les réglages d'iAqua (ModelService.DEFAULT_CONFIG), avec ses valeurs par défaut
+    {'key': 'n_ctx', 'group': 'Chargement', 'label': 'Contexte', 'kind': 'int', 'auto': ['auto'], 'min': 512, 'max': 262144,
+     'load': True, 'hint': 'auto = le plus grand qui tient'},
+    {'key': 'n_gpu_layers', 'group': 'Chargement', 'label': 'Couches GPU', 'kind': 'int', 'auto': ['auto', 'max'], 'min': 0,
+     'max': 999, 'load': True, 'hint': 'auto, max ou nombre'},
+    {'key': 'n_threads', 'group': 'Chargement', 'label': 'Threads CPU', 'kind': 'int', 'min': 1, 'max': 256, 'load': True,
+     'hint': 'cœurs physiques'},
+    {'key': 'n_batch', 'group': 'Chargement', 'label': 'Batch', 'kind': 'int', 'min': 32, 'max': 8192, 'load': True, 'hint': '1024'},
+    {'key': 'flash_attn', 'group': 'Chargement', 'label': 'Flash attention', 'kind': 'bool', 'load': True,
+     'hint': 'oui : cache KV plus petit'},
+    {'key': 'use_mmap', 'group': 'Chargement', 'label': 'mmap', 'kind': 'bool', 'load': True, 'hint': 'oui : pages partagées'},
+    {'key': 'use_mlock', 'group': 'Chargement', 'label': 'mlock (garder en mémoire)', 'kind': 'bool', 'load': True, 'hint': 'non'},
+    {'key': 'ttl', 'group': 'Chargement', 'label': 'Libérer après', 'kind': 'float', 'min': 0, 'max': 10080,
+     'hint': '720 min (0 = jamais)'},
+    # --- Avancé
+    {'key': 'main_gpu', 'group': 'Avancé', 'label': 'GPU principal', 'kind': 'int', 'min': 0, 'max': 15, 'load': True,
      'hint': 'index de la carte (0 = première)'},
-    {'key': 'split_mode', 'group': 'GPU', 'label': 'Répartition multi-GPU', 'kind': 'choice', 'load': True,
+    {'key': 'split_mode', 'group': 'Avancé', 'label': 'Répartition multi-GPU', 'kind': 'choice', 'load': True,
      'choices': [['0', 'aucune (un seul GPU)'], ['1', 'par couches'], ['2', 'par lignes']]},
-    {'key': 'tensor_split', 'group': 'GPU', 'label': 'Part de chaque GPU', 'kind': 'list', 'load': True,
+    {'key': 'tensor_split', 'group': 'Avancé', 'label': 'Part de chaque GPU', 'kind': 'list', 'load': True,
      'hint': 'ex. 0.6,0.4'},
-    {'key': 'offload_kqv', 'group': 'GPU', 'label': 'Cache KV sur GPU', 'kind': 'bool', 'load': True,
-     'hint': 'plus rapide, consomme de la VRAM'},
-    {'key': 'flash_attn', 'group': 'GPU', 'label': 'Flash attention', 'kind': 'bool', 'load': True,
-     'hint': 'moins de mémoire, requis pour quantifier le cache V'},
-    {'key': 'type_k', 'group': 'GPU', 'label': 'Cache K', 'kind': 'choice', 'load': True,
+    {'key': 'offload_kqv', 'group': 'Avancé', 'label': 'Cache KV sur GPU', 'kind': 'bool', 'load': True,
+     'hint': 'oui par défaut'},
+    {'key': 'type_k', 'group': 'Avancé', 'label': 'Cache K', 'kind': 'choice', 'load': True,
      'choices': [['f16', 'f16 (défaut)'], ['q8_0', 'q8_0 (moitié)'], ['q4_0', 'q4_0 (quart)']]},
-    {'key': 'type_v', 'group': 'GPU', 'label': 'Cache V', 'kind': 'choice', 'load': True,
+    {'key': 'type_v', 'group': 'Avancé', 'label': 'Cache V', 'kind': 'choice', 'load': True,
      'choices': [['f16', 'f16 (défaut)'], ['q8_0', 'q8_0 (moitié)'], ['q4_0', 'q4_0 (quart)']]},
-    # --- Mémoire et vitesse
-    {'key': 'n_ctx', 'group': 'Mémoire et vitesse', 'label': 'Contexte', 'kind': 'int', 'min': 256, 'max': 262144, 'load': True,
-     'hint': 'jetons'},
-    {'key': 'n_batch', 'group': 'Mémoire et vitesse', 'label': 'Batch', 'kind': 'int', 'min': 1, 'max': 8192, 'load': True,
-     'hint': '512'},
-    {'key': 'n_ubatch', 'group': 'Mémoire et vitesse', 'label': 'Micro-batch', 'kind': 'int', 'min': 1, 'max': 8192, 'load': True,
-     'hint': '512'},
-    {'key': 'n_threads', 'group': 'Mémoire et vitesse', 'label': 'Threads', 'kind': 'int', 'min': 1, 'max': 256, 'load': True,
-     'hint': 'vide = auto'},
-    {'key': 'n_threads_batch', 'group': 'Mémoire et vitesse', 'label': 'Threads du prompt', 'kind': 'int', 'min': 1, 'max': 256,
-     'load': True, 'hint': 'vide = auto'},
-    {'key': 'use_mmap', 'group': 'Mémoire et vitesse', 'label': 'Lecture mmap', 'kind': 'bool', 'load': True,
-     'hint': 'charge à la demande'},
-    {'key': 'use_mlock', 'group': 'Mémoire et vitesse', 'label': 'Verrouiller en RAM', 'kind': 'bool', 'load': True,
-     'hint': 'jamais en swap'},
-    {'key': 'rope_freq_base', 'group': 'Mémoire et vitesse', 'label': 'RoPE base', 'kind': 'float', 'min': 0, 'max': 10_000_000,
+    {'key': 'n_ubatch', 'group': 'Avancé', 'label': 'Micro-batch', 'kind': 'int', 'min': 1, 'max': 8192, 'load': True, 'hint': '512'},
+    {'key': 'n_threads_batch', 'group': 'Avancé', 'label': 'Threads du prompt', 'kind': 'int', 'min': 1, 'max': 256,
+     'load': True, 'hint': 'comme les threads CPU'},
+    {'key': 'rope_freq_base', 'group': 'Avancé', 'label': 'RoPE base', 'kind': 'float', 'min': 0, 'max': 10_000_000,
      'load': True, 'hint': '0 = celle du modèle'},
-    {'key': 'rope_freq_scale', 'group': 'Mémoire et vitesse', 'label': 'RoPE échelle', 'kind': 'float', 'min': 0, 'max': 1,
+    {'key': 'rope_freq_scale', 'group': 'Avancé', 'label': 'RoPE échelle', 'kind': 'float', 'min': 0, 'max': 1,
      'load': True, 'hint': '0 = celle du modèle'},
-    {'key': 'ttl', 'group': 'Mémoire et vitesse', 'label': 'Libérer après', 'kind': 'float', 'min': 0, 'max': 1440,
-     'hint': 'minutes, 0 = jamais'},
     # --- Échantillonnage
     {'key': 'temperature', 'group': 'Échantillonnage', 'label': 'Température', 'kind': 'float', 'min': 0, 'max': 2, 'hint': '0.7'},
     {'key': 'top_p', 'group': 'Échantillonnage', 'label': 'Top P', 'kind': 'float', 'min': 0, 'max': 1, 'hint': '0.95'},
@@ -114,6 +110,10 @@ def clean(key, value):
         if not parts or any(p < 0 for p in parts) or sum(parts) <= 0:
             raise ParamError(f'{label} : parts positives')
         return parts
+    if key == 'n_gpu_layers' and str(value) == '-1':
+        return 'max'  # ancienne notation de llama.cpp pour « toutes les couches »
+    if str(value).lower() in spec.get('auto', []):
+        return str(value).lower()  # « auto » / « max » : calculé au chargement, comme iAqua
     try:
         number = int(value) if kind == 'int' else float(value)
     except (TypeError, ValueError):

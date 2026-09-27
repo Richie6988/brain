@@ -142,6 +142,46 @@
 #profile .edit-icon.icon { font-size: 0; width: 16px; height: 16px; cursor: pointer; opacity: 0.6; background: url('../img/edit-light.svg') center / contain no-repeat; }
 #profile .edit-icon.icon:hover { opacity: 1; }
 
+/* Profil en cartes : identité, activité (nodes et graphique), parrainage, Premium, avis */
+#profile .profile-content { width: min(920px, 92vw); max-width: none; padding: 26px 30px; box-sizing: border-box; }
+#profile .section-title { margin: 22px 0 12px; font-size: 1.15rem; letter-spacing: 0.02em; }
+#profile .section-title:first-of-type { margin-top: 0; font-size: 1.4rem; }
+#profile #userProfile, #profile .user-stats, #profile [data-field="Referee"], #profile .subscription {
+    background: #fff; border: 1px solid #ece6f5; border-radius: 16px; padding: 10px 18px; margin-bottom: 14px;
+}
+#profile #userProfile .field-container { grid-template-columns: 150px 1fr 24px; justify-items: start; gap: 12px; padding: 9px 0; }
+#profile #userProfile .field-container:last-child { border-bottom: none; }
+#profile .field-value { font-size: 0.95rem; color: #1f1633; }
+#profile .user-stats { grid-template: none; grid-template-columns: 220px 1fr; align-items: center; gap: 12px; padding: 16px 18px; }
+#profile .user-stats .message { margin: 0; }
+#profile #nodesKPI { font-size: 3.4rem; line-height: 1; background: linear-gradient(135deg, #6848A6, #1E90FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#profile #nodesKPI + .message { font-size: 0.8rem; letter-spacing: 0.3em; color: #8a7aa8; }
+#profile .chart { max-width: 300px !important; margin: 0 auto; }
+#profile [data-field="Referee"] { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: space-between !important; gap: 12px !important; }
+#profile [data-field="Referee"] > div { margin: 0 !important; gap: 12px; }
+#profile [data-field="Referee"] p { margin: 0; }
+#profile #referrerKPI { font-size: 1.6rem; color: #6848A6; margin: 0; }
+#profile .subscription-upgrade > .subscription-upgrade {
+    background: linear-gradient(135deg, #f6f1ff, #eef6ff) !important; box-shadow: none !important; border: 1px solid #e3dcef; max-width: none !important; margin: 6px 0 14px !important;
+}
+#profile .subscription-upgrade > .subscription-upgrade > p:first-child { font-size: 1.2rem !important; }
+#profile #feedback { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px 18px; padding: 0 !important; }
+#profile #feedback li { list-style: none !important; margin: 0 !important; }
+#profile #feedback li p { margin: 0; font-size: 0.9rem; }
+#profile #feedback li p::before {  /* coche dessinée, sans emoji */
+    content: ''; display: inline-block; width: 5px; height: 10px; margin: 0 10px 2px 2px;
+    border: solid #0f9f6e; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+#profile #plan { width: auto !important; border-radius: 999px !important; padding: 8px 16px !important; background: #2b2438 !important; }
+#profile #pay-button { width: auto !important; margin-left: 10px; }
+#profile #feedback-input { border: 1px solid #e3dcef; border-radius: 12px; padding: 10px 12px; font: 13px 'Cascadia Code', monospace; resize: vertical; }
+#profile #feedback-input:focus { outline: none; border-color: #6848A6; box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.15); }
+#profile .danger-button { position: static; margin: 0 auto; border-radius: 999px; }
+@media (max-width: 700px) {
+    #profile .user-stats { grid-template-columns: 1fr; }
+    #profile #userProfile .field-container { grid-template-columns: 110px 1fr 20px; }
+}
+
 /* --- Mode clair (bouton Dark/Light de Nodz) */
 
 body:has(.universe.lightmode) #button-container { background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }

@@ -13,9 +13,10 @@ from contextlib import contextmanager
 from django.conf import settings
 
 from . import broker as priorities
-from .params import load_options, sampling_options
+from . import fit
+from .params import clean, load_options, sampling_options
 
-DEFAULT_TTL = 15  # minutes d'inactivité avant de libérer la mémoire
+DEFAULT_TTL = 720  # minutes d'inactivité avant de libérer la mémoire (iAqua)
 
 
 class EngineUnavailable(Exception):
@@ -37,7 +38,8 @@ class Engine:
         self.clock = clock
         self._llm = None
         self._loaded = None  # id du LocalModel chargé
-        self._options = None  # options de chargement en vigueur
+        self._options = None  # options de chargement demandées (avant calcul des « auto »)
+        self.placement = {}  # id du LocalModel → résumé du dernier calcul (couches GPU, contexte, mémoire libre)
         self._ttl = DEFAULT_TTL
         self._lock = threading.Lock()
         self.stats = {}  # id du LocalModel → {loaded_at, last_used, requests, chunks}
@@ -58,11 +60,22 @@ class Engine:
 
     @staticmethod
     def options(model):
-        """Options de chargement : réglages du serveur (.env), puis ceux du modèle."""
-        defaults = {'n_ctx': settings.LLM_CTX, 'n_gpu_layers': settings.LLM_GPU_LAYERS, 'n_batch': 512}
-        if settings.LLM_THREADS:
-            defaults['n_threads'] = settings.LLM_THREADS
+        """Options de chargement demandées : défauts d'iAqua (et du .env), puis réglages du modèle."""
+        defaults = {'n_ctx': clean('n_ctx', settings.LLM_CTX), 'n_gpu_layers': clean('n_gpu_layers', settings.LLM_GPU_LAYERS),
+                    'n_threads': settings.LLM_THREADS or fit.default_threads(), 'n_batch': 1024,
+                    'flash_attn': True, 'use_mmap': True, 'use_mlock': False}
         return {**defaults, **load_options(model.params)}
+
+    def gpu_offload(self):
+        """llama-cpp-python compilé avec un backend GPU (CUDA, Metal, Vulkan) ; None s'il est absent."""
+        if self.factory is not default_factory:
+            return True
+        try:
+            import llama_cpp
+        except ImportError:
+            return None
+        check = getattr(llama_cpp, 'llama_supports_gpu_offload', None)
+        return bool(check()) if check else None
 
     def _ensure(self, model):
         options = self.options(model)
@@ -71,7 +84,8 @@ class Engine:
         self.unload()  # autre modèle, ou réglages de chargement changés : on recharge
         if not model.path:
             raise EngineUnavailable(f'{model} n\'est pas téléchargé')
-        self._llm = self.factory(model_path=model.path, verbose=False, **options)
+        resolved, self.placement[model.pk] = fit.resolve(model.path, options, self.gpu_offload() is not False)
+        self._llm = self.factory(model_path=model.path, verbose=False, **resolved)
         self._loaded, self._options = model.pk, options
         self._ttl = float(model.params.get('ttl', DEFAULT_TTL))
         now = self.clock()

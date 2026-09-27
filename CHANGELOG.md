@@ -18,6 +18,12 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Consignes** : consignes par défaut écrites pour le Gardien (méthode, ton, règles) et pour chaque agent (Rédacteur, Codeur, Illustrateur, outils), visibles et modifiables dans Agents & modèles, avec retour aux consignes par défaut. Le format et les outils du Gardien restent fixes : une consigne réécrite ne les retire pas.
 
+**Chargement des modèles comme iAqua** : contexte et couches GPU « auto » par défaut (couches selon la VRAM libre en gardant la place du cache KV, contexte le plus grand qui tient, plafonné au contexte d'entraînement), « max » pour tout mettre sur GPU, threads = cœurs physiques, batch 1024, flash attention, mmap, pas de mlock, libération après 720 min. Avant, `LLM_GPU_LAYERS=0` forçait tout sur CPU. La fiche montre le placement retenu au dernier chargement et dit pourquoi l'offload n'agit pas (pas de GPU NVIDIA, ou llama-cpp-python compilé sans CUDA, avec la commande pour le recompiler). Options avancées (multi-GPU, cache KV quantifié, RoPE) repliées.
+
+**Outils du Gardien** : un catalogue unique (`toolbox/tools.py`) fusionne les outils de Nodz et ceux portés d'iAqua, avec leur origine ; onglet Outils pour les activer un par un (un outil coupé sort des consignes du Gardien et lui est refusé) et liste des outils d'iAqua non portés, avec la raison.
+
+**Profil** en cartes (identité, activité, parrainage, Premium, avis), coches dessinées au lieu d'emoji ; nouvelle icône du bouton Agents.
+
 **Session conservée** : ouvrir `/universe` ne déconnecte plus. Un autre onglet, un rechargement ou un préchargement déconnectait la page ouverte (sauvegardes, profil, modèles et Gardien refusés). La fenêtre LOGIN / GUEST s'affiche toujours ; la déconnexion se fait par le profil. Un refus 401 dit s'il manque le cookie ou si la session est inconnue.
 
 **Filtres globaux** (haut centre) : origine des nodes (Moi, Messages envoyés au Gardien, IA) et période de dernière modification (24 h, 7 j, 30 j) ; les nodes écartés et leurs liens s'estompent et ne captent plus la souris, rien n'est modifié dans Nodz. Les origines sont notées côté serveur (`NodeMark`, migration 0005) quand un message part au Gardien et quand l'IA crée un node.
@@ -49,7 +55,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 - nginx : les statiques sont revalidés à chaque chargement (l'ancien `expires 7d` gardait d'anciens CSS et modules JS).
 - Interface : `command.js` (barre de commande, flux SSE, réponse appliquée au store sans renvoi au serveur et annulable en un pas via `store.applyRemote` / `store.record`), `library.js` (bibliothèque, en bottom sheet sur mobile, suppression confirmée en deux temps), clavier virtuel pris en compte (`visualViewport`).
 - nginx : bloc sans tampon et délai de 15 min pour le flux du Gardien.
-- Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX`, `LLM_GPU_LAYERS`, `LLM_THREADS`, `GUARDIAN_WORKERS`, `GUARDIAN_QUEUE`, `GUARDIAN_WEB`, `SD_BIN`.
+- Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX` et `LLM_GPU_LAYERS` (auto par défaut), `LLM_THREADS`, `GUARDIAN_WORKERS`, `GUARDIAN_QUEUE`, `GUARDIAN_WEB`, `SD_BIN`.
 
 ## Phase 3 (en cours) : nouvelle interface
 
