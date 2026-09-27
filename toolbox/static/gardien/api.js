@@ -18,9 +18,12 @@ function send(method, path, body) {
     });
 }
 
+export const SIGNED_OUT = 'Session expirée (mot de passe changé ou déconnexion) : recharge la page avec Ctrl+Maj+R puis reconnecte-toi avec LOGIN.';
+
 async function failure(response) {
     const data = await response.json().catch(() => ({}));
-    return Object.assign(new Error(data.error || response.statusText), { status: response.status, data });
+    const message = response.status === 401 ? SIGNED_OUT : data.error || response.statusText;
+    return Object.assign(new Error(message), { status: response.status, data });
 }
 
 async function request(method, path, body) {

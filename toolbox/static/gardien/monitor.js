@@ -16,7 +16,7 @@ function el(tag, className, text) {
     return node;
 }
 
-export function createMonitor() {
+export function createMonitor({ onSignedOut = () => {} } = {}) {
     const views = [];
     let last = null;
     let timer = null;
@@ -77,8 +77,12 @@ export function createMonitor() {
         try {
             last = await api.request('GET', 'toolbox/system');
             views.forEach(view => paint(view, last));
-        } catch {
+        } catch (error) {
             views.forEach(view => view.root.classList.add('offline'));
+            if (error.status === 401) {  // la page se croit connectée, le serveur non : on le dit, une fois
+                onSignedOut(error.message);
+                return;
+            }
         }
         timer = setTimeout(tick, PERIOD);
     }

@@ -70,7 +70,7 @@ const bridge = createBridge({ caption: text => say(text, 'guide') });
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 let asleep = false;   // le Gardien n'a pas de modèle : on le dit une fois, sans insister
 
-const monitor = createMonitor();
+const monitor = createMonitor({ onSignedOut: message => say(message, 'error') });
 const library = createLibrary({
     monitor: monitor.panel('gm-window').root,
     onChange: state => {
