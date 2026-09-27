@@ -162,7 +162,7 @@ body:has(.universe.lightmode) {
 #loginPopup .log-button { min-width: 132px; padding: 11px 26px !important; font: 600 14px 'Cascadia Code', monospace; }
 #loginPopup .popupbutton-container { gap: 16px; justify-content: center; width: auto; }
 #loginPopup { background: transparent; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
-#loginPopup .message { font-weight: 700; letter-spacing: 0.02em; }
+#loginPopup .message { font-weight: 700; letter-spacing: 0.02em; background: var(--nz-gradient); -webkit-background-clip: text; background-clip: text; color: transparent !important; text-shadow: none !important; font-size: 2.6rem; }
 .close-btn { width: 34px; height: 34px; top: 10px; right: 12px; display: grid; place-items: center; border-radius: 50%; font-size: 24px; line-height: 1; transition: background-color 0.2s, transform 0.2s; }
 .close-btn { color: var(--nz-card-title); }
 .close-btn:hover { background: rgba(104, 72, 166, 0.3); transform: rotate(90deg); }
@@ -227,12 +227,10 @@ body:has(.universe.lightmode) {
 /* --- Node : barres d'outils et poignée de taille, au style du Gardien. Aucune taille ni position changée :
    les boutons gardent leur place (le feel ne bouge pas), seules les icônes changent d'apparence. */
 
-/* Icônes des barres (format, couleur, forme, verrou, calendrier, portail, fichiers, dessin) : même trait clair. */
-.stylebuttonimg {
-    filter: brightness(0) invert(0.9); opacity: 0.8; border-radius: 6px;
-    transition: opacity 0.15s, filter 0.15s, transform 0.15s;
-}
-.stylebuttonimg:hover { opacity: 1; filter: brightness(0) invert(1) drop-shadow(0 0 4px #b89af2); transform: scale(1.15); }
+/* Icônes des barres (format, couleur, forme, verrou, calendrier, portail, fichiers, dessin) : les SVG de
+   img/ sont dessinés à trait (clair, prune en mode clair, violet vif quand l'outil est actif). */
+.stylebuttonimg { opacity: 0.85; border-radius: 6px; transition: opacity 0.15s, filter 0.15s, transform 0.15s; }
+.stylebuttonimg:hover { opacity: 1; filter: drop-shadow(0 0 4px #b89af2); transform: scale(1.15); }
 /* Choix du type de node et de la police : pilule sombre à liseré violet, chevron dessiné. */
 .select-dropdown, .selectlight {
     appearance: none; -webkit-appearance: none; max-width: 100%; padding: 1px 16px 1px 6px; font: 10px 'Cascadia Code', monospace; line-height: 16px;
@@ -242,7 +240,7 @@ body:has(.universe.lightmode) {
 }
 .select-dropdown:hover, .selectlight:hover { border: 1px solid #b89af2; box-shadow: 0 0 8px rgba(104, 72, 166, 0.55); }
 .select-dropdown option, .selectlight option { color: #e2e8f0; background: #0b1220; }
-/* Poignée de taille : pastille ronde en verre, flèches claires, halo au survol. */
+/* Poignée de taille : pastille ronde en verre, flèches à la couleur du node (Nodz la pose), halo au survol. */
 foreignObject.stylebutton:has(> div > svg) { overflow: visible; background: none; }
 foreignObject.stylebutton > div:has(> svg) {
     box-sizing: border-box; display: grid; place-items: center; border-radius: 50%;
@@ -250,13 +248,9 @@ foreignObject.stylebutton > div:has(> svg) {
     transition: box-shadow 0.15s, border-color 0.15s;
 }
 foreignObject.stylebutton > div:has(> svg) svg { width: 70%; height: 70%; }
-foreignObject.stylebutton > div:has(> svg) path { fill: #e2e8f0 !important; }
 foreignObject.stylebutton > div:has(> svg):hover { border-color: #1E90FF; box-shadow: 0 0 12px rgba(30, 144, 255, 0.8); }
-body:has(.universe.lightmode) .stylebuttonimg { filter: brightness(0) opacity(0.7); }
-body:has(.universe.lightmode) .stylebuttonimg:hover { filter: brightness(0) drop-shadow(0 0 3px #b89af2); }
 body:has(.universe.lightmode) :is(.select-dropdown, .selectlight) { color: #440852; background-color: rgba(255, 255, 255, 0.85); }
 body:has(.universe.lightmode) foreignObject.stylebutton > div:has(> svg) { background: rgba(255, 255, 255, 0.9); }
-body:has(.universe.lightmode) foreignObject.stylebutton > div:has(> svg) path { fill: #6848A6 !important; }
 
 /* --- Mode clair (bouton Dark/Light de Nodz) */
 
