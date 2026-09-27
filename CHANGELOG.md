@@ -34,6 +34,16 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Corrections** : les cases à cocher des fenêtres du Gardien (onglet Outils, « actif ») ne répondaient pas (Nodz coupe les clics sur tous les `label`) ; en regardant l'univers d'un autre compte, un univers vide laissait l'enregistrement actif, et le drapeau administrateur écrasait l'identifiant du compte.
 
+**Chat du Gardien** en bas à droite : une bulle ouvre la conversation ; on écrit au Gardien sans passer par un node, ses réponses et ses erreurs s'y affichent, ses actions se jouent dans l'univers ; les échanges lancés depuis un node y apparaissent aussi (historique récent gardé dans le navigateur). Pendant un geste sur l'univers (sélection rectangle, glissé), le chat, la pastille et le lecteur de visite laissent passer la souris.
+
+**Visite interactive** : bouton « ▶ Visite » de la pastille (ou demande au Gardien, op `tour`). La caméra part du node et suit ses liens en travelling ; à chaque embranchement, la visite propose les branches (boutons numérotés, nodes surlignés) ; au bout d'une branche, retour au dernier embranchement ouvert. Lecture / pause, vitesse de 0,5× à 3×, node précédent, mode auto ; Espace, ←, 1 à 9, Échap au clavier ; un geste sur l'univers met en pause.
+
+**Le Gardien construit ses gabarits** (`toolbox/layouts.py`) : op `build` pour une matrice (lignes, colonnes, cases), un kanban, une frise, une pyramide, un arbre (lignes indentées) ou une liste, posés dans un coin libre ; `save_as` / `template_save` les garde dans son cerveau, `templates` les liste, `build` avec `template` les réutilise ; `backdrop` pose un gabarit dessiné de Nodz (SWOT, 3×3, pyramide, Ikigai, frise, TOWS, Business Model).
+
+**Filtres** : « Messages » retiré (un message au Gardien compte comme écrit à la main) ; champ de recherche qui estompe en direct les nodes sans ce texte, synchronisé avec la recherche de la barre du bas (Entrée lance la recherche de Nodz).
+
+**CUDA depuis l'interface** : quand la carte NVIDIA est là mais llama-cpp-python compilé sans CUDA, le dialogue de réglages propose « Compiler avec CUDA » (administrateur) : `deploy/cuda.sh` vérifie la carte et nvcc, compile, contrôle que l'offload GPU est actif, avec le journal en direct, puis « Redémarrer Nodz » (si le compte du serveur en a le droit, voir DEPLOY.md).
+
 **Profil** en cartes (identité, activité, parrainage, Premium, avis), coches dessinées au lieu d'emoji ; nouvelle icône du bouton Agents.
 
 **Session conservée** : ouvrir `/universe` ne déconnecte plus. Un autre onglet, un rechargement ou un préchargement déconnectait la page ouverte (sauvegardes, profil, modèles et Gardien refusés). La fenêtre LOGIN / GUEST s'affiche toujours ; la déconnexion se fait par le profil. Un refus 401 dit s'il manque le cookie ou si la session est inconnue.

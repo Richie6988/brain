@@ -10,10 +10,11 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-export function createBridge({ caption }) {
+export function createBridge({ caption, onTour = () => {} }) {
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
     let take = 0;            // numéro de prise : un geste de l'utilisateur coupe le travelling
     const cut = () => { take += 1; };
+    let tempo = 1;           // vitesse des travellings (la visite la règle ; 1 pour le Gardien)
     svg.addEventListener('mousedown', cut, true);
     svg.addEventListener('wheel', event => { if (event.isTrusted) cut(); }, true);
 
@@ -37,7 +38,7 @@ export function createBridge({ caption }) {
             if (id !== take || previous === currentZoom) break;  // coupé, ou borne atteinte
             previous = currentZoom;
             svg.dispatchEvent(new WheelEvent('wheel', { clientX: x, clientY: y, deltaY: out ? 0.9 : -0.9, cancelable: true }));
-            for (let i = 0; i < 1 + Math.max(0, 5 - notch); i++) await frame();
+            for (let i = 0; i < Math.max(1, Math.round((1 + Math.max(0, 5 - notch)) / tempo)); i++) await frame();
         }
         isZooming = false;
         return id === take;
@@ -45,7 +46,7 @@ export function createBridge({ caption }) {
 
     // Glissé de l'univers en travelling fluide (dragUniverse découpé).
     async function pan(dx, dy, id) {
-        const duration = Math.min(1800, 350 + Math.hypot(dx, dy) * 0.7);
+        const duration = Math.min(1800, 350 + Math.hypot(dx, dy) * 0.7) / tempo;
         const start = performance.now();
         let done = 0;
         for (let t = 0; t < 1;) {
@@ -247,9 +248,25 @@ export function createBridge({ caption }) {
         async overview() {
             await overview(take);
         },
+        // Visite interactive d'une branche, pilotée par l'utilisateur (tour.js).
+        tour({ ref }) {
+            onTour(nodeOf(ref));
+        },
+        // Gabarit de Nodz (SWOT, matrice 3×3, pyramide, Ikigai, frise, TOWS, Business Model), comme la galerie.
+        backdrop({ type, x, y }) {
+            const template = createTemplate(x || 0.5, y || 0.5, type);  // (0, 0) voudrait dire « au centre de la vue »
+            saveTemplate(template);
+        },
     };
 
     return {
+        // Travelling de la visite ; faux si l'utilisateur a repris la main (clic, molette) ou si la visite a coupé.
+        async visit(node, zoom = 0.9) {  // assez large pour voir les branches au-dessus du lecteur
+            cut();
+            return focus(node, zoom, take);
+        },
+        setTempo(k) { tempo = k; },
+        cut,
         idOf: ref => refs.get(ref) || ref,  // identifiant Nodz (N-12) d'une référence du Gardien
         // Se rend dans la dimension `name` (créée si besoin, comme le bouton « New dimension » de Nodz) et y reste.
         async enterDimension(name) {
@@ -299,14 +316,15 @@ export function createBridge({ caption }) {
         // L'humain déclenche l'IA : la pastille « Gardien » près du node en cours d'écriture (ou du seul node
         // sélectionné), ou Ctrl+Entrée (Cmd+Entrée sur Mac) dans le node. Écrire, déplacer ou quitter un
         // node ne lance rien.
+        // La pastille porte aussi « Visite » : le parcours interactif de la branche à partir de ce node.
         watchMessages(send) {
             const textOf = node => node.children[0]?.children[0]?.innerText?.trim() || '';
-            const pill = document.createElement('button');
-            pill.type = 'button';
+            const pill = document.createElement('div');
             pill.id = 'gardien-send';
             pill.hidden = true;
-            pill.title = 'Envoyer ce node au Gardien (Ctrl+Entrée)';
-            pill.innerHTML = '<i></i><span>Gardien</span><kbd>Ctrl ↵</kbd>';
+            pill.innerHTML = '<button type="button" class="send" title="Envoyer ce node au Gardien (Ctrl+Entrée)"><i></i><span>Gardien</span><kbd>Ctrl ↵</kbd></button>'
+                + '<button type="button" class="visit" title="Visiter la branche à partir de ce node">▶ Visite</button>';
+            const [sendButton, visitButton] = pill.children;
             document.body.append(pill);
             let target = null;
             const place = () => {
@@ -315,7 +333,7 @@ export function createBridge({ caption }) {
                 const r = (shape || target).getBoundingClientRect();
                 pill.style.left = `${Math.min(window.innerWidth - pill.offsetWidth - 8, r.right + 8)}px`;
                 pill.style.top = `${Math.max(8, r.top + r.height / 2 - pill.offsetHeight / 2)}px`;
-                pill.disabled = target.classList.contains('gardien-thinking');
+                sendButton.disabled = target.classList.contains('gardien-thinking');
                 requestAnimationFrame(place);  // suit le node pendant les zooms et glissés
             };
             const show = node => {
@@ -349,7 +367,14 @@ export function createBridge({ caption }) {
             document.addEventListener('focusout', () => setTimeout(refresh), true);
             document.addEventListener('mouseup', () => setTimeout(refresh), true);
             pill.addEventListener('mousedown', event => event.preventDefault());  // garde le focus dans le node
-            pill.addEventListener('click', () => { if (target && !pill.disabled) fire(target); });
+            sendButton.addEventListener('click', () => { if (target && !sendButton.disabled) fire(target); });
+            visitButton.addEventListener('click', () => {
+                const node = target;
+                if (!node) return;
+                if (document.activeElement?.isContentEditable) document.activeElement.blur();
+                hide();
+                onTour(node);
+            });
             document.addEventListener('keydown', event => {
                 if (event.key === 'Escape') hide();
                 if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || !event.isTrusted) return;

@@ -752,6 +752,35 @@ class GuardianTests(TestCase):
         spots = [(a['x'], a['y']) for a in self.actions() if a['op'] == 'create']
         self.assertTrue(all(math.dist(p, q) >= 100 for i, p in enumerate(spots) for q in spots[i + 1:]))
 
+    def test_build_templates_backdrop_and_tour(self):
+        from .layouts import STEP
+
+        matrix = {'op': 'build', 'layout': 'matrix', 'title': 'Eisenhower', 'rows': ['Urgent', 'Pas urgent'], 'cols': ['Important', 'Secondaire'],
+                  'cells': [['Faire', 'Déléguer'], ['Planifier', 'Abandonner']], 'near': 'N-1', 'save_as': 'eisenhower'}
+        self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': [
+            matrix, {'op': 'build', 'template': 'eisenhower', 'cells': [['a', 'b'], ['c', 'd']]},
+            {'op': 'build', 'layout': 'tree', 'items': ['Recherche', '  Web', 'Écriture']},
+            {'op': 'build', 'layout': 'matrix'}, {'op': 'build', 'template': 'inconnu'},
+            {'op': 'backdrop', 'type': 'SWOT', 'near': 'N-1'}, {'op': 'backdrop', 'type': 'XYZ'}, {'op': 'tour', 'ref': 'N-1'}]}))
+        creates = [a for a in self.actions() if a['op'] == 'create']
+        first = [a for a in creates if a['ref'] == 'build1' or a['ref'].startswith('build1.')]
+        self.assertEqual(len(first), 9)  # titre, 2 en-têtes de colonnes, 2 de lignes, 4 cases
+        cell = next(a for a in first if a['ref'] == 'build1.r2c1')
+        self.assertIn('Planifier', cell['text'])
+        head = next(a for a in first if a['ref'] == 'build1')
+        self.assertEqual((cell['x'] - head['x'], cell['y'] - head['y'], head['shape']), (STEP, -2 * STEP, 'square'))
+        second = [a for a in creates if a['ref'].startswith('build2.')]
+        self.assertIn('c', next(a for a in second if a['ref'] == 'build2.r2c1')['text'])  # gabarit gardé, rempli
+        spots = [(a['x'], a['y']) for a in creates] + [(0, 0), (400, 0)]  # N-1, N-2 du contexte
+        self.assertTrue(all(math.dist(p, q) >= 170 for i, p in enumerate(spots) for q in spots[i + 1:]))
+        tree = [a for a in self.actions() if a['op'] == 'link' and a['source'].startswith('build3')]
+        self.assertEqual([(a['source'], a['target']) for a in tree], [('build3.i1', 'build3.i2')])
+        self.assertEqual([a['type'] for a in self.actions() if a['op'] == 'backdrop'], ['SWOT'])
+        self.assertEqual([a['ref'] for a in self.actions() if a['op'] == 'tour'], ['N-1'])
+        self.assertEqual(len(self.errors()), 3)  # matrice sans lignes, gabarit inconnu, fond inconnu
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        self.assertEqual(guardian.brain['templates']['eisenhower']['layout'], 'matrix')
+
     def test_agents_and_memory(self):
         self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': [
             {'op': 'create_agent', 'name': 'Traducteur', 'role': 'text', 'description': 'Traduit', 'prompt': 'Traduis en japonais', 'model': 'a.gguf'},
@@ -1047,6 +1076,31 @@ class CommandStreamTests(TransactionTestCase):
             dispatcher.done(ticket)
         self.assertEqual(r.status_code, 429)
         self.assertIn('déjà', json.loads(r.content)['error'])
+
+
+class CudaBuildTests(TestCase):
+    def test_build_is_staff_only_and_reports_the_script(self):
+        from . import cuda
+
+        user = NodzUser.objects.create_user(email='u@nodz.local', password='pw-123456')
+        admin = NodzUser.objects.create_user(email='root@nodz.local', password='pw-123456', is_staff=True)
+        self.client.force_login(user)
+        self.assertEqual(self.client.post('/api/v1/toolbox/cuda', {'action': 'build'}, content_type='application/json').status_code, 403)
+        self.client.force_login(admin)
+        with tempfile.TemporaryDirectory() as folder:
+            script = Path(folder) / 'cuda.sh'
+            script.write_text('echo "Pas de carte NVIDIA"\nexit 2\n')
+            with mock.patch.object(cuda, 'SCRIPT', script):
+                r = self.client.post('/api/v1/toolbox/cuda', {'action': 'build'}, content_type='application/json')
+                self.assertEqual(r.status_code, 200)
+                for _ in range(50):
+                    data = self.client.get('/api/v1/toolbox/cuda').json()
+                    if not data['running']:
+                        break
+                    time.sleep(0.1)
+        self.assertEqual((data['code'], data['result'], data['log']), (2, 'pas de carte NVIDIA', ['Pas de carte NVIDIA']))
+        r = self.client.post('/api/v1/toolbox/cuda', {'action': 'nimporte'}, content_type='application/json')
+        self.assertEqual(r.status_code, 400)
 
 
 class AdminConsoleTests(TestCase):

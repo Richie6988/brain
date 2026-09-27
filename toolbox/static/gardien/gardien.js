@@ -8,9 +8,11 @@
 import { createAdmin } from './admin.js';
 import { api } from './api.js';
 import { createBridge } from './bridge.js';
+import { createChat } from './chat.js';
 import { createFilters } from './filters.js';
 import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';
+import { createTour } from './tour.js';
 
 const toast = document.getElementById('gardien-toast');
 
@@ -68,11 +70,16 @@ const follow = (() => {
     };
 })();
 
+// Un geste commencé sur l'univers (sélection rectangle, glissé) traverse les éléments flottants du Gardien
+// (chat, pastille, lecteur de visite) : le relâcher par-dessus ne le coupe pas.
+svg.addEventListener('mousedown', () => document.body.classList.add('gardien-gesture'), true);
+window.addEventListener('mouseup', () => requestAnimationFrame(() => document.body.classList.remove('gardien-gesture')), true);
+
 const filters = createFilters();
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
-const bridge = createBridge({ caption: text => say(text, 'guide') });
+const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node) });
+const tour = createTour({ bridge, say });
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
-let asleep = false;   // le Gardien n'a pas de modèle : on le dit une fois, sans insister
 
 // Le Gardien dans l'univers : dimension « Gardien » avec le node Prompt système, le node Outils, un node par
 // famille puis un node par outil (nom, rôle, comment l'appeler). Le Gardien relit ces nodes à chaque demande.
@@ -120,7 +127,6 @@ const library = createLibrary({
     monitor: monitor.panel('gm-window').root,
     onChange: state => {
         guardian = state.agents.find(a => a.role === 'orchestrator') || null;
-        asleep = false;
     },
 });
 
@@ -141,27 +147,39 @@ async function loadGuardian() {
 // Un message à la fois : les réponses s'enchaînent dans l'ordre d'écriture.
 let queue = Promise.resolve();
 
+// Une demande au Gardien, depuis un node (node = le message) ou depuis le chat (node = null). Les deux
+// s'affichent dans le chat ; depuis un node, les réponses courtes passent aussi en toast.
 async function ask(node, text) {
     let actions = Promise.resolve();
-    if (typeof admin !== 'undefined' && admin) return say('Univers d\'un autre compte, en lecture : le Gardien n\'y agit pas.', 'notice');
+    chat.add('user', text, node ? `node ${node.id}` : '');
+    if (typeof admin !== 'undefined' && admin) return chat.add('notice', 'Univers d\'un autre compte, en lecture : le Gardien n\'y agit pas.');
+    const reply = (kind, message) => {
+        chat.add(kind === 'text' ? 'guardian' : kind, message);
+        if (node) say(message, kind);
+    };
+    chat.busy(true);
     try {
         if (!guardian) await loadGuardian();
         if (!guardian?.enabled || !guardian.model) {
-            if (!asleep) say('Le Gardien dort : donne-lui un modèle dans Agents & modèles.', 'notice');
-            asleep = true;
+            reply('notice', 'Le Gardien dort : donne-lui un modèle dans Agents & modèles.');
             return;
         }
-        node.classList.add('gardien-thinking');
-        filters.mark([node.id], 'message');
+        node?.classList.add('gardien-thinking');
+        if (node) filters.mark([node.id], 'message');
         follow.start();
+        chat.status('Le Gardien réfléchit…');
         const created = [];
-        await api.command({ prompt: text, context: { ...bridge.context(), origin: node.id } }, (type, data) => {
-            if (type === 'text' || type === 'notice') say(data.text, type);
-            else if (type === 'queued') follow.step(data.position === 1 ? 'Tu es le prochain : le Gardien finit une autre demande' : `En file d'attente : ${data.position}e`, 'waiting');
-            else if (type === 'plan') follow.plan(data.steps);
+        const context = bridge.context();
+        await api.command({ prompt: text, context: node ? { ...context, origin: node.id } : context }, (type, data) => {
+            if (type === 'text' || type === 'notice') reply(type, data.text);
+            else if (type === 'queued') {
+                const where = data.position === 1 ? 'Tu es le prochain : le Gardien finit une autre demande' : `En file d'attente : ${data.position}e`;
+                follow.step(where, 'waiting');
+                chat.status(where);
+            } else if (type === 'plan') follow.plan(data.steps);
             // Intentions et gestes s'enchaînent : chaque étape s'affiche quand la page l'exécute.
-            else if (type === 'intent') actions = actions.then(() => follow.step(data.text));
-            else if (type === 'error') actions = actions.then(() => follow.step(data.message, 'error'));
+            else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); });
+            else if (type === 'error') actions = actions.then(() => { follow.step(data.message, 'error'); chat.add('error', data.message); });
             else if (type === 'agent') actions = actions.then(() => follow.step(`${data.agent} ${data.role === 'image' ? 'dessine' : 'écrit'} : ${data.task}`, 'agent'));
             else if (type === 'action') {
                 actions = actions.then(() => bridge.perform(data)).catch(error => follow.step(error.message, 'error'));
@@ -173,11 +191,14 @@ async function ask(node, text) {
         follow.end('Terminé');
     } catch (error) {
         follow.end(error.message);
-        say(error.message, 'error');
+        reply('error', error.message);
     } finally {
-        node.classList.remove('gardien-thinking');
+        node?.classList.remove('gardien-thinking');
+        chat.busy(false);
     }
 }
+
+const chat = createChat({ onSend: text => { queue = queue.then(() => ask(null, text)); } });
 
 // Une fois par navigateur, au premier node écrit : comment parler au Gardien.
 document.addEventListener('input', function hint(event) {

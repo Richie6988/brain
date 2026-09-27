@@ -20,7 +20,7 @@ from graph.models import AIRun
 from nodzapp.models import Node
 
 from . import broker as priorities
-from . import imaging, prompts, tools, web, workspace
+from . import imaging, layouts, prompts, tools, web, workspace
 from .iaqua import IaquaOps
 from .engine import EngineUnavailable
 from .errors import PlanError
@@ -32,6 +32,7 @@ MAX_CONTEXT_NODES = 60
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
 SHAPES = ['circle', 'square', 'none']
+LAYOUT_NAMES = {'matrix': 'la matrice', 'kanban': 'le kanban', 'timeline': 'la frise', 'pyramid': 'la pyramide', 'tree': "l'arbre", 'list': 'la liste'}
 OPS = [t['op'] for t in tools.TOOLS]  # catalogue commun Nodz + iAqua (tools.py)
 ROLES = [Agent.Role.TEXT, Agent.Role.CODE, Agent.Role.TOOLS]  # rôles qu'un agent créé par le Gardien peut prendre
 MAX_MEMORY = 30
@@ -69,6 +70,13 @@ PLAN_SCHEMA = {
                     'query': {'type': 'string'},
                     'url': {'type': 'string'},
                     'children': {'type': 'array', 'items': {'type': 'string'}},
+                    # gabarits (build, template_save, backdrop)
+                    'layout': {'type': 'string', 'enum': layouts.LAYOUTS},
+                    'type': {'type': 'string', 'enum': layouts.BACKDROPS},
+                    **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('rows', 'cols', 'items')},
+                    'cells': {'type': 'array', 'items': {'type': 'array', 'items': {'type': 'string'}}},
+                    'template': {'type': 'string'},
+                    'save_as': {'type': 'string'},
                     'description': {'type': 'string'},
                     'prompt': {'type': 'string'},
                     'role': {'type': 'string', 'enum': ROLES},
@@ -149,6 +157,12 @@ def intent(action, nodes):
         'portal': lambda a: f"J'ouvre un portail vers « {short(a.get('name'))} »",
         'archive': lambda a: f"Je supprime {name(a.get('ref'))} (Ctrl+Z pour annuler)",
         'cleanup': lambda a: 'Je fais le ménage des nodes vides',
+        'build': lambda a: f"Je construis {LAYOUT_NAMES.get(a.get('layout'), 'le gabarit')} « {short(a.get('title') or a.get('template'))} »",
+        'template_save': lambda a: f"Je garde le gabarit « {short(a.get('name'))} »",
+        'templates': lambda a: 'Je relis mes gabarits',
+        'template_delete': lambda a: f"J'oublie le gabarit « {short(a.get('name'))} »",
+        'backdrop': lambda a: f"Je pose le fond {a.get('type')}",
+        'tour': lambda a: f"Je te fais visiter la branche de {name(a.get('ref'))}",
         'mindmap': lambda a: f"Je dessine une carte mentale autour de « {short(a.get('text') or nodes.get(a.get('ref'), {}).get('text'))} »",
         'delegate': lambda a: f"Je confie à {a.get('agent')} : {short(a.get('task'), 60)}",
         'plug_agent': lambda a: f"Je branche {a.get('model')} sur {a.get('agent')}",
@@ -347,6 +361,96 @@ class Guardian(IaquaOps):
             self.emit('action', self.op_create({'ref': child, 'text': text, 'near': ref, 'color': action.get('color')}, agents))
             self.emit('action', {'op': 'link', 'source': ref, 'target': child})
         return None
+
+    # --- gabarits : structures de nodes construites par le Gardien (layouts.py), gardées dans son cerveau
+
+    def free_area(self, points, near):
+        """Origine où poser un gabarit (positions relatives `points`) sans chevaucher les nodes existants."""
+        target = self.nodes.get(near) if near else None
+        ax, ay = (target['x'], target['y']) if target else self.anchor
+        gap = 2 * RADIUS + 40
+        clear = lambda ox, oy: all(math.dist((ox + x, oy + y), o[:2]) >= gap + (o[2] - RADIUS if len(o) > 2 else 0)
+                                   for x, y in points for o in self.occupied)
+        for ring in range(0, 30):
+            for dx, dy in ((1, 0), (0, -1), (-1, 0), (0, 1)):
+                ox, oy = ax + 2 * RADIUS + 120 + dx * ring * layouts.STEP, ay + dy * ring * layouts.STEP
+                if clear(ox, oy):
+                    return ox, oy
+        return ax + 2 * RADIUS + 120, ay - 30 * layouts.STEP
+
+    def templates(self):
+        return dict(self.guardian.brain.get('templates') or {})
+
+    def op_build(self, action, agents):
+        spec = {}
+        if action.get('template'):
+            spec = dict(self.templates().get(action['template']) or {})
+            if not spec:
+                raise PlanError(f"gabarit inconnu : {action['template']!r} (templates pour la liste)")
+        spec.update({k: action[k] for k in ('layout', 'title', 'rows', 'cols', 'cells', 'items') if action.get(k)})
+        try:
+            nodes, links = layouts.build(spec.get('layout'), spec.get('title'), spec.get('rows'), spec.get('cols'), spec.get('cells'), spec.get('items'))
+        except layouts.LayoutError as e:
+            raise PlanError(str(e)) from None
+        count = sum(1 for key in self.nodes if key.startswith('build') and '.' not in key)
+        base = action['ref'] if str(action.get('ref', '')).startswith('new') else f'build{count + 1}'
+        ox, oy = self.free_area([(n['x'], n['y']) for n in nodes], action.get('near'))
+        accent = self.color(action) or '#6848A6'
+        for n in nodes:
+            ref = base if n['key'] == 't' else f"{base}.{n['key']}"
+            x, y = round(ox + n['x']), round(oy + n['y'])
+            self.nodes[ref] = {'x': x, 'y': y, 'r': RADIUS, 'text': plain(n['text']), 'new': True}
+            self.occupied.append((x, y, RADIUS))
+            self.emit('action', {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(n['text']),
+                                 'color': accent if n['role'] in ('title', 'header') else None,
+                                 'shape': 'square' if n['role'] in ('title', 'header') else None})
+        for a, b in links:
+            ref = lambda key: base if key == 't' else f'{base}.{key}'
+            self.emit('action', {'op': 'link', 'source': ref(a), 'target': ref(b)})
+        if action.get('save_as'):
+            self.op_template_save({**spec, 'name': action['save_as'], 'description': action.get('description', '')}, agents)
+        return None
+
+    def op_template_save(self, action, agents):
+        name = str(action.get('name') or '').strip()[:40]
+        if not name:
+            raise PlanError('nom de gabarit requis')
+        if action.get('layout') not in layouts.LAYOUTS:
+            raise PlanError(f"layout requis : {', '.join(layouts.LAYOUTS)}")
+        saved = {k: action[k] for k in ('layout', 'title', 'rows', 'cols', 'cells', 'items', 'description') if action.get(k)}
+        brain = dict(self.guardian.brain)
+        brain['templates'] = {**self.templates(), name: saved}
+        self.guardian.brain = brain
+        self.guardian.save(update_fields=['brain'])
+        self.emit('notice', {'text': f'Gabarit gardé : {name}'})
+        return None
+
+    def op_templates(self, action, agents):
+        saved = self.templates()
+        lines = [f"{name} : {t.get('layout')}{f' · {t['description']}' if t.get('description') else ''}"
+                 f"{f' · colonnes {t['cols']}' if t.get('cols') else ''}{f' · lignes {t['rows']}' if t.get('rows') else ''}"
+                 for name, t in saved.items()]
+        self.read('Gabarits gardés', '\n'.join(lines) or 'aucun (build avec save_as, ou template_save, pour en garder un)')
+        return None
+
+    def op_template_delete(self, action, agents):
+        saved = self.templates()
+        if saved.pop(str(action.get('name')), None) is None:
+            raise PlanError(f"gabarit inconnu : {action.get('name')!r}")
+        self.guardian.brain = {**self.guardian.brain, 'templates': saved}
+        self.guardian.save(update_fields=['brain'])
+        return None
+
+    def op_backdrop(self, action, agents):
+        if action.get('type') not in layouts.BACKDROPS:
+            raise PlanError(f"fond inconnu : {action.get('type')!r} ({', '.join(layouts.BACKDROPS)})")
+        target = self.nodes.get(action.get('near'))
+        x, y = free_spot((target['x'], target['y']) if target else self.anchor, self.occupied, 330)
+        self.occupied.append((x, y, 330))
+        return {'op': 'backdrop', 'type': action['type'], 'x': x, 'y': y}
+
+    def op_tour(self, action, agents):
+        return {'op': 'tour', 'ref': self.existing(action.get('ref'))}
 
     def op_create_agent(self, action, agents):
         name = (action.get('name') or '').strip()[:100]

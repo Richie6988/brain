@@ -20,7 +20,7 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Node
 
-from . import fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, tools, workspace
+from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable
@@ -94,6 +94,21 @@ def status(request, body):
                          'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
                          'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR), 'param_spec': model_params.SPEC,
                          'imaging': bool(imaging.binary()), 'gpu_offload': engine.gpu_offload(), 'packs': {k: p['label'] for k, p in hub.PACKS.items()}})
+
+
+@api('GET', 'POST')
+def cuda_build(request, body):
+    """Compilation de llama-cpp-python avec CUDA (deploy/cuda.sh) et redémarrage de Nodz : administrateur."""
+    staff_only(request)
+    if request.method == 'POST':
+        action = (body or {}).get('action')
+        if action == 'build' and not cuda.build():
+            raise ChangeError('une compilation est déjà en cours')
+        if action == 'restart' and not cuda.restart():
+            raise ChangeError(f'le serveur ne peut pas se redémarrer seul : sudo systemctl restart {cuda.SERVICE}')
+        if action not in ('build', 'restart'):
+            raise ChangeError('action : build ou restart')
+    return JsonResponse(cuda.state())
 
 
 @api('POST')

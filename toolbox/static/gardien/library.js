@@ -342,14 +342,47 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         return set.length ? set.map(p => h('span', {}, `${p.label} `, h('b', {}, shown(p, cfg[p.key])))) : [h('span', {}, 'Réglages par défaut')];
     };
 
-    // Pourquoi l'offload GPU n'agit pas, et quoi faire.
+    // Pourquoi l'offload GPU n'agit pas, et quoi faire : l'administrateur compile llama-cpp-python avec CUDA
+    // d'ici (deploy/cuda.sh), suit le journal, puis redémarre Nodz.
     function cudaNotice() {
         if (!state.machine.gpu) return h('p', { class: 'gl-hint' }, 'Pas de GPU NVIDIA détecté (nvidia-smi) : tout tourne sur CPU.');
-        if (state.gpuOffload === false) return h('p', { class: 'gl-warning' },
-            'Carte NVIDIA détectée, mais llama-cpp-python est compilé sans CUDA : les couches restent sur CPU. Recompile-le sur le serveur : ',
-            h('code', {}, 'CMAKE_ARGS="-DGGML_CUDA=on" pip install --force-reinstall --no-cache-dir llama-cpp-python'), ' (voir DEPLOY.md).');
         if (state.gpuOffload == null) return h('p', { class: 'gl-hint' }, 'Moteur llama-cpp-python absent (requirements-ai.txt).');
-        return null;
+        if (state.gpuOffload !== false) return null;
+        const box = h('div', { class: 'gl-warning gl-cuda' });
+        const log = h('pre', { hidden: true });
+        const line = h('p', {}, 'Carte NVIDIA détectée, mais llama-cpp-python est compilé sans CUDA : les couches restent sur CPU.');
+        const build = h('button', { type: 'button', class: 'gl-primary', ...guard() }, 'Compiler avec CUDA');
+        const restart = h('button', { type: 'button', hidden: true }, 'Redémarrer Nodz');
+        box.append(line, h('div', { class: 'gl-actions' }, build, restart), log);
+        const show = async (start = false) => {
+            try {
+                const c = start ? await api.request('POST', 'toolbox/cuda', { action: 'build' }) : await api.request('GET', 'toolbox/cuda');
+                log.hidden = !c.log.length;
+                log.textContent = c.log.slice(-14).join('\n');
+                log.scrollTop = log.scrollHeight;
+                build.disabled = !state.staff || c.running;
+                build.textContent = c.running ? 'Compilation en cours…' : c.code === null ? 'Compiler avec CUDA' : 'Recompiler';
+                if (!c.nvcc && !c.running) line.textContent = 'Carte NVIDIA détectée, sans CUDA Toolkit (nvcc) : sudo apt install -y nvidia-cuda-toolkit, puis Compiler avec CUDA.';
+                if (c.result) line.textContent = `Compilation : ${c.result}.`;
+                restart.hidden = c.code !== 0;
+                restart.disabled = !c.restart;
+                restart.title = c.restart ? '' : 'Pas de droit sudo sans mot de passe : sudo systemctl restart nodz sur le serveur';
+                if (c.running && box.isConnected) setTimeout(show, 2000);
+            } catch (error) {
+                line.textContent = error.message;
+            }
+        };
+        build.addEventListener('click', () => show(true));
+        restart.addEventListener('click', async () => {
+            try {
+                await api.request('POST', 'toolbox/cuda', { action: 'restart' });
+                line.textContent = 'Redémarrage de Nodz… recharge la page dans quelques secondes.';
+            } catch (error) {
+                line.textContent = error.message;
+            }
+        });
+        if (state.staff) show();
+        return box;
     }
 
     // Placement prévu (mêmes règles que fit.py au chargement) : couches sur GPU, contexte, VRAM et RAM.

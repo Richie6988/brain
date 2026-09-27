@@ -50,6 +50,16 @@ sudo -iu nodz env CMAKE_ARGS="-DGGML_CUDA=on" CMAKE_BUILD_PARALLEL_LEVEL=2 \
     /home/nodz/brain/.venv/bin/pip install --force-reinstall --no-cache-dir llama-cpp-python
 ```
 
+Ou depuis l'interface : Agents & modèles, Réglages d'un modèle, bouton « Compiler avec CUDA » (administrateur).
+Il lance `deploy/cuda.sh` (vérifie la carte et nvcc, compile, contrôle que l'offload GPU est actif) et affiche
+son journal ; le bouton « Redémarrer Nodz » marche si le compte `nodz` peut redémarrer le service sans mot de
+passe :
+
+```bash
+echo 'nodz ALL=(root) NOPASSWD: /usr/bin/systemctl restart nodz' | sudo tee /etc/sudoers.d/nodz-restart
+sudo chmod 440 /etc/sudoers.d/nodz-restart
+```
+
 Sans GPU NVIDIA, l'offload GPU des réglages n'a aucun effet. Avec peu de RAM, ajouter du swap avant de
 compiler (`fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`).
 

@@ -42,8 +42,29 @@ TOOLS = [
      'doc': '{"op":"overview","text":"..."} : prend du recul pour montrer tout le plan.'},
     {'op': 'travel', 'category': 'Navigation', 'source': NODZ, 'label': 'Voyager vers une dimension',
      'doc': '{"op":"travel","name":"<dimension>","text":"..."} : voyage vers une autre dimension.'},
+    {'op': 'tour', 'category': 'Navigation', 'source': NODZ, 'label': 'Visite interactive d\'une branche',
+     'doc': '{"op":"tour","ref":"N-3"} : lance la visite interactive depuis N-3 : la caméra suit les liens, l\'utilisateur choisit '
+            'la branche à chaque embranchement, règle la vitesse, met en pause. Pour « fais-moi visiter… ».'},
     {'op': 'goto', 'category': 'Navigation', 'source': NODZ, 'label': 'Aller à un node trouvé',
      'doc': '{"op":"goto","ref":"N-45","text":"légende"} : voyage jusqu\'à un node trouvé par search_nodes, même dans une autre dimension.'},
+    # --- Gabarits : des structures de nodes que le Gardien construit, et qu'il peut garder pour les réutiliser
+    {'op': 'build', 'category': 'Gabarits', 'source': NODZ, 'label': 'Construire un gabarit (matrice, kanban, frise…)',
+     'doc': '{"op":"build","layout":"matrix","title":"Eisenhower","rows":["Urgent","Pas urgent"],"cols":["Important","Secondaire"],'
+            '"cells":[["Faire","Déléguer"],["Planifier","Abandonner"]],"near":"N-3","color":"#6848A6","save_as":"eisenhower"} : '
+            'construit une structure de nodes dans un coin libre. layout : matrix (rows, cols, cells[ligne][colonne]), kanban '
+            '(cols, cells[colonne] = cartes), timeline (items dans l\'ordre), pyramid (items du sommet à la base), tree (items : '
+            'une ligne par node, 2 espaces d\'indentation par niveau), list (items). {"op":"build","template":"eisenhower",'
+            '"cells":[...]} réutilise un gabarit gardé ; save_as le garde.'},
+    {'op': 'template_save', 'category': 'Gabarits', 'source': NODZ, 'label': 'Garder un gabarit',
+     'doc': '{"op":"template_save","name":"retro","layout":"kanban","title":"Rétrospective","cols":["Bien","À améliorer","Actions"],'
+            '"description":"rétro d\'équipe"} : garde un gabarit pour le reconstruire plus tard (build avec template).'},
+    {'op': 'templates', 'category': 'Gabarits', 'source': NODZ, 'read': True, 'label': 'Gabarits gardés',
+     'doc': '{"op":"templates"} : liste les gabarits gardés (nom, forme, description).'},
+    {'op': 'template_delete', 'category': 'Gabarits', 'source': NODZ, 'label': 'Oublier un gabarit',
+     'doc': '{"op":"template_delete","name":"retro"} : oublie un gabarit gardé.'},
+    {'op': 'backdrop', 'category': 'Gabarits', 'source': NODZ, 'label': 'Fond dessiné de Nodz (SWOT, 3×3…)',
+     'doc': '{"op":"backdrop","type":"SWOT","near":"N-3"} : pose un gabarit dessiné de Nodz, comme la galerie Modèles '
+            '(SWOT, M3X3, PYRAMID, IKIGAI, CHRONO, TOWS, BM) ; tu peux ensuite placer des nodes dessus.'},
     # --- Agents
     {'op': 'delegate', 'category': 'Agents', 'source': BOTH, 'iaqua': 'dispatch_to_agent, generate_image', 'label': 'Confier à un agent',
      'doc': '{"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou N-2","near":"N-1"} : confie la '
@@ -186,7 +207,7 @@ TOOLS = [
 BY_OP = {t['op']: t for t in TOOLS}
 
 # Outils décrits en entier dans le prompt ; les autres n'y ont qu'une ligne (mode d'emploi par tool_help).
-CORE = {'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help'}
+CORE = {'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
 
 
 def available(op, user):
