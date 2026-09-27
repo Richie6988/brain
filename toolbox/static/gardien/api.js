@@ -19,10 +19,12 @@ function send(method, path, body) {
 }
 
 export const SIGNED_OUT = 'Session expirée (mot de passe changé ou déconnexion) : recharge la page avec Ctrl+Maj+R puis reconnecte-toi avec LOGIN.';
+const NO_COOKIE = "Le navigateur n'envoie pas le cookie de session au serveur (page en http au lieu de https, ou autre adresse que celle de la connexion) : ouvre Nodz en https://, puis reconnecte-toi.";
 
 async function failure(response) {
     const data = await response.json().catch(() => ({}));
-    const message = response.status === 401 ? SIGNED_OUT : data.error || response.statusText;
+    const message = response.status !== 401 ? data.error || response.statusText
+        : data.reason === 'cookie de session absent' ? NO_COOKIE : SIGNED_OUT;
     return Object.assign(new Error(message), { status: response.status, data });
 }
 

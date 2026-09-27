@@ -15,7 +15,7 @@ from django.conf import settings
 from django.db import connection
 from django.http import FileResponse, JsonResponse, StreamingHttpResponse
 
-from graph.api import api
+from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Node
 
@@ -307,7 +307,7 @@ async def command(request):
         return JsonResponse({'error': 'méthode non autorisée'}, status=405)
     user = await request.auser()
     if not user.is_authenticated:
-        return JsonResponse({'error': 'authentification requise'}, status=401)
+        return unauthenticated(request)
     try:
         body = json.loads(request.body or b'{}')
     except json.JSONDecodeError:

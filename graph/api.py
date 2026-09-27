@@ -4,12 +4,20 @@ import json
 import mimetypes
 from functools import wraps
 
+from django.conf import settings
 from django.db.models import Q
 from django.http import FileResponse, JsonResponse
 
 from .extract import extract_text
 from .models import AIRun, Edge, Layer, Node, NodeRevision, StoredFile
 from .services import ChangeError, Conflict, apply_changes, edge_to_dict, layer_to_dict, node_to_dict
+
+
+def unauthenticated(request):
+    """401 qui dit pourquoi : cookie de session absent (https, domaine, chemin) ou session inconnue du serveur."""
+    sent = settings.SESSION_COOKIE_NAME in request.COOKIES
+    return JsonResponse({'error': 'authentification requise',
+                         'reason': 'session inconnue ou expirée' if sent else 'cookie de session absent'}, status=401)
 
 
 def api(*methods):
@@ -21,7 +29,7 @@ def api(*methods):
             if request.method not in methods:
                 return JsonResponse({'error': 'méthode non autorisée'}, status=405)
             if not request.user.is_authenticated:
-                return JsonResponse({'error': 'authentification requise'}, status=401)
+                return unauthenticated(request)
             body = None
             if request.method in ('POST', 'PATCH') and not request.content_type.startswith('multipart/'):
                 try:
