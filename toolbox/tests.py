@@ -259,6 +259,9 @@ class EngineTests(TestCase):
         self.assertEqual({k: FakeLlama.instances[0].kwargs[k] for k in ('n_ctx', 'n_gpu_layers', 'n_batch')},
                          {'n_ctx': 1024, 'n_gpu_layers': -1, 'n_batch': 256})
         self.assertEqual((engine.stats[self.model.pk]['requests'], engine.stats[self.model.pk]['tokens']), (1, 2))
+        last = engine.stats[self.model.pk]['last']  # mesure de l'appel : jetons générés, attente du premier, durée
+        self.assertEqual((last['tokens'], last['prompt_tokens']), (2, None))
+        self.assertGreaterEqual(last['total_s'], last['wait_s'])
         now[0] += 4 * 60
         self.assertFalse(engine.unload_if_idle())
         now[0] += 2 * 60
@@ -722,13 +725,13 @@ class GuardianTests(TestCase):
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn(prompts.GUARDIAN, system)
-        self.assertIn('- web_search [L] : Recherche web', system)
+        self.assertIn('Web : web_search [L], web_fetch [L]', system)
         Agent.objects.filter(owner=self.user, role=Agent.Role.ORCHESTRATOR).update(system_prompt='Tu parles comme un pirate.')
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn('Tu parles comme un pirate.', system)
         self.assertNotIn(prompts.GUARDIAN, system)
-        self.assertIn('- mindmap : Carte mentale', system)  # une consigne réécrite ne retire pas les outils
+        self.assertIn('Nodes : style, set_type, cleanup, mindmap', system)  # une consigne réécrite ne retire pas les outils
         agents = {a['name']: a for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
         self.assertEqual(agents['Rédacteur']['default_prompt'], prompts.ROLES[Agent.Role.TEXT])
 
@@ -751,6 +754,19 @@ class GuardianTests(TestCase):
                                    ('create', 'new1.2'), ('link', ('new1', 'new1.2'))])
         spots = [(a['x'], a['y']) for a in self.actions() if a['op'] == 'create']
         self.assertTrue(all(math.dist(p, q) >= 100 for i, p in enumerate(spots) for q in spots[i + 1:]))
+
+    def test_attached_nodes_are_context_for_this_request(self):
+        long = 'Jour 1 : Tokyo. ' * 20  # plus long que le texte d'un node du contexte ordinaire
+        context = {**self.CONTEXT, 'nodes': [*self.CONTEXT['nodes'], {'id': 'N-3', 'text': long, 'x': 900, 'y': 900, 'r': 20}],
+                   'attached': ['N-3', 'N-9']}
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}), context=context)
+        prompt = engine.calls[0]['messages'][1]['content']
+        self.assertIn('Nodes joints à cette demande', prompt)
+        self.assertIn(f'[N-3]\n{long.strip()}', prompt)  # texte complet, le node inconnu est ignoré
+        self.assertNotIn('N-9', prompt)
+        self.assertNotIn('N-3 : Jour', prompt)  # pas deux fois
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
+        self.assertNotIn('Nodes joints', engine.calls[0]['messages'][1]['content'])  # demande suivante : plus de pièce jointe
 
     def test_build_templates_backdrop_and_tour(self):
         from .layouts import STEP
@@ -1393,7 +1409,7 @@ class IaquaToolsTests(TestCase):
 
         engine = self.run_guardian([{'op': 'tool_help', 'names': ['create_task', 'execute_bash']}])
         system = engine.calls[0]['messages'][0]['content']
-        self.assertIn('- create_task : Créer une tâche', system)  # une ligne ; le détail par tool_help
+        self.assertIn('Tâches : create_task, list_tasks [L]', system)  # le nom seul ; le détail par tool_help
         self.assertIn('{"op":"create","ref":"new1"', system)  # outils essentiels en entier
         self.assertNotIn('execute_bash', system)
         self.assertIn(tools.BY_OP['create_task']['doc'], self.reads(engine))

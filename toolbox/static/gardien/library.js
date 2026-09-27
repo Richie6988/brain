@@ -524,7 +524,10 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                 kv('MMAP', yes(c.use_mmap)), kv('MLOCK', yes(c.use_mlock)), c.random_seed === false ? kv('GRAINE', 'fixe') : null),
             differs ? h('small', { class: 'gl-hint' }, `Enregistré : contexte ${c.n_ctx}, couches GPU ${c.n_gpu_layers}`) : null,
             stats ? h('div', { class: 'gl-params gl-runtime' }, kv('CHARGÉ', ago(stats.loaded_at)), kv('DERNIER USAGE', ago(stats.last_used)),
-                kv('REQUÊTES', stats.requests), kv('JETONS', stats.tokens >= 1000 ? `${(stats.tokens / 1000).toFixed(1)} k` : stats.tokens)) : null];
+                kv('REQUÊTES', stats.requests), kv('JETONS', stats.tokens >= 1000 ? `${(stats.tokens / 1000).toFixed(1)} k` : stats.tokens)) : null,
+            stats?.last ? h('div', { class: 'gl-params gl-runtime', title: 'Dernier appel : lecture du prompt (attente du premier mot), puis génération' },
+                kv('PROMPT', `${stats.last.prompt_tokens ?? '?'} j`), kv('1ER MOT', `${stats.last.wait_s} s`),
+                kv('VITESSE', stats.last.speed ? `${stats.last.speed} j/s` : '?')) : null];
     }
 
     function modelCard(m) {

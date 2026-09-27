@@ -417,6 +417,8 @@ async def command(request):
         def emit(kind, data):
             if kind == 'action':
                 outcome['actions'] += 1
+            elif kind == 'timing':
+                outcome['timing'] = data
             events.put((kind, data))
         try:
             if not dispatcher.wait(ticket, lambda position: events.put(('queued', {'position': position}))):
@@ -433,7 +435,9 @@ async def command(request):
         finally:
             if outcome['ran']:
                 result = f"échec : {outcome['error']}" if outcome['error'] else f"{outcome['actions']} actions"
-                iaqua.log(user, 'demande', f'{prompt} → {result}, {time.monotonic() - started:.1f} s')
+                timing = outcome.get('timing')
+                detail = f" ({timing['calls']} appels au modèle, premier mot après {timing['wait_s']} s)" if timing else ''
+                iaqua.log(user, 'demande', f'{prompt} → {result}, {time.monotonic() - started:.1f} s{detail}')
             dispatcher.done(ticket)
             connection.close()
             events.put(None)

@@ -10,7 +10,7 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-export function createBridge({ caption, onTour = () => {} }) {
+export function createBridge({ caption, onTour = () => {}, onAttach = () => {} }) {
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
     let take = 0;            // numéro de prise : un geste de l'utilisateur coupe le travelling
     const cut = () => { take += 1; };
@@ -325,8 +325,10 @@ export function createBridge({ caption, onTour = () => {} }) {
             pill.innerHTML = '<button type="button" class="send" title="Envoyer ce node au Gardien (Ctrl+Entrée)"><i></i><span>Gardien</span><kbd>Ctrl ↵</kbd></button>'
                 + '<button type="button" class="visit" title="Visiter la branche à partir de ce node">▶ Visite</button>';
             const [sendButton, visitButton] = pill.children;
+            const label = sendButton.querySelector('span');
             document.body.append(pill);
             let target = null;
+            let group = [];  // multisélection : ses nodes partent au chat comme contexte de la prochaine demande
             const place = () => {
                 if (!target || !target.isConnected) return hide();
                 const shape = target.getAttribute('shape') === 'square' ? target.children[2] : target.children[1];
@@ -336,15 +338,19 @@ export function createBridge({ caption, onTour = () => {} }) {
                 sendButton.disabled = target.classList.contains('gardien-thinking');
                 requestAnimationFrame(place);  // suit le node pendant les zooms et glissés
             };
-            const show = node => {
+            const show = (node, nodes = []) => {
                 if (typeof admin !== 'undefined' && admin) return;  // univers d'un autre compte, en lecture
+                group = nodes;
+                pill.classList.toggle('multi', nodes.length > 1);
+                label.textContent = nodes.length > 1 ? `Gardien · ${nodes.length} nodes` : 'Gardien';
+                sendButton.title = nodes.length > 1 ? 'Joindre ces nodes à ta prochaine demande au Gardien (chat)' : 'Envoyer ce node au Gardien (Ctrl+Entrée)';
                 if (target === node) return;
                 const idle = !target;
                 target = node;
                 pill.hidden = false;
                 if (idle) place();
             };
-            function hide() { target = null; pill.hidden = true; }
+            function hide() { target = null; group = []; pill.hidden = true; }
             const fire = node => {
                 const input = node.children[0].children[0];
                 const text = textOf(node);
@@ -356,10 +362,12 @@ export function createBridge({ caption, onTour = () => {} }) {
                 const input = document.activeElement;
                 return input?.isContentEditable ? input.closest?.('.node-group') : null;
             };
-            // Pendant l'écriture, dès qu'il y a du texte ; sinon le seul node sélectionné qui contient du texte.
+            // Pendant l'écriture, dès qu'il y a du texte ; sinon le seul node sélectionné qui contient du texte ;
+            // plusieurs nodes sélectionnés : la pastille les joint au chat.
             const refresh = () => {
                 const node = editing() || (selectedNodes.length === 1 ? selectedNodes[0] : null);
-                if (node && textOf(node)) show(node);
+                if (!editing() && selectedNodes.length > 1) show(selectedNodes[selectedNodes.length - 1], [...selectedNodes]);
+                else if (node && textOf(node)) show(node);
                 else hide();
             };
             document.addEventListener('input', event => { if (event.target.isContentEditable) refresh(); }, true);
@@ -367,7 +375,14 @@ export function createBridge({ caption, onTour = () => {} }) {
             document.addEventListener('focusout', () => setTimeout(refresh), true);
             document.addEventListener('mouseup', () => setTimeout(refresh), true);
             pill.addEventListener('mousedown', event => event.preventDefault());  // garde le focus dans le node
-            sendButton.addEventListener('click', () => { if (target && !sendButton.disabled) fire(target); });
+            sendButton.addEventListener('click', () => {
+                if (group.length > 1) {
+                    const nodes = group;
+                    hide();
+                    return onAttach(nodes);
+                }
+                if (target && !sendButton.disabled) fire(target);
+            });
             visitButton.addEventListener('click', () => {
                 const node = target;
                 if (!node) return;

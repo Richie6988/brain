@@ -1,7 +1,8 @@
 // Chat du Gardien, en bas à droite : une bulle qui s'ouvre sur la conversation. On y écrit au Gardien
 // sans passer par un node ; ses réponses s'y affichent et ses actions se jouent dans l'univers. Les
-// échanges lancés depuis un node (pastille, Ctrl+Entrée) y apparaissent aussi. L'historique récent est
-// gardé dans ce navigateur.
+// échanges lancés depuis un node (pastille, Ctrl+Entrée) y apparaissent aussi. Des nodes peuvent être
+// joints au prochain message (multisélection) : le Gardien lit leur texte complet pour cette demande
+// seulement. L'historique récent est gardé dans ce navigateur.
 
 import { h } from './library.js';
 
@@ -24,11 +25,24 @@ export function createChat({ onSend }) {
     const input = h('textarea', { rows: 1, placeholder: 'Écris au Gardien…', 'aria-label': 'Message au Gardien' });
     const send = h('button', { type: 'submit', class: 'gc-send', title: 'Envoyer (Entrée)' }, '↑');
     const form = h('form', { class: 'gc-form' }, input, send);
+    let attached = [];  // nodes joints au prochain message
+    const tray = h('div', { class: 'gc-attach' });
+    const nodeText = node => node.children[0]?.children[0]?.innerText?.trim() || '(vide)';
+    function renderTray() {
+        const selection = (typeof selectedNodes !== 'undefined' ? selectedNodes : []).filter(n => n.isConnected);
+        tray.replaceChildren(...(attached.length
+            ? [h('span', { class: 'gc-chip', title: attached.map(n => `${n.id} : ${nodeText(n).slice(0, 60)}`).join('\n') },
+                `${attached.length} node${attached.length > 1 ? 's' : ''} joint${attached.length > 1 ? 's' : ''} : `,
+                attached.slice(0, 3).map(n => nodeText(n).slice(0, 18)).join(', ') + (attached.length > 3 ? '…' : ''),
+                h('button', { type: 'button', title: 'Retirer', onclick: () => { attached = []; renderTray(); } }, '×'))]
+            : selection.length ? [h('button', { type: 'button', class: 'gc-join', onclick: () => { attached = selection; renderTray(); input.focus(); } },
+                `+ Joindre la sélection (${selection.length} node${selection.length > 1 ? 's' : ''})`)] : []));
+    }
     const panel = h('section', { class: 'gc-panel', hidden: true, role: 'dialog', 'aria-label': 'Chat du Gardien' },
         h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), h('small', {}, 'Il agit dans ton univers')),
             h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: clear }, 'Effacer'),
             h('button', { type: 'button', class: 'gc-close', title: 'Réduire', onclick: () => toggle(false) }, '×')),
-        log, status, form);
+        log, status, tray, form);
     const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Parler au Gardien', onclick: () => toggle() }, h('i', {}), h('b', { hidden: true }));
     const root = h('div', { id: 'gardien-chat' }, panel, bubble);
     document.body.append(root);
@@ -49,7 +63,9 @@ export function createChat({ onSend }) {
         if (!text || send.disabled) return;
         input.value = '';
         grow();
-        onSend(text);
+        onSend(text, attached.filter(n => n.isConnected).map(n => n.id));
+        attached = [];  // contexte de cette demande seulement
+        renderTray();
     });
 
     function grow() {
@@ -62,6 +78,7 @@ export function createChat({ onSend }) {
         panel.hidden = !open;
         root.classList.toggle('open', open);
         if (open) {
+            renderTray();
             unread = 0;
             badge();
             log.scrollTop = log.scrollHeight;
@@ -112,5 +129,11 @@ export function createChat({ onSend }) {
             if (!on) status.textContent = '';
         },
         open: () => toggle(true),
+        // Multisélection envoyée par la pastille : jointe au prochain message.
+        attach(nodes) {
+            attached = nodes;
+            toggle(true);
+            renderTray();
+        },
     };
 }

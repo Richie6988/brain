@@ -48,6 +48,10 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Vieilles fenêtres de Nodz au style du Gardien** : renommage de dimension (portail), popups (partage, suppression, connexion), export, galerie de modèles et profil passent au verre sombre à liseré violet, en Cascadia Code, avec des champs sombres et des boutons en dégradé violet vers bleu ; variante claire en mode Light. Le chat et les filtres n'apparaissent qu'une fois connecté ; la bulle du chat est au-dessus du coin, hors du chemin des gestes.
 
+**Multisélection jointe au Gardien** : avec plusieurs nodes sélectionnés, la pastille devient « Gardien · N nodes » et les joint au chat ; le chat propose aussi « Joindre la sélection ». Le Gardien lit leur texte complet (2 000 caractères par node, 8 000 en tout) pour cette demande seulement ; l'étiquette disparaît après l'envoi.
+
+**Gardien plus rapide** : la grammaire JSON imposée au modèle ne décrit plus que le nom de l'outil (un schéma de 90 champs ralentissait chaque jeton sous llama.cpp ; les champs sont validés à l'exécution) ; les outils non essentiels sont listés par leur nom seul (détail par `tool_help`) ; contexte réduit à 40 nodes proches, 80 caractères chacun. Prompt des outils 4 500 → 3 300 caractères, schéma 4 500 → 1 400. Chaque réponse indique son temps, le nombre d'appels au modèle, la lecture du prompt (jetons, attente du premier mot) et la vitesse ; la fiche du modèle et le journal de la console IA aussi.
+
 **Profil** en cartes (identité, activité, parrainage, Premium, avis), coches dessinées au lieu d'emoji ; nouvelle icône du bouton Agents.
 
 **Session conservée** : ouvrir `/universe` ne déconnecte plus. Un autre onglet, un rechargement ou un préchargement déconnectait la page ouverte (sauvegardes, profil, modèles et Gardien refusés). La fenêtre LOGIN / GUEST s'affiche toujours ; la déconnexion se fait par le profil. Un refus 401 dit s'il manque le cookie ou si la session est inconnue.

@@ -86,7 +86,7 @@ const signedIn = setInterval(() => {
 const filters = createFilters();
 createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
-const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node) });
+const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes) });
 const tour = createTour({ bridge, say });
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 
@@ -158,9 +158,9 @@ let queue = Promise.resolve();
 
 // Une demande au Gardien, depuis un node (node = le message) ou depuis le chat (node = null). Les deux
 // s'affichent dans le chat ; depuis un node, les réponses courtes passent aussi en toast.
-async function ask(node, text) {
+async function ask(node, text, attached = []) {
     let actions = Promise.resolve();
-    chat.add('user', text, node ? `node ${node.id}` : '');
+    chat.add('user', text, node ? `node ${node.id}` : attached.length ? `${attached.length} nodes joints` : '');
     if (typeof admin !== 'undefined' && admin) return chat.add('notice', 'Univers d\'un autre compte, en lecture : le Gardien n\'y agit pas.');
     const reply = (kind, message) => {
         chat.add(kind === 'text' ? 'guardian' : kind, message);
@@ -178,14 +178,16 @@ async function ask(node, text) {
         follow.start();
         chat.status('Le Gardien réfléchit…');
         const created = [];
+        let timing = null;
         const context = bridge.context();
-        await api.command({ prompt: text, context: node ? { ...context, origin: node.id } : context }, (type, data) => {
+        await api.command({ prompt: text, context: { ...context, ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}) } }, (type, data) => {
             if (type === 'text' || type === 'notice') reply(type, data.text);
             else if (type === 'queued') {
                 const where = data.position === 1 ? 'Tu es le prochain : le Gardien finit une autre demande' : `En file d'attente : ${data.position}e`;
                 follow.step(where, 'waiting');
                 chat.status(where);
             } else if (type === 'plan') follow.plan(data.steps);
+            else if (type === 'timing') timing = data;
             // Intentions et gestes s'enchaînent : chaque étape s'affiche quand la page l'exécute.
             else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); });
             else if (type === 'error') actions = actions.then(() => { follow.step(data.message, 'error'); chat.add('error', data.message); });
@@ -197,7 +199,11 @@ async function ask(node, text) {
         });
         await actions;
         filters.mark(created.map(bridge.idOf), 'ai');
-        follow.end('Terminé');
+        follow.end(timing ? `Terminé en ${Math.round(timing.total_s)} s` : 'Terminé');
+        // Où passe le temps : lecture du prompt (avant le premier mot) et génération, par appel au modèle.
+        if (timing) chat.add('notice', `${Math.round(timing.total_s)} s · ${timing.calls} appel${timing.calls > 1 ? 's' : ''} au modèle · `
+            + `lecture du prompt ${Math.round(timing.wait_s)} s${timing.prompt_tokens ? ` (${timing.prompt_tokens} jetons)` : ''}`
+            + `${timing.speed ? ` · ${timing.speed} jetons/s` : ''}`);
     } catch (error) {
         follow.end(error.message);
         reply('error', error.message);
@@ -207,7 +213,7 @@ async function ask(node, text) {
     }
 }
 
-const chat = createChat({ onSend: text => { queue = queue.then(() => ask(null, text)); } });
+const chat = createChat({ onSend: (text, attached) => { queue = queue.then(() => ask(null, text, attached)); } });
 
 // Une fois par navigateur, au premier node écrit : comment parler au Gardien.
 document.addEventListener('input', function hint(event) {

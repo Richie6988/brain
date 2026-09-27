@@ -148,14 +148,24 @@ class Engine:
             if json_schema:
                 options['response_format'] = {'type': 'json_object', 'schema': json_schema}
             text = []
+            # Mesure de l'appel : taille du prompt, attente du premier jeton (lecture du prompt), vitesse ensuite.
+            tokenize = getattr(llm, 'tokenize', None)
+            prompt_tokens = len(tokenize(''.join(m['content'] for m in messages).encode())) if tokenize else None
+            started, first, count = time.monotonic(), None, 0
             try:
                 for chunk in llm.create_chat_completion(messages=messages, stream=True, **options):
                     piece = chunk['choices'][0]['delta'].get('content') or ''
                     if piece:
+                        if first is None:
+                            first = time.monotonic()
                         text.append(piece)
+                        count += 1
                         stats['tokens'] += 1  # un fragment du flux = un jeton
                         if on_text:
                             on_text(piece)
             finally:
+                end = time.monotonic()
                 stats['last_used'] = self.clock()
+                stats['last'] = {'prompt_tokens': prompt_tokens, 'wait_s': round((first or end) - started, 2), 'tokens': count,
+                                 'speed': round(count / (end - first), 1) if first and end > first else None, 'total_s': round(end - started, 2)}
             return ''.join(text)

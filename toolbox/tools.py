@@ -230,14 +230,15 @@ def usage(op, docs=None):
 
 
 def prompt(ops, docs=None):
-    """Outils du prompt, par famille : mode d'emploi complet pour les essentiels, une ligne pour les autres."""
-    lines = ['Outils (lectures marquées [L] : tu reçois le résultat au tour suivant). Mode d\'emploi détaillé : tool_help.']
+    """Outils du prompt, par famille : mode d'emploi complet pour les essentiels (et ceux réécrits dans l'univers),
+    les autres par leur nom seul, sur une ligne : le prompt reste court (tool_help les détaille)."""
+    lines = ['Outils (lectures marquées [L] : tu reçois le résultat au tour suivant). Mode d\'emploi d\'un outil cité par son nom : tool_help.']
     for category in dict.fromkeys(t['category'] for t in TOOLS):
         tools = [t for t in TOOLS if t['category'] == category and t['op'] in ops]
         if not tools:
             continue
-        lines.append(f'{category} :')
-        for t in tools:
-            mark = ' [L]' if t.get('read') else ''
-            lines.append(f"- {usage(t['op'], docs)}{mark}" if t['op'] in CORE else f"- {t['op']}{mark} : {t['label']}")
+        full = [t for t in tools if t['op'] in CORE or t['op'] in (docs or {})]
+        names = [f"{t['op']}{' [L]' if t.get('read') else ''}" for t in tools if t not in full]
+        lines.append(f"{category} :{' ' + ', '.join(names) if names else ''}")
+        lines += [f"- {usage(t['op'], docs)}{' [L]' if t.get('read') else ''}" for t in full]
     return '\n'.join(lines)

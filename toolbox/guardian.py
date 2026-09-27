@@ -28,7 +28,9 @@ from .models import Agent, LocalModel
 
 RADIUS = 85  # rayon d'un node texte de Nodz une fois dimensionné (nodeSizing 120 × 120)
 IMAGE_RADIUS = 180  # node image (nodeSizing 250 × 250)
-MAX_CONTEXT_NODES = 60
+MAX_CONTEXT_NODES = 40  # nodes proches de la vue dans le prompt (chaque jeton du prompt coûte sur CPU)
+CONTEXT_TEXT = 80  # caractères par node du contexte
+ATTACHED_TEXT, ATTACHED_TOTAL = 2000, 8000  # nodes joints à la demande : texte complet, dans cette limite
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
 SHAPES = ['circle', 'square', 'none']
@@ -39,63 +41,15 @@ MAX_MEMORY = 30
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
 
 
+# Réponse imposée au modèle. Les actions ne déclarent que `op` : une grammaire qui décrit chaque champ de
+# chaque outil ralentit fortement chaque jeton généré par llama.cpp ; les champs sont validés à l'exécution.
 PLAN_SCHEMA = {
     'type': 'object',
     'required': ['plan', 'say', 'actions'],
     'properties': {
         'plan': {'type': 'array', 'items': {'type': 'string'}},
         'say': {'type': 'string'},
-        'actions': {
-            'type': 'array',
-            'items': {
-                'type': 'object',
-                'required': ['op'],
-                'properties': {
-                    'op': {'type': 'string', 'enum': OPS},
-                    'ref': {'type': 'string'},
-                    'near': {'type': 'string'},
-                    'text': {'type': 'string'},
-                    'source': {'type': 'string'},
-                    'target': {'type': 'string'},
-                    'color': {'type': 'string'},
-                    'shape': {'type': 'string', 'enum': SHAPES},
-                    'radius': {'type': 'number'},
-                    'lock': {'type': 'boolean'},
-                    'content_type': {'type': 'string', 'enum': TYPES},
-                    'name': {'type': 'string'},
-                    'agent': {'type': 'string'},
-                    'model': {'type': 'string'},
-                    'task': {'type': 'string'},
-                    'zoom': {'type': 'number'},
-                    'query': {'type': 'string'},
-                    'url': {'type': 'string'},
-                    'children': {'type': 'array', 'items': {'type': 'string'}},
-                    # gabarits (build, template_save, backdrop)
-                    'layout': {'type': 'string', 'enum': layouts.LAYOUTS},
-                    'type': {'type': 'string', 'enum': layouts.BACKDROPS},
-                    **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('rows', 'cols', 'items')},
-                    'cells': {'type': 'array', 'items': {'type': 'array', 'items': {'type': 'string'}}},
-                    'template': {'type': 'string'},
-                    'save_as': {'type': 'string'},
-                    'description': {'type': 'string'},
-                    'prompt': {'type': 'string'},
-                    'role': {'type': 'string', 'enum': ROLES},
-                    'enabled': {'type': 'boolean'},
-                    # outils d'iAqua (valeurs libres en texte : JSON accepté là où il le faut)
-                    **{k: {'type': 'string'} for k in (
-                        'title', 'acceptance_criteria', 'project', 'priority', 'status', 'task_id', 'field', 'value', 'expr',
-                        'action', 'schedule_id', 'vision', 'goal', 'mission_id', 'project_name', 'new_value', 'kind', 'content',
-                        'skill_id', 'summary', 'triggers', 'outcome', 'section_path', 'field_path', 'event_type', 'path',
-                        'search_text', 'replace_text', 'message', 'filename', 'markdown', 'to', 'subject', 'body', 'command',
-                        'cwd', 'code', 'test_input', 'input', 'server', 'arguments')},
-                    **{k: {'type': 'number'} for k in ('budget', 'limit', 'strength', 'timeout')},
-                    **{k: {'type': 'boolean'} for k in ('run', 'abort')},
-                    **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('steps', 'files', 'packages', 'names')},
-                    'slides': {'type': 'array', 'items': {'type': 'object', 'properties': {
-                        'title': {'type': 'string'}, 'body': {'type': 'string'}, 'bullets': {'type': 'array', 'items': {'type': 'string'}}}}},
-                },
-            },
-        },
+        'actions': {'type': 'array', 'items': {'type': 'object', 'required': ['op'], 'properties': {'op': {'type': 'string', 'enum': OPS}}}},
     },
 }
 
@@ -213,6 +167,7 @@ class Guardian(IaquaOps):
         self.nodes = {}  # identifiant ou référence → {x, y, r, text, new}
         self.found = {}  # nodes trouvés par search_nodes : identifiant → id de leur dimension
         self.docs = {}  # modes d'emploi réécrits dans les nodes d'outils de l'univers
+        self.timings = []  # mesures des appels au modèle (engine.stats[…]['last'])
 
     # --- contexte envoyé par la page
 
@@ -223,7 +178,17 @@ class Guardian(IaquaOps):
         center = (_number(view.get('x')), _number(view.get('y')))
         nodes = [n for n in context.get('nodes') or [] if isinstance(n, dict) and str(n.get('id', '')).startswith('N-')]
         selection = [str(i) for i in context.get('selection') or []]
-        selected = [n for n in nodes if n['id'] in selection]
+        # Nodes joints à cette demande seulement (multisélection envoyée au Gardien) : en tête, en texte complet.
+        attached = [str(i) for i in context.get('attached') or []]
+        by_id = {n['id']: n for n in nodes}
+        self.attached, budget = [], ATTACHED_TOTAL
+        for i in dict.fromkeys(attached):
+            if i in by_id and budget > 0:
+                text = multiline(by_id[i].get('text', ''))[:min(ATTACHED_TEXT, budget)]
+                self.attached.append((i, text))
+                budget -= len(text)
+        selection = [i for i, _ in self.attached] + [i for i in selection if i not in dict(self.attached)]
+        selected = [by_id[i] for i in selection if i in by_id]
         others = sorted((n for n in nodes if n['id'] not in selection),
                         key=lambda n: math.dist((_number(n.get('x')), _number(n.get('y'))), center))
         self.context = (selected + others)[:MAX_CONTEXT_NODES]
@@ -245,9 +210,13 @@ class Guardian(IaquaOps):
         return {a.name: a for a in Agent.objects.filter(owner=self.user, enabled=True).select_related('model')}
 
     def prompt(self, request):
-        lines = [f"{n['id']} : {self.nodes[n['id']]['text'] or '(vide)'}" for n in self.context]
+        joined = dict(self.attached)
+        lines = [f"{n['id']} : {self.nodes[n['id']]['text'][:CONTEXT_TEXT] or '(vide)'}" for n in self.context if n['id'] not in joined]
+        block = ['Nodes joints à cette demande (texte complet, à utiliser comme contexte) :',
+                 *(f'[{i}]\n{text or "(vide)"}' for i, text in self.attached)] if self.attached else []
         return '\n'.join([
             f"Dimension : {self.layer.get('name') or 'sans nom'}",
+            *block,
             'Nodes :', *(lines or ['(aucun)']),
             'Liens : ' + (', '.join(f'{a}-{b}' for a, b in self.links) or 'aucun'),
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
@@ -704,6 +673,9 @@ class Guardian(IaquaOps):
                 self.emit('intent', {'text': 'Je lis ton message et le plan…' if round_ == 0 else 'Je lis ce que j\'ai trouvé et je continue…'})
                 raw = self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT,
                                        owner='gardien', **{'temperature': 0.2, **guardian.params})  # plan : peu créatif par défaut
+                last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
+                if last:
+                    self.timings.append(last)
                 try:
                     plan = json.loads(raw)
                 except json.JSONDecodeError:
@@ -737,6 +709,11 @@ class Guardian(IaquaOps):
                        'ou donne-moi un modèle plus grand dans Agents & modèles.')
             if say:
                 self.answer(say)
+            if self.timings:  # ce qui a pris du temps : lecture du prompt, génération, nombre d'appels
+                self.emit('timing', {'calls': len(self.timings), 'total_s': round(time.monotonic() - started, 1),
+                                     'wait_s': round(sum(t['wait_s'] for t in self.timings), 1),
+                                     'prompt_tokens': self.timings[0]['prompt_tokens'],
+                                     'speed': self.timings[-1]['speed']})
             self.run.status = AIRun.Status.DONE
         except Exception as e:
             self.run.status, self.run.error = AIRun.Status.ERROR, str(e)
