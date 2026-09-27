@@ -15,6 +15,10 @@ TOOLS = [
             'question courte avec 2 à 4 choix ; l\'humain répond d\'un clic et sa réponse arrive comme un nouveau message. '
             'N\'ajoute pas d\'autre action avec elle.'},
     # --- Nodes
+    {'op': 'put', 'category': 'Nodes', 'source': NODZ, 'label': 'Écrire un node (objet complet)',
+     'doc': '{"op":"put","ref":"new1","near":"N-3","text":"...","color":"#4D96FF","shape":"square","links":["N-3"],"children":["a","b"]} : '
+            'le node tel que tu le lis : nouveau (new1) ou existant (N-12) ; texte, apparence, liens et enfants en une action, '
+            'seuls les champs donnés changent.'},
     {'op': 'create', 'category': 'Nodes', 'source': NODZ, 'label': 'Créer un node',
      'doc': '{"op":"create","ref":"new1","text":"...","near":"N-3","color":"#4D96FF","shape":"circle"} : nouveau node '
             'placé près de `near` ; couleur et forme facultatives.'},
@@ -212,7 +216,7 @@ TOOLS = [
 BY_OP = {t['op']: t for t in TOOLS}
 
 # Outils décrits en entier dans le prompt ; les autres n'y ont qu'une ligne (mode d'emploi par tool_help).
-CORE = {'ask', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
+CORE = {'ask', 'put', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
 
 
 def available(op, user):
@@ -226,8 +230,9 @@ def enabled(agent, user):
     """Opérations permises au Gardien : celles cochées (tools_allowed), sinon celles actives par défaut."""
     allowed = [op for op in agent.tools_allowed or [] if op in BY_OP]
     ops = allowed or [t['op'] for t in TOOLS if t.get('default', not t.get('admin'))]
-    # tool_help et ask (parler à l'humain) restent toujours permis, même avec une liste d'outils cochés d'avant.
-    return [op for op in ops if available(op, user)] + [op for op in ('tool_help', 'ask') if op not in ops]
+    # tool_help, ask (parler à l'humain) et put (écrire un node comme il le lit) restent toujours permis, même avec
+    # une liste d'outils cochés d'avant.
+    return [op for op in ops if available(op, user)] + [op for op in ('tool_help', 'ask', 'put') if op not in ops]
 
 
 def usage(op, docs=None):

@@ -21,7 +21,7 @@ from graph.models import AIRun
 from nodzapp.models import Node
 
 from . import broker as priorities
-from . import imaging, layouts, prompts, tools, web, workspace
+from . import imaging, layouts, perception, prompts, tools, web, workspace
 from .iaqua import IaquaOps
 from .engine import EngineUnavailable
 from .errors import PlanError
@@ -32,9 +32,7 @@ logger = logging.getLogger(__name__)
 RADIUS = 85  # rayon d'un node texte de Nodz une fois dimensionné (nodeSizing 120 × 120)
 IMAGE_RADIUS = 180  # node image (nodeSizing 250 × 250)
 MAX_CONTEXT_NODES = 40  # nodes proches de la vue dans le prompt (chaque jeton du prompt coûte sur CPU)
-CONTEXT_TEXT = 80  # caractères par node du contexte
 ATTACHED_TEXT, ATTACHED_TOTAL = 2000, 8000  # nodes joints à la demande : texte complet, dans cette limite
-CITED_TEXT = 1500  # nodes cités par leur identifiant dans la demande (« lis N-171 ») : texte complet, sans lecture
 HISTORY, HISTORY_TEXT = 6, 200  # derniers échanges du chat rappelés au Gardien (il suit la conversation)
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
@@ -80,6 +78,7 @@ PLAN_SCHEMA = {
                     'url': {'type': 'string'},
                     'children': {'type': 'array', 'items': {'type': 'string'}},
                     'choices': {'type': 'array', 'items': {'type': 'string'}},  # ask : réponses proposées à l'humain
+                    'links': {'type': 'array', 'items': {'type': 'string'}},  # put : voisins à relier
                     # gabarits (build, template_save, backdrop)
                     'layout': {'type': 'string', 'enum': layouts.LAYOUTS},
                     'type': {'type': 'string', 'enum': layouts.BACKDROPS},
@@ -121,9 +120,11 @@ L'utilisateur t'écrit dans un node (le node message) ; tu réponds uniquement e
 n'appelle aucune action (simple question), `plan` et `actions` sont vides et `say` répond.
 `say` est écrit dans un node relié au node message : au passé (« J'ai relié… »), jamais « je vais ».
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
+Tu lis chaque node comme un objet JSON (texte, liens, auteur, position) ; tu l'écris avec le même objet : put.
 Exemples (imite leur forme) :
 « bonjour » → {"plan": [], "say": "Bonjour ! Je peux créer, relier, ranger tes nodes ou te faire visiter. Que veux-tu faire ?", "actions": []}
-« ajoute Voyage relié à N-3 » → {"plan": ["Créer Voyage", "Le relier à N-3"], "say": "J'ai créé « Voyage » et je l'ai relié à N-3.", "actions": [{"op":"create","ref":"new1","near":"N-3","text":"Voyage"}, {"op":"link","source":"N-3","target":"new1"}]}
+« ajoute Voyage relié à N-3 » → {"plan": ["Créer Voyage relié à N-3"], "say": "J'ai créé « Voyage » et je l'ai relié à N-3.", "actions": [{"op":"put","ref":"new1","near":"N-3","text":"Voyage","links":["N-3"]}]}
+« mets N-5 en rouge et relie-le à N-2 » → {"plan": ["Changer N-5"], "say": "N-5 est rouge et relié à N-2.", "actions": [{"op":"put","ref":"N-5","color":"#FF6B6B","links":["N-2"]}]}
 « arbre de compétences d'un jeu » → {"plan": ["Construire l'arbre"], "say": "J'ai construit l'arbre de compétences.", "actions": [{"op":"build","layout":"tree","items":["Compétences","  Combat","    Épée","  Magie","    Feu"],"title":"Compétences"}]}
 « résume N-12 » (son texte complet est donné) → {"plan": [], "say": "N-12 dit que…", "actions": []}
 « fais quelque chose avec ça » (ambigu) → {"plan": [], "say": "", "actions": [{"op":"ask","text":"Je le résume ou j'en fais une carte mentale ?","choices":["Résumer","Carte mentale"]}]}
@@ -210,6 +211,7 @@ def intent(action, nodes):
     op = action.get('op')
     return {
         'ask': lambda a: 'Je te pose une question',
+        'put': lambda a: f"J'écris {name(a.get('ref'))}" if str(a.get('ref', '')).startswith('N-') else f"Je crée « {short(a.get('text'))} »",
         'create': lambda a: f"Je crée « {short(a.get('text'))} »",
         'update': lambda a: f"Je réécris {name(a.get('ref'))}",
         'style': lambda a: f"Je change l'apparence de {name(a.get('ref'))}",
@@ -276,6 +278,7 @@ class Guardian(IaquaOps):
         self.found = {}  # nodes trouvés par search_nodes : identifiant → id de leur dimension
         self.docs = {}  # modes d'emploi réécrits dans les nodes d'outils de l'univers
         self.timings = []  # mesures des appels au modèle (engine.stats[…]['last'])
+        self.perception = perception.Perception(user)  # chaque node vu en un objet (texte, liens, auteur, portail…)
         self.seen = set()  # actions déjà exécutées pendant cette demande : un tour suivant ne les refait pas
         self.asked = False  # une question posée à l'humain : on attend sa réponse
 
@@ -304,7 +307,6 @@ class Guardian(IaquaOps):
         # Les plus proches de la vue, listés dans l'ordre des identifiants : d'une demande à l'autre la liste change
         # peu et llama.cpp réutilise sa lecture (sinon, un léger déplacement réordonne tout et tout est relu).
         self.context = sorted((selected + others)[:MAX_CONTEXT_NODES], key=lambda n: node_id(n['id']) or 0)
-        self.raw = {n['id']: str(n.get('text') or '') for n in nodes}
         self.history = [(h['role'], ' '.join(multiline(str(h.get('text') or '')).split())[:HISTORY_TEXT])
                         for h in (context.get('history') or [])[-HISTORY:]
                         if isinstance(h, dict) and h.get('role') in ('user', 'guardian') and h.get('text')]
@@ -326,34 +328,25 @@ class Guardian(IaquaOps):
         return {a.name: a for a in Agent.objects.filter(owner=self.user, enabled=True).select_related('model')}
 
     def prompt(self, request):
-        joined = dict(self.attached)
-        lines = [f"{n['id']} : {self.nodes[n['id']]['text'][:CONTEXT_TEXT] or '(vide)'}" for n in self.context if n['id'] not in joined]
-        block = ['Nodes joints à cette demande (texte complet, à utiliser comme contexte) :',
-                 *(f'[{i}]\n{text or "(vide)"}' for i, text in self.attached)] if self.attached else []
-        cited = [ref for ref in dict.fromkeys(re.findall(r'N-\d+', request)) if ref not in joined][:4]
-        cited_block = ['Nodes cités (texte complet, inutile de les lire) :',
-                       *(f'[{ref}]\n{self.cited_text(ref)}' for ref in cited)] if cited else []
+        """Message du modèle : la dimension, puis chaque node en un objet (perception.py), la conversation et la demande.
+        Le texte est entier pour les nodes joints, sélectionnés, cités ou le node message ; les nodes cités hors de la
+        page (autre dimension) sont lus en base : aucun tour de lecture pour eux."""
+        cited = list(dict.fromkeys(re.findall(r'N-\d+', request)))[:4]
+        limits = dict((i, len(text) or 1) for i, text in self.attached)  # nodes joints : dans le budget de load()
+        full = {*limits, *self.selection[:3], *([self.origin] if self.origin else []), *cited}
+        view = self.perception.objects(self.context, self.links, full=full, limits=limits)
+        away = self.perception.outside([ref for ref in cited if ref not in self.nodes])
         talk = ['Échanges récents (du plus ancien au plus récent) :',
                 *(f"{'Humain' if role == 'user' else 'Toi'} : {text}" for role, text in self.history)] if self.history else []
         return '\n'.join([
             f"Dimension : {self.layer.get('name') or 'sans nom'}",
-            *block,
-            'Nodes :', *(lines or ['(aucun)']),
-            'Liens : ' + (', '.join(f'{a}-{b}' for a, b in self.links) or 'aucun'),
-            *talk,  # après le contexte, qui change peu : seule la fin du message est relue
+            'Nodes (un objet par node ; "par": "moi" = créé par toi ; "plus": caractères non montrés) :',
+            *(perception.lines(view) or ['(aucun)']),
+            *talk,  # après les nodes, qui changent peu : seule la fin du message est relue
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
-            *cited_block,
+            *(['Nodes cités hors de cette dimension :', *perception.lines(away)] if away else []),
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
         ])
-
-    def cited_text(self, ref):
-        """Texte complet d'un node cité : celui de la page, sinon celui de la base (autre dimension)."""
-        if ref in self.raw:
-            return multiline(self.raw[ref])[:CITED_TEXT] or '(vide)'
-        node = Node.objects.filter(user=self.user, archive=False, node_id=node_id(ref)).first()
-        if node is None:
-            return '(introuvable)'
-        return ((node.file_text_content or multiline(node.text_content) or node.file_name or '')[:CITED_TEXT]) or '(vide)'
 
     # --- validation des actions
 
@@ -399,6 +392,26 @@ class Guardian(IaquaOps):
         choices = list(dict.fromkeys(c for c in (' '.join(str(c).split())[:60] for c in action.get('choices') or []) if c))[:4]
         self.asked = True
         self.emit('ask', {'text': text, 'choices': choices})
+        return None
+
+    def op_put(self, action, agents):
+        """Un node écrit comme il est lu, en un objet : crée (new1) ou modifie (N-12) son texte, son apparence, ses
+        liens et ses enfants en une seule action."""
+        ref, created = action['ref'], action['ref'] not in self.nodes
+        if created:
+            if str(ref).startswith('N-'):
+                raise PlanError(f'référence inconnue : {ref!r}')
+            self.emit('action', self.op_create(action, agents))  # texte, couleur et forme compris
+        elif 'text' in action:
+            self.emit('action', self.op_update(action, agents))
+        styled = ('radius', 'lock') if created else ('color', 'shape', 'radius', 'lock')
+        if any(action.get(k) is not None for k in styled):
+            self.emit('action', self.op_style(action, agents))
+        for target in dict.fromkeys(action.get('links') or []):
+            if target != ref:
+                self.emit('action', self.op_link({'source': ref, 'target': target}, agents))
+        if action.get('children'):
+            self.op_mindmap({'ref': ref, 'children': action['children'], 'color': action.get('color')}, agents)
         return None
 
     def op_update(self, action, agents):
@@ -771,7 +784,7 @@ class Guardian(IaquaOps):
                 if op == 'create' and action.get('ref') in self.nodes and str(action.get('ref')).startswith('N-'):
                     # « create N-172 » : un nouveau node près de N-172 (petit modèle qui confond identifiant et référence)
                     action = {**action, 'near': action.get('near') or action['ref'], 'ref': f'auto{len(self.nodes) + 1}'}
-                if op in ('create', 'delegate', 'mindmap') and not str(action.get('ref', '')).startswith(('new', 'N-', 'auto')):
+                if op in ('create', 'put', 'delegate', 'mindmap') and not str(action.get('ref', '')).startswith(('new', 'N-', 'auto')):
                     action = {**action, 'ref': f'auto{len(self.nodes) + 1}'}  # référence manquante
                 if op == 'create' and action.get('children'):
                     op, action = 'mindmap', {**action, 'op': 'mindmap'}  # un node et ses enfants : une carte mentale

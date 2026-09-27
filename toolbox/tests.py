@@ -648,9 +648,9 @@ class GuardianTests(TestCase):
     def test_prompt_uses_page_context(self):
         engine = self.run_guardian(json.dumps({'say': 'Ok.', 'actions': []}))
         prompt = engine.calls[0]['messages'][1]['content']
-        self.assertIn('N-1 : Voyage au Japon', prompt)
-        self.assertIn('N-2 : (vide)', prompt)
-        self.assertIn('Liens : N-1-N-2', prompt)
+        # Un objet par node (perception.py) : texte, liens, auteur, date, position, apparence si elle change
+        self.assertIn('{"id": "N-1", "texte": "Voyage au Japon", "par": "humain", "modifié": "non sauvé", "pos": [0, 0], "liens": ["N-2"]}', prompt)
+        self.assertIn('{"id": "N-2", "texte": "(vide)", "par": "humain", "modifié": "non sauvé", "pos": [400, 0], "couleur": "#6848A6", "liens": ["N-1"]}', prompt)
         self.assertIn('Sélection : N-1', prompt)
         self.assertEqual(engine.calls[0]['schema']['required'], ['plan', 'say', 'actions'])
         from graph.models import AIRun
@@ -813,12 +813,11 @@ class GuardianTests(TestCase):
                    'attached': ['N-3', 'N-9']}
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}), context=context)
         prompt = engine.calls[0]['messages'][1]['content']
-        self.assertIn('Nodes joints à cette demande', prompt)
-        self.assertIn(f'[N-3]\n{long.strip()}', prompt)  # texte complet, le node inconnu est ignoré
+        self.assertIn(f'"id": "N-3", "texte": "{long.strip()}"', prompt)  # texte complet, le node inconnu est ignoré
         self.assertNotIn('N-9', prompt)
-        self.assertNotIn('N-3 : Jour', prompt)  # pas deux fois
-        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
-        self.assertNotIn('Nodes joints', engine.calls[0]['messages'][1]['content'])  # demande suivante : plus de pièce jointe
+        self.assertEqual(prompt.count('"id": "N-3"'), 1)  # pas deux fois
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}), context={**context, 'attached': [], 'selection': []})
+        self.assertIn('"plus": ', engine.calls[0]['messages'][1]['content'])  # demande suivante : texte ordinaire, le reste compté
 
     def test_build_templates_backdrop_and_tour(self):
         from .layouts import STEP
@@ -900,18 +899,28 @@ class GuardianTests(TestCase):
                                {'role': 'notice', 'text': 'ignoré'}, {'role': 'user', 'text': 'Arbre'}]}
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Fait.', 'actions': []}), context=context)
         user = engine.calls[0]['messages'][1]['content']
-        self.assertLess(user.index('N-1 :'), user.index('N-2 :'))  # ordre des identifiants, pas des distances
-        self.assertLess(user.index('N-2 :'), user.index('N-9 :'))
+        self.assertLess(user.index('"id": "N-1"'), user.index('"id": "N-2"'))  # ordre des identifiants, pas des distances
+        self.assertLess(user.index('"id": "N-2"'), user.index('"id": "N-9"'))
+        self.assertIn('"plus": 79', user)  # 400 caractères montrés, le reste compté
         self.assertIn('Humain : crée un plan de voyage\nToi : Un arbre ou une liste ?\nHumain : Arbre', user)
         self.assertNotIn('ignoré', user)
         self.assertLess(user.index('Échanges récents'), user.index('Demande'))
-        from .guardian import Guardian
+        from nodzapp.models import Layer, Node
 
+        from .guardian import Guardian
+        from .models import NodeMark
+
+        # Un node cité hors de la page (autre dimension) arrive lui aussi en objet, lu en base ; l'auteur « moi » : le Gardien.
+        trip = Layer.objects.create(user=self.user, layer_id=2, layer_name='Budget')
+        Node.objects.create(user=self.user, node_id=45, layer=trip, type='file', file_name='plan.pdf', file_text_content='Jour 1 : Kyoto')
+        NodeMark.objects.create(owner=self.user, node_id=45, origin=NodeMark.Origin.AI)
         g = Guardian(self.user, ScriptedEngine(), lambda k, d: None)
         g.load(context)
-        prompt = g.prompt('résume N-9 et N-404')
-        self.assertIn('[N-9]\n' + long.strip()[:200], prompt)  # texte complet, pas les 80 caractères du contexte
-        self.assertIn('[N-404]\n(introuvable)', prompt)
+        prompt = g.prompt('résume N-9, N-45 et N-404')
+        self.assertIn(f'"id": "N-9", "texte": "{long.strip()}"', prompt)  # cité : texte entier
+        self.assertIn(r'{"id": "N-45", "type": "fichier", "texte": "plan.pdf\nJour 1 : Kyoto", "par": "moi"', prompt)
+        self.assertIn('"dimension": "Budget"', prompt)
+        self.assertIn('{"id": "N-404", "introuvable": true}', prompt)
 
     def test_the_guardian_asks_and_accepts_intuitive_forms(self):
         # ask : question et choix envoyés au chat, la demande s'arrête là (on attend l'humain) ;
@@ -926,6 +935,18 @@ class GuardianTests(TestCase):
         created = [a['text'] for a in self.actions() if a['op'] == 'create']
         self.assertEqual(created[:3], ['Niveau 1', 'Niveau 2', 'Niveau 3'])
         self.assertEqual(sum(a['op'] == 'link' for a in self.actions()), 2)
+
+    def test_put_writes_a_node_as_it_is_read(self):
+        # put : le même objet qu'en lecture ; nouveau node avec liens et enfants, node existant restylé et relié.
+        self.run_guardian(json.dumps({'plan': [], 'say': 'Fait.', 'actions': [
+            {'op': 'put', 'ref': 'new1', 'near': 'N-1', 'text': 'Kyoto', 'color': '#FF6B6B', 'links': ['N-1', 'new1'], 'children': ['Temples']},
+            {'op': 'put', 'ref': 'N-2', 'text': 'Budget', 'shape': 'square', 'links': ['new1']},
+            {'op': 'put', 'ref': 'N-404', 'text': 'x'}]}))
+        ops = [(a['op'], a.get('ref') or a.get('source'), a.get('target') or a.get('text')) for a in self.actions()]
+        self.assertEqual(ops, [('create', 'new1', 'Kyoto'), ('link', 'new1', 'N-1'), ('create', 'new1.1', 'Temples'),
+                               ('link', 'new1', 'new1.1'), ('update', 'N-2', 'Budget'), ('style', 'N-2', None), ('link', 'N-2', 'new1')])
+        self.assertEqual(self.actions()[0]['color'], '#FF6B6B')
+        self.assertEqual(self.errors(), ["put : référence inconnue : 'N-404'"])
 
     def test_an_unexpected_error_fails_one_action_only(self):
         # Un outil qui plante sur une action inattendue : l'action échoue seule (type d'erreur affiché), la demande
@@ -1516,10 +1537,10 @@ class IaquaToolsTests(TestCase):
         self.assertNotIn('execute_bash', tools.enabled(guardian, self.user))
         guardian.tools_allowed = ['create', 'execute_bash']
         guardian.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask'])  # pas administrateur ; ask (parler à l'humain) toujours permis
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask', 'put'])  # pas administrateur ; ask et put toujours permis
         self.user.is_staff = True
         self.user.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask'])  # GUARDIAN_SHELL=0
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask', 'put'])  # GUARDIAN_SHELL=0
         with self.settings(GUARDIAN_SHELL=True):
             self.assertIn('execute_bash', tools.enabled(guardian, self.user))
             engine = self.run_guardian([{'op': 'execute_bash', 'command': 'echo bonjour > salut.txt && cat salut.txt'}])
