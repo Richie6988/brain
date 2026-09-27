@@ -260,6 +260,23 @@ foreignObject.stylebutton > div:has(> svg):hover { border-color: #1E90FF; box-sh
 body:has(.universe.lightmode) :is(.select-dropdown, .selectlight) { color: #440852; background-color: rgba(255, 255, 255, 0.85); }
 body:has(.universe.lightmode) foreignObject.stylebutton > div:has(> svg) { background: rgba(255, 255, 255, 0.9); }
 
+/* Sélecteur d'emojis du texte (bouton emoji) : ses classes Tailwind n'étaient chargées nulle part (panneau blanc
+   brut) ; verre sombre, grille de 8, survol violet. Les barres flottantes du node s'effacent tant qu'il est ouvert. */
+#smileys { z-index: 45 !important; }
+#smileys .smileyContent {
+    position: relative; max-height: 72vh; overflow-y: auto; padding: 18px 14px 14px; border-radius: 20px;
+    background: rgba(10, 16, 30, 0.95); border: 1px solid rgba(184, 154, 242, 0.35); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+#emojiPicker { display: grid; grid-template-columns: repeat(8, 40px); gap: 4px; padding: 0; background: transparent; border: 0; }
+#emojiPicker .emoji-item {
+    display: grid; place-items: center; width: 40px; height: 40px; font-size: 22px; border-radius: 12px; cursor: pointer;
+    transition: background-color 0.12s, transform 0.12s;
+}
+#emojiPicker .emoji-item:hover { background: rgba(104, 72, 166, 0.45); transform: scale(1.15); }
+body:has(#smileys[style*="flex"]) :is(#gardien-nodebar, #gardien-sizer, #gardien-send) { display: none !important; }
+body:has(.universe.lightmode) #smileys .smileyContent { background: rgba(255, 255, 255, 0.96); border-color: rgba(68, 8, 82, 0.18); }
+
 /* --- Mode clair (bouton Dark/Light de Nodz) */
 
 body:has(.universe.lightmode) #button-container { background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }

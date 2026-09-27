@@ -5,6 +5,10 @@
 //
 // Node actif : celui dont on écrit le texte (mise en forme), sinon le dernier sélectionné (réglages, et outils de
 // dessin ou de fichier selon son type), sinon le dessin en cours.
+//
+// Poignée de taille : une pastille HTML de taille constante au coin bas droit du node sélectionné ou survolé (elle
+// reste tant que le pointeur est près du node). La tirer donne au node le rayon de la distance entre pointeur et
+// centre ; même redimensionnement (nodeSizing) et même sauvegarde que Nodz. Elle remplace la double flèche SVG.
 
 const TYPE = 7, TEXT = 4, FILE = 5, CANVAS = 6;  // groupes SVG du node (elementsCreation.js)
 
@@ -45,7 +49,80 @@ const TOOLS = {
 const img = name => `${NODZ_BASE}/static/img/${name}${typeof dark !== 'undefined' && !dark ? '-light' : ''}.svg`;
 const fire = (element, type) => element?.dispatchEvent(new MouseEvent(type, { bubbles: false, cancelable: true }));
 
+const ARROWS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>';
+
+function shapeOf(node) {
+    return node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1];
+}
+
+function createSizer() {
+    const knob = document.createElement('button');
+    knob.type = 'button';
+    knob.id = 'gardien-sizer';
+    knob.title = 'Taille du node (glisser)';
+    knob.hidden = true;
+    knob.innerHTML = ARROWS;
+    document.body.append(knob);
+    let node = null, dragging = false, pointer = [0, 0];
+    document.addEventListener('pointermove', event => { pointer = [event.clientX, event.clientY]; }, true);
+
+    const center = target => {
+        const r = shapeOf(target).getBoundingClientRect();
+        return [r.left + r.width / 2, r.top + r.height / 2, r.width / 2];
+    };
+    const near = target => {
+        const [cx, cy, radius] = center(target);
+        return Math.hypot(pointer[0] - cx, pointer[1] - cy) < radius + 48;
+    };
+    function candidate() {
+        if (dragging) return node;
+        if (typeof isDragging !== 'undefined' && isDragging) return null;
+        const selected = typeof selectedNodes !== 'undefined' && selectedNodes.length === 1 ? selectedNodes[0] : null;
+        const hovered = typeof currentNode !== 'undefined' ? currentNode : null;
+        const target = [selected, hovered, node].find(n => n?.isConnected && n.getAttribute('lock') !== '1' && (n === selected || near(n)));
+        return document.activeElement?.isContentEditable && document.activeElement.closest('.node-group') === target ? null : target;
+    }
+
+    knob.addEventListener('pointerdown', event => {
+        if (!node) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragging = true;
+        knob.setPointerCapture(event.pointerId);
+        document.body.classList.add('gardien-sizing');
+    });
+    knob.addEventListener('pointermove', event => {
+        if (!dragging) return;
+        const [cx, cy] = center(node);
+        const radius = Math.max(20, Math.hypot(event.clientX - cx, event.clientY - cy) / currentZoom);  // rayon en unités de Nodz
+        nodeSizing(node, radius * Math.SQRT2, radius * Math.SQRT2);
+    });
+    const release = () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.classList.remove('gardien-sizing');
+        save(node);
+    };
+    knob.addEventListener('pointerup', release);
+    knob.addEventListener('pointercancel', release);
+
+    (function follow() {
+        node = candidate();
+        if (!node || (typeof admin !== 'undefined' && admin)) {
+            knob.hidden = true;
+        } else {
+            const [cx, cy, radius] = center(node);
+            const corner = node.getAttribute('shape') === 'square' ? radius : radius * Math.SQRT1_2;  // bas droit du cercle ou du carré
+            knob.hidden = false;
+            knob.style.transform = `translate(${Math.round(cx + corner - 14)}px, ${Math.round(cy + corner - 14)}px)`;
+            knob.style.setProperty('--c', node.getAttribute('color') || '#b89af2');
+        }
+        requestAnimationFrame(follow);
+    })();
+}
+
 export function createNodebar() {
+    createSizer();
     const bar = document.createElement('div');
     bar.id = 'gardien-nodebar';
     bar.hidden = true;
@@ -56,7 +133,8 @@ export function createNodebar() {
     });
     let drawn = null;  // dernier dessin touché : ses outils restent sous la main pendant qu'on dessine
     let key = '';
-    const fontSize = new WeakMap();  // taille de police courante par node (1 à 7, 3 par défaut)
+    const SIZES = [1, 2, 4, 6, 7];  // XS, S, M, L, XL : les tailles de la liste de Nodz
+    const fontSize = new WeakMap();  // rang de la taille courante par node (M par défaut)
 
     document.addEventListener('mousedown', event => {
         if (bar.contains(event.target)) return;
@@ -88,10 +166,10 @@ export function createNodebar() {
         b.addEventListener('click', () => {
             const element = source(node, tool);
             if (tool.kind === 'font') {  // la liste de tailles de Nodz : sélection gardée, puis nouvelle taille
-                const size = Math.min(7, Math.max(1, (fontSize.get(node) || 3) + tool.step));
-                fontSize.set(node, size);
+                const rank = Math.min(SIZES.length - 1, Math.max(0, (fontSize.get(node) ?? 2) + tool.step));
+                fontSize.set(node, rank);
                 fire(element, 'mousedown');
-                element.value = String(size);
+                element.value = String(SIZES[rank]);
                 element.dispatchEvent(new Event('change'));
                 return;
             }

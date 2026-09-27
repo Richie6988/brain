@@ -31,9 +31,32 @@ def number(ref):
     return int(ref[2:]) if ref.startswith('N-') and ref[2:].isdigit() else None
 
 
+FONT = re.compile(r'(?is)<font\b([^>]*)>((?:(?!<font\b).)*?)</font>')
+SIZES = {'1': ',,', '2': ',,', '6': '^^', '7': '^^^'}
+
+
+def font(match):
+    """Une balise font (boutons couleur et taille de Nodz) dans la syntaxe du Gardien."""
+    attrs, inner = match.group(1), match.group(2)
+    color = re.search(r'color\s*=\s*["\']?(#[0-9a-fA-F]{3,6})', attrs)
+    size = re.search(r'size\s*=\s*["\']?(\d)', attrs)
+    if color:
+        inner = f'[{color.group(1)}]{inner}[/]'
+    mark = SIZES.get(size.group(1), '') if size else ''
+    return f'{mark}{inner}{mark}'
+
+
 def readable(markup):
-    """Texte d'un node avec ses retours à la ligne, sans balises."""
-    text = re.sub(r'(?i)<br\s*/?>|</(div|p|li|h\d)>', '\n', markup or '')
+    """Texte d'un node avec ses retours à la ligne, sa mise en forme dans la syntaxe du Gardien (**gras**, *italique*,
+    __souligné__, [#couleur]…[/], ^^grand^^), sans autres balises."""
+    text = markup or ''
+    for _ in range(5):  # balises font imbriquées : de l'intérieur vers l'extérieur
+        text, found = FONT.subn(font, text)
+        if not found:
+            break
+    for tags, mark in ((('b', 'strong'), '**'), (('i', 'em'), '*'), (('u',), '__')):
+        text = re.sub(rf'(?is)<({"|".join(tags)})\b[^>]*>(.*?)</\1>', lambda m, mark=mark: f'{mark}{m.group(2)}{mark}', text)
+    text = re.sub(r'(?i)<br\s*/?>|</(div|p|li|h\d)>', '\n', text)
     text = html.unescape(re.sub(r'<[^>]+>', '', text))
     return '\n'.join(' '.join(line.split()) for line in text.splitlines() if line.strip())
 

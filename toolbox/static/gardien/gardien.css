@@ -538,10 +538,21 @@ body:has(.universe.lightmode) .gc-choices button { color: #440852; background: r
 @keyframes gp-pulse { 50% { box-shadow: 0 0 0 4px #b89af2, 0 0 22px rgba(30, 144, 255, 0.9); } }
 
 /* Barre d'outils du node (nodebar.js), au style de la pastille du Gardien : une pilule de verre au-dessus du node
-   actif. Elle remplace les barres SVG que Nodz dessine dans chaque node : masquées ici, seules restent dans le node
-   la poignée de taille (réglages : 4e et 5e éléments) et le nom du fichier (3e élément du groupe fichier). */
-.node-group > g:nth-child(5), .node-group > g:nth-child(7), .node-group > g:nth-child(6) > :nth-child(-n+2),
-.node-group > g:nth-child(8) > :not(:nth-child(4)):not(:nth-child(5)) { display: none !important; }
+   actif, et la poignée de taille HTML. Elles remplacent les barres SVG que Nodz dessine dans chaque node et sa
+   double flèche : masquées ici, seul reste dans le node le nom du fichier (3e élément du groupe fichier). */
+.node-group > g:nth-child(5), .node-group > g:nth-child(7), .node-group > g:nth-child(8),
+.node-group > g:nth-child(6) > :nth-child(-n+2) { display: none !important; }
+#gardien-sizer {
+    position: fixed; left: 0; top: 0; z-index: 30; width: 28px; height: 28px; padding: 0; display: grid; place-items: center;
+    cursor: nwse-resize; border-radius: 50%; background: rgba(15, 23, 42, 0.92); border: 2px solid var(--c, #b89af2);
+    box-shadow: 0 0 10px rgba(104, 72, 166, 0.55); transition: box-shadow 0.15s, background-color 0.15s; touch-action: none;
+}
+#gardien-sizer[hidden] { display: none; }
+#gardien-sizer svg { width: 14px; height: 14px; fill: none; stroke: #f8fafc; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#gardien-sizer:hover, body.gardien-sizing #gardien-sizer { background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 16px rgba(30, 144, 255, 0.8); }
+body.gardien-sizing, body.gardien-sizing * { cursor: nwse-resize !important; }
+body:has(.universe.lightmode) #gardien-sizer { background: rgba(255, 255, 255, 0.95); }
+body:has(.universe.lightmode) #gardien-sizer svg { stroke: #440852; }
 #gardien-nodebar {
     position: fixed; left: 0; top: 0; z-index: 31; display: flex; align-items: center; gap: 2px; padding: 4px 6px;
     background: rgba(15, 23, 42, 0.82); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 999px;

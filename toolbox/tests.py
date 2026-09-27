@@ -648,8 +648,8 @@ class GuardianTests(TestCase):
     def test_prompt_uses_page_context(self):
         engine = self.run_guardian(json.dumps({'say': 'Ok.', 'actions': []}))
         prompt = engine.calls[0]['messages'][1]['content']
-        # Un objet par node (perception.py) : texte, liens, auteur, date, position, apparence si elle change
-        self.assertIn('{"id": "N-1", "texte": "Voyage au Japon", "par": "humain", "modifié": "non sauvé", "pos": [0, 0], "liens": ["N-2"]}', prompt)
+        # Un objet par node (perception.py) : texte et sa mise en forme, liens, auteur, date, position, apparence si elle change
+        self.assertIn('{"id": "N-1", "texte": "**Voyage** au Japon", "par": "humain", "modifié": "non sauvé", "pos": [0, 0], "liens": ["N-2"]}', prompt)
         self.assertIn('{"id": "N-2", "texte": "(vide)", "par": "humain", "modifié": "non sauvé", "pos": [400, 0], "couleur": "#6848A6", "liens": ["N-1"]}', prompt)
         self.assertIn('Sélection : N-1', prompt)
         self.assertEqual(engine.calls[0]['schema']['required'], ['plan', 'say', 'actions'])
@@ -986,6 +986,19 @@ class GuardianTests(TestCase):
         self.assertEqual([a['ref'] for a in self.actions() if a['op'] == 'create'], ['N-1.n1', 'N-1.n2'])  # N-1 n'est pas recréé
         self.assertIn(('N-1', 'N-1.n1'), [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link'])
         self.assertIn('grow : une structure organique demande un plan', self.errors()[0])
+
+    def test_the_guardian_formats_text_like_the_nodz_buttons(self):
+        # Sa syntaxe (**gras**, *italique*, __souligné__, [#couleur]…[/], ^^grand^^, ,,petit,,, emojis) devient le
+        # HTML des boutons de Nodz ; et il relit la mise en forme d'un node dans cette même syntaxe.
+        from .guardian import text_html
+        from .perception import readable
+
+        self.assertEqual(text_html('^^🌱 **Photo**^^ [#33FF99]chloro[/] *ATP* __glu__ ,,p,,'),
+                         '<font size="6">🌱 <b>Photo</b></font> <font color="#33FF99">chloro</font> <i>ATP</i> <u>glu</u> <font size="2">p</font>')
+        self.assertEqual(text_html('<script>x</script> 2*3*4'), '&lt;script&gt;x&lt;/script&gt; 2*3*4')
+        self.assertEqual(readable('<b><font color="#FF6B6B" size="7">Kyoto</font></b><br>ligne'), '**^^^[#FF6B6B]Kyoto[/]^^^**\nligne')
+        self.run_guardian(json.dumps({'plan': [], 'say': '**Fait** ✅', 'actions': [{'op': 'put', 'ref': 'new1', 'text': '[#FF6B6B]Kyoto[/] 🏯'}]}))
+        self.assertEqual(self.actions()[0]['text'], '<font color="#FF6B6B">Kyoto</font> 🏯')
 
     def test_put_writes_a_node_as_it_is_read(self):
         # put : le même objet qu'en lecture ; nouveau node avec liens et enfants, node existant restylé et relié.

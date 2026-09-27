@@ -122,12 +122,14 @@ n'appelle aucune action (simple question), `plan` et `actions` sont vides et `sa
 `say` est écrit dans un node relié au node message : au passé (« J'ai relié… »), jamais « je vais ».
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
 Tu lis chaque node comme un objet JSON (texte, liens, auteur, position) ; tu l'écris avec le même objet : put.
+Mets le texte des nodes en forme pour hiérarchiser et donner vie : **gras**, *italique*, __souligné__,
+[#FF6B6B]en couleur[/], ^^grand^^, ^^^très grand^^^, ,,petit,, ; les emojis sont bienvenus.
 Exemples (imite leur forme) :
 « bonjour » → {"plan": [], "say": "Bonjour ! Je peux créer, relier, ranger tes nodes ou te faire visiter. Que veux-tu faire ?", "actions": []}
 « ajoute Voyage relié à N-3 » → {"plan": ["Créer Voyage relié à N-3"], "say": "J'ai créé « Voyage » et je l'ai relié à N-3.", "actions": [{"op":"put","ref":"new1","near":"N-3","text":"Voyage","links":["N-3"]}]}
 « mets N-5 en rouge et relie-le à N-2 » → {"plan": ["Changer N-5"], "say": "N-5 est rouge et relié à N-2.", "actions": [{"op":"put","ref":"N-5","color":"#FF6B6B","links":["N-2"]}]}
 « arbre de compétences d'un jeu » → {"plan": ["Construire l'arbre"], "say": "J'ai construit l'arbre de compétences.", "actions": [{"op":"build","layout":"tree","items":["Compétences","  Combat","    Épée","  Magie","    Feu"],"title":"Compétences"}]}
-« explique la photosynthèse en détail » → {"plan": ["Déployer l'explication"], "say": "J'ai déployé l'explication en étoile.", "actions": [{"op":"grow","text":"Photosynthèse\n- Lumière : captée par la chlorophylle\n  - Phase claire : ATP\n- Eau et CO2\n  - Cycle de Calvin : glucose\n- Oxygène rejeté"}]}
+« explique la photosynthèse en détail » → {"plan": ["Déployer l'explication"], "say": "J'ai déployé l'explication en étoile.", "actions": [{"op":"grow","text":"^^🌱 **Photosynthèse**^^\n- ☀️ **Lumière** : captée par la [#33FF99]chlorophylle[/]\n  - Phase claire : *ATP*\n- 💧 **Eau et CO2**\n  - Cycle de Calvin : __glucose__\n- 🌬️ **Oxygène** rejeté"}]}
 « résume N-12 » (son texte complet est donné) → {"plan": [], "say": "N-12 dit que…", "actions": []}
 « fais quelque chose avec ça » (ambigu) → {"plan": [], "say": "", "actions": [{"op":"ask","text":"Je le résume ou j'en fais une carte mentale ?","choices":["Résumer","Carte mentale"]}]}
 {tools}
@@ -193,8 +195,24 @@ def multiline(markup):
     return html.unescape(re.sub(r'<[^>]+>', '', text)).strip()
 
 
+# Mise en forme que le Gardien écrit dans le texte d'un node, rendue comme les boutons de Nodz la produisent
+# (gras, italique, souligné, couleur, taille). Le texte est échappé d'abord : aucune balise libre ne passe.
+MARKUP = [
+    (re.compile(r'\*\*(.+?)\*\*'), r'<b>\1</b>'),
+    (re.compile(r'__(.+?)__'), r'<u>\1</u>'),
+    (re.compile(r'(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])'), r'<i>\1</i>'),
+    (re.compile(r'\[(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})\](.+?)\[/\]'), r'<font color="\1">\2</font>'),
+    (re.compile(r'\^\^\^(.+?)\^\^\^'), r'<font size="7">\1</font>'),
+    (re.compile(r'\^\^(.+?)\^\^'), r'<font size="6">\1</font>'),
+    (re.compile(r',,(.+?),,'), r'<font size="2">\1</font>'),
+]
+
+
 def text_html(text):
-    return '<br>'.join(html.escape(line) for line in text.strip().split('\n'))
+    lines = [html.escape(line, quote=False) for line in text.strip().split('\n')]
+    for pattern, markup in MARKUP:
+        lines = [pattern.sub(markup, line) for line in lines]
+    return '<br>'.join(lines)
 
 
 def code_html(text):
