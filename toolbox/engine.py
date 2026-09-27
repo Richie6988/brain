@@ -20,6 +20,19 @@ DEFAULT_TTL = 720  # minutes d'inactivité avant de libérer la mémoire (iAqua)
 FIXED_SEED = 42
 
 
+def looping(text, tail=600):
+    """Le texte finit par un même bloc répété trois fois de suite (8 à 150 caractères, pas une simple ligne de
+    tirets) : un petit modèle qui s'emballe, sans quoi il répète jusqu'à la longueur maximale."""
+    text = text[-tail:]
+    for p in range(8, 151):
+        if len(text) < 3 * p:
+            break
+        block = text[-p:]
+        if len(set(block)) >= 4 and text[-2 * p:-p] == block and text[-3 * p:-2 * p] == block:
+            return True
+    return False
+
+
 class EngineUnavailable(Exception):
     pass
 
@@ -44,6 +57,7 @@ class Engine:
         self._ttl = DEFAULT_TTL
         self._lock = threading.Lock()
         self.stats = {}  # id du LocalModel → {loaded_at, last_used, requests, tokens}
+        self.prefixes = {}  # id du LocalModel chargé → empreinte du dernier prompt système lu (réutilisé par llama.cpp)
         self._watcher = None
 
     @property
@@ -101,6 +115,7 @@ class Engine:
 
     def unload(self):
         self._llm = None
+        self.prefixes.clear()
         self._loaded = self._options = None
 
     @contextmanager
@@ -135,8 +150,17 @@ class Engine:
         finally:
             self._lock.release()
 
+    def prefill(self, model, messages, *, priority=priorities.BACKGROUND, owner='préchauffage'):
+        """Fait lire au modèle le début d'une conversation (prompt système) sans rien générer : llama.cpp le garde
+        en cache et une demande qui commence pareil ne relit que la suite. Faux s'il l'avait déjà lu."""
+        if self._loaded == model.pk and self.prefixes.get(model.pk) == hash(messages[0]['content']):
+            return False
+        self.chat(model, messages, priority=priority, owner=owner, max_tokens=1, temperature=0)
+        return True
+
     def chat(self, model, messages, *, json_schema=None, on_text=None, priority=priorities.CHAT, owner='chat', **params):
-        """Complétion de chat en flux. Renvoie le texte complet ; on_text reçoit chaque fragment."""
+        """Complétion de chat en flux. Renvoie le texte complet ; on_text reçoit chaque fragment. Une réponse JSON
+        (plan) qui se met à boucler est arrêtée net (stats['last']['stopped'])."""
         with self.broker.slot(priority, owner), self._lock:
             llm = self._ensure(model)
             stats = self.stats[model.pk]
@@ -151,9 +175,10 @@ class Engine:
             # Mesure de l'appel : taille du prompt, attente du premier jeton (lecture du prompt), vitesse ensuite.
             tokenize = getattr(llm, 'tokenize', None)
             prompt_tokens = len(tokenize(''.join(m['content'] for m in messages).encode())) if tokenize else None
-            started, first, count = time.monotonic(), None, 0
+            started, first, count, stopped = time.monotonic(), None, 0, None
+            stream = llm.create_chat_completion(messages=messages, stream=True, **options)
             try:
-                for chunk in llm.create_chat_completion(messages=messages, stream=True, **options):
+                for chunk in stream:
                     piece = chunk['choices'][0]['delta'].get('content') or ''
                     if piece:
                         if first is None:
@@ -163,9 +188,16 @@ class Engine:
                         stats['tokens'] += 1  # un fragment du flux = un jeton
                         if on_text:
                             on_text(piece)
+                        if json_schema and count % 8 == 0 and looping(''.join(text[-200:])):
+                            stopped = 'boucle'
+                            break
+                if messages and messages[0]['role'] == 'system':
+                    self.prefixes[model.pk] = hash(messages[0]['content'])
             finally:
+                getattr(stream, 'close', lambda: None)()  # arrête la génération en cours
                 end = time.monotonic()
                 stats['last_used'] = self.clock()
                 stats['last'] = {'prompt_tokens': prompt_tokens, 'wait_s': round((first or end) - started, 2), 'tokens': count,
-                                 'speed': round(count / (end - first), 1) if first and end > first else None, 'total_s': round(end - started, 2)}
+                                 'speed': round(count / (end - first), 1) if first and end > first else None, 'total_s': round(end - started, 2),
+                                 'stopped': stopped}
             return ''.join(text)

@@ -223,11 +223,51 @@ class FakeLlama:
             yield {'choices': [{'delta': {'content': piece} if piece else {}}]}
 
 
+class LoopingLlama(FakeLlama):
+    """Un petit modèle qui s'emballe : la même phrase, encore et encore."""
+
+    def create_chat_completion(self, messages, stream, **options):
+        self.calls.append(options)
+        yield {'choices': [{'delta': {'content': '{"plan": [], "say": "Bonjour", "actions": [{"op": "note", "text": "'}}]}
+        for _ in range(500):
+            yield {'choices': [{'delta': {'content': 'encore '}}]}
+
+
 class EngineTests(TestCase):
     def setUp(self):
         FakeLlama.instances = []
         self.model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/models/a.gguf',
                                                status=LocalModel.Status.READY, params={'n_ctx': 2048})
+
+    def test_prefill_reads_the_system_prompt_once(self):
+        engine = Engine(Broker(), factory=FakeLlama)
+        engine._watch = lambda: None
+        system = [{'role': 'system', 'content': 'consignes'}, {'role': 'user', 'content': '.'}]
+        self.assertTrue(engine.prefill(self.model, system))
+        self.assertFalse(engine.prefill(self.model, system))  # déjà lu : rien à refaire
+        engine.chat(self.model, [{'role': 'system', 'content': 'consignes'}, {'role': 'user', 'content': 'bonjour'}])
+        self.assertFalse(engine.prefill(self.model, system))  # une vraie demande l'a lu aussi
+        self.assertTrue(engine.prefill(self.model, [{'role': 'system', 'content': 'autres'}, {'role': 'user', 'content': '.'}]))
+        llm = FakeLlama.instances[0]
+        self.assertEqual([c.get('max_tokens') for c in llm.calls], [1, 1024, 1])
+        engine.unload()  # le modèle rechargé devra tout relire
+        self.assertTrue(engine.prefill(self.model, system))
+
+    def test_a_looping_plan_is_stopped(self):
+        engine = Engine(Broker(), factory=LoopingLlama)
+        engine._watch = lambda: None
+        text = engine.chat(self.model, [{'role': 'user', 'content': 'salut'}], json_schema={'type': 'object'})
+        last = engine.stats[self.model.pk]['last']
+        self.assertEqual(last['stopped'], 'boucle')
+        self.assertLess(last['tokens'], 40)
+        self.assertTrue(text.endswith('encore encore encore '))
+
+    def test_looping_detection(self):
+        from .engine import looping
+
+        self.assertTrue(looping('{"say": "' + 'Je crée le node. ' * 3))
+        self.assertFalse(looping('{"say": "' + '-' * 60 + '"}'))  # une ligne de tirets n'est pas une boucle
+        self.assertFalse(looping(json.dumps({'actions': [{'op': 'create', 'ref': f'new{i}', 'text': f'Idée {i}'} for i in range(6)]})))
 
     def test_stream_schema_and_reuse(self):
         engine = Engine(Broker(), factory=FakeLlama)
@@ -241,7 +281,15 @@ class EngineTests(TestCase):
         # Défauts d'iAqua : batch 1024, flash attention, mmap, pas de mlock, threads = cœurs physiques
         self.assertEqual({k: llm.kwargs[k] for k in ('n_batch', 'flash_attn', 'use_mmap', 'use_mlock')},
                          {'n_batch': 1024, 'flash_attn': True, 'use_mmap': True, 'use_mlock': False})
-        self.assertGreaterEqual(llm.kwargs['n_threads'], 4)
+        import os
+
+        from . import fit
+
+        self.assertGreaterEqual(llm.kwargs['n_threads'], min(4, os.cpu_count()))
+        with mock.patch('os.cpu_count', return_value=2):
+            self.assertEqual(fit.default_threads(), 2)  # petit VPS : pas plus de threads que de cœurs
+        with mock.patch('os.cpu_count', return_value=16):
+            self.assertEqual(fit.default_threads(), 8)
         self.assertIsInstance(llm.kwargs['n_gpu_layers'], int)  # « auto » calculé avant le chargement
         self.assertIn(self.model.pk, engine.placement)
         self.assertEqual(llm.calls[0]['response_format'], {'type': 'json_object', 'schema': {'type': 'object'}})
@@ -838,6 +886,46 @@ class GuardianTests(TestCase):
         goto = [a for a in self.actions() if a['op'] == 'goto']
         self.assertEqual(goto, [{'op': 'goto', 'ref': 'N-45', 'layer': 2, 'text': 'Ton budget'}])
         self.assertIn('search_nodes', self.errors()[0])
+
+    def test_cut_plan_keeps_what_was_said(self):
+        # Plan coupé en route (boucle arrêtée ou longueur maximale) : say est gardé, les actions tronquées non.
+        self.run_guardian('{"plan": [], "say": "Bonjour !", "actions": [{"op": "create", "ref": "new1", "text": "enc')
+        self.assertEqual([d['text'] for k, d in self.events if k == 'text'], ['Bonjour !'])
+        self.assertEqual(self.actions(), [])  # pas de node tronqué
+        self.assertIn("s'est emballé", [d['text'] for k, d in self.events if k == 'notice'][0])
+        self.events = []
+        self.run_guardian('{"plan": ["Créer 22 nodes"], "say": "J\'ai créé 22 nodes.", "actions": [{"op": "create", "ref": "new1", "te')
+        self.assertIn("mon modèle s'est emballé en écrivant ses actions", [d['text'] for k, d in self.events if k == 'text'][0])  # jamais « J'ai créé » quand rien n'est fait
+        with self.assertRaisesRegex(Exception, "s'est emballé"):
+            self.run_guardian('{"plan": ["Saluer"], "say": "Bonj')
+
+    def test_warm_reads_the_same_system_prompt(self):
+        from .guardian import Guardian
+
+        engine = ScriptedEngine(json.dumps({'plan': [], 'say': 'Bonjour.', 'actions': []}))
+        engine.prefill = lambda model, messages, **kw: engine.calls.append({'prefill': messages})
+        guardian = Guardian(self.user, engine, lambda kind, data: None)
+        guardian.warm()
+        Guardian(self.user, engine, lambda kind, data: None).handle('salut', self.CONTEXT)
+        self.assertEqual(engine.calls[0]['prefill'][0], engine.calls[1]['messages'][0])  # même début : llama.cpp le réutilise
+
+    def test_repeated_read_is_not_redone(self):
+        # Petit modèle qui relit le même node à chaque tour : la relecture est sautée, une relance lui demande de
+        # répondre, puis la boucle s'arrête ; sa réponse après lecture n'est pas remplacée par un échec.
+        from nodzapp.models import Layer, Node
+
+        home = Layer.objects.create(user=self.user, layer_id=1, layer_name='Home')
+        Node.objects.create(user=self.user, node_id=171, layer=home, text_content='<p>Budget Kyoto : 900 euros</p>')
+        read = {'plan': ['lire le contenu du node N-171'], 'say': "J'ai lu le contenu du node N-171.",
+                'actions': [{'op': 'read_file', 'ref': 'N-171'}]}
+        engine = self.run_guardian(json.dumps(read), json.dumps(read), json.dumps(read), json.dumps(read))
+        self.assertEqual(len(engine.calls), 3)  # lecture, relecture sautée avec relance, relecture : arrêt
+        feedback = [m['content'] for m in engine.calls[-1]['messages'] if m['role'] == 'user'][1:]
+        self.assertEqual(len(feedback), 2)
+        self.assertIn('Budget Kyoto', feedback[0])
+        self.assertIn('Tu refais read_file', feedback[1])
+        self.assertEqual([d['text'] for k, d in self.events if k == 'text'], ["J'ai lu le contenu du node N-171."])
+        self.assertEqual(self.errors(), [])
 
     def test_web_tools(self):
         from . import web

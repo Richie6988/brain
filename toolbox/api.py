@@ -118,6 +118,32 @@ def search(request, body):
     return JsonResponse({'results': results})
 
 
+_warming = set()  # utilisateurs dont le Gardien lit déjà son prompt système en arrière-plan
+
+
+@api('POST')
+def warm(request, body):
+    """Préchauffage du Gardien, à l'ouverture de l'univers : son modèle lit le prompt système en arrière-plan
+    (plusieurs minutes sur CPU), pour que la première demande ne lise que le message."""
+    user = request.user
+    if user.pk in _warming or not hasattr(engine, 'prefill'):
+        return JsonResponse({'warming': user.pk in _warming})
+
+    def work():
+        try:
+            Guardian(user, engine, lambda kind, data: None).warm()
+        except (EngineUnavailable, BrokerTimeout):
+            pass  # pas de modèle, ou file trop longue : la première demande lira tout
+        except Exception:
+            logger.exception('préchauffage du Gardien')
+        finally:
+            _warming.discard(user.pk)
+
+    _warming.add(user.pk)
+    threading.Thread(target=work, daemon=True).start()
+    return JsonResponse({'warming': True})
+
+
 @api('GET', 'PATCH')
 def dimensions(request, body):
     """Liste des dimensions : épinglées (gardées sur le serveur) et nombre de nodes de chacune."""

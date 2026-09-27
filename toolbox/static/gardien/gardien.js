@@ -82,6 +82,8 @@ const signedIn = setInterval(() => {
     if (typeof isLoggedIn === 'undefined' || !isLoggedIn) return;
     document.body.classList.add('gardien-ready');
     clearInterval(signedIn);
+    // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
+    api.request('POST', 'toolbox/warm', {}).catch(() => {});
 }, 400);
 
 const filters = createFilters();

@@ -24,6 +24,7 @@ urlpatterns = [
     path('marks', api.marks),
     path('tools', api.tool_list),
     path('command', api.command),
+    path('warm', api.warm),
     path('admin/overview', admin.overview),
     path('admin/log', admin.log),
     path('admin/users', admin.users),

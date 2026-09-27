@@ -116,15 +116,29 @@ n'appelle aucune action (simple question), `plan` et `actions` sont vides et `sa
 `say` est écrit dans un node relié au node message : au passé (« J'ai relié… »), jamais « je vais ».
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
 {tools}
+Tes consignes :
+{guidelines}
 Agents équipés :
 {agents}
-{memory}
-Tes consignes :
-{guidelines}"""
+{memory}"""
 
 def plain(markup, length=120):
     """Texte lisible d'un contenu HTML de node (pour le prompt)."""
     return html.unescape(' '.join(re.sub(r'<[^>]+>', ' ', markup or '').split()))[:length]
+
+
+def salvage(raw):
+    """Plan JSON coupé en route : garde `say` et `plan` s'ils sont complets (sans les actions, peut-être
+    tronquées ou répétées) ; None si `say` ne l'est pas."""
+    string = r'"(?:[^"\\]|\\.)*"'
+    say = re.search(r'"say"\s*:\s*(' + string + ')', raw)
+    if not say:
+        return None
+    plan = re.search(r'"plan"\s*:\s*(\[\s*(?:' + string + r'\s*,?\s*)*\])', raw)
+    try:
+        return {'plan': json.loads(plan.group(1)) if plan else [], 'say': json.loads(say.group(1)), 'actions': []}
+    except json.JSONDecodeError:
+        return None
 
 
 def node_id(ref):
@@ -249,6 +263,7 @@ class Guardian(IaquaOps):
         self.found = {}  # nodes trouvés par search_nodes : identifiant → id de leur dimension
         self.docs = {}  # modes d'emploi réécrits dans les nodes d'outils de l'univers
         self.timings = []  # mesures des appels au modèle (engine.stats[…]['last'])
+        self.seen = set()  # actions déjà exécutées pendant cette demande : un tour suivant ne les refait pas
 
     # --- contexte envoyé par la page
 
@@ -693,9 +708,14 @@ class Guardian(IaquaOps):
 
     def execute(self, actions, agents):
         """Valide et émet les actions dans l'ordre ; une action invalide est signalée et sautée."""
-        self.jobs, self.reads, self.done, self.failed = [], [], [], []
+        self.jobs, self.reads, self.done, self.failed, self.repeated = [], [], [], [], []
         for action in actions:
             op = action.get('op')
+            key = json.dumps(action, sort_keys=True, ensure_ascii=False)
+            if key in self.seen:  # petit modèle qui boucle : même lecture, même création qu'au tour d'avant
+                self.repeated.append(op)
+                continue
+            self.seen.add(key)
             try:
                 if op not in OPS:
                     raise PlanError(f'action inconnue : {op!r}')
@@ -752,31 +772,42 @@ class Guardian(IaquaOps):
 
     # --- boucle
 
-    def handle(self, request, context):
-        started = time.monotonic()
-        self.request = request
-        self.load(context)
-        agents = self.agents()
+    def system(self, agents):
+        """Prompt système : consignes et outils (stables) d'abord, agents et mémoire (qui changent) à la fin, pour que
+        le modèle réutilise sa lecture du début d'une demande à l'autre."""
         guardian = self.guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
         self.allowed = tools.enabled(guardian, self.user) if guardian else []
         guidelines = self.read_universe(guardian) if guardian else None
         if guardian is None or guardian.model is None:
             raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
+        roster = '\n'.join(f'- {a.name} ({a.role}) : {a.description}' for a in agents.values()
+                           if a.role != Agent.Role.ORCHESTRATOR and a.model_id) or '(aucun agent équipé)'
+        memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
+        return (SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
+                .replace('{guidelines}', guidelines or guardian.system_prompt or prompts.GUARDIAN))
+
+    def warm(self):
+        """Préchauffage : le modèle du Gardien lit son prompt système en arrière-plan (sur CPU, plusieurs minutes pour
+        un 7B), pour que la première demande ne lise que le message. Faux s'il était déjà lu."""
+        system = self.system(self.agents())
+        return self.engine.prefill(self.guardian.model, [{'role': 'system', 'content': system}, {'role': 'user', 'content': '.'}],
+                                   priority=priorities.BACKGROUND, owner='gardien:préchauffage')
+
+    def handle(self, request, context):
+        started = time.monotonic()
+        self.request = request
+        self.load(context)
+        agents = self.agents()
+        system = self.system(agents)
+        guardian = self.guardian
         self.run = AIRun.objects.create(
             owner=self.user, model_id=str(guardian.model), mode=AIRun.Mode.COMMAND, prompt=request,
             context_node_ids=[n['id'] for n in self.context], status=AIRun.Status.RUNNING,
         )
         self.emit('start', {'run': str(self.run.id)})
         try:
-            roster = '\n'.join(f'- {a.name} ({a.role}) : {a.description}' for a in agents.values()
-                               if a.role != Agent.Role.ORCHESTRATOR and a.model_id) or '(aucun agent équipé)'
-            memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
-            messages = [
-                {'role': 'system', 'content': SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
-                    .replace('{guidelines}', guidelines or guardian.system_prompt or prompts.GUARDIAN)},
-                {'role': 'user', 'content': self.prompt(request)},
-            ]
-            say, done, steps = '', [], []
+            messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': self.prompt(request)}]
+            say, done, steps, read, nudged, cut = '', [], [], False, False, False
             for round_ in range(MAX_ROUNDS):
                 self.emit('intent', {'text': 'Je lis ton message et le plan…' if round_ == 0 else 'Je lis ce que j\'ai trouvé et je continue…'})
                 # Le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
@@ -786,24 +817,40 @@ class Guardian(IaquaOps):
                 last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
                 if last:
                     self.timings.append(last)
+                cut = False
                 try:
                     plan = json.loads(raw)
                 except json.JSONDecodeError:
-                    raise PlanError('le Gardien a répondu hors format') from None
+                    # Avec la grammaire JSON, seul un texte coupé est hors format : boucle arrêtée ou longueur maximale.
+                    why = 'il tournait en boucle' if last and last.get('stopped') else \
+                        f"coupé après {last['tokens']} jetons" if last else 'réponse coupée'
+                    plan, cut = salvage(raw), True
+                    if plan is None:
+                        raise PlanError(f'le Gardien s\'est emballé ({why}) : réessaie, ou prends un modèle plus grand') from None
+                    self.emit('notice', {'text': f'Le Gardien s\'est emballé ({why}) : je garde ce qu\'il a dit, sans ses actions.'})
                 say = plan.get('say') or say
                 steps = [short(step, 80) for step in plan.get('plan') or [] if str(step).strip()][:8]
                 if steps:
                     self.emit('plan', {'steps': steps})
                 jobs, reads = self.execute(plan.get('actions') or [], agents)
                 done += self.done
+                read = read or bool(reads)
                 for job in jobs:  # (agent, consigne, node) ou, pour une retouche d'image, plus l'image source
                     self.delegate(*job)
+                if cut:
+                    break  # un modèle qui boucle bouclerait encore au tour suivant
                 # Tour suivant si le modèle a lu, s'est trompé, ou a annoncé un plan sans rien faire.
                 feedback = list(reads)
                 if self.failed:
                     feedback.append('Ces actions ont échoué ; corrige-les (identifiants existants, champs requis) :\n'
                                     + '\n'.join(f'- {f}' for f in self.failed))
-                if steps and not self.done and not reads and not self.failed:
+                if self.repeated and not (self.done or reads or self.failed):
+                    if nudged:
+                        break  # il reboucle : on garde sa dernière réponse
+                    nudged = True
+                    feedback.append(f"Tu refais {', '.join(sorted(set(self.repeated)))} à l'identique (déjà fait ou refusé : voir plus haut). "
+                                    "N'ajoute plus d'action : réponds maintenant dans say, à partir de ce que tu as lu.")
+                elif steps and not self.done and not reads and not self.failed and not read:
                     feedback.append(f"Tu as annoncé « {' ; '.join(steps)} » sans aucune action : rien n'a été fait. "
                                     'Réponds maintenant avec les actions qui le réalisent.')
                 if not feedback or round_ == MAX_ROUNDS - 1:
@@ -813,8 +860,9 @@ class Guardian(IaquaOps):
                     {'role': 'assistant', 'content': raw},
                     {'role': 'user', 'content': '\n'.join(feedback) + '\nContinue la demande sans refaire les actions déjà faites.'},
                 ]
-            if steps and not done:  # jamais de promesse dans le node-réponse quand rien n'a été fait
-                reason = self.failed[-1].rsplit(' : ', 1)[-1] if self.failed else "mon modèle n'a proposé aucune action"
+            if steps and not done and not read:  # jamais de promesse dans le node-réponse quand rien n'a été fait
+                reason = "mon modèle s'est emballé en écrivant ses actions" if cut else \
+                    self.failed[-1].rsplit(' : ', 1)[-1] if self.failed else "mon modèle n'a proposé aucune action"
                 say = (f"Je n'ai pas réussi à le faire ({reason}). Reformule ta demande, "
                        'ou donne-moi un modèle plus grand dans Agents & modèles.')
             if say:

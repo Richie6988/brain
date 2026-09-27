@@ -18,8 +18,9 @@ DEFAULT_KV_BYTES = 128 * 1024  # par jeton, quand l'en-tête ne permet pas de le
 
 
 def default_threads():
-    """Cœurs physiques (logiques / 2), au moins 4, comme iAqua."""
-    return max(4, (os.cpu_count() or 8) // 2)
+    """Cœurs physiques (logiques / 2), au moins 4 comme iAqua, jamais plus que la machine n'en a (petit VPS)."""
+    cpus = os.cpu_count() or 8
+    return min(cpus, max(4, cpus // 2))
 
 
 def kv_bytes_per_token(info, quant_factor=1.0):
