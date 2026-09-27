@@ -27,9 +27,13 @@ class FakeHfApi:
         self.calls.append(kwargs)
         return [
             SimpleNamespace(id='org/Qwen2.5-Coder-7B-Instruct-GGUF', downloads=10, likes=2, pipeline_tag='text-generation',
-                            tags=['gguf', '7B', 'tool-calling', 'Q4_K_M'], last_modified=datetime(2026, 9, 1)),
-            SimpleNamespace(id='org/SmolLM-135M-GGUF', downloads=None, likes=None, pipeline_tag=None, tags=None, last_modified=None),
-            SimpleNamespace(id='org/Big-70B-GGUF', downloads=5, likes=1, pipeline_tag='text-generation', tags=['70B'], last_modified=None),
+                            tags=['gguf', 'tool-calling'], last_modified=datetime(2026, 9, 1), gguf={'total': 7_615_616_512},
+                            siblings=[SimpleNamespace(rfilename='coder-Q4_K_M.gguf'), SimpleNamespace(rfilename='coder-Q8_0.gguf')]),
+            SimpleNamespace(id='org/SmolLM-135M-GGUF', downloads=None, likes=None, pipeline_tag=None, tags=None, last_modified=None,
+                            siblings=[SimpleNamespace(rfilename='smol-f16.gguf')]),
+            SimpleNamespace(id='org/Big-70B-GGUF', downloads=5, likes=1, pipeline_tag='text-generation', tags=['70B'], last_modified=None,
+                            siblings=[SimpleNamespace(rfilename='big-IQ2_XS.gguf'), SimpleNamespace(rfilename='README.md')]),
+            SimpleNamespace(id='org/Mystery-GGUF', downloads=1, likes=0, pipeline_tag=None, tags=[], last_modified=None, siblings=[]),
         ]
 
     def model_info(self, repo, files_metadata=False):
@@ -81,16 +85,21 @@ class HubTests(TestCase):
         with mock.patch.object(hub, 'api', return_value=fake):
             results = hub.search('qwen', 'created', 5, pipeline='text-generation')
             sized = hub.search(max_b=9)
-            quant = hub.search(quant='q4_k_m')
+            quant = hub.search(quant='q4')
+            iq = hub.search(quant='IQ', min_b=10, limit=1)
         call = fake.calls[0]
-        self.assertEqual((call['sort'], call['filter'], call['pipeline_tag']), ('created_at', 'gguf', 'text-generation'))
+        self.assertEqual((call['sort'], call['filter'], call['pipeline_tag'], call['limit']), ('created_at', 'gguf', 'text-generation', 5))
         self.assertIn('lastModified', call['expand'])
+        self.assertNotIn('siblings', call['expand'])
+        self.assertEqual((fake.calls[1]['limit'], fake.calls[2]['limit']), (hub.MAX_SCAN, hub.MAX_SCAN))  # filtre local : on examine plus
+        self.assertIn('siblings', fake.calls[2]['expand'])
         coder = results[0]
-        self.assertEqual((coder['role'], coder['size_b'], coder['size_hint'], coder['updated'][:10]), ('code', 7.0, '7B', '2026-09-01'))
+        self.assertEqual((coder['role'], coder['size_b'], coder['size_hint'], coder['updated'][:10]), ('code', 7.62, '7.6B', '2026-09-01'))
         self.assertIn('tools', coder['capabilities'])
         self.assertEqual(results[1]['downloads'], 0)
-        self.assertEqual([m['id'] for m in sized], ['org/Qwen2.5-Coder-7B-Instruct-GGUF', 'org/SmolLM-135M-GGUF'])
+        self.assertEqual([m['id'] for m in sized], ['org/Qwen2.5-Coder-7B-Instruct-GGUF', 'org/SmolLM-135M-GGUF'])  # taille inconnue écartée
         self.assertEqual([m['id'] for m in quant], ['org/Qwen2.5-Coder-7B-Instruct-GGUF'])
+        self.assertEqual([m['id'] for m in iq], ['org/Big-70B-GGUF'])
 
     def test_files_flag_heavy_for_this_machine(self):
         with mock.patch.object(hub, 'api', return_value=FakeHfApi()), \

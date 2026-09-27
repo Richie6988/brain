@@ -20,7 +20,8 @@ from .models import LocalModel
 
 SORTS = {'downloads': 'downloads', 'likes': 'likes', 'trending': 'trending_score', 'recent': 'last_modified',
          'created': 'created_at'}
-EXPAND = ['downloads', 'likes', 'tags', 'pipeline_tag', 'lastModified']
+EXPAND = ['downloads', 'likes', 'tags', 'pipeline_tag', 'lastModified', 'gguf']  # gguf : nombre de paramètres
+MAX_SCAN = 200  # dépôts examinés au plus quand un filtre local (quantisation, taille) écarte des résultats
 CHUNK = 1024 * 1024
 
 # Un modèle par palier de mémoire, tous capables d'appeler des outils (liste SquidMind).
@@ -81,35 +82,45 @@ def capabilities_of(model_id, tags, pipeline=''):
     return [cap for cap, pattern in rules if re.search(pattern, text, re.I)]
 
 
-def size_tag(tags):
-    """('7B', 7.0) à partir des tags du dépôt, (None, None) sinon."""
-    for tag in tags:
-        match = re.fullmatch(r'([0-9]+(?:\.[0-9]+)?)([bBmM])', tag)
+def size_tag(tags, model_id='', gguf=None):
+    """('7B', 7.0) : paramètres annoncés par l'en-tête GGUF du dépôt, ses tags ou son nom ; (None, None) sinon."""
+    total = (gguf or {}).get('total') if isinstance(gguf, dict) else None
+    if total:
+        billions = total / 1e9
+        return (f'{billions:.1f}B' if billions < 10 else f'{billions:.0f}B'), round(billions, 2)
+    for text in [*tags, *re.split(r'[-_/ ]', model_id)]:
+        match = re.fullmatch(r'([0-9]+(?:\.[0-9]+)?)([bBmM])', text)
         if match:
             value = float(match.group(1))
-            return tag.upper(), value if match.group(2).lower() == 'b' else value / 1000
+            return text.upper(), value if match.group(2).lower() == 'b' else value / 1000
     return None, None
 
 
 def search(query='', sort='downloads', limit=30, pipeline='', quant='', min_b=None, max_b=None):
+    # Quantisation et taille se filtrent ici : on examine plus de dépôts pour en rendre `limit`.
+    local = bool(quant or min_b or max_b)
     models = api().list_models(
         search=query or None, filter='gguf', pipeline_tag=pipeline or None,
-        sort=SORTS.get(sort, 'downloads'), limit=limit, expand=EXPAND,
+        sort=SORTS.get(sort, 'downloads'), limit=MAX_SCAN if local else limit,
+        expand=EXPAND + (['siblings'] if quant else []),
     )
     results = []
     for m in models:
         tags = list(m.tags or [])
-        hint, size_b = size_tag(tags)
-        if size_b is not None and ((min_b and size_b < min_b) or (max_b and size_b > max_b)):
-            continue
-        if quant and quant.upper() not in f"{m.id} {' '.join(tags)}".upper():
-            continue
+        hint, size_b = size_tag(tags, m.id, getattr(m, 'gguf', None))
+        if (min_b or max_b) and (size_b is None or (min_b and size_b < min_b) or (max_b and size_b > max_b)):
+            continue  # taille inconnue : écartée quand on filtre par taille
+        if quant and not any(detect_quant(f.rfilename).startswith(quant.upper())  # famille : Q4 couvre Q4_K_M, Q4_0…
+                             for f in (m.siblings or []) if f.rfilename.endswith('.gguf')):
+            continue  # aucun fichier .gguf de cette quantisation dans le dépôt
         results.append({
             'id': m.id, 'downloads': m.downloads or 0, 'likes': m.likes or 0, 'pipeline': m.pipeline_tag or '',
             'role': role_of(m.id, m.pipeline_tag or ''), 'capabilities': capabilities_of(m.id, tags, m.pipeline_tag or ''),
             'size_b': size_b, 'size_hint': hint,
             'updated': m.last_modified.isoformat() if getattr(m, 'last_modified', None) else '',
         })
+        if len(results) >= limit:
+            break
     return results
 
 
