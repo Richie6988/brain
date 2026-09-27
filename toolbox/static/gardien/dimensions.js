@@ -81,6 +81,10 @@ export function createDimensions() {
     }
 
     new MutationObserver(() => { if (!busy) decorate(); }).observe(list, { childList: true });
+    // Un clic en dehors de la liste (et de son bouton) la referme, comme un menu.
+    document.addEventListener('mousedown', event => {
+        if (list.style.display === 'block' && !list.contains(event.target) && !event.target.closest?.('.dropdown-button')) list.style.display = 'none';
+    }, true);
     // À l'ouverture : nombres à jour et curseur dans la recherche.
     document.querySelector('.dropdown-button').addEventListener('click', () => {
         if (list.style.display !== 'block') return;

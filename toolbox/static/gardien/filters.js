@@ -1,4 +1,4 @@
-// Filtres globaux de l'univers : texte (le même champ que la recherche de la barre du bas), origine des
+// Filtres globaux de l'univers : texte (avec la recherche dans toutes les dimensions), origine des
 // nodes (écrits à la main ou créés par l'IA) et période (dernière modification). Les nodes écartés et
 // leurs liens s'estompent et ne captent plus la souris ; rien n'est modifié dans Nodz (une classe CSS,
 // retirée quand tout est affiché).
@@ -38,21 +38,60 @@ export function createFilters() {
     const count = document.createElement('span');
     count.className = 'count';
     const sep = () => Object.assign(document.createElement('i'), { className: 'sep' });
-    // Champ de recherche : filtre en direct et reste le même texte que la recherche de la barre du bas
-    // (Entrée y lance la recherche de Nodz, avec ses flèches précédent / suivant).
-    const bottom = document.getElementById('semanticsearch');
+    // Recherche (celle de la barre du bas y est reprise) : filtre en direct les nodes de la dimension ; Entrée
+    // cherche dans toutes les dimensions et parcourt les résultats en carrousel (‹ ›, Entrée / Maj+Entrée),
+    // en voyageant vers la dimension du résultat quand il le faut.
     const search = Object.assign(document.createElement('input'), { type: 'search', placeholder: 'Rechercher…', autocomplete: 'off' });
-    search.setAttribute('aria-label', 'Filtrer les nodes par texte');
+    search.setAttribute('aria-label', 'Rechercher dans toutes les dimensions');
+    const found = { query: '', results: [], index: -1 };
+    const arrow = (text, title, step) => Object.assign(document.createElement('button'), { type: 'button', className: 'nav', textContent: text, title,
+        hidden: true, onclick: () => move(step) });
+    const prev = arrow('‹', 'Résultat précédent (Maj+Entrée)', -1);
+    const next = arrow('›', 'Résultat suivant (Entrée)', 1);
+    const where = Object.assign(document.createElement('span'), { className: 'where' });
     const typed = value => { state.text = fold(value.trim()); update(); };
-    search.addEventListener('input', () => { bottom.value = search.value; typed(search.value); });
+    search.addEventListener('input', () => typed(search.value));
     search.addEventListener('keydown', event => {
         event.stopPropagation();  // la saisie ne déclenche pas les raccourcis de Nodz
-        if (event.key === 'Enter' && search.value.trim()) searchrequest([{ search: search.value }]);
-        if (event.key === 'Escape') { search.value = bottom.value = ''; typed(''); search.blur(); }
+        if (event.key === 'Enter') lookup(event.shiftKey ? -1 : 1);
+        if (event.key === 'Escape') { search.value = ''; typed(''); showResults({ query: '', results: [], index: -1 }); search.blur(); }
     });
     search.addEventListener('keyup', event => event.stopPropagation());
-    bottom.addEventListener('input', () => { search.value = bottom.value; typed(bottom.value); });
-    bar.append(search, sep(), ...origins, sep(), ...periods, count);
+
+    async function lookup(step) {
+        const query = search.value.trim();
+        if (!query) return;
+        if (query !== found.query) {
+            try {
+                const { results } = await api.request('GET', `toolbox/search?${new URLSearchParams({ q: query })}`);
+                showResults({ query, results, index: -1 });
+            } catch {
+                return;
+            }
+        }
+        move(step);
+    }
+    function showResults(value) {
+        Object.assign(found, value);
+        prev.hidden = next.hidden = found.results.length < 2;
+        where.textContent = found.query && !found.results.length ? 'aucun résultat' : '';
+    }
+    // Carrousel : du dernier au premier et inversement ; un résultat d'une autre dimension y emmène.
+    function move(step) {
+        const n = found.results.length;
+        if (!n) return;
+        found.index = ((found.index + step) % n + n) % n;
+        const hit = found.results[found.index];
+        where.textContent = `${found.index + 1} / ${n}${hit.dimension ? ` · ${hit.dimension}` : ''}`;
+        where.title = hit.text;
+        const node = document.getElementById(hit.id);
+        if (node && hit.layer === layerNumber) {
+            focusNode(node, true);
+        } else {
+            load(hit.layer, hit.id);
+        }
+    }
+    bar.append(search, prev, next, where, sep(), ...origins, sep(), ...periods, count);
     document.getElementById('button-container').after(bar);
 
     const active = () => state.days > 0 || state.origins.size < ORIGINS.length || !!state.text;

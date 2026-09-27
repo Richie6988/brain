@@ -48,6 +48,11 @@ export function createChat({ onSend, onMemory = () => {} }) {
     const root = h('div', { id: 'gardien-chat' }, panel, bubble);
     document.body.append(root);
 
+    // Un clic ailleurs (univers, barre, autre fenêtre) referme la conversation ; la pastille, qui y joint des
+    // nodes, la rouvre aussitôt.
+    document.addEventListener('mousedown', event => {
+        if (!panel.hidden && !root.contains(event.target) && !event.target.closest?.('#gardien-send')) toggle(false);
+    }, true);
     // La saisie ne déclenche pas les raccourcis de Nodz (Espace crée un node, Suppr efface…).
     ['keydown', 'keyup', 'keypress'].forEach(type => panel.addEventListener(type, event => event.stopPropagation()));
     input.addEventListener('keydown', event => {

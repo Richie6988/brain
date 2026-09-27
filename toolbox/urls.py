@@ -17,6 +17,7 @@ urlpatterns = [
     path('packs/<str:key>', api.pack),
     path('cuda', api.cuda_build),
     path('dimensions', api.dimensions),
+    path('search', api.search),
     path('images/<str:name>', api.image),
     path('workspace/<path:path>', api.workspace_file),
     path('brain-map', api.brain_map),

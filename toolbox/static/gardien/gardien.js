@@ -13,6 +13,7 @@ import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
 import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';
+import { createPending } from './pending.js';
 import { createTour } from './tour.js';
 
 const toast = document.getElementById('gardien-toast');
@@ -88,6 +89,7 @@ createDimensions();  // recherche, épinglées et nombre de nodes dans la liste 
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes) });
 const tour = createTour({ bridge, say });
+const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 
 // Le Gardien dans l'univers : dimension « Gardien » avec le node Prompt système, le node Outils, un node par
@@ -203,6 +205,14 @@ async function ask(node, text, attached = []) {
         chat.status('Le Gardien réfléchit…');
         const created = [];
         let timing = null;
+        const home = layerNumber;  // la demande reste liée à cette dimension
+        let away = false;
+        const perform = data => pending.run(home, data).then(waiting => {
+            if (!waiting || away) return;
+            away = true;
+            const name = layers.find(l => l.id === home)?.name || 'sa dimension';
+            chat.add('notice', `Tu as changé de dimension : le Gardien continue ; ce qu'il pose attend ton retour dans « ${name} ».`);
+        });
         const context = bridge.context();
         await api.command({ prompt: text, context: { ...context, ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}) } }, (type, data) => {
             if (type === 'text' || type === 'notice') reply(type, data.text);
@@ -217,12 +227,12 @@ async function ask(node, text, attached = []) {
             else if (type === 'error') actions = actions.then(() => { follow.step(data.message, 'error'); chat.add('error', data.message); });
             else if (type === 'agent') actions = actions.then(() => follow.step(`${data.agent} ${data.role === 'image' ? 'dessine' : 'écrit'} : ${data.task}`, 'agent'));
             else if (type === 'action') {
-                actions = actions.then(() => bridge.perform(data)).catch(error => follow.step(error.message, 'error'));
+                actions = actions.then(() => perform(data)).catch(error => follow.step(error.message, 'error'));
                 if (data.op === 'create') created.push(data.ref);
             }
         });
         await actions;
-        filters.mark(created.map(bridge.idOf), 'ai');
+        filters.mark(created.map(bridge.idOf).filter(id => id.startsWith('N-')), 'ai');
         follow.end(timing ? `Terminé en ${Math.round(timing.total_s)} s` : 'Terminé');
         // Où passe le temps : lecture du prompt (avant le premier mot) et génération, par appel au modèle.
         if (timing) chat.add('notice', `${Math.round(timing.total_s)} s · ${timing.calls} appel${timing.calls > 1 ? 's' : ''} au modèle · `

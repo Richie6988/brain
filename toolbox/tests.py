@@ -1135,6 +1135,22 @@ class DimensionsTests(TestCase):
         self.assertEqual(home.layer_id, 1)
 
 
+class SearchTests(TestCase):
+    def test_search_all_dimensions(self):
+        from nodzapp.models import Layer, Node
+
+        user = NodzUser.objects.create_user(email='s@nodz.local', password='pw-123456')
+        home, budget = Layer.objects.create(user=user, layer_name='Home'), Layer.objects.create(user=user, layer_name='Budget')
+        Node.objects.create(user=user, layer=home, node_id=1, text_content='<b>Voyage</b> au Japon')
+        Node.objects.create(user=user, layer=budget, node_id=2, text_content='Budget voyage')
+        Node.objects.create(user=user, layer=budget, node_id=3, text_content='Loyer')
+        self.client.force_login(user)
+        results = self.client.get('/api/v1/toolbox/search?q=voyage').json()['results']
+        self.assertEqual(sorted((r['id'], r['dimension']) for r in results), [('N-1', 'Home'), ('N-2', 'Budget')])
+        self.assertIn('Voyage au Japon', [r['text'] for r in results])
+        self.assertEqual(self.client.get('/api/v1/toolbox/search?q=').json()['results'], [])
+
+
 class AdminConsoleTests(TestCase):
     def setUp(self):
         from .models import GuardianLog, Schedule

@@ -54,6 +54,12 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Mémoire du Gardien dans l'univers** : l'installation du Gardien pose aussi un node « Mémoire » (un souvenir par ligne) et un node « Cerveau » (gabarits gardés, champs du cerveau) dans la dimension Gardien, reliés au Prompt système. Le Gardien relit la Mémoire à chaque demande : ce que l'utilisateur y écrit ou efface devient sa mémoire ; `remember` et `forget` la réécrivent, `template_save` et `update_brain_field` réécrivent le Cerveau. Sur une installation existante, le bouton « Installer / compléter » n'ajoute que les pièces manquantes ; le bouton « Mémoire » du chat y emmène.
 
+**Changer de dimension n'interrompt plus le Gardien** : une demande reste liée à la dimension où elle est partie ; si l'utilisateur en change pendant la réponse, le Gardien continue, ses créations, liens et modifications attendent son retour dans cette dimension (gardés dans le navigateur, même après un rechargement) et s'y appliquent alors ; ses travellings ne déplacent plus la caméra ailleurs. Le chat le signale.
+
+**Recherche du haut** : elle remplace celle de la barre du bas (retirée du dock). Filtre en direct les nodes de la dimension ; Entrée cherche dans toutes les dimensions (score de la recherche de Nodz, nouvelle route `toolbox/search`) et parcourt les résultats en carrousel avec ‹ › (ou Entrée / Maj+Entrée), compteur « 2 / 12 · Budget », en voyageant vers la dimension du résultat.
+
+**Node au style du Gardien** : icônes des barres d'outils du node d'un même trait clair avec halo au survol, choix du type en pilule sombre à chevron dessiné, poignée de taille en pastille de verre ronde ; tailles et positions inchangées (feel identique). Le chat et la liste des dimensions se ferment d'un clic en dehors.
+
 **Profil** en cartes (identité, activité, parrainage, Premium, avis), coches dessinées au lieu d'emoji ; nouvelle icône du bouton Agents.
 
 **Session conservée** : ouvrir `/universe` ne déconnecte plus. Un autre onglet, un rechargement ou un préchargement déconnectait la page ouverte (sauvegardes, profil, modèles et Gardien refusés). La fenêtre LOGIN / GUEST s'affiche toujours ; la déconnexion se fait par le profil. Un refus 401 dit s'il manque le cookie ou si la session est inconnue.

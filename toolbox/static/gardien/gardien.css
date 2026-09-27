@@ -230,6 +230,12 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
 }
 #gardien-filters input:focus, #gardien-filters input:not(:placeholder-shown) { width: 200px; border-color: rgba(184, 154, 242, 0.7); }
 body:has(.universe.lightmode) #gardien-filters input { color: #440852; background: rgba(68, 8, 82, 0.05); }
+#gardien-filters button.nav { padding: 2px 8px; font-size: 13px; line-height: 1; color: #b89af2; }
+#gardien-filters button.nav[hidden] { display: none; }
+#gardien-filters .where { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f3ee58; }
+#gardien-filters .where:empty { display: none; }
+/* La recherche de la barre du bas est reprise en haut (Nodz garde l'élément, caché). */
+#button-container :is(#semanticsearch, #prevsearch, #nextsearch) { display: none !important; }
 #gardien-filters .sep { width: 1px; height: 16px; margin: 0 4px; background: rgba(148, 163, 184, 0.3); }
 #gardien-filters .count { margin-left: 6px; color: #f3ee58; }
 #gardien-filters .count:empty { display: none; }

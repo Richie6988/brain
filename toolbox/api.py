@@ -5,9 +5,11 @@ supprimer, régler un modèle) est réservé aux administrateurs : les modèles 
 """
 
 import asyncio
+import html
 import json
 import logging
 import queue
+import re
 import threading
 import time
 from pathlib import Path
@@ -95,6 +97,25 @@ def status(request, body):
                          'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
                          'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR), 'param_spec': model_params.SPEC,
                          'imaging': bool(imaging.binary()), 'gpu_offload': engine.gpu_offload(), 'packs': {k: p['label'] for k, p in hub.PACKS.items()}})
+
+
+@api('GET')
+def search(request, body):
+    """Recherche du haut : nodes de toutes les dimensions, classés par le score de la recherche de Nodz,
+    avec leur dimension et un extrait (carrousel précédent / suivant)."""
+    from nodzapp.views import calculate_matching_score
+
+    query = request.GET.get('q', '').strip()[:200]
+    if not query:
+        return JsonResponse({'results': []})
+    names = dict(Layer.objects.filter(user=request.user).values_list('layer_id', 'layer_name'))
+    nodes = Node.objects.filter(user=request.user, archive=False).values(
+        'node_id', 'layer__layer_id', 'text_content', 'image_content', 'file_name', 'file_text_content', 'created_at', 'modified_at')
+    scored = [(calculate_matching_score(n, query), n) for n in nodes]
+    results = [{'id': f"N-{n['node_id']}", 'layer': n['layer__layer_id'], 'dimension': names.get(n['layer__layer_id'], ''),
+                'text': ' '.join(re.sub(r'<[^>]+>', ' ', html.unescape(n['text_content'] or n['file_name'] or '')).split())[:80], 'score': score}
+               for score, n in sorted(scored, key=lambda item: -item[0]) if score > 0][:200]
+    return JsonResponse({'results': results})
 
 
 @api('GET', 'PATCH')
