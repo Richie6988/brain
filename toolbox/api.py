@@ -168,18 +168,26 @@ def marks(request, body):
 
 @api('GET', 'POST')
 def brain_map(request, body):
-    """Le Gardien dans l'univers : GET donne ce qu'il faut poser (consignes, outils par famille) ;
-    POST enregistre les nodes créés ({prompt: N-12, tools: {op: N-40}}) pour que le Gardien les relise."""
+    """Le Gardien dans l'univers : GET donne ce qu'il faut poser (consignes, mémoire, cerveau, outils par famille)
+    et les nodes déjà posés ; POST enregistre les nodes créés ({prompt, memory, brain: N-12, tools: {op: N-40}}),
+    ajoutés à ceux déjà là, pour que le Gardien les relise."""
+    from .guardian import brain_text
+
     guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
     if guardian is None:
         return JsonResponse({'error': 'pas de Gardien'}, status=404)
+    mapping = dict(guardian.brain.get('universe') or {})
     if request.method == 'POST':
-        nodes = {'prompt': str(body.get('prompt', '')), 'tools': {op: str(n) for op, n in (body.get('tools') or {}).items() if op in tools.BY_OP}}
-        guardian.brain = {**guardian.brain, 'universe': nodes}
+        for key in ('prompt', 'memory', 'brain'):
+            if body.get(key):
+                mapping[key] = str(body[key])
+        mapping['tools'] = {**mapping.get('tools', {}), **{op: str(n) for op, n in (body.get('tools') or {}).items() if op in tools.BY_OP}}
+        guardian.brain = {**guardian.brain, 'universe': mapping}
         guardian.save(update_fields=['brain'])
-        return JsonResponse({'saved': len(nodes['tools'])})
+        return JsonResponse({'saved': len(mapping['tools']), 'universe': mapping})
     ops = tools.enabled(guardian, request.user)
-    return JsonResponse({'guidelines': guardian.system_prompt or prompts.GUARDIAN, 'installed': 'universe' in guardian.brain,
+    return JsonResponse({'guidelines': guardian.system_prompt or prompts.GUARDIAN, 'installed': bool(mapping), 'universe': mapping,
+                         'memory': guardian.memory, 'brain': brain_text(guardian),
                          'tools': [{'op': t['op'], 'label': t['label'], 'category': t['category'], 'usage': t['doc']}
                                    for t in tools.TOOLS if t['op'] in ops]})
 

@@ -52,6 +52,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Gardien plus rapide** : la grammaire JSON imposée au modèle ne décrit plus que le nom de l'outil (un schéma de 90 champs ralentissait chaque jeton sous llama.cpp ; les champs sont validés à l'exécution) ; les outils non essentiels sont listés par leur nom seul (détail par `tool_help`) ; contexte réduit à 40 nodes proches, 80 caractères chacun. Prompt des outils 4 500 → 3 300 caractères, schéma 4 500 → 1 400. Chaque réponse indique son temps, le nombre d'appels au modèle, la lecture du prompt (jetons, attente du premier mot) et la vitesse ; la fiche du modèle et le journal de la console IA aussi.
 
+**Mémoire du Gardien dans l'univers** : l'installation du Gardien pose aussi un node « Mémoire » (un souvenir par ligne) et un node « Cerveau » (gabarits gardés, champs du cerveau) dans la dimension Gardien, reliés au Prompt système. Le Gardien relit la Mémoire à chaque demande : ce que l'utilisateur y écrit ou efface devient sa mémoire ; `remember` et `forget` la réécrivent, `template_save` et `update_brain_field` réécrivent le Cerveau. Sur une installation existante, le bouton « Installer / compléter » n'ajoute que les pièces manquantes ; le bouton « Mémoire » du chat y emmène.
+
 **Profil** en cartes (identité, activité, parrainage, Premium, avis), coches dessinées au lieu d'emoji ; nouvelle icône du bouton Agents.
 
 **Session conservée** : ouvrir `/universe` ne déconnecte plus. Un autre onglet, un rechargement ou un préchargement déconnectait la page ouverte (sauvegardes, profil, modèles et Gardien refusés). La fenêtre LOGIN / GUEST s'affiche toujours ; la déconnexion se fait par le profil. Un refus 401 dit s'il manque le cookie ou si la session est inconnue.

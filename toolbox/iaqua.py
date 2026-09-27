@@ -533,6 +533,7 @@ class IaquaOps:
             dot_set(brain, path, value)
             self.guardian.brain = brain
             self.guardian.save(update_fields=['brain'])
+            self.sync_brain()
         log(self.user, 'brain_updated', path)
         return None
 

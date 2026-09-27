@@ -1414,6 +1414,25 @@ class IaquaToolsTests(TestCase):
         self.assertNotIn('execute_bash', system)
         self.assertIn(tools.BY_OP['create_task']['doc'], self.reads(engine))
 
+    def test_memory_and_brain_live_in_the_universe(self):
+        from nodzapp.models import Layer, Node
+
+        layer = Layer.objects.create(user=self.user, layer_id=3, layer_name='Gardien')
+        memory = Node.objects.create(user=self.user, node_id=53, layer=layer, text_content='Mémoire du Gardien<br>- Richard aime Kyoto<br>- vélo le dimanche')
+        brain = Node.objects.create(user=self.user, node_id=54, layer=layer, text_content='Cerveau du Gardien')
+        self.client.post('/api/v1/toolbox/brain-map', {'prompt': 'N-50', 'tools': {'create_task': 'N-51'}}, content_type='application/json')
+        r = self.client.post('/api/v1/toolbox/brain-map', {'memory': 'N-53', 'brain': 'N-54'}, content_type='application/json')
+        self.assertEqual(r.json()['universe'], {'prompt': 'N-50', 'memory': 'N-53', 'brain': 'N-54', 'tools': {'create_task': 'N-51'}})  # ajouté, rien d'écrasé
+        engine = self.run_guardian([{'op': 'remember', 'text': 'Prépare un voyage en mai'},
+                                    {'op': 'template_save', 'name': 'retro', 'layout': 'kanban', 'cols': ['Bien', 'Mieux']}])
+        system = engine.calls[0]['messages'][0]['content']
+        self.assertIn('- Richard aime Kyoto', system)  # écrit à la main dans le node : c'est sa mémoire
+        memory.refresh_from_db()
+        brain.refresh_from_db()
+        self.assertEqual(memory.text_content, 'Mémoire du Gardien<br>- Richard aime Kyoto<br>- vélo le dimanche<br>- Prépare un voyage en mai')
+        self.assertIn('Gabarits gardés : retro (kanban)', brain.text_content)
+        self.assertEqual(self.client.get('/api/v1/toolbox/brain-map').json()['memory'][-1], 'Prépare un voyage en mai')
+
     def test_guardian_reads_its_universe_nodes(self):
         from nodzapp.models import Layer, Node
 
@@ -1423,7 +1442,7 @@ class IaquaToolsTests(TestCase):
         Node.objects.create(user=self.user, node_id=52, layer=layer, text_content='archive', archive=True)
         r = self.client.post('/api/v1/toolbox/brain-map', {'prompt': 'N-50', 'tools': {'create_task': 'N-51', 'archive': 'N-52', 'nope': 'N-9'}},
                              content_type='application/json')
-        self.assertEqual(r.json(), {'saved': 2})
+        self.assertEqual(r.json()['saved'], 2)
         engine = self.run_guardian([{'op': 'tool_help', 'names': ['create_task']}, {'op': 'archive', 'ref': 'N-1'}])
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn('Tu parles comme un capitaine.', system)

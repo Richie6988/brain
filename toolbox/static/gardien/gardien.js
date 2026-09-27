@@ -97,37 +97,61 @@ const PALETTE = ['#4D96FF', '#33FF99', '#FF6B6B', '#FFD93D', '#C77DFF', '#FF9F45
 
 async function installBrain() {
     const map = await api.request('GET', 'toolbox/brain-map');
+    const placed = map.universe || {};
     say('Le Gardien s\'installe dans la dimension « Gardien »…', 'guide');
     await bridge.enterDimension('Gardien');
+    const here = id => (id && document.getElementById(id) ? id : null);  // pièce déjà posée dans cette dimension
     const make = async (ref, x, y, text, tint, shape = 'circle') => {
         await bridge.perform({ op: 'create', ref, x, y, text: text.split('\n').map(escape).join('<br>'), color: tint, shape });
         return bridge.idOf(ref);
     };
     const link = (source, target) => bridge.perform({ op: 'link', source, target });
+    const saved = {};
     // En arbre : Prompt système à gauche, Outils au centre, une famille par ligne suivie de ses outils.
     // Aucun lien parfaitement horizontal : le dégradé d'un lien de Nodz ne s'y affiche pas.
-    const categories = [...new Set(map.tools.map(t => t.category))];
-    const ROW = 950;
-    const top = ((categories.length - 1) * ROW) / 2;
-    const prompt = await make('brain-prompt', -3200, 400, `Prompt système\n\n${map.guidelines}`, '#f3ee58', 'square');
-    await make('brain-tools', 0, 0, 'Outils du Gardien', '#6848A6');
-    await link('brain-prompt', 'brain-tools');
-    const ids = {};
-    for (const [k, category] of categories.entries()) {
-        const cy = top - k * ROW + 140;
-        const tint = PALETTE[k % PALETTE.length];
-        const cref = `brain-cat-${k}`;
-        await make(cref, 1500, cy, category, tint);
-        await link('brain-tools', cref);
-        for (const [i, tool] of map.tools.filter(t => t.category === category).entries()) {
-            const ref = `brain-tool-${tool.op}`;
-            ids[tool.op] = await make(ref, 2500 + i * 800, cy + (i % 2 ? -220 : 220), `${tool.op}\n${tool.label}\n\n${tool.usage}`, tint);
-            await link(i ? `brain-tool-${map.tools.filter(t => t.category === category)[i - 1].op}` : cref, ref);
+    let prompt = here(placed.prompt);
+    if (!prompt) {
+        const categories = [...new Set(map.tools.map(t => t.category))];
+        const ROW = 950;
+        const top = ((categories.length - 1) * ROW) / 2;
+        prompt = saved.prompt = await make('brain-prompt', -3200, 400, `Prompt système\n\n${map.guidelines}`, '#f3ee58', 'square');
+        await make('brain-tools', 0, 0, 'Outils du Gardien', '#6848A6');
+        await link(prompt, 'brain-tools');
+        saved.tools = {};
+        for (const [k, category] of categories.entries()) {
+            const cy = top - k * ROW + 140;
+            const tint = PALETTE[k % PALETTE.length];
+            const cref = `brain-cat-${k}`;
+            await make(cref, 1500, cy, category, tint);
+            await link('brain-tools', cref);
+            for (const [i, tool] of map.tools.filter(t => t.category === category).entries()) {
+                const ref = `brain-tool-${tool.op}`;
+                saved.tools[tool.op] = await make(ref, 2500 + i * 800, cy + (i % 2 ? -220 : 220), `${tool.op}\n${tool.label}\n\n${tool.usage}`, tint);
+                await link(i ? `brain-tool-${map.tools.filter(t => t.category === category)[i - 1].op}` : cref, ref);
+            }
         }
     }
-    await api.request('POST', 'toolbox/brain-map', { prompt, tools: ids });
-    filters.mark([prompt, ...Object.values(ids)], 'ai');
-    await bridge.perform({ op: 'overview', text: 'Le Gardien est dans l\'univers : réécris ses nodes pour changer ses consignes et ses outils.' });
+    // Mémoire (un souvenir par ligne, relue à chaque demande) et Cerveau (réécrit par le Gardien), sous le prompt.
+    if (!here(placed.memory)) {
+        saved.memory = await make('brain-memory', -4300, -900, `Mémoire du Gardien\n${map.memory.map(fact => `- ${fact}`).join('\n')}`, '#33FF99', 'square');
+        await link(prompt, saved.memory);
+    }
+    if (!here(placed.brain)) {
+        saved.brain = await make('brain-state', -2000, -1200, map.brain, '#C77DFF', 'square');
+        await link(prompt, saved.brain);
+    }
+    await api.request('POST', 'toolbox/brain-map', saved);
+    filters.mark([saved.prompt, saved.memory, saved.brain, ...Object.values(saved.tools || {})].filter(Boolean), 'ai');
+    await bridge.perform({ op: 'overview', text: 'Le Gardien est dans l\'univers : réécris ses nodes pour changer ses consignes, ses outils et sa mémoire.' });
+}
+
+// Bouton « Mémoire » du chat : voyage jusqu'au node Mémoire du Gardien (l'installe s'il manque).
+async function showMemory() {
+    const map = await api.request('GET', 'toolbox/brain-map');
+    const ref = map.universe?.memory;
+    const gardien = layers.find(l => l.name.toLowerCase() === 'gardien');
+    if (!ref || !gardien) return installBrain();
+    await bridge.perform({ op: 'goto', ref, layer: gardien.id, zoom: 1.2, text: 'Sa mémoire : un souvenir par ligne, à réécrire ou effacer.' });
 }
 
 const monitor = createMonitor({ onSignedOut: message => say(message, 'error') });
@@ -213,7 +237,10 @@ async function ask(node, text, attached = []) {
     }
 }
 
-const chat = createChat({ onSend: (text, attached) => { queue = queue.then(() => ask(null, text, attached)); } });
+const chat = createChat({
+    onSend: (text, attached) => { queue = queue.then(() => ask(null, text, attached)); },
+    onMemory: () => showMemory().catch(error => chat.add('error', error.message)),
+});
 
 // Une fois par navigateur, au premier node écrit : comment parler au Gardien.
 document.addEventListener('input', function hint(event) {

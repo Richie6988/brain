@@ -77,6 +77,37 @@ def plain(markup, length=120):
     return html.unescape(' '.join(re.sub(r'<[^>]+>', ' ', markup or '').split()))[:length]
 
 
+def node_id(ref):
+    """Numéro Nodz d'un identifiant N-12, ou None."""
+    ref = str(ref or '')
+    return int(ref[2:]) if ref.startswith('N-') and ref[2:].isdigit() else None
+
+
+def memory_lines(text):
+    """Souvenirs écrits dans le node « Mémoire » : un par ligne, puces et titre ignorés."""
+    lines = [' '.join(line.strip().lstrip('-*• ').split()) for line in (text or '').splitlines()]
+    return [line[:200] for line in lines if line and line.lower() not in ('mémoire', 'mémoire du gardien')][-MAX_MEMORY:]
+
+
+def brain_text(agent):
+    """Le cerveau du Gardien tel qu'il s'affiche dans son node « Cerveau » (lu par read_my_brain)."""
+    brain = agent.brain or {}
+    templates = brain.get('templates') or {}
+    lines = ['Cerveau du Gardien', '(réécrit par le Gardien ; ses souvenirs sont dans le node Mémoire)', '',
+             f"Gabarits gardés : {', '.join(f'{name} ({t.get('layout')})' for name, t in templates.items()) or 'aucun'}"]
+    lines += [f'{key} : {json.dumps(value, ensure_ascii=False)[:300]}' for key, value in brain.items() if key not in ('universe', 'templates')]
+    return '\n'.join(lines)
+
+
+def write_node(user, ref, text):
+    """Réécrit le texte d'un node de l'univers en base (il s'affiche à la prochaine visite de sa dimension)."""
+    number = node_id(ref)
+    if number is None:
+        return False
+    markup = '<br>'.join(html.escape(line) for line in text.split('\n'))
+    return bool(Node.objects.filter(user=user, archive=False, node_id=number).update(text_content=markup))
+
+
 def multiline(markup):
     """Texte d'un node de Nodz avec ses retours à la ligne (consignes et modes d'emploi écrits dans l'univers)."""
     text = re.sub(r'(?i)<br\s*/?>|</(div|p|li)>', '\n', markup or '')
@@ -391,6 +422,7 @@ class Guardian(IaquaOps):
         brain['templates'] = {**self.templates(), name: saved}
         self.guardian.brain = brain
         self.guardian.save(update_fields=['brain'])
+        self.sync_brain()
         self.emit('notice', {'text': f'Gabarit gardé : {name}'})
         return None
 
@@ -408,6 +440,7 @@ class Guardian(IaquaOps):
             raise PlanError(f"gabarit inconnu : {action.get('name')!r}")
         self.guardian.brain = {**self.guardian.brain, 'templates': saved}
         self.guardian.save(update_fields=['brain'])
+        self.sync_brain()
         return None
 
     def op_backdrop(self, action, agents):
@@ -454,7 +487,25 @@ class Guardian(IaquaOps):
         if fact and fact not in self.guardian.memory:
             self.guardian.memory = (self.guardian.memory + [fact])[-MAX_MEMORY:]
             self.guardian.save(update_fields=['memory'])
+            self.sync_memory()
         return None
+
+    def sync_memory(self):
+        """Réécrit le node « Mémoire » de l'univers ; à l'écran tout de suite s'il est dans la dimension affichée."""
+        ref = (self.guardian.brain.get('universe') or {}).get('memory')
+        text = 'Mémoire du Gardien\n' + '\n'.join(f'- {fact}' for fact in self.guardian.memory)
+        if ref in self.nodes:
+            self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(text)})
+        elif ref:
+            write_node(self.user, ref, text)
+
+    def sync_brain(self):
+        """Réécrit le node « Cerveau » de l'univers (gabarits, champs du cerveau)."""
+        ref = (self.guardian.brain.get('universe') or {}).get('brain')
+        if ref in self.nodes:
+            self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(brain_text(self.guardian))})
+        elif ref:
+            write_node(self.user, ref, brain_text(self.guardian))
 
     def op_forget(self, action, agents):
         needle = str(action.get('text') or '').strip().lower()
@@ -462,6 +513,7 @@ class Guardian(IaquaOps):
         if needle and len(kept) != len(self.guardian.memory):
             self.guardian.memory = kept
             self.guardian.save(update_fields=['memory'])
+            self.sync_memory()
         return None
 
     def op_search_nodes(self, action, agents):
@@ -573,9 +625,15 @@ class Guardian(IaquaOps):
         mapping = guardian.brain.get('universe')
         if not mapping:
             return None
-        ids = {mapping.get('prompt'), *mapping.get('tools', {}).values()}
+        ids = {mapping.get('prompt'), mapping.get('memory'), *mapping.get('tools', {}).values()}
         texts = {f'N-{n.node_id}': multiline(n.text_content) for n in Node.objects.filter(
-            user=self.user, archive=False, node_id__in=[int(i[2:]) for i in ids if str(i).startswith('N-') and i[2:].isdigit()])}
+            user=self.user, archive=False, node_id__in=[i for i in map(node_id, ids) if i is not None])}
+        # Node « Mémoire » : ce que l'utilisateur y écrit ou efface devient la mémoire du Gardien.
+        if mapping.get('memory') in texts:
+            lines = memory_lines(texts[mapping['memory']])
+            if lines != guardian.memory:
+                guardian.memory = lines
+                guardian.save(update_fields=['memory'])
         for op, node in mapping.get('tools', {}).items():
             if node not in texts:
                 self.allowed = [o for o in self.allowed if o != op]

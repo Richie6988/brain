@@ -190,7 +190,8 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                     h('label', { class: 'gl-switch', title: 'Actif' }, enabled, 'actif')),
                 select,
                 agent.role === 'orchestrator' ? h('button', { type: 'button', class: 'gl-primary', onclick: onInstallBrain,
-                    title: 'Crée la dimension Gardien : Prompt système, Outils, un node par outil avec son mode d\'emploi' }, 'Installer le Gardien dans l\'univers') : null,
+                    title: 'Crée ou complète la dimension Gardien : Prompt système, Mémoire, Cerveau, Outils, un node par outil avec son mode d\'emploi' },
+                    'Installer / compléter le Gardien dans l\'univers') : null,
                 h('details', {}, h('summary', {}, agent.system_prompt ? 'Consignes (personnalisées)' : 'Consignes'), prompt,
                     agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement. '
                         + 'Une fois le Gardien installé dans l\'univers, ses consignes se lisent et se réécrivent dans le node « Prompt système ».') : null,

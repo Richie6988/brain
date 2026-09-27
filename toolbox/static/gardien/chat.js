@@ -9,7 +9,7 @@ import { h } from './library.js';
 const KEY = 'gardien-chat';
 const KEEP = 60;
 
-export function createChat({ onSend }) {
+export function createChat({ onSend, onMemory = () => {} }) {
     let history = [];
     try {
         history = JSON.parse(localStorage.getItem(KEY) || '[]');
@@ -40,6 +40,7 @@ export function createChat({ onSend }) {
     }
     const panel = h('section', { class: 'gc-panel', hidden: true, role: 'dialog', 'aria-label': 'Chat du Gardien' },
         h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), h('small', {}, 'Il agit dans ton univers')),
+            h('button', { type: 'button', title: 'Voir la mémoire du Gardien dans l\'univers (dimension Gardien)', onclick: () => { toggle(false); onMemory(); } }, 'Mémoire'),
             h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: clear }, 'Effacer'),
             h('button', { type: 'button', class: 'gc-close', title: 'Réduire', onclick: () => toggle(false) }, '×')),
         log, status, tray, form);
