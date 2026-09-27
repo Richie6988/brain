@@ -65,7 +65,7 @@ export function createMonitor() {
         const queue = broker.queued.length ? ` · ${broker.queued.length} en file` : '';
         view.name.textContent = model ? `${model.name}${broker.busy ? ' · au travail' : ''}${queue}`
             : engine ? 'aucun modèle en mémoire' : 'moteur local absent';
-        view.head.title = model?.stats ? `${model.stats.requests} requêtes depuis le chargement` : '';
+        view.head.title = `${model?.stats ? `${model.stats.requests} requêtes depuis le chargement · ` : ''}Ouvrir Agents & modèles`;
         view.root.hidden = false;
         view.root.classList.remove('offline');
     }

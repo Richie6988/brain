@@ -88,8 +88,8 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
         h('button', { type: 'button', dataset: { tab: key }, onclick: () => show(key) }, label)));
     const machineLine = h('p', { class: 'gl-machine' });
     const readOnly = h('p', { class: 'gl-warning', hidden: true },
-        'Compte invité ou non administrateur : tu peux tout consulter, pas installer. Pour ajouter des modèles, connecte-toi avec LOGIN ',
-        'et le compte administrateur du serveur, créé ou promu sur le VPS par ', h('code', {}, 'manage.py bootstrap --email … --password …'), '.');
+        'Compte invité ou non administrateur : tu peux tout consulter, pas installer. Pour ajouter des modèles, recharge la page, ',
+        'choisis LOGIN et entre le compte administrateur du serveur (créé ou promu sur le VPS par ', h('code', {}, 'manage.py bootstrap --email … --password …'), ').');
     const notice = h('p', { class: 'gl-notice', role: 'status' });
     tabs.forEach(([key]) => { panels[key] = h('section', { class: 'gl-panel', dataset: { panel: key } }); });
     const windowEl = h('div', { class: 'gl-window', role: 'dialog', 'aria-label': 'Agents et modèles' },

@@ -39,17 +39,10 @@ const button = document.getElementById('agentsButton');
 button.addEventListener('click', () => library.open());
 button.addEventListener('mouseover', () => createTooltip('agentsButton', 'Agents & modèles'));
 
-// Tour de contrôle : l'en-tête replie ou déplie, le reste ouvre la bibliothèque.
+// Tour de contrôle : les gestes la traversent (sélection, glissé) ; son en-tête ouvre la bibliothèque.
 const tower = monitor.panel('gm-hud');
-const folded = () => { try { return localStorage.getItem('gardien-monitor') === 'folded'; } catch { return false; } };
-tower.root.classList.toggle('folded', folded());
-tower.root.title = 'Ressources du serveur : ouvrir Agents & modèles';
-tower.root.addEventListener('click', event => {
-    if (!tower.head.contains(event.target)) return library.open('library');
-    const fold = tower.root.classList.toggle('folded');
-    try { localStorage.setItem('gardien-monitor', fold ? 'folded' : 'open'); } catch { /* stockage indisponible */ }
-});
-document.body.append(tower.root);
+tower.head.addEventListener('click', () => library.open('library'));
+document.getElementById('button-container').after(tower.root);  // sous les popups de Nodz, comme la barre
 
 async function loadGuardian() {
     const { agents } = await api.request('GET', 'toolbox/agents');
