@@ -13,6 +13,7 @@ from . import gguf, monitor
 OVERHEAD_MB = 600  # contexte CUDA et tampons de calcul
 WORK_CTX = 4096  # contexte réservé quand les couches GPU sont calculées
 MAX_AUTO_CTX = 32768
+MAX_AUTO_CTX_CPU = 8192  # sur CPU : un grand cache pousse la RAM au swap et tout ralentit ; 8192 couvre le Gardien
 DEFAULT_KV_BYTES = 128 * 1024  # par jeton, quand l'en-tête ne permet pas de le calculer
 
 
@@ -69,7 +70,8 @@ def resolve(path, options, gpu_offload=True):
         else:
             budget = ram * 0.8 - size_mb
         tokens = int(budget / kv_mb) if kv_mb else trained
-        out['n_ctx'] = max(2048, min(trained, MAX_AUTO_CTX, tokens // 1024 * 1024))
+        ceiling = MAX_AUTO_CTX if on_gpu and vram else MAX_AUTO_CTX_CPU
+        out['n_ctx'] = max(2048, min(trained, ceiling, tokens // 1024 * 1024))
     summary = {'gpu_layers': on_gpu, 'layers': layers, 'n_ctx': out['n_ctx'], 'vram_free_mb': int(vram),
                'ram_free_mb': int(ram), 'gpu_offload': gpu_offload}
     return out, summary

@@ -321,6 +321,7 @@ class FitTests(SimpleTestCase):
         self.assertGreaterEqual(part['n_ctx'], 2048)
         cpu, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=8000, offload=False)
         self.assertEqual((cpu['n_gpu_layers'], summary['gpu_offload']), (0, False))  # compilé sans CUDA
+        self.assertEqual(cpu['n_ctx'], 8192)  # sur CPU, contexte auto plafonné : pas de swap
         small, _ = self.resolve({'n_gpu_layers': 'max', 'n_ctx': 'auto'}, vram=0, ram=3800)
         self.assertEqual((small['n_gpu_layers'], small['n_ctx']), (-1, 2048))  # peu de RAM : contexte minimal
         fixed, _ = self.resolve({'n_gpu_layers': 12, 'n_ctx': 8192}, vram=8000)

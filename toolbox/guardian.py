@@ -41,15 +41,65 @@ MAX_MEMORY = 30
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
 
 
-# Réponse imposée au modèle. Les actions ne déclarent que `op` : une grammaire qui décrit chaque champ de
-# chaque outil ralentit fortement chaque jeton généré par llama.cpp ; les champs sont validés à l'exécution.
+# Réponse imposée au modèle : chaque champ des actions est déclaré avec son type. Une grammaire qui laisse les
+# champs libres (clés et valeurs quelconques) rend l'échantillonnage de llama.cpp très lent : ne pas l'alléger.
 PLAN_SCHEMA = {
     'type': 'object',
     'required': ['plan', 'say', 'actions'],
     'properties': {
         'plan': {'type': 'array', 'items': {'type': 'string'}},
         'say': {'type': 'string'},
-        'actions': {'type': 'array', 'items': {'type': 'object', 'required': ['op'], 'properties': {'op': {'type': 'string', 'enum': OPS}}}},
+        'actions': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'required': ['op'],
+                'properties': {
+                    'op': {'type': 'string', 'enum': OPS},
+                    'ref': {'type': 'string'},
+                    'near': {'type': 'string'},
+                    'text': {'type': 'string'},
+                    'source': {'type': 'string'},
+                    'target': {'type': 'string'},
+                    'color': {'type': 'string'},
+                    'shape': {'type': 'string', 'enum': SHAPES},
+                    'radius': {'type': 'number'},
+                    'lock': {'type': 'boolean'},
+                    'content_type': {'type': 'string', 'enum': TYPES},
+                    'name': {'type': 'string'},
+                    'agent': {'type': 'string'},
+                    'model': {'type': 'string'},
+                    'task': {'type': 'string'},
+                    'zoom': {'type': 'number'},
+                    'query': {'type': 'string'},
+                    'url': {'type': 'string'},
+                    'children': {'type': 'array', 'items': {'type': 'string'}},
+                    # gabarits (build, template_save, backdrop)
+                    'layout': {'type': 'string', 'enum': layouts.LAYOUTS},
+                    'type': {'type': 'string', 'enum': layouts.BACKDROPS},
+                    **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('rows', 'cols', 'items')},
+                    'cells': {'type': 'array', 'items': {'type': 'array', 'items': {'type': 'string'}}},
+                    'template': {'type': 'string'},
+                    'save_as': {'type': 'string'},
+                    'description': {'type': 'string'},
+                    'prompt': {'type': 'string'},
+                    'role': {'type': 'string', 'enum': ROLES},
+                    'enabled': {'type': 'boolean'},
+                    # outils d'iAqua (valeurs libres en texte : JSON accepté là où il le faut)
+                    **{k: {'type': 'string'} for k in (
+                        'title', 'acceptance_criteria', 'project', 'priority', 'status', 'task_id', 'field', 'value', 'expr',
+                        'action', 'schedule_id', 'vision', 'goal', 'mission_id', 'project_name', 'new_value', 'kind', 'content',
+                        'skill_id', 'summary', 'triggers', 'outcome', 'section_path', 'field_path', 'event_type', 'path',
+                        'search_text', 'replace_text', 'message', 'filename', 'markdown', 'to', 'subject', 'body', 'command',
+                        'cwd', 'code', 'test_input', 'input', 'server', 'arguments')},
+                    **{k: {'type': 'number'} for k in ('budget', 'limit', 'strength', 'timeout')},
+                    **{k: {'type': 'boolean'} for k in ('run', 'abort')},
+                    **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('steps', 'files', 'packages', 'names')},
+                    'slides': {'type': 'array', 'items': {'type': 'object', 'properties': {
+                        'title': {'type': 'string'}, 'body': {'type': 'string'}, 'bullets': {'type': 'array', 'items': {'type': 'string'}}}}},
+                },
+            },
+        },
     },
 }
 
