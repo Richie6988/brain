@@ -193,6 +193,8 @@ async function ask(node, text, attached = []) {
         if (node) say(message, kind);
     };
     chat.busy(true);
+    // Réflexion en direct : le plan que le modèle écrit, fragment par fragment (un fragment ≈ un jeton).
+    let think = null, round = 0, pieces = 0, thinkStart = 0;
     try {
         if (!guardian) await loadGuardian();
         if (!guardian?.enabled || !guardian.model) {
@@ -213,9 +215,20 @@ async function ask(node, text, attached = []) {
             const name = layers.find(l => l.id === home)?.name || 'sa dimension';
             chat.add('notice', `Tu as changé de dimension : le Gardien continue ; ce qu'il pose attend ton retour dans « ${name} ».`);
         });
+        const thought = ({ round: r, text: piece }) => {
+            if (!think) {
+                think = chat.think();
+                thinkStart = performance.now();
+            }
+            if (r !== round) think.append(`\n\n· tour ${r + 1} ·\n`);
+            round = r;
+            pieces += 1;
+            think.append(piece);
+        };
         const context = bridge.context();
         await api.command({ prompt: text, context: { ...context, ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}) } }, (type, data) => {
-            if (type === 'text' || type === 'notice') reply(type, data.text);
+            if (type === 'thinking') thought(data);
+            else if (type === 'text' || type === 'notice') reply(type, data.text);
             else if (type === 'queued') {
                 const where = data.position === 1 ? 'Tu es le prochain : le Gardien finit une autre demande' : `En file d'attente : ${data.position}e`;
                 follow.step(where, 'waiting');
@@ -231,6 +244,8 @@ async function ask(node, text, attached = []) {
                 if (data.op === 'create') created.push(data.ref);
             }
         });
+        think?.end(`A réfléchi (${pieces} jetons, ${Math.round((performance.now() - thinkStart) / 1000)} s)`);
+        think = null;
         await actions;
         filters.mark(created.map(bridge.idOf).filter(id => id.startsWith('N-')), 'ai');
         follow.end(timing ? `Terminé en ${Math.round(timing.total_s)} s` : 'Terminé');
@@ -239,6 +254,7 @@ async function ask(node, text, attached = []) {
             + `lecture du prompt ${Math.round(timing.wait_s)} s${timing.prompt_tokens ? ` (${timing.prompt_tokens} jetons)` : ''}`
             + `${timing.speed ? ` · ${timing.speed} jetons/s` : ''}`);
     } catch (error) {
+        think?.end('Réflexion interrompue');
         follow.end(error.message);
         reply('error', error.message);
     } finally {

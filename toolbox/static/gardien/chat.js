@@ -2,12 +2,14 @@
 // sans passer par un node ; ses réponses s'y affichent et ses actions se jouent dans l'univers. Les
 // échanges lancés depuis un node (pastille, Ctrl+Entrée) y apparaissent aussi. Des nodes peuvent être
 // joints au prochain message (multisélection) : le Gardien lit leur texte complet pour cette demande
-// seulement. L'historique récent est gardé dans ce navigateur.
+// seulement. La réflexion du Gardien s'écrit en direct dans un bloc repliable ; chaque message se copie.
+// L'historique récent est gardé dans ce navigateur.
 
 import { h } from './library.js';
 
 const KEY = 'gardien-chat';
 const KEEP = 60;
+const THINK_KEEP = 6000;  // caractères de réflexion gardés par message
 
 export function createChat({ onSend, onMemory = () => {} }) {
     let history = [];
@@ -97,8 +99,41 @@ export function createChat({ onSend, onMemory = () => {} }) {
         b.textContent = unread;
     }
 
-    function line({ role, text, from }) {
-        return h('li', { class: `gc-${role}` }, from ? h('small', {}, from) : null, h('p', {}, text));
+    // Copie dans le presse-papiers ; sans accès (page non sécurisée), par une zone de texte temporaire.
+    async function copy(text, button) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            const area = h('textarea', { style: 'position:fixed;opacity:0' });
+            area.value = text;
+            document.body.append(area);
+            area.select();
+            document.execCommand('copy');
+            area.remove();
+        }
+        button.classList.add('done');
+        button.title = 'Copié';
+        setTimeout(() => { button.classList.remove('done'); button.title = 'Copier'; }, 1200);
+    }
+    const copyButton = entry => {
+        const button = h('button', { type: 'button', class: 'gc-copy', title: 'Copier' });
+        button.addEventListener('click', () => copy(entry.text, button));
+        return button;
+    };
+
+    // Réflexion du Gardien, comme Poséidon : son plan s'écrit en direct dans un bloc qui se replie à la fin.
+    function thinking(entry) {
+        const label = h('span', { class: 'gc-think-label' }, entry.label || 'Réflexion', entry.label ? null : h('i', { class: 'gc-dots' }, h('i'), h('i'), h('i')));
+        const body = h('pre', {}, entry.text);
+        const details = h('details', { open: !entry.label }, h('summary', {}, h('span', { class: 'gc-spark' }, '✦'), label), body);
+        return h('li', { class: `gc-think${entry.label ? '' : ' live'}` }, details, copyButton(entry));
+    }
+
+    function line(entry) {
+        if (entry.role === 'think') return thinking(entry);
+        const { role, text, from } = entry;
+        return h('li', { class: `gc-${role}` }, from ? h('small', {}, from) : null, h('p', {}, text),
+            role === 'notice' ? null : copyButton(entry));
     }
     function render() {
         log.replaceChildren(...(history.length ? history.map(line)
@@ -127,6 +162,38 @@ export function createChat({ onSend, onMemory = () => {} }) {
                 unread += 1;
                 badge();
             }
+        },
+        // Bloc de réflexion en direct : append(fragment), puis end(libellé) le replie et le garde dans l'historique.
+        think() {
+            const entry = { role: 'think', text: '' };
+            const li = thinking(entry);
+            const body = li.querySelector('pre');
+            log.append(li);
+            log.querySelector('.gc-hint')?.remove();
+            history.push(entry);
+            return {
+                append(piece) {
+                    const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+                    entry.text += piece;
+                    body.textContent = entry.text;
+                    body.scrollTop = body.scrollHeight;
+                    if (stick) log.scrollTop = log.scrollHeight;
+                },
+                end(label) {
+                    if (!entry.text) {
+                        li.remove();
+                        history = history.filter(e => e !== entry);
+                        return;
+                    }
+                    entry.label = label;
+                    entry.text = entry.text.slice(0, THINK_KEEP);
+                    li.classList.remove('live');
+                    li.querySelector('.gc-think-label').replaceChildren(label);
+                    setTimeout(() => li.querySelector('details').removeAttribute('open'), 600);
+                    history = history.slice(-KEEP);
+                    store();
+                },
+            };
         },
         status(text) { status.textContent = text || ''; },
         busy(on) {

@@ -409,8 +409,8 @@ def agent_detail(request, body, agent_id):
 
 
 async def command(request):
-    """Demande au Gardien, réponse en flux SSE : queued, start, plan, intent, text, action, notice, agent,
-    agent_text, error, end.
+    """Demande au Gardien, réponse en flux SSE : queued, start, thinking (le plan en cours d'écriture), plan, intent, text, action,
+    notice, agent, agent_text, error, end.
 
     Le corps porte la demande et le contexte de la page Nodz (nodes, liens, dimensions, sélection) ;
     les événements `action` sont exécutés par la page avec les fonctions de Nodz.

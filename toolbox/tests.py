@@ -740,7 +740,7 @@ class GuardianTests(TestCase):
         self.run_guardian(json.dumps({'plan': ['Relier les idées', 'Montrer le résultat'], 'say': 'Voilà.', 'actions': [
             {'op': 'link', 'source': 'N-1', 'target': 'N-2'}, {'op': 'overview'}]}))
         kinds = [k for k, _ in self.events]
-        self.assertEqual(kinds[:3], ['start', 'intent', 'plan'])
+        self.assertEqual(kinds[:4], ['start', 'intent', 'thinking', 'plan'])  # le plan s'écrit en direct avant d'être lu
         self.assertEqual(dict(self.events)['plan']['steps'], ['Relier les idées', 'Montrer le résultat'])
         intents = [d['text'] for k, d in self.events if k == 'intent']
         self.assertIn('Je relie « Voyage au Japon » à N-2', intents)
@@ -1075,7 +1075,9 @@ class CommandStreamTests(TransactionTestCase):
             body = ''.join([chunk.decode() async for chunk in r.streaming_content])
         self.assertEqual(r['Content-Type'], 'text/event-stream')
         kinds = [line.split(': ', 1)[1] for line in body.splitlines() if line.startswith('event: ')]
-        self.assertEqual(kinds, ['start', 'intent', 'plan', 'intent', 'action', 'text', 'end'])
+        self.assertEqual(kinds, ['start', 'intent', 'thinking', 'plan', 'intent', 'action', 'text', 'end'])
+        self.assertIn('"say": "Fait."', ''.join(json.loads(line[6:])['text'] for line in body.splitlines()
+                                               if line.startswith('data: ') and '"round"' in line))  # réflexion = le plan écrit
         self.assertIn('Bonjour', body)
         from .models import GuardianLog
 

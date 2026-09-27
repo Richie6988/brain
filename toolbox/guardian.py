@@ -779,8 +779,10 @@ class Guardian(IaquaOps):
             say, done, steps = '', [], []
             for round_ in range(MAX_ROUNDS):
                 self.emit('intent', {'text': 'Je lis ton message et le plan…' if round_ == 0 else 'Je lis ce que j\'ai trouvé et je continue…'})
-                raw = self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT,
-                                       owner='gardien', **{'temperature': 0.2, **guardian.params})  # plan : peu créatif par défaut
+                # Le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
+                raw = self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT, owner='gardien',
+                                       on_text=lambda piece, r=round_: self.emit('thinking', {'round': r, 'text': piece}),
+                                       **{'temperature': 0.2, **guardian.params})  # plan : peu créatif par défaut
                 last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
                 if last:
                     self.timings.append(last)

@@ -1,7 +1,7 @@
 // Visite interactive d'une arborescence, comme une vidéo dont on choisit la suite : la caméra part d'un
 // node et suit ses liens en travelling. À chaque embranchement, la visite s'arrête et propose les
 // branches (« cette branche ou celle-ci ») ; au bout d'une branche, elle revient au dernier embranchement
-// resté ouvert. Lecture / pause, vitesse, retour, mode auto (il choisit seul). Un geste sur l'univers
+// resté ouvert. Lecture / pause, vitesse, flèches arrière / avant (manuelles, même en pause), mode auto (il choisit seul). Un geste sur l'univers
 // (clic, molette) met la visite en pause ; rien n'est modifié dans Nodz.
 
 import { h } from './library.js';
@@ -30,29 +30,32 @@ export function createTour({ bridge, say }) {
     const choices = h('div', { class: 'gt-choices' });
     const play = h('button', { type: 'button', class: 'gt-play', title: 'Lecture / pause (Espace)' });
     const back = h('button', { type: 'button', title: 'Node précédent (←)' }, '⏮');
+    const ahead = h('button', { type: 'button', title: 'Node suivant (→) ; à un embranchement, la première branche' }, '⏭');
     const auto = h('button', { type: 'button', class: 'gt-auto', title: 'Aux embranchements, choisir seul la première branche' }, 'Auto');
     const speeds = h('div', { class: 'gt-speeds' }, SPEEDS.map(k => h('button', { type: 'button', dataset: { speed: k }, onclick: () => setSpeed(k) }, `${k}×`)));
     const quit = h('button', { type: 'button', class: 'gt-quit', title: 'Quitter la visite (Échap)', onclick: stop }, '✕');
     const card = h('section', { id: 'gardien-tour', hidden: true, role: 'region', 'aria-label': 'Visite' },
         h('header', {}, h('span', { class: 'gt-dot' }), title, quit), current, choices,
-        h('footer', {}, back, play, speeds, auto));
+        h('footer', {}, back, play, ahead, speeds, auto));
     document.body.append(card);
 
     play.addEventListener('click', () => (state.playing ? pause() : resume()));
     back.addEventListener('click', previous);
+    ahead.addEventListener('click', forward);
     auto.addEventListener('click', () => {
         state.auto = !state.auto;
         paint();
         if (state.auto && state.choices.length) choose(state.choices[0]);
     });
 
-    // Raccourcis pendant la visite (sauf pendant une saisie) : Espace, ←, 1 à 9, Échap.
+    // Raccourcis pendant la visite (sauf pendant une saisie) : Espace, ←, →, 1 à 9, Échap.
     document.addEventListener('keydown', event => {
         if (card.hidden || event.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
         const n = Number(event.key);
         if (event.key === ' ') state.playing ? pause() : resume();
         else if (event.key === 'Escape') stop();
         else if (event.key === 'ArrowLeft' || event.key === 'Backspace') previous();
+        else if (event.key === 'ArrowRight') forward();
         else if (n >= 1 && n <= state.choices.length) choose(state.choices[n - 1]);
         else return;
         event.preventDefault();
@@ -68,6 +71,7 @@ export function createTour({ bridge, say }) {
         current.textContent = node ? short(textOf(node), 160) : '';
         play.textContent = state.playing ? '⏸' : '▶';
         back.disabled = state.path.length < 2;
+        ahead.disabled = !node || !state.path.some(n => open(n).length);
         auto.classList.toggle('on', state.auto);
         speeds.querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === state.speed));
         document.querySelectorAll('.gardien-choice').forEach(n => n.classList.remove('gardien-choice'));
@@ -147,6 +151,15 @@ export function createTour({ bridge, say }) {
         go(here(), { back: true });
         state.playing = false;
         paint();
+    }
+
+    // Pas suivant à la main, sans attendre la fin du temps de lecture ; la lecture garde son état.
+    function forward() {
+        if (state.choices.length) return go(state.choices[0]);
+        if (!here() || ahead.disabled) return;
+        state.run += 1;
+        bridge.cut();
+        next();
     }
 
     function pause(message) {
