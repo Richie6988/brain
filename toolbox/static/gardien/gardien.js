@@ -13,6 +13,7 @@ import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
 import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';
+import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
 import { createPresence } from './presence.js';
 import { createTour } from './tour.js';
@@ -89,6 +90,7 @@ const signedIn = setInterval(() => {
 
 const filters = createFilters();
 createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
+createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes) });
 const tour = createTour({ bridge, say });

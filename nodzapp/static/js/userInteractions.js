@@ -536,6 +536,22 @@ function noCurrentNode() {
 //     }
 // });
 
+// Centrage vertical du texte des nodes redimensionnés, groupé par image : toutes les hauteurs sont lues, puis
+// toutes écrites. Lire scrollHeight juste après avoir changé la taille d'un node forçait un calcul de mise en page
+// de tout l'univers à chaque node (charger une dimension coûtait n²).
+const textToCenter = new Map();
+function centerText(nodeGroup, height) {
+    if (!textToCenter.size) {
+        requestAnimationFrame(() => {
+            const nodes = [...textToCenter].filter(([node]) => node.isConnected);
+            textToCenter.clear();
+            const heights = nodes.map(([node]) => node.children[0].children[0].scrollHeight);
+            nodes.forEach(([node, box], i) => { node.children[0].children[0].style.bottom = (box - heights[i]) / 2 + 'px'; });
+        });
+    }
+    textToCenter.set(nodeGroup, height);
+}
+
 function nodeSizing(nodeGroup,w,h) {  
     var screenSize = window.innerHeight*2;
     if ((w > screenSize || h > screenSize)) {
@@ -551,7 +567,7 @@ function nodeSizing(nodeGroup,w,h) {
 
     let input = nodeGroup.children[0].children[0];
   
-    input.style.bottom = (foreignObject.getAttribute('height') - input.scrollHeight)/2 +'px';
+    centerText(nodeGroup, foreignObject.getAttribute('height'));
     input.style.width = '100%';
 
     if (nodeGroup.getAttribute('type') === 'canvas') {
@@ -833,15 +849,15 @@ function nodeSizing(nodeGroup,w,h) {
     foreignObject.setAttribute('x', centerX - parseFloat(foreignObject.getAttribute('width'))/2);
     foreignObject.setAttribute('y', centerY - parseFloat(foreignObject.getAttribute('height'))/2);
 
-    // COLORWHEEL
-   
-    colorWheelfo.setAttribute('width', 2*hitboxRadius*currentZoom);
-    colorWheelfo.setAttribute('height', 2*hitboxRadius*currentZoom); 
-    const nodeRect = nodeGroup.children[1].getBoundingClientRect();
-    const x = nodeRect.x;
-    const y = nodeRect.y;
-    colorWheelfo.setAttribute('transform', `translate(${x}, ${y})`);
-    picker.setSize(2*hitboxRadius*currentZoom); 
+    // COLORWHEEL : seulement quand elle est ouverte (chaque ouverture refait ce calage) ; fermée, la redessiner et
+    // mesurer le node forçaient un calcul de mise en page à chaque création, zoom ou redimensionnement.
+    if (colorWheelfo.getAttribute('visibility') !== 'hidden') {
+        colorWheelfo.setAttribute('width', 2*hitboxRadius*currentZoom);
+        colorWheelfo.setAttribute('height', 2*hitboxRadius*currentZoom); 
+        const nodeRect = nodeGroup.children[1].getBoundingClientRect();
+        colorWheelfo.setAttribute('transform', `translate(${nodeRect.x}, ${nodeRect.y})`);
+        picker.setSize(2*hitboxRadius*currentZoom); 
+    }
 
     // PORTAL
     let quantumButtonfo = nodeGroup.children[3];
