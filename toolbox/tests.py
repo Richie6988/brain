@@ -964,6 +964,29 @@ class GuardianTests(TestCase):
         with self.assertRaisesRegex(PlanError, 'trop longue pour le contexte'):
             Guardian(self.user, SmallContext(10), lambda k, d: None).handle('organise', context)
 
+    def test_grow_a_reasoning_as_an_organic_structure(self):
+        # Un plan libre (une idée par ligne, indentée) pousse en étoile : un node par idée, relié à son parent, une
+        # couleur par branche, sans chevauchement ; autour d'un node existant, il le développe sans le recréer.
+        plan = "Photosynthèse\n- Lumière : captée par la chlorophylle\n  - Phase claire\n- Eau et CO2\n  - Cycle de Calvin\n- Oxygène"
+        self.run_guardian(json.dumps({'plan': [], 'say': 'Fait.', 'actions': [{'op': 'grow', 'text': plan, 'near': 'N-1'}]}))
+        created = [a for a in self.actions() if a['op'] == 'create']
+        links = [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link']
+        self.assertEqual([c['text'] for c in created][:2], ['Photosynthèse', 'Lumière : captée par la chlorophylle'])
+        self.assertEqual(len(created), 6)
+        self.assertIn(('grow1', 'grow1.n1'), links)
+        self.assertIn(('grow1.n1', 'grow1.n2'), links)  # Phase claire sous Lumière
+        by_ref = {c['ref']: c for c in created}
+        self.assertEqual(by_ref['grow1.n1']['color'], by_ref['grow1.n2']['color'])  # même branche, même couleur
+        self.assertNotEqual(by_ref['grow1.n1']['color'], by_ref['grow1.n3']['color'])
+        points = [(c['x'], c['y']) for c in created]
+        self.assertTrue(all(math.dist(a, b) >= 180 for i, a in enumerate(points) for b in points[i + 1:]))
+        self.events = []
+        self.run_guardian(json.dumps({'plan': [], 'say': 'Fait.', 'actions': [
+            {'op': 'grow', 'ref': 'N-1', 'text': 'Voyage\n- Kyoto\n- Tokyo'}, {'op': 'grow', 'text': '   '}]}))
+        self.assertEqual([a['ref'] for a in self.actions() if a['op'] == 'create'], ['N-1.n1', 'N-1.n2'])  # N-1 n'est pas recréé
+        self.assertIn(('N-1', 'N-1.n1'), [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link'])
+        self.assertIn('grow : une structure organique demande un plan', self.errors()[0])
+
     def test_put_writes_a_node_as_it_is_read(self):
         # put : le même objet qu'en lecture ; nouveau node avec liens et enfants, node existant restylé et relié.
         self.run_guardian(json.dumps({'plan': [], 'say': 'Fait.', 'actions': [

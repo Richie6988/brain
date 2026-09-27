@@ -64,6 +64,10 @@ TOOLS = [
             '(cols, cells[colonne] = cartes), timeline (items dans l\'ordre), pyramid (items du sommet à la base), tree (items : '
             'une ligne par node, 2 espaces d\'indentation par niveau), list (items). {"op":"build","template":"eisenhower",'
             '"cells":[...]} réutilise un gabarit gardé ; save_as le garde.'},
+    {'op': 'grow', 'category': 'Gabarits', 'source': NODZ, 'label': 'Faire pousser un raisonnement (structure organique)',
+     'doc': '{"op":"grow","near":"N-3","text":"Idée centrale\\n- Branche : détail\\n  - sous-idée\\n- Autre branche"} : pour un '
+            'raisonnement long ou une explication : écris un plan libre, une idée par ligne, indentée (2 espaces, puces ou #) ; '
+            'il pousse en étoile, une couleur par branche, 80 idées au plus. Avec "ref":"N-12", il pousse autour de ce node.'},
     {'op': 'template_save', 'category': 'Gabarits', 'source': NODZ, 'label': 'Garder un gabarit',
      'doc': '{"op":"template_save","name":"retro","layout":"kanban","title":"Rétrospective","cols":["Bien","À améliorer","Actions"],'
             '"description":"rétro d\'équipe"} : garde un gabarit pour le reconstruire plus tard (build avec template).'},
@@ -216,7 +220,7 @@ TOOLS = [
 BY_OP = {t['op']: t for t in TOOLS}
 
 # Outils décrits en entier dans le prompt ; les autres n'y ont qu'une ligne (mode d'emploi par tool_help).
-CORE = {'ask', 'put', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
+CORE = {'ask', 'put', 'grow', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
 
 
 def available(op, user):

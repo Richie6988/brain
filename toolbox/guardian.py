@@ -41,6 +41,7 @@ LAYOUT_NAMES = {'matrix': 'la matrice', 'kanban': 'le kanban', 'timeline': 'la f
 OPS = [t['op'] for t in tools.TOOLS]  # catalogue commun Nodz + iAqua (tools.py)
 ROLES = [Agent.Role.TEXT, Agent.Role.CODE, Agent.Role.TOOLS]  # rôles qu'un agent créé par le Gardien peut prendre
 MAX_MEMORY = 30
+BRANCHES = ['#4D96FF', '#33FF99', '#FF6B6B', '#FFD93D', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5']  # une couleur par branche (grow)
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
 
 
@@ -126,6 +127,7 @@ Exemples (imite leur forme) :
 « ajoute Voyage relié à N-3 » → {"plan": ["Créer Voyage relié à N-3"], "say": "J'ai créé « Voyage » et je l'ai relié à N-3.", "actions": [{"op":"put","ref":"new1","near":"N-3","text":"Voyage","links":["N-3"]}]}
 « mets N-5 en rouge et relie-le à N-2 » → {"plan": ["Changer N-5"], "say": "N-5 est rouge et relié à N-2.", "actions": [{"op":"put","ref":"N-5","color":"#FF6B6B","links":["N-2"]}]}
 « arbre de compétences d'un jeu » → {"plan": ["Construire l'arbre"], "say": "J'ai construit l'arbre de compétences.", "actions": [{"op":"build","layout":"tree","items":["Compétences","  Combat","    Épée","  Magie","    Feu"],"title":"Compétences"}]}
+« explique la photosynthèse en détail » → {"plan": ["Déployer l'explication"], "say": "J'ai déployé l'explication en étoile.", "actions": [{"op":"grow","text":"Photosynthèse\n- Lumière : captée par la chlorophylle\n  - Phase claire : ATP\n- Eau et CO2\n  - Cycle de Calvin : glucose\n- Oxygène rejeté"}]}
 « résume N-12 » (son texte complet est donné) → {"plan": [], "say": "N-12 dit que…", "actions": []}
 « fais quelque chose avec ça » (ambigu) → {"plan": [], "say": "", "actions": [{"op":"ask","text":"Je le résume ou j'en fais une carte mentale ?","choices":["Résumer","Carte mentale"]}]}
 {tools}
@@ -211,6 +213,7 @@ def intent(action, nodes):
     op = action.get('op')
     return {
         'ask': lambda a: 'Je te pose une question',
+        'grow': lambda a: f"Je fais pousser « {short(str(a.get('text', '')).strip().splitlines()[0] if str(a.get('text', '')).strip() else '')} »",
         'put': lambda a: f"J'écris {name(a.get('ref'))}" if str(a.get('ref', '')).startswith('N-') else f"Je crée « {short(a.get('text'))} »",
         'create': lambda a: f"Je crée « {short(a.get('text'))} »",
         'update': lambda a: f"Je réécris {name(a.get('ref'))}",
@@ -538,6 +541,39 @@ class Guardian(IaquaOps):
             self.emit('action', {'op': 'link', 'source': ref(a), 'target': ref(b)})
         if action.get('save_as'):
             self.op_template_save({**spec, 'name': action['save_as'], 'description': action.get('description', '')}, agents)
+        return None
+
+    def op_grow(self, action, agents):
+        """Un raisonnement qui pousse en étoile (layouts.organic) : le modèle écrit un plan libre dans `text`, une idée
+        par ligne, indentée ; chaque branche a sa couleur. Avec `ref` N-12, la structure pousse autour de ce node au
+        lieu d'en créer un nouveau (développer une idée existante)."""
+        try:
+            nodes, links = layouts.organic(action.get('text', ''))
+        except layouts.LayoutError as e:
+            raise PlanError(str(e)) from None
+        grown = str(action.get('ref', '')) in self.nodes and str(action['ref']).startswith('N-')
+        count = sum(1 for key in self.nodes if key.startswith('grow') and '.' not in key)
+        base = action['ref'] if grown or str(action.get('ref', '')).startswith('new') else f'grow{count + 1}'
+        if grown:
+            ox, oy = self.nodes[base]['x'], self.nodes[base]['y']
+        else:
+            ox, oy = self.free_area([(n['x'], n['y']) for n in nodes], action.get('near'))
+        accent = self.color(action) or '#6848A6'
+        ref = lambda key: base if key == 't' else f'{base}.{key}'
+        for n in nodes:
+            if n['key'] == 't' and grown:
+                continue
+            x, y = round(ox + n['x']), round(oy + n['y'])
+            self.nodes[ref(n['key'])] = {'x': x, 'y': y, 'r': RADIUS, 'text': plain(n['text']), 'new': True}
+            self.occupied.append((x, y, RADIUS))
+            color = accent if n['depth'] == 0 else BRANCHES[n['branch'] % len(BRANCHES)]
+            self.emit('action', {'op': 'create', 'ref': ref(n['key']), 'x': x, 'y': y, 'text': text_html(n['text']),
+                                 'color': color, 'shape': None})
+            if n['depth'] < 2:  # le centre et les grandes branches ressortent
+                self.emit('action', {'op': 'style', 'ref': ref(n['key']), 'color': None, 'shape': None,
+                                     'radius': 110.0 if n['depth'] == 0 else 85.0, 'lock': None})
+        for a, b in links:
+            self.emit('action', {'op': 'link', 'source': ref(a), 'target': ref(b)})
         return None
 
     def op_template_save(self, action, agents):

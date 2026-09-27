@@ -1,4 +1,5 @@
-"""Gabarits que le Gardien construit avec des nodes : matrice, kanban, frise, pyramide, arbre, liste.
+"""Gabarits que le Gardien construit avec des nodes : matrice, kanban, frise, pyramide, arbre, liste, et la
+structure organique d'un raisonnement (organic : un plan libre qui pousse en étoile autour de son idée).
 
 Un gabarit est une liste de nodes (clé, position relative, texte, rôle) et de liens entre clés, en
 coordonnées de Nodz (y vers le haut) ; le Gardien le pose dans un coin libre de la dimension. Aucun lien
@@ -6,10 +7,15 @@ parfaitement horizontal ou vertical : le dégradé d'un lien de Nodz ne s'y affi
 dessinés de Nodz (SWOT, matrice 3×3…) s'ajoutent en fond avec BACKDROPS.
 """
 
+import math
+import re
+import zlib
+
 LAYOUTS = ['matrix', 'kanban', 'timeline', 'pyramid', 'tree', 'list']
 BACKDROPS = ['SWOT', 'M3X3', 'PYRAMID', 'IKIGAI', 'CHRONO', 'TOWS', 'BM']
 STEP = 240  # entre deux centres de nodes (rayon 85, marge comprise)
 MAX_NODES = 60
+MAX_ORGANIC = 80  # un raisonnement développé peut compter plus d'idées qu'un gabarit
 
 
 class LayoutError(ValueError):
@@ -131,6 +137,86 @@ def listing(title, items):
     if title:
         nodes.insert(0, _node('t', 0, STEP * 0.6, title, 'title'))
         links = [('t', f'i{k + 1}') for k in range(len(items))]
+    return nodes, links
+
+
+def outline(text):
+    """Plan libre en (profondeur, texte) : une idée par ligne ; la profondeur vient de l'indentation (2 espaces ou une
+    tabulation), des puces (-, *, •, 1.) ou des titres (#, ##). La première ligne est la racine (profondeur 0)."""
+    items = []
+    for raw in str(text or '').replace('\t', '  ').splitlines():
+        body = raw.strip()
+        if not body:
+            continue
+        indent = (len(raw) - len(raw.lstrip(' '))) // 2
+        heading = re.match(r'(#{1,6})\s+(.*)', body)
+        bullet = re.match(r'(?:[-*•+]|\d+[.)])\s+(.*)', body)
+        if heading:
+            depth, body = len(heading[1]) - 1, heading[2]
+        elif bullet:
+            depth, body = indent + 1, bullet[1]
+        else:
+            depth = indent
+        items.append((0 if not items else max(1, depth), body.strip()[:300]))
+    return [item for item in items if item[1]][:MAX_ORGANIC]
+
+
+def organic(text):
+    """Un raisonnement en étoile : l'idée au centre, chaque branche sur une part d'angle proportionnelle à ses feuilles,
+    un anneau par profondeur, élargi pour que les nodes ne se touchent pas ; un léger désordre fixe (tiré du texte)
+    rend la forme vivante, et aucun lien n'est pile horizontal ou vertical (dégradé des liens de Nodz)."""
+    items = outline(text)
+    if not items:
+        raise LayoutError('une structure organique demande un plan (une idée par ligne, indentée)')
+    parents, stack = [None], [0]  # stack : indices des ancêtres de la ligne courante
+    for index, (depth, _) in enumerate(items[1:], 1):
+        while len(stack) > 1 and items[stack[-1]][0] >= depth:
+            stack.pop()
+        parents.append(stack[-1])
+        stack.append(index)
+    children = {}
+    for index, parent in enumerate(parents):
+        if parent is not None:
+            children.setdefault(parent, []).append(index)
+    level = [0] * len(items)
+    for index in range(1, len(items)):
+        level[index] = level[parents[index]] + 1
+    leaves = [0] * len(items)
+    for index in range(len(items) - 1, -1, -1):
+        leaves[index] = sum(leaves[k] for k in children.get(index, [])) or 1
+    angles, spans = {0: 0.0}, {0: (0.0, 2 * math.pi)}
+
+    def spread(index):
+        start, end = spans[index]
+        kids = children.get(index, [])
+        total, width = sum(leaves[k] for k in kids), end - start
+        for kid in kids:
+            share = width * leaves[kid] / total
+            spans[kid] = (start, start + share)
+            angles[kid] = start + share / 2
+            start += share
+            spread(kid)
+    spread(0)
+    rings, radius = [0.0], 0.0
+    for d in range(1, max(level) + 1):  # anneau assez grand pour que sa part d'angle la plus étroite fasse STEP
+        narrowest = min(spans[i][1] - spans[i][0] for i in range(len(items)) if level[i] == d)
+        radius = max(radius + STEP * 1.1, STEP * 1.15 / narrowest)
+        rings.append(radius)
+    nodes, links = [], []
+    for index, (_, body) in enumerate(items):
+        noise = zlib.crc32(body.encode()) % 1000 / 1000 - 0.5  # même texte, même place
+        angle = angles[index] + noise * 0.12
+        if index and abs(math.sin(2 * angle)) < 0.05:  # lien horizontal ou vertical : on l'incline un peu
+            angle += 0.08
+        r = rings[level[index]] * (1 + noise * 0.1)
+        key = 't' if index == 0 else f'n{index}'
+        branch = index
+        while branch and parents[branch]:
+            branch = parents[branch]
+        nodes.append({**_node(key, r * math.cos(angle), r * math.sin(angle), body, 'title' if index == 0 else 'item'),
+                      'depth': level[index], 'branch': children.get(0, []).index(branch) if index else 0})  # rang de la branche
+        if index:
+            links.append(('t' if parents[index] == 0 else f'n{parents[index]}', key))
     return nodes, links
 
 
