@@ -7,7 +7,7 @@ from nodzapp.models import Layer, NodzUser, Param
 
 
 class Command(BaseCommand):
-    help = "Crée (ou complète) l'utilisateur local avec son Param et son layer Home."
+    help = "Crée (ou complète) l'utilisateur local, administrateur, avec son Param et son layer Home."
 
     def add_arguments(self, parser):
         parser.add_argument('--email', default=os.environ.get('NODZ_LOCAL_EMAIL') or 'local@nodz.local')
@@ -25,6 +25,10 @@ class Command(BaseCommand):
             self.stdout.write(f'Mot de passe mis à jour pour {email}')
         else:
             self.stdout.write(f'Utilisateur existant : {email}')
+        if not (user.is_staff and user.is_superuser):  # l'utilisateur local administre son serveur (modèles d'IA)
+            user.is_staff = user.is_superuser = True
+            user.save(update_fields=['is_staff', 'is_superuser'])
+            self.stdout.write(f'{email} est maintenant administrateur')
 
         Param.objects.get_or_create(user=user)
         Layer.objects.get_or_create(user=user, layer_id=1, defaults={'layer_name': 'Home'})
