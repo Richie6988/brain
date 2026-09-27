@@ -1,0 +1,161 @@
+/* Nodz modernisé : une couche de style chargée en dernier, pour le chrome seulement (barre de
+   boutons, dimensions, recherche, popups, accueil, profil). Le canevas, les nodes, les liens et la
+   roue de couleurs ne sont pas touchés : le feel de navigation reste celui d'origine.
+   Mêmes couleurs que Nodz (violet #6848A6, prune #440852, bleu #1E90FF, ivoire), en verre dépoli. */
+
+:root {
+    --nz-glass: rgba(10, 16, 30, 0.72);
+    --nz-glass-strong: rgba(10, 16, 30, 0.92);
+    --nz-line: rgba(148, 163, 184, 0.22);
+    --nz-text: #e2e8f0;
+    --nz-muted: #94a3b8;
+    --nz-violet: #6848A6;
+    --nz-plum: #440852;
+    --nz-blue: #1E90FF;
+    --nz-glow: 0 0 0 1px rgba(104, 72, 166, 0.7), 0 6px 18px rgba(104, 72, 166, 0.4);
+    --nz-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+/* --- Barre de boutons : un dock flottant qui monte du bas, comme avant */
+
+#button-container {
+    width: auto; max-width: calc(100vw - 32px); height: 50px; box-sizing: border-box;
+    padding: 0 10px; gap: 2px; justify-content: center; bottom: -72px;
+    background: var(--nz-glass); border: 1px solid var(--nz-line); border-radius: 999px;
+    backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    transition: bottom 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#button-container.show { bottom: 14px; }
+
+/* Son et Export perdent la classe menuBtn quand Nodz change leur état (className = 'soundon', 'save'…) :
+   ils sont aussi visés par leur id pour garder l'apparence des autres boutons et leur icône. */
+.menuBtn, #soundButton, #exportButton {
+    position: relative; width: 34px; height: 34px; margin: 0 2px; padding: 0; flex: none; cursor: pointer;
+    border: none; border-radius: 50%; background: transparent;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.menuBtn::after, #soundButton::after, #exportButton::after {
+    content: ''; position: absolute; top: 20%; left: 20%; width: 60%; height: 60%;
+    filter: brightness(0) invert(0.92); transition: filter 0.2s;
+}
+#soundButton:not(.soundon)::after { background: url('../img/nosound.svg') no-repeat center / 100%; }
+#exportButton:not(.save)::after { background: url('../img/export.svg') no-repeat center / 80%; }
+.menuBtn:hover, #soundButton:hover, #exportButton:hover { background: rgba(104, 72, 166, 0.55); box-shadow: var(--nz-glow); transform: translateY(-2px); }
+.menuBtn:active, #soundButton:active, #exportButton:active { background: var(--nz-violet); transform: translateY(0) scale(0.95); }
+.menuBtn:focus-visible, #soundButton:focus-visible, #exportButton:focus-visible { outline: 2px solid var(--nz-blue); outline-offset: 2px; }
+#notificationButton[data-count]:not([data-count="0"])::before {
+    top: -4px; right: -4px; min-width: 16px; padding: 2px 4px; box-sizing: border-box; z-index: 1;
+    background: #FF4D6D; font: 700 10px/12px 'Cascadia Code', monospace; box-shadow: 0 0 0 2px rgba(10, 16, 30, 0.9);
+}
+
+/* Dimension courante */
+#layerButton.dropdown-button {
+    height: 34px; margin: 0 6px; padding: 0 14px; border: none; border-radius: 999px;
+    background: rgba(104, 72, 166, 0.22); color: #ddd0ff; font: 600 13px 'Cascadia Code', monospace;
+    box-shadow: inset 0 0 0 1px rgba(104, 72, 166, 0.6); transition: background-color 0.2s, box-shadow 0.2s;
+}
+#layerButton.dropdown-button:hover { background: rgba(104, 72, 166, 0.4); box-shadow: var(--nz-glow); transform: none; }
+#layerButton.dropdown-button:active { background: var(--nz-violet); }
+#layerButton span { opacity: 0.7; margin-left: 2px; }
+
+/* Recherche sémantique et ses flèches */
+#semanticsearch {
+    height: 34px; min-width: 180px; box-sizing: border-box; padding: 0 14px;
+    border: 1px solid var(--nz-line); border-radius: 999px; background: rgba(255, 255, 255, 0.05);
+    color: #8cc4ff; font-size: 13px; outline: none; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+#semanticsearch:focus { border-color: rgba(30, 144, 255, 0.7); background: rgba(30, 144, 255, 0.08); box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.18); }
+.arrow-button {
+    width: 26px; height: 26px; display: grid; place-items: center; margin: 0 2px;
+    border-radius: 50%; background: transparent; color: var(--nz-muted); font: 15px 'Cascadia Code', monospace;
+    transition: color 0.2s, background-color 0.2s;
+}
+.arrow-button:hover { color: #fff; background: rgba(104, 72, 166, 0.5); transform: none; box-shadow: none; }
+
+/* Poignée du dock (sa couleur vient de Nodz) */
+.indicator { bottom: 7px; width: 44px; height: 4px; border-radius: 999px; transform: translateX(-50%); box-shadow: 0 0 10px rgba(165, 83, 185, 0.5); }
+
+/* --- Liste des dimensions */
+
+.dropdown-content {
+    min-width: 230px; padding: 6px; box-sizing: border-box;
+    background: var(--nz-glass-strong); border: 1px solid var(--nz-line); border-radius: 16px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--nz-shadow);
+}
+.dropdown-content .dropdown-item {
+    margin: 2px 0; padding: 8px 12px; border-radius: 10px; gap: 12px;
+    background: transparent; color: var(--nz-text); font-size: 13px; transition: background-color 0.15s;
+}
+.dropdown-content .dropdown-item:hover { background: rgba(104, 72, 166, 0.3); }
+.dropdown-content .dropdown-item[style*="background"] { background: rgba(104, 72, 166, 0.55) !important; box-shadow: inset 3px 0 0 #b89af2; }
+.dropdown-content .dropdown-item.new { color: #b89af2; border-bottom: 1px solid var(--nz-line); border-radius: 10px 10px 4px 4px; margin-bottom: 6px; }
+/* Icônes dessinées au lieu des caractères ➕ et ✎ (pas d'emoji dans le chrome) */
+.dropdown-content .dropdown-item .icon { font-size: 0 !important; margin-left: 0 !important; width: 14px; height: 14px; flex: none; opacity: 0.75; }
+.dropdown-content .dropdown-item .icon:hover { opacity: 1; }
+#create-layer-btn .icon {
+    background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,
+                linear-gradient(currentColor, currentColor) center / 2px 100% no-repeat;
+}
+.dropdown-content .dropdown-item:not(.new) .icon { background: url('../img/edit.svg') center / contain no-repeat; }
+
+/* Renommer une dimension */
+#edit-modal { background: rgba(5, 12, 23, 0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+#edit-modal .modal-content {
+    width: 280px; padding: 18px 20px; border-radius: 18px; background: #fbfaff; color: var(--nz-plum);
+    border: 1px solid rgba(68, 8, 82, 0.18); box-shadow: var(--nz-shadow); font-size: 13px;
+}
+#layer-name-input {
+    box-sizing: border-box; width: 100%; padding: 9px 14px; border-radius: 999px; border: 1px solid #d9cdea;
+    font: 13px 'Cascadia Code', monospace; color: var(--nz-plum); outline: none;
+}
+#layer-name-input:focus { border-color: var(--nz-violet); box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.18); }
+
+/* --- Popups, boutons et accueil */
+
+.popup {
+    border: 1px solid rgba(68, 8, 82, 0.2); border-radius: 22px; background: #fbfaff;
+    box-shadow: var(--nz-shadow);
+}
+.submit-button {
+    border-radius: 999px; padding: 10px 26px; letter-spacing: 0.04em;
+    background: linear-gradient(135deg, #7a55c4, #4b0082); box-shadow: 0 6px 16px rgba(75, 0, 130, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s;
+}
+.submit-button:hover:enabled { background: linear-gradient(135deg, #8a63d6, #56009a); transform: translateY(-1px); box-shadow: 0 10px 22px rgba(75, 0, 130, 0.45); }
+.submit-button.secondary { background: rgba(255, 255, 255, 0.06); color: var(--nz-text); box-shadow: inset 0 0 0 1px var(--nz-line); }
+.submit-button.secondary:hover:enabled { background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.5); }
+#loginPopup { box-shadow: none; }
+#loginPopup .log-button { min-width: 132px; padding: 11px 26px !important; font: 600 14px 'Cascadia Code', monospace; }
+#loginPopup .popupbutton-container { gap: 16px; justify-content: center; width: auto; }
+#loginPopup .message { font-weight: 700; letter-spacing: 0.02em; }
+.close-btn { width: 34px; height: 34px; top: 10px; right: 12px; display: grid; place-items: center; border-radius: 50%; font-size: 24px; line-height: 1; transition: background-color 0.2s, transform 0.2s; }
+.close-btn:hover { background: rgba(104, 72, 166, 0.12); transform: rotate(90deg); }
+
+/* --- Profil */
+
+#profile .profile-content {
+    border-radius: 22px; border: 1px solid rgba(68, 8, 82, 0.15); background: #fbfaff; box-shadow: var(--nz-shadow);
+}
+#profile .section-title { color: var(--nz-plum); border-bottom: 1px solid #e6def2; }
+#profile .field-container { align-items: center; padding: 6px 0; border-bottom: 1px solid #efe9f7; }
+#profile .field-label { color: var(--nz-violet); font-weight: 600; }
+#profile .edit-icon.icon { font-size: 0; width: 16px; height: 16px; cursor: pointer; opacity: 0.6; background: url('../img/edit-light.svg') center / contain no-repeat; }
+#profile .edit-icon.icon:hover { opacity: 1; }
+
+/* --- Mode clair (bouton Dark/Light de Nodz) */
+
+body:has(.universe.lightmode) #button-container { background: rgba(255, 255, 255, 0.78); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 12px 30px rgba(68, 8, 82, 0.15); }
+body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton)::after { filter: none; }
+body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton):is(:hover, :active)::after { filter: brightness(0) invert(1); }
+body:has(.universe.lightmode) #layerButton.dropdown-button { color: var(--nz-plum); background: rgba(104, 72, 166, 0.1); }
+body:has(.universe.lightmode) #semanticsearch { color: #1668c4; background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.18); }
+body:has(.universe.lightmode) .dropdown-content { background: rgba(255, 255, 255, 0.92); border-color: rgba(68, 8, 82, 0.14); }
+body:has(.universe.lightmode) .dropdown-content .dropdown-item { color: var(--nz-plum); }
+body:has(.universe.lightmode) .dropdown-content .dropdown-item:not(.new) .icon { background-image: url('../img/edit-light.svg'); }
+
+@media (max-width: 900px) {
+    #button-container { padding: 0 6px; gap: 0; }
+    .menuBtn, #soundButton, #exportButton { width: 28px; height: 28px; margin: 0 1px; }
+    #semanticsearch { min-width: 110px; }
+}
