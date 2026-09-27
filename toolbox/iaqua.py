@@ -226,6 +226,13 @@ class IaquaOps:
             raise PlanError(f'projet inconnu : {name} (create_project)')
         return project
 
+    def named_project(self, action):
+        """Le projet que l'action vise (project_name ou project) ; sans nom, une erreur que le modèle peut corriger."""
+        project = self.project(action.get('project_name') or action.get('project'))
+        if project is None:
+            raise PlanError('nom du projet requis (project_name) : list_projects les donne')
+        return project
+
     def task(self, key):
         match = re.fullmatch(r'task_(\d+)', str(key or ''))
         task = Task.objects.filter(owner=self.user, number=int(match[1])).first() if match else None
@@ -367,7 +374,7 @@ class IaquaOps:
         return None
 
     def op_update_project(self, action, agents):
-        project = self.project(action.get('project_name') or action.get('project'))
+        project = self.named_project(action)
         field, value = action.get('field'), str(action.get('new_value') or action.get('value') or '')
         if field == 'name':
             project.name = value.upper()[:80]
@@ -387,7 +394,7 @@ class IaquaOps:
         return None
 
     def op_update_project_memory(self, action, agents):
-        project = self.project(action.get('project_name') or action.get('project'))
+        project = self.named_project(action)
         kind, content = action.get('kind'), action.get('content') or action.get('text') or ''
         if kind not in MEMORY_KINDS:
             raise PlanError(f"type de mémoire : {', '.join(MEMORY_KINDS)}")
@@ -403,13 +410,13 @@ class IaquaOps:
         return None
 
     def op_read_project_memory(self, action, agents):
-        project = self.project(action.get('project_name') or action.get('project'))
+        project = self.named_project(action)
         self.read(f'Mémoire du projet {project.name}', [f'Vision : {project.vision or "à définir"}',
                                                           json.dumps(project.memory, ensure_ascii=False, indent=1)[:4000]])
         return None
 
     def op_audit_project(self, action, agents):
-        project = self.project(action.get('project_name') or action.get('project'))
+        project = self.named_project(action)
         tasks = list(project.tasks.all())
         by_status = {s: sum(t.status == s for t in tasks) for s in Task.Status.values}
         layer = Layer.objects.filter(user=self.user, layer_name__iexact=project.name).first()

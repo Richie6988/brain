@@ -887,6 +887,18 @@ class GuardianTests(TestCase):
         self.assertEqual(goto, [{'op': 'goto', 'ref': 'N-45', 'layer': 2, 'text': 'Ton budget'}])
         self.assertIn('search_nodes', self.errors()[0])
 
+    def test_an_unexpected_error_fails_one_action_only(self):
+        # Un outil qui plante sur une action inattendue : l'action échoue seule (type d'erreur affiché), la demande
+        # continue et le modèle est invité à la réécrire ; plus d'« erreur interne du Gardien » pour toute la demande.
+        from .guardian import Guardian
+
+        with mock.patch.object(Guardian, 'op_overview', side_effect=AttributeError('boom'), create=True):
+            engine = self.run_guardian(
+                json.dumps({'plan': [], 'say': 'Voilà.', 'actions': [{'op': 'overview'}, {'op': 'link', 'source': 'N-1', 'target': 'N-2'}]}))
+        self.assertEqual(self.errors(), ['overview : erreur interne (AttributeError)'])
+        self.assertIn('link', [a['op'] for a in self.actions()])
+        self.assertIn('action impossible', engine.calls[-1]['messages'][-1]['content'])
+
     def test_cut_plan_keeps_what_was_said(self):
         # Plan coupé en route (boucle arrêtée ou longueur maximale) : say est gardé, les actions tronquées non.
         self.run_guardian('{"plan": [], "say": "Bonjour !", "actions": [{"op": "create", "ref": "new1", "text": "enc')
@@ -1381,6 +1393,10 @@ class IaquaToolsTests(TestCase):
         self.assertIn('JAPON [active] 0/0 tâches', text)
         self.assertIn('Agents : ', text)
         self.assertIn('suppression est laissée', self.errors()[0])
+        # Sans nom de projet : une erreur que le modèle peut corriger, plus un plantage de la demande.
+        self.run_guardian([{'op': 'read_project_memory'}, {'op': 'audit_project'}])
+        self.assertEqual(self.errors(), ['read_project_memory : nom du projet requis (project_name) : list_projects les donne',
+                                         'audit_project : nom du projet requis (project_name) : list_projects les donne'])
 
     def test_mission_runs_plans_and_tasks(self):
         from . import iaqua

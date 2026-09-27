@@ -10,6 +10,7 @@ bibliothèque et publie leur résultat dans le node visé. Chaque demande est tr
 
 import html
 import json
+import logging
 import math
 import re
 import time
@@ -25,6 +26,8 @@ from .iaqua import IaquaOps
 from .engine import EngineUnavailable
 from .errors import PlanError
 from .models import Agent, LocalModel
+
+logger = logging.getLogger(__name__)
 
 RADIUS = 85  # rayon d'un node texte de Nodz une fois dimensionné (nodeSizing 120 × 120)
 IMAGE_RADIUS = 180  # node image (nodeSizing 250 × 250)
@@ -733,6 +736,10 @@ class Guardian(IaquaOps):
             except (PlanError, KeyError, TypeError, ValueError) as e:
                 self.emit('error', {'message': f'{op} : {e}'})
                 self.failed.append(f'{json.dumps(action, ensure_ascii=False)} : {e}')
+            except Exception as e:  # action inattendue du modèle : elle échoue seule, la demande continue
+                logger.exception('Gardien, action %s', op)
+                self.emit('error', {'message': f'{op} : erreur interne ({type(e).__name__})'})
+                self.failed.append(f'{json.dumps(action, ensure_ascii=False)} : action impossible, écris-la autrement')
         return self.jobs, self.reads
 
     def answer(self, say):

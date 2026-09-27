@@ -483,9 +483,11 @@ async def command(request):
         except (PlanError, EngineUnavailable, BrokerTimeout) as e:
             outcome['error'] = str(e)
             emit('error', {'message': outcome['error']})
-        except Exception:
+        except Exception as e:
             logger.exception('Gardien')
-            outcome['error'] = 'erreur interne du Gardien'
+            # La cause en clair pour l'administrateur (journal du serveur : « Gardien » avec la trace), son type pour tous.
+            detail = f'{type(e).__name__} : {str(e)[:200]}' if user.is_staff else type(e).__name__
+            outcome['error'] = f'erreur interne du Gardien ({detail})'
             emit('error', {'message': outcome['error']})
         finally:
             if outcome['ran']:
