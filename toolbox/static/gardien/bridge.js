@@ -4,6 +4,8 @@
 // (crans de molette sur le SVG, dragUniverse) joués avec un tempo de réalisateur.
 // Les variables et fonctions de Nodz sont des globales des scripts classiques de la page.
 
+import { endpoint } from './api.js';
+
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
@@ -16,6 +18,7 @@ export function createBridge({ caption }) {
     svg.addEventListener('wheel', event => { if (event.isTrusted) cut(); }, true);
 
     const nodeOf = ref => document.getElementById(refs.get(ref) || ref);
+    const typeSelect = node => node.querySelector('select[id^="nodetypedropdown-"]');  // pas le choix de police
     const rootX = () => parseFloat(root.getAttribute('x'));
     const rootY = () => parseFloat(root.getAttribute('y'));
     // Coordonnées de Nodz (x, y vers le haut) ↔ écran, mêmes formules que createNode.
@@ -134,6 +137,26 @@ export function createBridge({ caption }) {
         await frame();
     }
 
+    // Image d'un agent : posée comme un import de l'utilisateur (data URL dans imagecontent, mode image).
+    async function setImage(node, url) {
+        const response = await fetch(endpoint(url), { credentials: 'same-origin' });
+        if (!response.ok) throw new Error("image : téléchargement impossible");
+        const blob = await response.blob();
+        const data = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        });
+        node.setAttribute('imagecontent', data);  // avant le mode image : Nodz n'ouvre pas le sélecteur de fichier
+        const select = typeSelect(node);
+        select.value = 'image';
+        select.dispatchEvent(new Event('change'));
+        const img = node.children[0].children[1];
+        await new Promise(resolve => { img.onload = resolve; img.onerror = resolve; img.src = data; });
+        nodeSizing(node, 250, 250);
+        save(node);
+    }
+
     const tools = {
         create({ ref, x, y, text, color: tint, shape }) {
             color = tint || getRandomColor();  // couleur du prochain node, comme la barre Espace
@@ -148,6 +171,9 @@ export function createBridge({ caption }) {
         update({ ref, text }) {
             setText(nodeOf(ref), text);
         },
+        async image({ ref, url }) {
+            await setImage(nodeOf(ref), url);
+        },
         style({ ref, color: tint, shape, radius, lock }) {
             const node = nodeOf(ref);
             if (tint) paint(node, tint);
@@ -157,7 +183,7 @@ export function createBridge({ caption }) {
             save(node);
         },
         set_type({ ref, content_type }) {
-            const select = nodeOf(ref).querySelector('select');
+            const select = typeSelect(nodeOf(ref));
             select.value = content_type;
             select.dispatchEvent(new Event('change'));
         },

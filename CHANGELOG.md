@@ -18,6 +18,10 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Consignes** : consignes par défaut écrites pour le Gardien (méthode, ton, règles) et pour chaque agent (Rédacteur, Codeur, Illustrateur, outils), visibles et modifiables dans Agents & modèles, avec retour aux consignes par défaut. Le format et les outils du Gardien restent fixes : une consigne réécrite ne les retire pas.
 
+**Le Gardien fait ce qu'il annonce** : un plan annoncé sans aucune action relance aussitôt le modèle (« rien n'a été fait, donne les actions ») ; les actions invalides lui sont renvoyées pour correction ; le node-réponse dit ce qui a été fait, au passé, et avoue l'échec quand rien n'a pu être fait. Le type d'un node (texte, image…) est de nouveau changé par le bon menu (le pont prenait le menu des polices).
+
+**Images : FLUX.1 schnell** avec stable-diffusion.cpp (`SD_BIN`, voir DEPLOY.md) : pack en un clic (modèle et fichiers compagnons VAE, CLIP-L, T5-XXL, quantisation légère sur petite machine), l'Illustrateur dessine dans un node image (progression dans le fil de suivi), le modèle de texte est libéré pendant le dessin, réglages d'image par modèle (taille, étapes, guidage, échantillonneur, graine, threads, VAE par tuiles, tout sur CPU). Les images générées ne sont servies qu'à leur auteur.
+
 **`/next` supprimé** : l'interface parallèle (`graph/static/nodz/`, `next.html`, route `/next`) est retirée ; `/universe` est l'unique interface. Le Gardien garde son petit client d'API (`toolbox/static/gardien/api.js`). Le modèle de données v2 et l'API `/api/v1` restent.
 
 **Réglages fins des modèles** : panneau pleine largeur par modèle, en trois groupes décrits par le serveur (`toolbox/params.py`). GPU : offload par curseur de 0 à toutes les couches (lues dans l'en-tête GGUF) avec VRAM estimée et boutons CPU / Ce qui tient / Tout sur GPU, GPU principal, répartition multi-GPU et part de chaque carte, cache KV sur GPU, flash attention, cache K et V quantifiés (q8_0, q4_0). Mémoire et vitesse : contexte, batch, micro-batch, threads, threads du prompt, mmap, mlock, RoPE, libération. Échantillonnage : température, top P, top K, min P, typical P, pénalités de répétition, présence et fréquence, Mirostat, longueur, graine. Chaque agent peut avoir son propre échantillonnage. Un réglage de chargement modifié recharge le modèle à la demande suivante ; seuls les réglages choisis partent à llama-cpp-python.
@@ -41,7 +45,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 - nginx : les statiques sont revalidés à chaque chargement (l'ancien `expires 7d` gardait d'anciens CSS et modules JS).
 - Interface : `command.js` (barre de commande, flux SSE, réponse appliquée au store sans renvoi au serveur et annulable en un pas via `store.applyRemote` / `store.record`), `library.js` (bibliothèque, en bottom sheet sur mobile, suppression confirmée en deux temps), clavier virtuel pris en compte (`visualViewport`).
 - nginx : bloc sans tampon et délai de 15 min pour le flux du Gardien.
-- Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX`, `LLM_GPU_LAYERS`, `LLM_THREADS`, `GUARDIAN_WORKERS`, `GUARDIAN_QUEUE`, `GUARDIAN_WEB`.
+- Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX`, `LLM_GPU_LAYERS`, `LLM_THREADS`, `GUARDIAN_WORKERS`, `GUARDIAN_QUEUE`, `GUARDIAN_WEB`, `SD_BIN`.
 
 ## Phase 3 (en cours) : nouvelle interface
 

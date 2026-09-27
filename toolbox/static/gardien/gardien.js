@@ -114,7 +114,7 @@ async function ask(node, text) {
             // Intentions et gestes s'enchaînent : chaque étape s'affiche quand la page l'exécute.
             else if (type === 'intent') actions = actions.then(() => follow.step(data.text));
             else if (type === 'error') actions = actions.then(() => follow.step(data.message, 'error'));
-            else if (type === 'agent') actions = actions.then(() => follow.step(`${data.agent} écrit : ${data.task}`, 'agent'));
+            else if (type === 'agent') actions = actions.then(() => follow.step(`${data.agent} ${data.role === 'image' ? 'dessine' : 'écrit'} : ${data.task}`, 'agent'));
             else if (type === 'action') actions = actions.then(() => bridge.perform(data)).catch(error => follow.step(error.message, 'error'));
         });
         await actions;

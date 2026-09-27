@@ -8,6 +8,7 @@ d'usage et déchargement après inactivité, comme le ModelService de SquidMind.
 
 import threading
 import time
+from contextlib import contextmanager
 
 from django.conf import settings
 
@@ -81,6 +82,13 @@ class Engine:
     def unload(self):
         self._llm = None
         self._loaded = self._options = None
+
+    @contextmanager
+    def exclusive(self, priority, owner):
+        """Le broker pour un autre usage (génération d'image) : le modèle de texte est libéré avant."""
+        with self.broker.slot(priority, owner), self._lock:
+            self.unload()
+            yield
 
     # Libère la mémoire quand le modèle n'a pas servi depuis `ttl` minutes (vérifié chaque minute).
     def _watch(self):

@@ -188,6 +188,44 @@ def repo_files(repo):
             'pipeline': info.pipeline_tag or ''}
 
 
+# --- packs : un modèle d'image et ses fichiers compagnons, choisis dans la liste réelle du dépôt
+
+PACKS = {
+    'flux-schnell': {
+        'label': 'FLUX.1 schnell', 'repo': 'second-state/FLUX.1-schnell-GGUF',
+        # (type, motifs par ordre de préférence) ; sur une petite machine, la quantisation la plus légère d'abord
+        'files': [
+            (LocalModel.Kind.IMAGE, [r'flux1-schnell-Q4_0\.gguf$', r'flux1-schnell-Q4_K\w*\.gguf$', r'flux1-schnell-Q[235]\w*\.gguf$'],
+             [r'flux1-schnell-Q2_K\.gguf$', r'flux1-schnell-Q3\w*\.gguf$', r'flux1-schnell-Q4_0\.gguf$']),
+            (LocalModel.Kind.COMPONENT, [r'^ae\.safetensors$'], None),
+            (LocalModel.Kind.COMPONENT, [r'^clip_l\.safetensors$', r'^clip_l\S*\.gguf$'], None),
+            (LocalModel.Kind.COMPONENT, [r't5xxl-Q4_0\.gguf$', r't5xxl-Q[3-5]\w*\.gguf$', r't5xxl\S*\.gguf$'],
+             [r't5xxl-Q2_K\.gguf$', r't5xxl-Q3\w*\.gguf$', r't5xxl-Q4_0\.gguf$']),
+        ],
+    },
+}
+SMALL_MACHINE_MB = 8_000  # en dessous, le pack prend les quantisations légères
+
+
+def install_pack(key):
+    """Lance le téléchargement d'un pack ; lève ValueError si un fichier manque dans le dépôt."""
+    pack = PACKS.get(key)
+    if pack is None:
+        raise ValueError(f'pack inconnu : {key}')
+    info = api().model_info(pack['repo'], files_metadata=True)
+    files = {s.rfilename: s.size or 0 for s in info.siblings or []}
+    small = machine()['budget_mb'] < SMALL_MACHINE_MB
+    chosen = []
+    for kind, patterns, light in pack['files']:
+        name = next((f for p in ((light or patterns) if small else patterns) + patterns for f in files if re.search(p, f, re.I)), None)
+        if name is None:
+            raise ValueError(f"{pack['repo']} : aucun fichier ne correspond à {patterns[0]}")
+        chosen.append((name, kind))
+    caps = ['image']
+    return [start_download(pack['repo'], name, files[name], kind, caps if kind == LocalModel.Kind.IMAGE else ())
+            for name, kind in chosen]
+
+
 # --- téléchargements : suivis en mémoire (vitesse, annulation), état durable dans LocalModel
 
 DOWNLOADS = {}  # id du LocalModel → {'cancel': Event, 'speed': octets/s}

@@ -1,5 +1,8 @@
+import contextlib
+import html
 import json
 import math
+import shutil
 from datetime import datetime
 import tempfile
 import threading
@@ -351,6 +354,22 @@ class ToolboxApiTests(TestCase):
         r = self.client.patch(f"/api/v1/toolbox/agents/{agent['id']}", {'params': {'n_gpu_layers': 5}}, content_type='application/json')
         self.assertEqual(r.status_code, 400)
 
+    def test_images_and_packs_endpoints(self):
+        from . import imaging
+
+        with tempfile.TemporaryDirectory() as root, override_settings(MEDIA_ROOT=root):
+            name = 'b' * 32 + '.png'
+            (imaging.output_dir(self.user) / name).write_bytes(b'\x89PNG')
+            r = self.client.get(f'/api/v1/toolbox/images/{name}')
+            self.assertEqual((r.status_code, r['Content-Type'], b''.join(r.streaming_content)), (200, 'image/png', b'\x89PNG'))
+            self.client.force_login(self.admin)  # un autre utilisateur ne voit pas cette image
+            self.assertEqual(self.client.get(f'/api/v1/toolbox/images/{name}').status_code, 404)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post('/api/v1/toolbox/packs/flux-schnell').status_code, 403)
+        status = self.client.get('/api/v1/toolbox/status').json()
+        self.assertEqual(status['packs'], {'flux-schnell': 'FLUX.1 schnell'})
+        self.assertIn('imaging', status)
+
     def test_system_monitor(self):
         from . import monitor
 
@@ -461,10 +480,16 @@ class ScriptedEngine:
     def __init__(self, *replies):
         self.replies = list(replies)
         self.calls = []
+        self.exclusive_owners = []
+
+    @contextlib.contextmanager
+    def exclusive(self, priority, owner):
+        self.exclusive_owners.append(owner)
+        yield
 
     def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
         self.calls.append({'model': model, 'messages': messages, 'schema': json_schema, **params})
-        reply = self.replies.pop(0)
+        reply = self.replies.pop(0) if self.replies else json.dumps({'plan': [], 'say': '', 'actions': []})  # rien de plus à faire
         if on_text:
             on_text(reply)
         return reply
@@ -590,7 +615,7 @@ class GuardianTests(TestCase):
         self.assertEqual(ops[1], {'op': 'update', 'ref': 'new1', 'text': 'Jour 1 : Tokyo<br>Jour 2 : Kyoto'})
         self.assertEqual(ops[2], {'op': 'update', 'ref': 'N-2', 'text': '<pre>print(1 &lt; 2)</pre>'})
         self.assertIn('agent_text', [k for k, _ in self.events])
-        self.assertIn("pas encore branchée", self.errors()[0])
+        self.assertIn("n'a pas de modèle", self.errors()[0])  # Illustrateur sans modèle d'image
 
     def test_plug_agent_and_inventory_loop(self):
         other = LocalModel.objects.create(repo='org/coder', filename='Qwen2.5-Coder-7B-Q4_K_M.gguf', status=LocalModel.Status.READY)
@@ -603,7 +628,7 @@ class GuardianTests(TestCase):
             ]}),
             '```js\nhi()\n```',
         )
-        inventory = engine.calls[1]['messages'][-1]['content']
+        inventory = '\n'.join(m['content'] for m in engine.calls[1]['messages'] if m['role'] == 'user')
         self.assertIn('Codeur (code, sans modèle)', inventory)
         self.assertIn('Home (courante)', inventory)
         self.assertIn('Qwen2.5-Coder-7B-Q4_K_M.gguf (text)', inventory)
@@ -689,7 +714,7 @@ class GuardianTests(TestCase):
             json.dumps({'plan': [], 'say': '', 'actions': [{'op': 'search_nodes', 'query': 'kyoto'}, {'op': 'read_file', 'ref': 'N-46'}]}),
             json.dumps({'plan': [], 'say': 'Le voici.', 'actions': [{'op': 'goto', 'ref': 'N-45', 'text': 'Ton budget'}, {'op': 'goto', 'ref': 'N-99'}]}),
         )
-        reads = engine.calls[1]['messages'][-1]['content']
+        reads = '\n'.join(m['content'] for m in engine.calls[1]['messages'] if m['role'] == 'user')
         self.assertIn('N-45 (dimension Voyage) : Budget Kyoto', reads)
         self.assertIn('Jour 1 : Kyoto', reads)
         self.assertNotIn('N-47', reads)
@@ -706,8 +731,64 @@ class GuardianTests(TestCase):
                 json.dumps({'plan': ['Chercher'], 'say': '', 'actions': [{'op': 'web_search', 'query': 'Kyoto'}, {'op': 'web_fetch', 'url': 'http://localhost/'}]}),
                 json.dumps({'plan': [], 'say': 'Trouvé.', 'actions': []}),
             )
-        self.assertIn('- Kyoto (https://ex.org/k) : Temples', engine.calls[1]['messages'][-1]['content'])
+        self.assertIn('- Kyoto (https://ex.org/k) : Temples', '\n'.join(m['content'] for m in engine.calls[1]['messages'] if m['role'] == 'user'))
         self.assertIn('interne', self.errors()[0])
+
+    def test_announced_plan_without_actions_is_relaunched(self):
+        self.CONTEXT = {**self.CONTEXT, 'origin': 'N-1'}
+        promise = {'plan': ['Créer les étapes du voyage'], 'say': 'Je vais créer les étapes.', 'actions': []}
+        engine = self.run_guardian(json.dumps(promise), json.dumps({'plan': ['Créer les étapes du voyage'], 'say': "J'ai créé Kyoto.",
+                                                                    'actions': [{'op': 'create', 'ref': 'new1', 'text': 'Kyoto'}]}))
+        self.assertIn('sans aucune action', engine.calls[1]['messages'][-1]['content'])
+        created = [html.unescape(a['text']) for a in self.actions() if a['op'] == 'create']
+        self.assertEqual(created, ['Kyoto', "J'ai créé Kyoto."])  # le node-réponse dit ce qui a été fait
+
+    def test_nothing_done_is_said_honestly(self):
+        self.CONTEXT = {**self.CONTEXT, 'origin': 'N-1'}
+        promise = json.dumps({'plan': ['Créer les étapes'], 'say': 'Je vais créer les étapes.', 'actions': []})
+        engine = self.run_guardian(*[promise] * 4)
+        self.assertEqual(len(engine.calls), 4)
+        reply = html.unescape([a['text'] for a in self.actions() if a['op'] == 'create'][-1])
+        self.assertIn("Je n'ai pas réussi", reply)
+        self.assertNotIn('Je vais', reply)
+
+    def test_failed_actions_are_sent_back_for_correction(self):
+        engine = self.run_guardian(
+            json.dumps({'plan': ['Relier'], 'say': '', 'actions': [{'op': 'link', 'source': 'N-1', 'target': 'N-9'}]}),
+            json.dumps({'plan': ['Relier'], 'say': "J'ai relié.", 'actions': [{'op': 'link', 'source': 'N-1', 'target': 'N-2'}]}),
+        )
+        self.assertIn('N-9', engine.calls[1]['messages'][-1]['content'])
+        self.assertIn({'op': 'link', 'source': 'N-1', 'target': 'N-2'}, self.actions())
+
+    def test_illustrator_draws_into_a_node(self):
+        from . import imaging
+
+        flux = LocalModel.objects.create(repo='r/flux', filename='flux1-schnell-Q2_K.gguf', path='/m/f.gguf',
+                                         kind=LocalModel.Kind.IMAGE, status=LocalModel.Status.READY)
+        Agent.objects.filter(owner=self.user, role=Agent.Role.IMAGE).update(model=flux)
+        plan = {'plan': ['Dessiner'], 'say': 'Voilà.', 'actions': [
+            {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'a fox under cherry blossoms', 'ref': 'new1', 'near': 'N-1'},
+            {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'broken', 'ref': 'new2'}]}
+
+        def fake(model, prompt, user, on_progress, **params):
+            if prompt == 'broken':
+                raise imaging.ImageUnavailable('pas de VAE')
+            on_progress(4, 4)
+            return 'a' * 32 + '.png'
+
+        with mock.patch.object(imaging, 'generate', side_effect=fake):
+            engine = self.run_guardian(json.dumps(plan))
+        self.assertEqual(engine.exclusive_owners, ['agent:Illustrateur', 'agent:Illustrateur'])
+        images = [a for a in self.actions() if a['op'] == 'image']
+        self.assertEqual(images, [{'op': 'image', 'ref': 'new1', 'url': f"toolbox/images/{'a' * 32}.png"}])
+        self.assertIn('Illustrateur dessine…', [a.get('text', '') for a in self.actions() if a['op'] == 'create'][0])
+        self.assertIn('Illustrateur dessine : étape 4/4', [d['text'] for k, d in self.events if k == 'intent'])
+        self.assertIn('pas de VAE', self.errors()[-1])
+        Agent.objects.filter(owner=self.user, role=Agent.Role.IMAGE).update(model=self.model)  # modèle de texte
+        self.events = []
+        self.run_guardian(json.dumps({'plan': [], 'say': '', 'actions': [
+            {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'x', 'ref': 'new1'}]}))
+        self.assertIn('bon type', self.errors()[0])
 
     def test_free_spot(self):
         from .guardian import free_spot
@@ -758,6 +839,88 @@ class DispatcherTests(SimpleTestCase):
         self.assertFalse(d.wait(b))
         self.assertEqual(d.state()['waiting'], 0)
         d.admit('b')  # l'utilisateur peut redemander
+
+
+FAKE_SD = r'''#!/bin/sh
+case "$1" in --help) echo "usage: sd --diffusion-model --cfg-scale"; exit 0;; esac
+out=""; prev=""
+for a in "$@"; do [ "$prev" = "--output" ] && out="$a"; prev="$a"; done
+echo "$@" > "$out.args"
+printf '  |=====>    | 1/4 - 2.00s/it\r  |==========> | 4/4 - 2.00s/it\n'
+printf '\211PNG fake' > "$out"
+'''
+
+
+@override_settings(SD_BIN='')
+class ImagingTests(TestCase):
+    def setUp(self):
+        from . import imaging
+
+        imaging._binary.clear()
+        self.addCleanup(imaging._binary.clear)
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        self.sd = self.root / 'sd'
+        self.sd.write_text(FAKE_SD)
+        self.sd.chmod(0o755)
+        self.user = NodzUser.objects.create_user(email='i@nodz.local', password='x')
+
+    def model(self, name, repo='second-state/FLUX.1-schnell-GGUF'):
+        folder = self.root / 'models' / repo.replace('/', '__')
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_bytes(b'x')
+        return LocalModel.objects.create(repo=repo, filename=name, path=str(folder / name), kind=LocalModel.Kind.IMAGE,
+                                         status=LocalModel.Status.READY, params={'steps': 2, 'vae_tiling': True})
+
+    def test_flux_generation_with_companions_and_progress(self):
+        from . import imaging
+
+        model = self.model('flux1-schnell-Q2_K.gguf')
+        with override_settings(SD_BIN=str(self.sd), MODELS_DIR=self.root / 'models', MEDIA_ROOT=self.root / 'media'):
+            with self.assertRaisesMessage(imaging.ImageUnavailable, 'compagnons'):
+                imaging.generate(model, 'a red fox', self.user)
+            for name in ('ae.safetensors', 'clip_l.safetensors'):
+                (Path(model.path).parent / name).write_bytes(b'x')
+            (self.root / 'models' / 't5xxl-Q2_K.gguf').write_bytes(b'x')  # ailleurs dans le dossier des modèles
+            steps = []
+            name = imaging.generate(model, 'a red fox', self.user, on_progress=lambda i, n: steps.append((i, n)))
+            path = imaging.image_path(self.user, name)
+            args = Path(str(path) + '.args').read_text()
+        self.assertTrue(path.read_bytes().startswith(b'\x89PNG'))
+        self.assertEqual(steps, [(1, 4), (4, 4)])
+        self.assertIn('--diffusion-model', args)
+        self.assertIn('--steps 2', args)
+        self.assertIn('--cfg-scale 1.0', args)
+        self.assertIn('--vae-tiling', args)
+        self.assertIn('t5xxl-Q2_K.gguf', args)
+
+    def test_missing_binary_and_safe_paths(self):
+        from . import imaging
+
+        model = self.model('sd-turbo-q8_0.gguf', repo='org/sd-turbo')
+        with override_settings(SD_BIN=str(self.root / 'absent')), self.assertRaisesMessage(imaging.ImageUnavailable, 'installé'):
+            imaging.generate(model, 'x', self.user)
+        with override_settings(MEDIA_ROOT=self.root / 'media'):
+            self.assertIsNone(imaging.image_path(self.user, '../../etc/passwd'))
+            self.assertIsNone(imaging.image_path(self.user, f'{"a" * 32}.png'))
+
+    def test_flux_pack_picks_files_for_the_machine(self):
+        fake = FakeHfApi()
+        names = ['flux1-schnell-Q2_K.gguf', 'flux1-schnell-Q4_0.gguf', 'ae.safetensors', 'clip_l.safetensors',
+                 't5xxl-Q2_K.gguf', 't5xxl-Q4_0.gguf', 'README.md']
+        fake.model_info = lambda repo, files_metadata=False: SimpleNamespace(siblings=[SimpleNamespace(rfilename=n, size=10) for n in names])
+        with mock.patch.object(hub, 'api', return_value=fake), mock.patch.object(hub, 'start_download') as start, \
+                mock.patch.object(hub, 'machine', return_value={'budget_mb': 2000}):
+            hub.install_pack('flux-schnell')
+        chosen = [(c.args[1], c.args[3]) for c in start.call_args_list]
+        self.assertEqual(chosen, [('flux1-schnell-Q2_K.gguf', 'image'), ('ae.safetensors', 'component'),
+                                  ('clip_l.safetensors', 'component'), ('t5xxl-Q2_K.gguf', 'component')])
+        with mock.patch.object(hub, 'api', return_value=fake), mock.patch.object(hub, 'start_download') as start, \
+                mock.patch.object(hub, 'machine', return_value={'budget_mb': 20000}):
+            hub.install_pack('flux-schnell')
+        self.assertEqual(start.call_args_list[0].args[1], 'flux1-schnell-Q4_0.gguf')
+        with self.assertRaisesMessage(ValueError, 'inconnu'):
+            hub.install_pack('nope')
 
 
 class WebTests(TestCase):

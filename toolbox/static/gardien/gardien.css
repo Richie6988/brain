@@ -167,6 +167,8 @@ body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255,
 .gl-rename[hidden] { display: none; }
 
 .gl-wizard { text-align: center; }
+.gl-image-help { display: grid; gap: 6px; justify-items: center; text-align: center; }
+.gl-image-help small { color: #888; overflow-wrap: anywhere; }
 .gl-rec { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid #e3dcef; border-radius: 12px; padding: 8px 12px; margin: 6px auto; max-width: 560px; text-align: left; }
 .gl-rec.best { border-color: #1E90FF; }
 .gl-rec div { display: flex; flex-direction: column; }

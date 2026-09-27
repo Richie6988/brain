@@ -20,11 +20,12 @@ from graph.models import AIRun
 from nodzapp.models import Node
 
 from . import broker as priorities
-from . import prompts, web
+from . import imaging, prompts, web
 from .engine import EngineUnavailable
 from .models import Agent, LocalModel
 
 RADIUS = 85  # rayon d'un node texte de Nodz une fois dimensionné (nodeSizing 120 × 120)
+IMAGE_RADIUS = 180  # node image (nodeSizing 250 × 250)
 MAX_CONTEXT_NODES = 60
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
@@ -88,8 +89,11 @@ SYSTEM = """L'univers Nodz est une carte spatiale de nodes (idées) reliés entr
 dimensions (plans) reliées par des portails. Tes travellings de caméra guident l'utilisateur
 (tutoriels, visites, montrer ce que tu viens de faire).
 L'utilisateur t'écrit dans un node (le node message) ; tu réponds uniquement en JSON :
-{"plan": ["étape à venir", ...], "say": ta réponse, courte, écrite dans un node relié au node message, "actions": [...]}.
-`plan` annonce à l'utilisateur, en quelques mots par étape, ce que tu vas faire (il le voit pendant que tu travailles).
+{"plan": ["étape", ...], "say": ce que tu as fait, "actions": [...]}.
+`plan` annonce, en quelques mots par étape, ce que tu fais dans CETTE réponse : chaque étape a ses actions dans
+`actions`, maintenant. Un plan sans actions ne fait rien : ne promets jamais pour plus tard. Si la demande
+n'appelle aucune action (simple question), `plan` et `actions` sont vides et `say` répond.
+`say` est écrit dans un node relié au node message : au passé (« J'ai relié… »), jamais « je vais ».
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
 Actions possibles :
 - {"op":"create","ref":"new1","text":"...","near":"N-3","color":"#4D96FF","shape":"circle"} : nouveau node
@@ -105,7 +109,9 @@ Actions possibles :
 - {"op":"mindmap","ref":"new1","text":"Sujet","children":["idée 1","idée 2"],"near":"N-3"} : carte mentale,
   un node central (nouveau ou existant) entouré de ses idées, toutes reliées à lui.
 - {"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou N-2","near":"N-1"} : confie la
-  production à un agent ; son résultat est publié dans le node `ref` (créé s'il est nouveau).
+  production à un agent ; son résultat est publié dans le node `ref` (créé s'il est nouveau). Pour un agent
+  d'image (Illustrateur), `task` est un prompt d'image en anglais, précis (sujet, style, lumière, cadrage) :
+  l'image est posée dans le node `ref`.
 - {"op":"plug_agent","agent":"<nom>","model":"<partie du nom du modèle>"} : branche un modèle sur un agent.
 - {"op":"create_agent","name":"Traducteur","role":"text","description":"...","prompt":"consignes","model":"qwen"} :
   crée un agent spécialisé (rôles : text, code, tools). {"op":"update_agent","agent":"<nom>","description":"...",
@@ -182,15 +188,18 @@ def intent(action, nodes):
 
 
 def free_spot(anchor, occupied, radius=RADIUS):
-    """Premier emplacement libre sur des anneaux autour de `anchor` (aucun chevauchement)."""
+    """Premier emplacement libre sur des anneaux autour de `anchor` (aucun chevauchement).
+
+    `occupied` : points (x, y) ou (x, y, rayon) ; sans rayon, celui d'un node texte."""
     gap = max(radius, RADIUS) * 2 + 70
+    clear = lambda x, y, p: math.dist((x, y), p[:2]) >= radius + (p[2] if len(p) > 2 else RADIUS) + 55
     for ring in range(1, 12):
         steps = 6 * ring
         for i in range(steps):
             # Jamais pile sur un axe : le dégradé d'un lien de Nodz ne s'affiche pas s'il est vertical ou horizontal.
             angle = 2 * math.pi * i / steps + math.pi / 2 + 0.35
             x, y = anchor[0] + ring * gap * math.cos(angle), anchor[1] + ring * gap * math.sin(angle)
-            if all(math.dist((x, y), p) >= gap * 0.9 for p in occupied):
+            if all(clear(x, y, p) for p in occupied):
                 return round(x), round(y)
     return round(anchor[0] + gap), round(anchor[1])
 
@@ -225,7 +234,7 @@ class Guardian:
         for n in nodes:
             self.nodes[n['id']] = {'x': _number(n.get('x')), 'y': _number(n.get('y')), 'r': _number(n.get('r'), RADIUS),
                                    'text': plain(n.get('text', '')), 'color': n.get('color', '')}
-        self.occupied = [(n['x'], n['y']) for n in self.nodes.values()]
+        self.occupied = [(n['x'], n['y'], n['r']) for n in self.nodes.values()]
         origin = context.get('origin')  # le node message : les réponses se placent autour de lui
         first = self.nodes.get(origin) or (self.nodes.get(selected[0]['id']) if selected else None)
         self.anchor = (first['x'], first['y']) if first else center
@@ -256,12 +265,12 @@ class Guardian:
             raise PlanError(f'référence inconnue : {ref!r}')
         return ref
 
-    def place(self, ref, near):
+    def place(self, ref, near, radius=RADIUS):
         target = self.nodes.get(near) if near else None
         anchor = (target['x'], target['y']) if target else self.anchor
-        x, y = free_spot(anchor, self.occupied)
-        self.occupied.append((x, y))
-        self.nodes[ref] = {'x': x, 'y': y, 'r': RADIUS, 'text': '', 'new': True}
+        x, y = free_spot(anchor, self.occupied, radius)
+        self.occupied.append((x, y, radius))
+        self.nodes[ref] = {'x': x, 'y': y, 'r': radius, 'text': '', 'new': True}
         return x, y
 
     def agent(self, agents, name):
@@ -324,16 +333,16 @@ class Guardian:
         agent = self.agent(agents, action.get('agent'))
         if agent.role == Agent.Role.ORCHESTRATOR:
             raise PlanError('le Gardien ne se délègue pas à lui-même')
-        if agent.role == Agent.Role.IMAGE:
-            raise PlanError(f"{agent.name} : la génération d'images n'est pas encore branchée")
         if agent.model_id is None:
             raise PlanError(f"{agent.name} n'a pas de modèle : branche-lui un modèle (plug_agent)")
+        if (agent.role == Agent.Role.IMAGE) != (agent.model.kind == LocalModel.Kind.IMAGE):
+            raise PlanError(f"{agent.name} : son modèle n'est pas du bon type (image ou texte)")
         ref = action['ref']
         self.jobs.append((agent, action.get('task', ''), ref))
         if ref in self.nodes:
             return None
-        x, y = self.place(ref, action.get('near'))  # nouveau node : il attend le résultat de l'agent
-        self.nodes[ref]['text'] = f'{agent.name} travaille…'
+        x, y = self.place(ref, action.get('near'), IMAGE_RADIUS if agent.role == Agent.Role.IMAGE else RADIUS)  # il attend le résultat
+        self.nodes[ref]['text'] = f"{agent.name} {'dessine' if agent.role == Agent.Role.IMAGE else 'travaille'}…"
         return {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(self.nodes[ref]['text']), 'color': None, 'shape': None}
 
     def op_plug_agent(self, action, agents):
@@ -454,7 +463,7 @@ class Guardian:
 
     def ready_model(self, query):
         query = (query or '').strip()
-        ready = LocalModel.objects.filter(status=LocalModel.Status.READY)
+        ready = LocalModel.objects.filter(status=LocalModel.Status.READY).exclude(kind=LocalModel.Kind.COMPONENT)
         model = ready.filter(Q(filename__icontains=query) | Q(repo__icontains=query) | Q(label__icontains=query)).first() if query else None
         if model is None:
             raise PlanError(f'aucun modèle prêt ne correspond à {query!r}')
@@ -481,7 +490,7 @@ class Guardian:
 
     def inventory(self):
         agents = Agent.objects.filter(owner=self.user).select_related('model')
-        models = LocalModel.objects.filter(status=LocalModel.Status.READY)
+        models = LocalModel.objects.filter(status=LocalModel.Status.READY).exclude(kind=LocalModel.Kind.COMPONENT)
         current = self.layer.get('id')
         return '\n'.join([
             'Dimensions : ' + (', '.join(f"{l.get('name')}{' (courante)' if l.get('id') == current else ''}" for l in self.layers) or 'aucune'),
@@ -492,7 +501,7 @@ class Guardian:
 
     def execute(self, actions, agents):
         """Valide et émet les actions dans l'ordre ; une action invalide est signalée et sautée."""
-        self.jobs, self.reads = [], []
+        self.jobs, self.reads, self.done, self.failed = [], [], [], []
         for action in actions:
             op = action.get('op')
             try:
@@ -501,11 +510,15 @@ class Guardian:
                 if op in ('create', 'delegate', 'mindmap') and not str(action.get('ref', '')).startswith(('new', 'N-')):
                     action = {**action, 'ref': f'auto{len(self.nodes) + 1}'}  # référence manquante
                 self.emit('intent', {'text': intent(action, self.nodes)})
+                reads = len(self.reads)
                 event = getattr(self, f'op_{op}')(action, agents)
                 if event:
                     self.emit('action', event)
+                if len(self.reads) == reads:  # une lecture n'est pas encore un résultat
+                    self.done.append(op)
             except (PlanError, KeyError, TypeError, ValueError) as e:
                 self.emit('error', {'message': f'{op} : {e}'})
+                self.failed.append(f'{json.dumps(action, ensure_ascii=False)} : {e}')
         return self.jobs, self.reads
 
     def answer(self, say):
@@ -518,7 +531,9 @@ class Guardian:
         self.emit('action', {'op': 'link', 'source': self.origin, 'target': ref})
 
     def delegate(self, agent, task, ref):
-        self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task})
+        self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task, 'role': agent.role})
+        if agent.role == Agent.Role.IMAGE:
+            return self.illustrate(agent, task, ref)
         messages = [
             {'role': 'system', 'content': agent.system_prompt or prompts.default(agent.role)},
             {'role': 'user', 'content': task},
@@ -528,6 +543,18 @@ class Guardian:
             priority=priorities.AGENT, owner=f'agent:{agent.name}', **agent.params,
         )
         self.emit('action', {'op': 'update', 'ref': ref, 'text': code_html(text) if agent.role == Agent.Role.CODE else text_html(text)})
+
+    def illustrate(self, agent, prompt, ref):
+        """Image par stable-diffusion.cpp, posée dans le node `ref` ; un échec est écrit dans le node."""
+        progress = lambda step, total: self.emit('intent', {'text': f'{agent.name} dessine : étape {step}/{total}'})
+        try:
+            with self.engine.exclusive(priorities.IMAGE, f'agent:{agent.name}'):
+                name = imaging.generate(agent.model, prompt, self.user, on_progress=progress, **agent.params)
+        except imaging.ImageUnavailable as e:
+            self.emit('error', {'message': f'{agent.name} : {e}'})
+            self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(f'{agent.name} : {e}')})
+            return
+        self.emit('action', {'op': 'image', 'ref': ref, 'url': f'toolbox/images/{name}'})
 
     # --- boucle
 
@@ -552,7 +579,7 @@ class Guardian:
                     .replace('{guidelines}', guardian.system_prompt or prompts.GUARDIAN)},
                 {'role': 'user', 'content': self.prompt(request)},
             ]
-            say = ''
+            say, done, steps = '', [], []
             for round_ in range(MAX_ROUNDS):
                 self.emit('intent', {'text': 'Je lis ton message et le plan…' if round_ == 0 else 'Je lis ce que j\'ai trouvé et je continue…'})
                 raw = self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT,
@@ -566,14 +593,28 @@ class Guardian:
                 if steps:
                     self.emit('plan', {'steps': steps})
                 jobs, reads = self.execute(plan.get('actions') or [], agents)
+                done += self.done
                 for agent, task, ref in jobs:
                     self.delegate(agent, task, ref)
-                if not reads:
+                # Tour suivant si le modèle a lu, s'est trompé, ou a annoncé un plan sans rien faire.
+                feedback = list(reads)
+                if self.failed:
+                    feedback.append('Ces actions ont échoué ; corrige-les (identifiants existants, champs requis) :\n'
+                                    + '\n'.join(f'- {f}' for f in self.failed))
+                if steps and not self.done and not reads and not self.failed:
+                    feedback.append(f"Tu as annoncé « {' ; '.join(steps)} » sans aucune action : rien n'a été fait. "
+                                    'Réponds maintenant avec les actions qui le réalisent.')
+                if not feedback or round_ == MAX_ROUNDS - 1:
                     break  # dernier tour : sa réponse devient le node-réponse (une seule par message)
+                self.emit('intent', {'text': 'Je corrige mon plan…' if self.failed or not reads else 'Je lis ce que j\'ai trouvé…'})
                 messages += [
                     {'role': 'assistant', 'content': raw},
-                    {'role': 'user', 'content': '\n'.join(reads) + '\nContinue la demande sans refaire les actions déjà faites.'},
+                    {'role': 'user', 'content': '\n'.join(feedback) + '\nContinue la demande sans refaire les actions déjà faites.'},
                 ]
+            if steps and not done:  # jamais de promesse dans le node-réponse quand rien n'a été fait
+                reason = self.failed[-1].rsplit(' : ', 1)[-1] if self.failed else "mon modèle n'a proposé aucune action"
+                say = (f"Je n'ai pas réussi à le faire ({reason}). Reformule ta demande, "
+                       'ou donne-moi un modèle plus grand dans Agents & modèles.')
             if say:
                 self.answer(say)
             self.run.status = AIRun.Status.DONE

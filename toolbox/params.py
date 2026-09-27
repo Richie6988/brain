@@ -67,6 +67,17 @@ SPEC = [
     {'key': 'max_tokens', 'group': 'Échantillonnage', 'label': 'Longueur max', 'kind': 'int', 'min': 1, 'max': 32768, 'hint': 'jetons'},
     {'key': 'seed', 'group': 'Échantillonnage', 'label': 'Graine', 'kind': 'int', 'min': -1, 'max': 2**31 - 1,
      'hint': '-1 = aléatoire'},
+    # --- Image (stable-diffusion.cpp)
+    {'key': 'width', 'group': 'Image', 'label': 'Largeur', 'kind': 'int', 'min': 128, 'max': 2048, 'hint': '512'},
+    {'key': 'height', 'group': 'Image', 'label': 'Hauteur', 'kind': 'int', 'min': 128, 'max': 2048, 'hint': '512'},
+    {'key': 'steps', 'group': 'Image', 'label': 'Étapes', 'kind': 'int', 'min': 1, 'max': 150, 'hint': '4 (schnell), 20 (SD)'},
+    {'key': 'cfg_scale', 'group': 'Image', 'label': 'Guidage (CFG)', 'kind': 'float', 'min': 0, 'max': 30, 'hint': '1 (FLUX), 7 (SD)'},
+    {'key': 'sampling_method', 'group': 'Image', 'label': 'Échantillonneur', 'kind': 'choice',
+     'choices': [['euler', 'euler'], ['euler_a', 'euler a'], ['dpm++2m', 'dpm++ 2m'], ['lcm', 'lcm']]},
+    {'key': 'img_seed', 'group': 'Image', 'label': 'Graine', 'kind': 'int', 'min': -1, 'max': 2**31 - 1, 'hint': '-1 = aléatoire'},
+    {'key': 'sd_threads', 'group': 'Image', 'label': 'Threads', 'kind': 'int', 'min': 1, 'max': 256, 'hint': 'vide = auto'},
+    {'key': 'vae_tiling', 'group': 'Image', 'label': 'VAE par tuiles', 'kind': 'bool', 'hint': 'moins de mémoire'},
+    {'key': 'cpu_only', 'group': 'Image', 'label': 'Tout sur CPU', 'kind': 'bool', 'hint': 'si la VRAM manque'},
 ]
 BY_KEY = {p['key']: p for p in SPEC}
 LOAD = [p['key'] for p in SPEC if p.get('load')]

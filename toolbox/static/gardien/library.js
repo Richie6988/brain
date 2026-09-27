@@ -14,6 +14,7 @@ const tb = {
     removeModel: (id, file) => api.request('DELETE', `toolbox/models/${id}${file ? '?file=1' : ''}`),
     modelAction: (id, action) => api.request('POST', `toolbox/models/${id}/${action}`),
     download: file => api.request('POST', 'toolbox/models', file),
+    installPack: key => api.request('POST', `toolbox/packs/${key}`),
     recommendations: () => api.request('GET', 'toolbox/recommendations'),
     search: params => api.request('GET', `toolbox/hub/search?${new URLSearchParams(params)}`),
     files: repo => api.request('GET', `toolbox/hub/files?${new URLSearchParams({ repo })}`),
@@ -129,7 +130,8 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
 
     async function refresh() {
         const [status, { agents }, { models }] = await Promise.all([tb.status(), tb.agents(), tb.models()]);
-        state = { ...state, staff: status.staff, machine: status.machine, engine: status.engine, loaded: status.loaded, agents, models, paramSpec: status.param_spec };
+        state = { ...state, staff: status.staff, machine: status.machine, engine: status.engine, loaded: status.loaded, agents, models,
+            paramSpec: status.param_spec, imaging: status.imaging, packs: status.packs };
         const m = state.machine;
         machineLine.replaceChildren(
             m.gpu ? `GPU ${(m.vram_mb / 1024).toFixed(1)} Go` : `Sans GPU · ${(m.ram_mb / 1024).toFixed(1)} Go de RAM`,
@@ -158,10 +160,11 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
     // --- Agents
 
     function renderAgents() {
-        const ready = state.models.filter(m => m.status === 'ready' && m.kind === 'text');
         panels.agents.replaceChildren(...state.agents.map(agent => {
-            const select = h('select', { 'aria-label': `Modèle de ${agent.name}`, disabled: agent.role === 'image' },
-                h('option', { value: '' }, agent.role === 'image' ? "Génération d'images à venir" : 'Aucun modèle'),
+            // L'Illustrateur prend un modèle d'image, les autres un modèle de texte.
+            const ready = state.models.filter(m => m.status === 'ready' && m.kind === (agent.role === 'image' ? 'image' : 'text'));
+            const select = h('select', { 'aria-label': `Modèle de ${agent.name}` },
+                h('option', { value: '' }, agent.role === 'image' ? 'Aucun modèle d\'image' : 'Aucun modèle'),
                 ready.map(m => h('option', { value: m.id, selected: m.id === agent.model }, m.label || m.filename)));
             select.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { model: select.value || null }), `${agent.name} : modèle changé`));
             const enabled = h('input', { type: 'checkbox', checked: agent.enabled });
@@ -197,21 +200,32 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
     const categoryOf = m => {
         const guardian = state.agents.find(a => a.role === 'orchestrator');
         if (guardian && guardian.model === m.id) return 'guardian';
-        return m.kind === 'image' ? 'image' : 'agents';
+        return m.kind === 'image' ? 'image' : m.kind === 'component' ? 'component' : 'agents';
     };
+
+    // Colonne Image vide : le pack FLUX en un clic, et ce qu'il faut sur le serveur.
+    function imageHelp(models) {
+        const parts = models.filter(m => m.kind === 'component');
+        return h('div', { class: 'gl-image-help' },
+            state.imaging ? null : h('p', { class: 'gl-warning' }, "stable-diffusion.cpp (sd) n'est pas installé sur le serveur : voir DEPLOY.md."),
+            parts.length ? h('small', {}, 'Compagnons : ', parts.map(m => m.filename).join(', ')) : null,
+            Object.entries(state.packs || {}).map(([key, label]) => h('button', { type: 'button', ...guard(),
+                onclick: () => act(() => tb.installPack(key), `${label} : téléchargement lancé (onglet Hugging Face)`) }, `Installer ${label}`)));
+    }
 
     function renderLibrary() {
         const models = state.models.filter(m => m.status === 'ready');
         if (!models.length) return renderWizard();
         const columns = [['guardian', 'GARDIEN', 'Lit les nodes, décide et agit', '#6848A6'],
-            ['agents', 'AGENTS', 'Modèles des agents spécialisés', '#1E90FF'], ['image', 'IMAGE', 'Diffusion (à venir)', '#b8447a']];
+            ['agents', 'AGENTS', 'Modèles des agents spécialisés', '#1E90FF'], ['image', 'IMAGE', "Diffusion : l'Illustrateur dessine", '#b8447a']];
         const tuned = models.find(m => m.id === tuning);
         panels.library.replaceChildren(tuned ? tuningPanel(tuned) : '', h('div', { class: 'gl-board' }, columns.map(([key, label, desc, color]) => {
             const cards = models.filter(m => categoryOf(m) === key);
             const column = h('div', { class: 'gl-column', style: `border-top-color:${color}`, dataset: { category: key } },
                 h('div', { class: 'gl-column-head' }, h('span', { style: `color:${color}` }, label), h('span', {}, cards.length)),
                 h('small', {}, desc),
-                cards.length ? cards.map(modelCard) : h('div', { class: 'gl-drop-here' }, 'Déposer ici'));
+                cards.length ? cards.map(modelCard) : h('div', { class: 'gl-drop-here' }, 'Déposer ici'),
+                key === 'image' ? imageHelp(models) : null);
             column.addEventListener('dragover', event => { event.preventDefault(); column.classList.add('over'); });
             column.addEventListener('dragleave', () => column.classList.remove('over'));
             column.addEventListener('drop', event => {
@@ -316,7 +330,8 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
 
     const closeTuning = () => { tuning = null; render(); };
     function tuningPanel(m) {
-        const form = h('form', { class: 'gl-params-form' }, paramFields(['GPU', 'Mémoire et vitesse', 'Échantillonnage'], m.params || {}));
+        const groups = m.kind === 'image' ? ['Image'] : ['GPU', 'Mémoire et vitesse', 'Échantillonnage'];
+        const form = h('form', { class: 'gl-params-form' }, paramFields(groups, m.params || {}));
         form.prepend(offload(m, form) || '');
         form.append(h('div', { class: 'gl-actions' }, h('button', { type: 'submit', class: 'gl-primary' }, 'Enregistrer'),
             h('button', { type: 'button', onclick: () => act(() => tb.updateModel(m.id, { params: {} }), 'Réglages par défaut') }, 'Tout par défaut'),
@@ -376,7 +391,7 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
             box.lastChild.replaceWith(h('div', {}, rec.models.map(m => h('div', { class: `gl-rec ${m.recommended ? 'best' : ''}` },
                 h('div', {}, h('strong', {}, m.name), h('small', {}, `${m.why} · ${m.size_gb} Go`)),
                 h('button', { type: 'button', ...guard(), onclick: () => startDownload({ repo: m.repo, filename: m.filename, size: Math.round(m.size_gb * 1024 ** 3) }) },
-                    m.recommended ? 'Recommandé : télécharger' : 'Télécharger')))));
+                    m.recommended ? 'Recommandé : télécharger' : 'Télécharger'))), h('h3', {}, 'Images'), imageHelp(state.models)));
         } catch (error) {
             report(error);
         }

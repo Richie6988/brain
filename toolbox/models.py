@@ -14,6 +14,7 @@ class LocalModel(models.Model):
         IMAGE = 'image'
         EMBED = 'embed'
         AUDIO = 'audio'
+        COMPONENT = 'component'  # fichier compagnon d'un modèle d'image (VAE, encodeurs CLIP et T5)
 
     class Status(models.TextChoices):
         DOWNLOADING = 'downloading'
@@ -26,7 +27,7 @@ class LocalModel(models.Model):
     filename = models.CharField(max_length=300)
     label = models.CharField(max_length=120, blank=True)  # nom affiché, choisi par l'utilisateur
     path = models.CharField(max_length=500, blank=True)
-    kind = models.CharField(max_length=6, choices=Kind.choices, default=Kind.TEXT)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.TEXT)
     capabilities = models.JSONField(default=list, blank=True)  # chat, tools, code, vision, image, reason…
     quant = models.CharField(max_length=20, blank=True)
     size = models.PositiveBigIntegerField(default=0)

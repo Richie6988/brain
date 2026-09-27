@@ -14,5 +14,7 @@ urlpatterns = [
     path('files', api.local_files),
     path('agents', api.agents),
     path('agents/<uuid:agent_id>', api.agent_detail),
+    path('packs/<str:key>', api.pack),
+    path('images/<str:name>', api.image),
     path('command', api.command),
 ]

@@ -13,12 +13,12 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import connection
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import FileResponse, JsonResponse, StreamingHttpResponse
 
 from graph.api import api
 from graph.services import ChangeError
 
-from . import gguf, hub, monitor, params as model_params, prompts
+from . import gguf, hub, imaging, monitor, params as model_params, prompts
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import EngineUnavailable
@@ -86,7 +86,30 @@ def _number(value, kind, name):
 def status(request, body):
     return JsonResponse({'engine': engine.available(), 'staff': request.user.is_staff,
                          'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
-                         'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR), 'param_spec': model_params.SPEC})
+                         'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR), 'param_spec': model_params.SPEC,
+                         'imaging': bool(imaging.binary()), 'packs': {k: p['label'] for k, p in hub.PACKS.items()}})
+
+
+@api('POST')
+def pack(request, body, key):
+    """Installe un pack (modèle d'image et fichiers compagnons)."""
+    staff_only(request)
+    try:
+        models = hub.install_pack(key)
+    except ValueError as e:  # pack inconnu, ou fichier absent du dépôt
+        raise ChangeError(str(e)) from None
+    except Exception as e:
+        raise Upstream(f'Hugging Face : {e}') from None
+    return JsonResponse({'models': [model_to_dict(m, request.user) for m in models]}, status=202)
+
+
+@api('GET')
+def image(request, body, name):
+    """Image générée pour l'utilisateur (seulement les siennes)."""
+    path = imaging.image_path(request.user, name)
+    if path is None:
+        return JsonResponse({'error': 'image introuvable'}, status=404)
+    return FileResponse(open(path, 'rb'), content_type='image/png')
 
 
 @api('GET')

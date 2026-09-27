@@ -2,7 +2,7 @@
 
 const BASE = document.documentElement.dataset.base || '';
 // URL absolue : sur /universe, base.js préfixe déjà les fetch('/...') ; une URL complète n'est jamais préfixée deux fois.
-const endpoint = path => `${window.location.origin}${BASE}/api/v1/${path}`;
+export const endpoint = path => `${window.location.origin}${BASE}/api/v1/${path}`;
 
 function csrfToken() {
     const match = document.cookie.match(/(?:^|;\s*)nodz_csrftoken=([^;]+)/);
