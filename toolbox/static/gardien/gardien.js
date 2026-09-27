@@ -16,6 +16,7 @@ import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
 import { createPresence } from './presence.js';
+import { LATER, createSuggestions } from './suggest.js';
 import { createTour } from './tour.js';
 
 const toast = document.getElementById('gardien-toast');
@@ -86,6 +87,7 @@ const signedIn = setInterval(() => {
     clearInterval(signedIn);
     // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
     api.request('POST', 'toolbox/warm', {}).catch(() => {});
+    refreshLetters();  // notes du Gardien en attente dans Échanges
 }, 400);
 
 const filters = createFilters();
@@ -153,6 +155,42 @@ async function installBrain() {
     await bridge.perform({ op: 'overview', text: 'Le Gardien est dans l\'univers : réécris ses nodes pour changer ses consignes, ses outils et sa mémoire.' });
 }
 
+// Correspondance : la dimension « Échanges ». Les notes du Gardien pas encore posées y deviennent des nodes, en
+// spirale autour d'une racine ; l'humain répond dans un node relié à une note, que le Gardien relit ensuite.
+async function refreshLetters() {
+    try {
+        chat.unread((await api.request('GET', 'toolbox/letters')).unread);
+    } catch { /* pas encore de Gardien */ }
+}
+
+async function openExchanges() {
+    const data = await api.request('GET', 'toolbox/letters');
+    await bridge.enterDimension('Échanges');
+    const here = id => (id && document.getElementById(id) ? id : null);
+    const saved = { posted: {} };
+    let root = here(data.root);
+    if (!root) {
+        await bridge.perform({ op: 'create', ref: 'exchanges-root', x: 0, y: 0, color: '#6848A6', shape: 'square',
+            text: '<b>Échanges</b><br>Les notes du Gardien : réponds dans un node relié à la note.' });
+        root = saved.root = bridge.idOf('exchanges-root');
+    }
+    const at = document.getElementById(root);
+    const [ox, oy] = [parseFloat(at.getAttribute('x')) || 0, parseFloat(at.getAttribute('y')) || 0];
+    let k = data.letters.filter(l => here(l.node)).length;
+    for (const letter of data.letters.filter(l => !here(l.node))) {
+        const angle = 0.4 + k * 0.95, radius = 420 + 90 * k++;  // spirale : les plus récentes plus loin
+        const choices = letter.choices?.length ? `<br><i>${letter.choices.map(escape).join(' / ')}</i>` : '';
+        await bridge.perform({ op: 'create', ref: `letter-${letter.id}`, x: Math.round(ox + radius * Math.cos(angle)), y: Math.round(oy + radius * Math.sin(angle)),
+            text: `<font size="2">${escape(letter.at)}</font><br>${letter.html}${choices}`, color: '#1E90FF' });
+        await bridge.perform({ op: 'link', source: root, target: `letter-${letter.id}` });
+        saved.posted[letter.id] = bridge.idOf(`letter-${letter.id}`);
+    }
+    await api.request('POST', 'toolbox/letters', saved);
+    filters.mark(Object.values(saved.posted), 'ai');
+    chat.unread(0);
+    await bridge.perform({ op: 'overview', text: Object.keys(saved.posted).length ? 'Les notes du Gardien : réponds dans un node relié.' : 'Aucune nouvelle note.' });
+}
+
 // Bouton « Mémoire » du chat : voyage jusqu'au node Mémoire du Gardien (l'installe s'il manque).
 async function showMemory() {
     const map = await api.request('GET', 'toolbox/brain-map');
@@ -212,7 +250,7 @@ async function ask(node, text, attached = []) {
         if (node) filters.mark([node.id], 'message');
         follow.start();
         chat.status('Le Gardien réfléchit…');
-        const created = [];
+        const created = [], changed = [];
         let timing = null;
         const home = layerNumber;  // la demande reste liée à cette dimension
         let away = false;
@@ -246,6 +284,8 @@ async function ask(node, text, attached = []) {
             else if (type === 'timing') timing = data;
             // Intentions et gestes s'enchaînent : chaque étape s'affiche quand la page l'exécute.
             else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); doing = data.text; });
+            // Note pour plus tard : annoncée dans le chat, posée dans Échanges quand l'humain l'ouvre.
+            else if (type === 'note') actions = actions.then(() => { chat.add('guardian', `Note laissée dans Échanges : ${data.text}`, '', data.choices); refreshLetters(); });
             // Question à l'humain : ses choix sont des boutons dans le chat, qui s'ouvre.
             else if (type === 'ask') actions = actions.then(() => { chat.add('guardian', data.text, '', data.choices); chat.open(); if (node) say(data.text, 'text'); });
             else if (type === 'error') actions = actions.then(() => { follow.step(data.message, 'error'); chat.add('error', data.message); });
@@ -255,12 +295,19 @@ async function ask(node, text, attached = []) {
                     .then(() => presence.at(bridge.idOf(data.ref || data.target || data.source), doing))
                     .catch(error => follow.step(error.message, 'error'));
                 if (data.op === 'create') created.push(data.ref);
+                else if (['update', 'style'].includes(data.op)) changed.push(data.ref);
             }
         });
         think?.end(`A réfléchi (${pieces} jetons, ${Math.round((performance.now() - thinkStart) / 1000)} s)`);
         think = null;
         await actions;
         filters.mark(created.map(bridge.idOf).filter(id => id.startsWith('N-')), 'ai');
+        // Liens vers ce que le Gardien a posé ou retouché : un clic y voyage.
+        const item = id => ({ id, layer: home, label: (document.getElementById(id)?.children[0]?.children[0]?.innerText || '').trim().slice(0, 28) });
+        const made = [...new Set(created.map(bridge.idOf).filter(id => id.startsWith('N-')))];
+        const touched = [...new Set(changed.map(bridge.idOf).filter(id => id.startsWith('N-') && !made.includes(id)))];
+        chat.links(`${made.length} node${made.length > 1 ? 's' : ''} créé${made.length > 1 ? 's' : ''} :`, made.map(item));
+        chat.links(`${touched.length} node${touched.length > 1 ? 's' : ''} modifié${touched.length > 1 ? 's' : ''} :`, touched.map(item));
         follow.end(timing ? `Terminé en ${Math.round(timing.total_s)} s` : 'Terminé');
         // Où passe le temps : lecture du prompt (avant le premier mot) et génération, par appel au modèle.
         if (timing) chat.add('notice', `${Math.round(timing.total_s)} s · ${timing.calls} appel${timing.calls > 1 ? 's' : ''} au modèle · `
@@ -278,9 +325,16 @@ async function ask(node, text, attached = []) {
 }
 
 const chat = createChat({
-    onSend: (text, attached) => { queue = queue.then(() => ask(null, text, attached)); },
+    onSend: (text, attached) => {
+        if (text === LATER) return chat.add('notice', 'D\'accord, je n\'y touche pas.');  // une proposition écartée : rien à demander
+        queue = queue.then(() => ask(null, text, attached));
+    },
     onMemory: () => showMemory().catch(error => chat.add('error', error.message)),
+    onGoto: (ref, layer) => bridge.perform({ op: 'goto', ref, layer }).catch(() => say(`${ref} n'existe plus`, 'error')),
+    onExchanges: () => openExchanges().catch(error => say(error.message, 'error')),
 });
+
+createSuggestions({ chat, busy: () => document.getElementById('gardien-chat')?.classList.contains('busy') });  // propose, n'agit pas
 
 // Une fois par navigateur, au premier node écrit : comment parler au Gardien.
 document.addEventListener('input', function hint(event) {

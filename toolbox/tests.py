@@ -1000,6 +1000,30 @@ class GuardianTests(TestCase):
         self.run_guardian(json.dumps({'plan': [], 'say': '**Fait** ✅', 'actions': [{'op': 'put', 'ref': 'new1', 'text': '[#FF6B6B]Kyoto[/] 🏯'}]}))
         self.assertEqual(self.actions()[0]['text'], '<font color="#FF6B6B">Kyoto</font> 🏯')
 
+    def test_correspondence_notes_and_replies(self):
+        # note : gardée dans son cerveau et annoncée ; posée dans Échanges (API letters) ; la réponse de l'humain,
+        # un node relié à la note, revient au Gardien dans la demande suivante.
+        from nodzapp.models import Layer, Link, Node
+
+        self.run_guardian(json.dumps({'plan': [], 'say': '', 'actions': [
+            {'op': 'note', 'text': "J'ai vu trois nodes vides : je les range ?", 'choices': ['Oui', 'Plus tard']}]}))
+        self.assertEqual([d for k, d in self.events if k == 'note'],
+                         [{'id': 1, 'text': "J'ai vu trois nodes vides : je les range ?", 'choices': ['Oui', 'Plus tard']}])
+        self.client.force_login(self.user)
+        data = self.client.get('/api/v1/toolbox/letters').json()
+        self.assertEqual((data['unread'], data['letters'][0]['node']), (1, None))
+        data = self.client.post('/api/v1/toolbox/letters', {'root': 'N-10', 'posted': {'1': 'N-11'}}, content_type='application/json').json()
+        self.assertEqual((data['unread'], data['root']), (0, 'N-10'))
+        layer = Layer.objects.create(user=self.user, layer_id=5, layer_name='Échanges')
+        for number, text in ((10, 'Échanges'), (11, 'la note'), (12, 'Oui, range-les')):
+            Node.objects.create(user=self.user, node_id=number, layer=layer, text_content=text)
+        Link.objects.create(user=self.user, link_id=1, linkA='N-10', linkB='N-11', layer=layer)  # racine : pas une réponse
+        Link.objects.create(user=self.user, link_id=2, linkA='N-11', linkB='N-12', layer=layer)
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
+        prompt = engine.calls[0]['messages'][1]['content']
+        self.assertIn('Correspondance (dimension Échanges) :', prompt)
+        self.assertIn("Ta note N-11 (« J'ai vu trois nodes vides : je les range ? ») → l'humain a répondu : Oui, range-les", prompt)
+
     def test_put_writes_a_node_as_it_is_read(self):
         # put : le même objet qu'en lecture ; nouveau node avec liens et enfants, node existant restylé et relié.
         self.run_guardian(json.dumps({'plan': [], 'say': 'Fait.', 'actions': [
@@ -1601,10 +1625,10 @@ class IaquaToolsTests(TestCase):
         self.assertNotIn('execute_bash', tools.enabled(guardian, self.user))
         guardian.tools_allowed = ['create', 'execute_bash']
         guardian.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask', 'put'])  # pas administrateur ; ask et put toujours permis
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask', 'put', 'note'])  # pas administrateur ; ask, put et note toujours permis
         self.user.is_staff = True
         self.user.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask', 'put'])  # GUARDIAN_SHELL=0
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask', 'put', 'note'])  # GUARDIAN_SHELL=0
         with self.settings(GUARDIAN_SHELL=True):
             self.assertIn('execute_bash', tools.enabled(guardian, self.user))
             engine = self.run_guardian([{'op': 'execute_bash', 'command': 'echo bonjour > salut.txt && cat salut.txt'}])

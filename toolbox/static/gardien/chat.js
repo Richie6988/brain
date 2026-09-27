@@ -11,7 +11,7 @@ const KEY = 'gardien-chat';
 const KEEP = 60;
 const THINK_KEEP = 6000;  // caractères de réflexion gardés par message
 
-export function createChat({ onSend, onMemory = () => {} }) {
+export function createChat({ onSend, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {} }) {
     let history = [];
     try {
         history = JSON.parse(localStorage.getItem(KEY) || '[]');
@@ -40,9 +40,13 @@ export function createChat({ onSend, onMemory = () => {} }) {
             : selection.length ? [h('button', { type: 'button', class: 'gc-join', onclick: () => { attached = selection; renderTray(); input.focus(); } },
                 `+ Joindre la sélection (${selection.length} node${selection.length > 1 ? 's' : ''})`)] : []));
     }
+    // Correspondance : les notes que le Gardien a laissées, posées dans la dimension « Échanges » à l'ouverture.
+    const exchanges = h('button', { type: 'button', class: 'gc-exchanges', title: 'Notes du Gardien (dimension Échanges) : réponds dans un node relié',
+        onclick: () => { toggle(false); onExchanges(); } }, 'Échanges');
     const panel = h('section', { class: 'gc-panel', hidden: true, role: 'dialog', 'aria-label': 'Chat du Gardien' },
         h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), h('small', {}, 'Il agit dans ton univers')),
             h('button', { type: 'button', title: 'Voir la mémoire du Gardien dans l\'univers (dimension Gardien)', onclick: () => { toggle(false); onMemory(); } }, 'Mémoire'),
+            exchanges,
             h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: clear }, 'Effacer'),
             h('button', { type: 'button', class: 'gc-close', title: 'Réduire', onclick: () => toggle(false) }, '×')),
         log, status, tray, form);
@@ -146,8 +150,16 @@ export function createChat({ onSend, onMemory = () => {} }) {
         return row;
     }
 
+    // Nodes créés ou modifiés par le Gardien : un lien par node, qui y voyage (même depuis une autre dimension).
+    function refs(entry) {
+        return h('li', { class: 'gc-links' }, h('small', {}, entry.text), h('div', {}, entry.items.map(item =>
+            h('button', { type: 'button', title: `Aller à ${item.id}`, onclick: () => onGoto(item.id, item.layer) },
+                h('b', {}, item.id), item.label ? ` ${item.label}` : ''))));
+    }
+
     function line(entry) {
         if (entry.role === 'think') return thinking(entry);
+        if (entry.role === 'links') return refs(entry);
         const { role, text, from } = entry;
         return h('li', { class: `gc-${role}${entry.choices ? ' gc-question' : ''}` }, from ? h('small', {}, from) : null, h('p', {}, text),
             choices(entry), role === 'notice' ? null : copyButton(entry));
@@ -213,9 +225,24 @@ export function createChat({ onSend, onMemory = () => {} }) {
                 },
             };
         },
+        // Liens vers des nodes : items = [{ id, layer, label }].
+        links(text, items) {
+            if (!items.length) return;
+            const entry = { role: 'links', text, items };
+            history.push(entry);
+            history = history.slice(-KEEP);
+            store();
+            log.append(refs(entry));
+            log.scrollTop = log.scrollHeight;
+        },
         // Derniers échanges (humain, Gardien) rappelés au Gardien : il suit la conversation.
         recent(n = 6) {
             return history.filter(e => e.role === 'user' || e.role === 'guardian').slice(-n).map(({ role, text }) => ({ role, text }));
+        },
+        // Notes du Gardien pas encore posées dans Échanges.
+        unread(count) {
+            exchanges.textContent = count ? `Échanges · ${count}` : 'Échanges';
+            exchanges.classList.toggle('on', !!count);
         },
         status(text) { status.textContent = text || ''; },
         busy(on) {

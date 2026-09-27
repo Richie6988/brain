@@ -14,6 +14,9 @@ TOOLS = [
      'doc': '{"op":"ask","text":"Un arbre ou une matrice ?","choices":["Arbre","Matrice"]} : si la demande est ambiguë, UNE '
             'question courte avec 2 à 4 choix ; l\'humain répond d\'un clic et sa réponse arrive comme un nouveau message. '
             'N\'ajoute pas d\'autre action avec elle.'},
+    {'op': 'note', 'category': 'Dialogue', 'source': NODZ, 'label': 'Laisser une note (correspondance)',
+     'doc': '{"op":"note","text":"J\'ai remarqué que…","choices":["Oui","Plus tard"]} : une note pour plus tard, posée dans la '
+            'dimension Échanges ; l\'humain y répond dans un node relié, et tu lis sa réponse aux demandes suivantes.'},
     # --- Nodes
     {'op': 'put', 'category': 'Nodes', 'source': NODZ, 'label': 'Écrire un node (objet complet)',
      'doc': '{"op":"put","ref":"new1","near":"N-3","text":"...","color":"#4D96FF","shape":"square","links":["N-3"],"children":["a","b"]} : '
@@ -220,7 +223,7 @@ TOOLS = [
 BY_OP = {t['op']: t for t in TOOLS}
 
 # Outils décrits en entier dans le prompt ; les autres n'y ont qu'une ligne (mode d'emploi par tool_help).
-CORE = {'ask', 'put', 'grow', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
+CORE = {'ask', 'note', 'put', 'grow', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
 
 
 def available(op, user):
@@ -234,9 +237,9 @@ def enabled(agent, user):
     """Opérations permises au Gardien : celles cochées (tools_allowed), sinon celles actives par défaut."""
     allowed = [op for op in agent.tools_allowed or [] if op in BY_OP]
     ops = allowed or [t['op'] for t in TOOLS if t.get('default', not t.get('admin'))]
-    # tool_help, ask (parler à l'humain) et put (écrire un node comme il le lit) restent toujours permis, même avec
+    # tool_help, ask et note (parler à l'humain) et put (écrire un node comme il le lit) restent toujours permis, même avec
     # une liste d'outils cochés d'avant.
-    return [op for op in ops if available(op, user)] + [op for op in ('tool_help', 'ask', 'put') if op not in ops]
+    return [op for op in ops if available(op, user)] + [op for op in ('tool_help', 'ask', 'put', 'note') if op not in ops]
 
 
 def usage(op, docs=None):

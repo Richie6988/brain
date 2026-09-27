@@ -18,7 +18,7 @@ import time
 from django.db.models import Q
 
 from graph.models import AIRun
-from nodzapp.models import Node
+from nodzapp.models import Link, Node
 
 from . import broker as priorities
 from . import imaging, layouts, perception, prompts, tools, web, workspace
@@ -41,6 +41,7 @@ LAYOUT_NAMES = {'matrix': 'la matrice', 'kanban': 'le kanban', 'timeline': 'la f
 OPS = [t['op'] for t in tools.TOOLS]  # catalogue commun Nodz + iAqua (tools.py)
 ROLES = [Agent.Role.TEXT, Agent.Role.CODE, Agent.Role.TOOLS]  # rôles qu'un agent créé par le Gardien peut prendre
 MAX_MEMORY = 30
+LETTERS = 50  # notes gardées dans la correspondance (les plus anciennes s'effacent)
 BRANCHES = ['#4D96FF', '#33FF99', '#FF6B6B', '#FFD93D', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5']  # une couleur par branche (grow)
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
 
@@ -122,6 +123,8 @@ n'appelle aucune action (simple question), `plan` et `actions` sont vides et `sa
 `say` est écrit dans un node relié au node message : au passé (« J'ai relié… »), jamais « je vais ».
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
 Tu lis chaque node comme un objet JSON (texte, liens, auteur, position) ; tu l'écris avec le même objet : put.
+Pour dire quelque chose plus tard (idée, rappel, question pas urgente), laisse une note : note ; l'humain la
+trouve dans la dimension Échanges et y répond. ask, c'est pour une question à trancher tout de suite.
 Mets le texte des nodes en forme pour hiérarchiser et donner vie : **gras**, *italique*, __souligné__,
 [#FF6B6B]en couleur[/], ^^grand^^, ^^^très grand^^^, ,,petit,, ; les emojis sont bienvenus.
 Exemples (imite leur forme) :
@@ -176,7 +179,7 @@ def brain_text(agent):
     templates = brain.get('templates') or {}
     lines = ['Cerveau du Gardien', '(réécrit par le Gardien ; ses souvenirs sont dans le node Mémoire)', '',
              f"Gabarits gardés : {', '.join(f'{name} ({t.get('layout')})' for name, t in templates.items()) or 'aucun'}"]
-    lines += [f'{key} : {json.dumps(value, ensure_ascii=False)[:300]}' for key, value in brain.items() if key not in ('universe', 'templates')]
+    lines += [f'{key} : {json.dumps(value, ensure_ascii=False)[:300]}' for key, value in brain.items() if key not in ('universe', 'templates', 'letters')]
     return '\n'.join(lines)
 
 
@@ -231,6 +234,7 @@ def intent(action, nodes):
     op = action.get('op')
     return {
         'ask': lambda a: 'Je te pose une question',
+        'note': lambda a: 'Je te laisse une note dans Échanges',
         'grow': lambda a: f"Je fais pousser « {short(str(a.get('text', '')).strip().splitlines()[0] if str(a.get('text', '')).strip() else '')} »",
         'put': lambda a: f"J'écris {name(a.get('ref'))}" if str(a.get('ref', '')).startswith('N-') else f"Je crée « {short(a.get('text'))} »",
         'create': lambda a: f"Je crée « {short(a.get('text'))} »",
@@ -303,6 +307,7 @@ class Guardian(IaquaOps):
         self.seen = set()  # actions déjà exécutées pendant cette demande : un tour suivant ne les refait pas
         self.asked = False  # une question posée à l'humain : on attend sa réponse
         self.scale = 1.0  # part du contexte montrée au modèle (réduite si son contexte déborde)
+        self.letters = []  # réponses de l'humain à ses notes (correspondance)
 
     # --- contexte envoyé par la page
 
@@ -368,6 +373,7 @@ class Guardian(IaquaOps):
             'Nodes (un objet par node ; "par": "moi" = créé par toi ; "plus": caractères non montrés) :',
             *(perception.lines(view) or ['(aucun)']),
             *talk,  # après les nodes, qui changent peu : seule la fin du message est relue
+            *(['Correspondance (dimension Échanges) :', *self.letters] if self.letters else []),
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
             *(['Nodes cités hors de cette dimension :', *perception.lines(away)] if away else []),
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
@@ -438,6 +444,42 @@ class Guardian(IaquaOps):
         if action.get('children'):
             self.op_mindmap({'ref': ref, 'children': action['children'], 'color': action.get('color')}, agents)
         return None
+
+    def op_note(self, action, agents):
+        """Une note pour plus tard (correspondance) : gardée dans son cerveau, posée dans la dimension « Échanges »
+        quand l'humain l'ouvre ; ses réponses (nodes reliés à la note) reviennent au Gardien à chaque demande."""
+        text = str(action.get('text') or '').strip()[:1500]
+        if not text:
+            raise PlanError('note vide (text)')
+        choices = list(dict.fromkeys(c for c in (' '.join(str(c).split())[:60] for c in action.get('choices') or []) if c))[:4]
+        letters = list(self.guardian.brain.get('letters') or [])
+        letter = {'id': (max((l['id'] for l in letters), default=0) + 1), 'text': text, 'choices': choices,
+                  'at': time.strftime('%d/%m %H:%M'), 'node': None}
+        self.guardian.brain = {**self.guardian.brain, 'letters': (letters + [letter])[-LETTERS:]}
+        self.guardian.save(update_fields=['brain'])
+        self.emit('note', {'id': letter['id'], 'text': text, 'choices': choices})
+        return None
+
+    def correspondence(self):
+        """Réponses de l'humain aux notes posées dans « Échanges » : les nodes reliés à une note (hors la racine)."""
+        letters = [l for l in (self.guardian.brain.get('letters') or []) if l.get('node')] if self.guardian else []
+        if not letters:
+            return []
+        root = (self.guardian.brain.get('universe') or {}).get('exchanges')
+        by_note = {l['node']: l for l in letters}
+        replies = {}
+        for a, b in Link.objects.filter(user=self.user, archive=False).filter(Q(linkA__in=by_note) | Q(linkB__in=by_note)).values_list('linkA', 'linkB'):
+            for note, other in ((a, b), (b, a)):
+                if note in by_note and other not in by_note and other != root:
+                    replies.setdefault(note, set()).add(other)
+        texts = dict(Node.objects.filter(user=self.user, archive=False, node_id__in=[node_id(r) for rs in replies.values() for r in rs])
+                     .values_list('node_id', 'text_content'))
+        lines = []
+        for note, refs in replies.items():
+            answer = ' / '.join(t for t in (multiline(texts.get(node_id(r)) or '') for r in sorted(refs)) if t)
+            if answer:
+                lines.append(f"Ta note {note} (« {short(by_note[note]['text'], 80)} ») → l'humain a répondu : {answer[:400]}")
+        return lines[-5:]
 
     def op_update(self, action, agents):
         return {'op': 'update', 'ref': self.existing(action.get('ref')), 'text': text_html(action.get('text', ''))}
@@ -949,6 +991,7 @@ class Guardian(IaquaOps):
         agents = self.agents()
         system = self.system(agents)
         guardian = self.guardian
+        self.letters = self.correspondence()
         self.run = AIRun.objects.create(
             owner=self.user, model_id=str(guardian.model), mode=AIRun.Mode.COMMAND, prompt=request,
             context_node_ids=[n['id'] for n in self.context], status=AIRun.Status.RUNNING,

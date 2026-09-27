@@ -239,6 +239,28 @@ def brain_map(request, body):
                                    for t in tools.TOOLS if t['op'] in ops]})
 
 
+@api('GET', 'POST')
+def letters(request, body):
+    """Correspondance du Gardien (dimension « Échanges ») : GET donne ses notes et celles à poser ; POST enregistre où
+    elles ont été posées ({root: N-3, posted: {id de note: N-12}}), pour relire les réponses reliées."""
+    guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
+    if guardian is None:
+        return JsonResponse({'error': 'pas de Gardien'}, status=404)
+    notes = list(guardian.brain.get('letters') or [])
+    universe = dict(guardian.brain.get('universe') or {})
+    if request.method == 'POST':
+        posted = {str(k): str(v) for k, v in (body.get('posted') or {}).items() if str(v).startswith('N-')}
+        notes = [{**n, 'node': posted.get(str(n['id']), n.get('node'))} for n in notes]
+        if str(body.get('root') or '').startswith('N-'):
+            universe['exchanges'] = str(body['root'])
+        guardian.brain = {**guardian.brain, 'letters': notes, 'universe': universe}
+        guardian.save(update_fields=['brain'])
+    from .guardian import text_html
+
+    return JsonResponse({'letters': [{**n, 'html': text_html(n['text'])} for n in notes], 'root': universe.get('exchanges'),
+                         'unread': sum(1 for n in notes if not n.get('node'))})
+
+
 @api('GET')
 def workspace_file(request, body, path):
     """Fichier de l'espace de travail de l'utilisateur (documents générés, exports), en téléchargement."""
