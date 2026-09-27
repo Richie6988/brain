@@ -16,17 +16,15 @@
     --nz-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 }
 
-/* --- Barre de boutons : un dock flottant qui monte du bas, comme avant */
+/* --- Barre de boutons : toujours visible en bas, dans le style de la tour de contrôle (haut gauche).
+   Nodz ajoute ou retire la classe .show selon la souris : la position ne dépend plus d'elle. */
 
-#button-container {
+#button-container, #button-container.show {
     width: auto; max-width: calc(100vw - 32px); height: 50px; box-sizing: border-box;
-    padding: 0 10px; gap: 2px; justify-content: center; bottom: -72px;
-    background: var(--nz-glass); border: 1px solid var(--nz-line); border-radius: 999px;
-    backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-    transition: bottom 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+    padding: 0 10px; gap: 2px; justify-content: center; bottom: 14px;
+    background: rgba(5, 12, 23, 0.72); border: 1px solid var(--nz-line); border-radius: 14px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: none;
 }
-#button-container.show { bottom: 14px; }
 
 /* Son et Export perdent la classe menuBtn quand Nodz change leur état (className = 'soundon', 'save'…) :
    ils sont aussi visés par leur id pour garder l'apparence des autres boutons et leur icône. */
@@ -74,7 +72,8 @@
 .arrow-button:hover { color: #fff; background: rgba(104, 72, 166, 0.5); transform: none; box-shadow: none; }
 
 /* Poignée du dock (sa couleur vient de Nodz) */
-.indicator { bottom: 7px; width: 44px; height: 4px; border-radius: 999px; transform: translateX(-50%); box-shadow: 0 0 10px rgba(165, 83, 185, 0.5); }
+/* La poignée annonçait la barre cachée : la barre est désormais permanente. */
+.indicator { display: none; }
 
 /* --- Liste des dimensions */
 
@@ -145,7 +144,7 @@
 
 /* --- Mode clair (bouton Dark/Light de Nodz) */
 
-body:has(.universe.lightmode) #button-container { background: rgba(255, 255, 255, 0.78); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 12px 30px rgba(68, 8, 82, 0.15); }
+body:has(.universe.lightmode) #button-container { background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }
 body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton)::after { filter: none; }
 body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton):is(:hover, :active)::after { filter: brightness(0) invert(1); }
 body:has(.universe.lightmode) #layerButton.dropdown-button { color: var(--nz-plum); background: rgba(104, 72, 166, 0.1); }

@@ -24,6 +24,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Tour de contrôle** (comme dans iAqua) : en haut à gauche de l'univers, CPU, RAM, GPU et VRAM (si NVIDIA), disque des modèles en barres vertes, ambres ou rouges, et le modèle en mémoire (pastille verte, bleue quand il travaille, file d'attente). Relue toutes les 3 s, traversée par les gestes (sélection, glissé) ; son en-tête ouvre Agents & modèles, qui l'affiche aussi.
 
+**Barre de boutons permanente** : toujours visible en bas, dans le style de la tour de contrôle (verre sombre, coins de 14 px) ; la poignée qui l'annonçait disparaît.
+
 **Interface modernisée** (`css/modern.css`, chargée en dernier, chrome seulement) : barre de boutons en dock de verre dépoli aux icônes claires, dimension courante et recherche en pilules, liste des dimensions en carte avec icônes dessinées (plus de ➕ ni de ✎), fenêtres et boutons arrondis (accueil, profil, renommage), variantes du mode clair. Les boutons Son et Export gardent enfin leur icône quand Nodz change leur état. Nodes, liens, roue de couleurs et navigation inchangés.
 
 - `manage.py bootstrap` rend le compte local administrateur, même s'il existait déjà (installer des modèles demande un compte administrateur ; les invités consultent, et la fenêtre Agents leur explique comment passer administrateur).
