@@ -20,10 +20,10 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Node
 
-from . import gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, tools, workspace
+from . import fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
-from .engine import EngineUnavailable
+from .engine import Engine, EngineUnavailable
 from .guardian import Guardian, PlanError
 from .models import Agent, LocalModel, NodeMark
 from .runtime import broker, dispatcher, engine
@@ -35,7 +35,7 @@ AGENT_FIELDS = ('name', 'role', 'description', 'system_prompt', 'tools_allowed',
 
 # Bibliothèque de départ : l'utilisateur choisit ensuite le modèle de chaque agent.
 DEFAULT_AGENTS = [
-    ('Gardien', Agent.Role.ORCHESTRATOR, "Répond aux nodes envoyés par Ctrl+Entrée : place, relie, cherche, délègue, guide."),
+    ('Gardien', Agent.Role.ORCHESTRATOR, "Répond aux nodes qu'on lui envoie (pastille Gardien ou Ctrl+Entrée) : place, relie, cherche, délègue, guide."),
     ('Rédacteur', Agent.Role.TEXT, 'Écrit, résume, reformule.'),
     ('Codeur', Agent.Role.CODE, 'Écrit et explique du code.'),
     ('Illustrateur', Agent.Role.IMAGE, 'Génère des images.'),
@@ -64,13 +64,15 @@ def hub_call(fn, *args, **kwargs):
 
 def model_to_dict(m, user):
     stats = engine.stats.get(m.id)
+    info = gguf.info(m.path) if m.status == LocalModel.Status.READY else {}
     return {'id': str(m.id), 'repo': m.repo, 'filename': m.filename, 'label': m.label, 'kind': m.kind,
             'capabilities': m.capabilities, 'quant': m.quant, 'size': m.size, 'downloaded': m.downloaded,
             'status': m.status, 'error': m.error, 'params': m.params, 'loaded': engine.loaded == m.id,
             'stats': stats if engine.loaded == m.id else None, **hub.download_state(m),
             'agents': [a.name for a in m.agents.all() if a.owner_id == user.pk],
-            'gguf': gguf.info(m.path) if m.status == LocalModel.Status.READY else {},
-            'placement': engine.placement.get(m.id)}  # couches GPU et contexte retenus au dernier chargement  # couches : curseur d'offload GPU
+            'gguf': info, 'kv_bytes': fit.kv_bytes_per_token(info) if info else None,  # estimation mémoire du dialogue
+            'config': Engine.config(m),  # réglages effectifs (défauts d'iAqua compris)
+            'placement': engine.placement.get(m.id)}  # couches GPU et contexte retenus au dernier chargement
 
 
 def agent_to_dict(a):
@@ -378,16 +380,29 @@ async def command(request):
     events = queue.Queue()
 
     def work():
+        # Chaque demande traitée entre au journal du Gardien (console d'administration) : actions, durée, échec.
+        outcome = {'actions': 0, 'error': None, 'ran': False}
+
+        def emit(kind, data):
+            if kind == 'action':
+                outcome['actions'] += 1
+            events.put((kind, data))
         try:
             if not dispatcher.wait(ticket, lambda position: events.put(('queued', {'position': position}))):
                 return  # la page est partie avant son tour
-            Guardian(user, engine, lambda kind, data: events.put((kind, data))).handle(prompt, body['context'])
+            outcome['ran'], started = True, time.monotonic()
+            Guardian(user, engine, emit).handle(prompt, body['context'])
         except (PlanError, EngineUnavailable, BrokerTimeout) as e:
-            events.put(('error', {'message': str(e)}))
+            outcome['error'] = str(e)
+            emit('error', {'message': outcome['error']})
         except Exception:
             logger.exception('Gardien')
-            events.put(('error', {'message': 'erreur interne du Gardien'}))
+            outcome['error'] = 'erreur interne du Gardien'
+            emit('error', {'message': outcome['error']})
         finally:
+            if outcome['ran']:
+                result = f"échec : {outcome['error']}" if outcome['error'] else f"{outcome['actions']} actions"
+                iaqua.log(user, 'demande', f'{prompt} → {result}, {time.monotonic() - started:.1f} s')
             dispatcher.done(ticket)
             connection.close()
             events.put(None)

@@ -1,10 +1,11 @@
-// Le Gardien dans Nodz (/universe) : pas de chat. Un node écrit est un message : Ctrl+Entrée
-// l'envoie au Gardien (l'humain déclenche, rien ne part tout seul), qui répond dans l'univers
+// Le Gardien dans Nodz (/universe) : pas de chat. Un node écrit est un message : la pastille « Gardien »
+// près du node (ou Ctrl+Entrée) l'envoie au Gardien (l'humain déclenche, rien ne part tout seul), qui répond dans l'univers
 // (un node-réponse relié au message, et ses actions) avec les fonctions de Nodz. Le fil de suivi
 // montre son plan à venir et l'étape en cours. Le bouton « Agents » de la barre
 // de boutons ouvre la bibliothèque (agents, modèles, Hugging Face) ; la tour de contrôle (haut gauche)
 // montre les ressources du serveur.
 
+import { createAdmin } from './admin.js';
 import { api } from './api.js';
 import { createBridge } from './bridge.js';
 import { createFilters } from './filters.js';
@@ -68,6 +69,7 @@ const follow = (() => {
 })();
 
 const filters = createFilters();
+createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide') });
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 let asleep = false;   // le Gardien n'a pas de modèle : on le dit une fois, sans insister
@@ -141,6 +143,7 @@ let queue = Promise.resolve();
 
 async function ask(node, text) {
     let actions = Promise.resolve();
+    if (typeof admin !== 'undefined' && admin) return say('Univers d\'un autre compte, en lecture : le Gardien n\'y agit pas.', 'notice');
     try {
         if (!guardian) await loadGuardian();
         if (!guardian?.enabled || !guardian.model) {
@@ -184,7 +187,7 @@ document.addEventListener('input', function hint(event) {
         if (localStorage.getItem('gardien-hint')) return;
         localStorage.setItem('gardien-hint', '1');
     } catch { /* stockage indisponible : l'astuce revient à chaque visite */ }
-    say('Astuce : Ctrl+Entrée dans un node pour l\'envoyer au Gardien.', 'notice');
+    say('Astuce : la pastille « Gardien » à côté du node (ou Ctrl+Entrée) l\'envoie au Gardien.', 'notice');
 }, true);
 
 bridge.watchMessages((node, text) => {

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import api
+from . import admin, api
 
 urlpatterns = [
     path('status', api.status),
@@ -21,4 +21,11 @@ urlpatterns = [
     path('marks', api.marks),
     path('tools', api.tool_list),
     path('command', api.command),
+    path('admin/overview', admin.overview),
+    path('admin/log', admin.log),
+    path('admin/users', admin.users),
+    path('admin/users/<int:user_id>', admin.user_detail),
+    path('admin/planned', admin.planned),
+    path('admin/schedules/<int:schedule_id>', admin.schedule_detail),
+    path('admin/missions/<int:mission_id>/stop', admin.mission_stop),
 ]

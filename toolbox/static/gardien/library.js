@@ -53,7 +53,7 @@ const CAPS = {
 
 // --- petits outils
 
-function h(tag, attrs = {}, ...children) {
+export function h(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
     Object.entries(attrs).forEach(([k, v]) => {
         if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
@@ -263,7 +263,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         const columns = [['guardian', 'GARDIEN', 'Lit les nodes, décide et agit', '#6848A6'],
             ['agents', 'AGENTS', 'Modèles des agents spécialisés', '#1E90FF'], ['image', 'IMAGE', "Diffusion : l'Illustrateur dessine", '#b8447a']];
         const tuned = models.find(m => m.id === tuning);
-        panels.library.replaceChildren(tuned ? tuningPanel(tuned) : '', h('div', { class: 'gl-board' }, columns.map(([key, label, desc, color]) => {
+        panels.library.replaceChildren(tuned ? (tuned.kind === 'image' ? imagePanel(tuned) : loadDialog(tuned)) : '', h('div', { class: 'gl-board' }, columns.map(([key, label, desc, color]) => {
             const cards = models.filter(m => categoryOf(m) === key);
             const column = h('div', { class: 'gl-column', style: `border-top-color:${color}`, dataset: { category: key } },
                 h('div', { class: 'gl-column-head' }, h('span', { style: `color:${color}` }, label), h('span', {}, cards.length)),
@@ -333,49 +333,14 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
             return sets;
         }, []);
     }
-    const collect = form => Object.fromEntries(state.paramSpec.filter(p => form.elements[p.key])
-        .map(p => [p.key, form.elements[p.key].value.trim()]).filter(([, v]) => v !== ''));
+    const collect = scope => Object.fromEntries(state.paramSpec.map(p => [p.key, scope.querySelector(`[name="${p.key}"]`)])
+        .filter(([, el]) => el).map(([key, el]) => [key, el.value.trim()]).filter(([, v]) => v !== ''));
     const summary = cfg => {
         const set = state.paramSpec.filter(p => cfg[p.key] !== undefined);
         const shown = (p, v) => (p.kind === 'bool' ? (v ? 'oui' : 'non') : p.kind === 'choice' ? p.choices.find(c => c[0] === String(v))?.[0] ?? v
             : Array.isArray(v) ? v.join(' / ') : v === -1 && p.key === 'n_gpu_layers' ? 'toutes' : String(v));
         return set.length ? set.map(p => h('span', {}, `${p.label} `, h('b', {}, shown(p, cfg[p.key])))) : [h('span', {}, 'Réglages par défaut')];
     };
-
-    // Couches GPU, comme iAqua : auto (selon la VRAM libre), max (toutes), ou un nombre au curseur.
-    function offload(m, form) {
-        const layers = m.gguf?.layers;
-        const input = form.elements.n_gpu_layers;
-        if (!input) return null;
-        const vram = state.machine.vram_mb || 0;
-        const perLayer = layers ? (m.size || 0) / (layers + 1) / 1024 ** 2 : 0;  // Mo par couche (approximation)
-        const value = () => (input.value.trim() === '-1' ? 'max' : input.value.trim().toLowerCase());
-        const slider = layers ? h('input', { type: 'range', min: 0, max: layers, step: 1, 'aria-label': 'Couches GPU' }) : null;
-        const note = h('small', {});
-        const show = () => {
-            const v = value();
-            const n = v === 'max' ? layers : /^\d+$/.test(v) ? Math.min(layers || Infinity, Number(v)) : null;
-            if (slider) slider.value = n ?? 0;
-            note.textContent = v === '' || v === 'auto'
-                ? `Auto : autant de couches que la VRAM libre le permet${layers ? ` (${layers} couches)` : ''}, le reste sur CPU`
-                : `${n} / ${layers || '?'} couches sur GPU${perLayer ? ` · environ ${(n * perLayer / 1024).toFixed(1)} Go de VRAM` : ''}${vram ? ` sur ${(vram / 1024).toFixed(1)} Go` : ''}`;
-            note.className = n !== null && vram && n * perLayer > vram * 0.9 ? 'gl-danger' : '';
-        };
-        const set = v => { input.value = v; show(); };
-        slider?.addEventListener('input', () => set(Number(slider.value) === layers ? 'max' : slider.value));
-        input.addEventListener('input', show);
-        show();
-        const placed = m.placement;
-        return h('div', { class: 'gl-offload' },
-            h('div', { class: 'gl-offload-head' }, h('strong', {}, 'Couches GPU'),
-                h('button', { type: 'button', onclick: () => set('0') }, 'CPU'),
-                h('button', { type: 'button', onclick: () => set('auto') }, 'Auto'),
-                h('button', { type: 'button', onclick: () => set('max') }, 'Max')),
-            slider, note,
-            placed ? h('small', { class: 'gl-placed' }, `Dernier chargement : ${placed.gpu_layers} / ${placed.layers || '?'} couches sur GPU, contexte ${placed.n_ctx}`
-                + ` (VRAM libre ${(placed.vram_free_mb / 1024).toFixed(1)} Go, RAM libre ${(placed.ram_free_mb / 1024).toFixed(1)} Go)`) : null,
-            cudaNotice());
-    }
 
     // Pourquoi l'offload GPU n'agit pas, et quoi faire.
     function cudaNotice() {
@@ -387,25 +352,146 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         return null;
     }
 
-    const closeTuning = () => { tuning = null; render(); };
-    function tuningPanel(m) {
-        const groups = m.kind === 'image' ? ['Image'] : ['Chargement', 'Avancé', 'Échantillonnage'];
-        const form = h('form', { class: 'gl-params-form' }, paramFields(groups, m.params || {}));
-        const advanced = form.querySelector('fieldset[data-group="Avancé"]');
-        if (advanced) {  // replié : les réglages d'iAqua d'abord
-            const fold = h('details', { class: 'gl-advanced' }, h('summary', {}, 'Avancé (multi-GPU, cache KV, RoPE)'));
-            advanced.before(fold);
-            fold.append(advanced);
+    // Placement prévu (mêmes règles que fit.py au chargement) : couches sur GPU, contexte, VRAM et RAM.
+    const KV_FACTOR = { f16: 1, q8_0: 0.5, q4_0: 0.25 };
+    function estimate(m, ctxRaw, gpuRaw, kvType) {
+        const layers = m.gguf?.layers || 0;
+        const sizeMb = (m.size || 0) / 1024 ** 2;
+        const perLayer = layers ? sizeMb / (layers + 1) : sizeMb;
+        const kvMb = (m.kv_bytes || 131072) * (KV_FACTOR[kvType] || 1) / 1024 ** 2;
+        const vramMb = state.gpuOffload === false ? 0 : state.machine.vram_mb || 0;
+        const placed = m.placement;
+        const trained = m.gguf?.context_length || 4096;
+        const auto = v => v === '' || v === 'auto';
+        let ctx = /^\d+$/.test(ctxRaw) ? Number(ctxRaw) : placed?.n_ctx || Math.min(trained, 8192);
+        let onGpu;
+        if (gpuRaw === 'max' || gpuRaw === '-1') onGpu = layers;
+        else if (/^\d+$/.test(gpuRaw)) onGpu = Math.min(layers, Number(gpuRaw));
+        else if (placed && auto(ctxRaw)) onGpu = placed.gpu_layers;
+        else onGpu = !perLayer ? 0 : Math.max(0, Math.min(layers, Math.floor((vramMb - 600 - ctx * kvMb) / perLayer)));
+        if (!vramMb) onGpu = 0;  // pas de GPU utilisable : tout reste sur CPU, quoi qu'on demande
+        if (auto(ctxRaw) && !placed) {  // contexte auto : le plus grand qui tient, 32768 au plus
+            const budget = onGpu && vramMb ? vramMb - 600 - onGpu * perLayer : (state.machine.ram_mb || 0) * 0.8 - sizeMb;
+            ctx = Math.max(2048, Math.min(trained, 32768, Math.floor(budget / kvMb / 1024) * 1024));
         }
-        form.prepend(offload(m, form) || '');
-        form.append(h('div', { class: 'gl-actions' }, h('button', { type: 'submit', class: 'gl-primary' }, 'Enregistrer'),
-            h('button', { type: 'button', onclick: () => act(() => tb.updateModel(m.id, { params: {} }), 'Réglages par défaut') }, 'Tout par défaut'),
-            h('button', { type: 'button', onclick: closeTuning }, 'Fermer')));
+        const frac = layers ? onGpu / layers : 0;
+        const kv = ctx * kvMb;
+        return { layers, onGpu, ctx, vram: onGpu ? onGpu * perLayer + kv * frac + 600 : 0, ram: sizeMb - onGpu * perLayer + kv * (1 - frac), frac, vramMb };
+    }
+
+    // Réglages de chargement : le dialogue « Edit Params » d'iAqua (mêmes champs, mêmes valeurs par défaut,
+    // estimation mémoire en direct) ; les réglages avancés et l'échantillonnage sont repliés dessous.
+    function loadDialog(m) {
+        const cfg = m.config || {};
+        const saved = m.params || {};
+        const row = (label, ...field) => h('div', { class: 'gl-load-row' }, h('label', {}, label), h('div', {}, ...field));
+        const check = (name, on, text) => h('label', { class: 'gl-check' }, h('input', { type: 'checkbox', name, checked: on !== false }), h('span', {}, text));
+        const number = (name, value, min, max, placeholder) => h('input', { type: 'number', name, min, max, value: value ?? '', placeholder });
+        const ctx = h('input', { type: 'text', name: 'n_ctx', value: String(saved.n_ctx ?? 'auto'),
+            placeholder: 'auto (budget VRAM), ou un nombre comme 45000 : les couches GPU s\'ajustent' });
+        const gpu = h('input', { type: 'text', name: 'n_gpu_layers', value: String(saved.n_gpu_layers ?? 'auto'),
+            placeholder: 'auto (s\'ajuste au contexte), max, ou un nombre' });
+        const layers = m.gguf?.layers;
+        const slider = layers ? h('input', { type: 'range', min: 0, max: layers, step: 1, 'aria-label': 'Couches GPU' }) : null;
+        const box = h('div', { class: 'gl-estimate' });
+        const advanced = h('details', { class: 'gl-advanced' }, h('summary', {}, 'Avancé (multi-GPU, cache KV, RoPE)'), paramFields(['Avancé'], saved));
+        const sampling = h('details', { class: 'gl-advanced' }, h('summary', {}, 'Échantillonnage'), paramFields(['Échantillonnage'], saved));
+        const status = h('span', { class: 'gl-status' });
+        const form = h('form', { class: 'gl-load' },
+            h('p', { class: 'gl-hint' }, m.loaded ? 'Enregistre les réglages : ils s\'appliquent au prochain chargement (le modèle se recharge à la prochaine demande).'
+                : 'Réglages de chargement : le modèle se charge plus tard, automatiquement, à la première demande.'),
+            box,
+            row('Contexte', ctx),
+            row('Couches GPU', gpu, slider ? h('div', { class: 'gl-gpu-quick' },
+                h('button', { type: 'button', onclick: () => setGpu('0') }, 'CPU'), slider,
+                h('button', { type: 'button', onclick: () => setGpu('auto') }, 'Auto'),
+                h('button', { type: 'button', onclick: () => setGpu('max') }, 'Max')) : null),
+            row('', h('small', { class: 'gl-accent' }, 'Recommandé : auto pour les deux. Au chargement, Nodz lit la VRAM libre et choisit '
+                + 'les couches GPU qui tiennent en gardant la place du cache, puis le plus grand contexte possible (4096 réservés, 32768 au plus). '
+                + 'Un nombre force la valeur.')),
+            row('Flash attention', check('flash_attn', cfg.flash_attn, 'Activer (tampons de calcul plus petits, le plus rapide)')),
+            row('mmap', check('use_mmap', cfg.use_mmap, 'Activer (chargement rapide, le système partage la mémoire)')),
+            row('Garder en mémoire (mlock)', check('use_mlock', cfg.use_mlock, 'Épingler en RAM/VRAM (jamais en swap)')),
+            row('Threads CPU', number('n_threads', saved.n_threads, 1, 256, `auto (${cfg.n_threads}, cœurs physiques)`)),
+            row('Batch', number('n_batch', saved.n_batch, 32, 8192, 'auto (1024)')),
+            row('Libérer après (min)', number('ttl', cfg.ttl, 0, 10080, '720 (0 = jamais)')),
+            row('Graine aléatoire', check('random_seed', cfg.random_seed, 'Activer (sinon réponses reproductibles)')),
+            advanced, sampling, cudaNotice(),
+            h('footer', { class: 'gl-actions' }, status,
+                h('button', { type: 'button', onclick: () => act(() => tb.updateModel(m.id, { params: {} }), 'Réglages d\'iAqua par défaut') }, 'Tout par défaut'),
+                h('button', { type: 'button', onclick: closeTuning }, 'Annuler'),
+                h('button', { type: 'submit', class: 'gl-primary' }, 'Enregistrer')));
+        const fmt = mb => (mb < 100 ? '<0,1' : (mb / 1024).toFixed(2).replace('.', ','));
+        function show() {
+            const g = gpu.value.trim().toLowerCase();
+            const e = estimate(m, ctx.value.trim().toLowerCase(), g, form.elements.type_k?.value || 'f16');
+            if (slider) slider.value = e.onGpu;
+            const auto = ['', 'auto'].includes(ctx.value.trim().toLowerCase()) && ['', 'auto'].includes(g);
+            const [speed, level] = auto && m.placement ? ['Auto : le partage retenu au dernier chargement', 'ok']
+                : auto ? ['Auto : Nodz choisit le partage au chargement (recommandé)', 'ok']
+                    : e.onGpu === 0 ? ['CPU seul : très lent (1 à 3 jetons/s)', 'warn']
+                        : e.frac < 0.5 ? ['Surtout CPU : lent (3 à 8 jetons/s)', 'warn']
+                            : e.frac >= 0.9 ? ['Surtout GPU : rapide (30 à 80 jetons/s)', 'ok'] : ['Partagé GPU/CPU : moyen (10 à 25 jetons/s)', 'ok'];
+            const over = (used, total) => (total && used > total * 0.95 ? 'high' : '');
+            box.replaceChildren(h('strong', {}, 'Mémoire estimée'),
+                h('div', {}, h('span', {}, 'VRAM (GPU)'), h('b', { class: over(e.vram, e.vramMb) }, `${fmt(e.vram)} Go`),
+                    h('small', {}, `${e.onGpu} / ${e.layers || '?'} couches${e.vramMb ? ` · ${fmt(e.vramMb)} Go sur la carte` : ' · pas de GPU utilisable'}`)),
+                h('div', {}, h('span', {}, 'RAM (CPU)'), h('b', { class: over(e.ram, state.machine.ram_mb) }, `${fmt(e.ram)} Go`),
+                    h('small', {}, `contexte ${e.ctx} jetons${state.machine.ram_mb ? ` · ${fmt(state.machine.ram_mb)} Go de RAM` : ''}`)),
+                h('div', {}, h('span', {}, 'Vitesse'), h('b', { class: level }, speed)),
+                h('small', {}, `Fichier ${gb(m.size)}`, m.gguf?.context_length ? ` · contexte d'entraînement ${m.gguf.context_length}` : '',
+                    m.placement ? ` · dernier chargement : ${m.placement.gpu_layers} couches GPU, contexte ${m.placement.n_ctx}` : ''));
+        }
+        function setGpu(value) { gpu.value = value; show(); }
+        slider?.addEventListener('input', () => setGpu(Number(slider.value) === layers ? 'max' : slider.value));
+        form.addEventListener('input', show);
+        form.addEventListener('change', show);
+        show();
         form.addEventListener('submit', event => {
             event.preventDefault();
-            act(() => tb.updateModel(m.id, { params: collect(form) }), m.loaded ? 'Réglages enregistrés : le modèle se recharge à la prochaine demande' : 'Réglages enregistrés');
+            const els = form.elements;
+            const params = { ...collect(advanced), ...collect(sampling), n_ctx: ctx.value.trim().toLowerCase() || 'auto', n_gpu_layers: gpu.value.trim().toLowerCase() || 'auto',
+                flash_attn: els.flash_attn.checked, use_mmap: els.use_mmap.checked, use_mlock: els.use_mlock.checked, random_seed: els.random_seed.checked };
+            ['n_threads', 'n_batch', 'ttl'].forEach(key => { if (els[key].value !== '') params[key] = els[key].value; });
+            status.textContent = 'Enregistrement…';
+            act(() => tb.updateModel(m.id, { params }), m.loaded ? 'Réglages enregistrés : le modèle se recharge à la prochaine demande' : 'Réglages enregistrés')
+                .then(() => { if (!notice.classList.contains('error')) closeTuning(); else status.textContent = ''; });
+        });
+        return h('div', { class: 'gl-dialog', onmousedown: event => { if (event.target.classList.contains('gl-dialog')) closeTuning(); } },
+            h('section', { class: 'gl-dialog-card', role: 'dialog', 'aria-label': `Réglages de ${m.label || m.filename}` },
+                h('header', {}, h('h3', {}, `Réglages : ${m.label || m.filename}`), h('button', { type: 'button', class: 'gl-close', onclick: closeTuning }, 'Fermer')),
+                form));
+    }
+
+    const closeTuning = () => { tuning = null; render(); };
+    function imagePanel(m) {
+        const form = h('form', { class: 'gl-params-form' }, paramFields(['Image'], m.params || {}),
+            h('div', { class: 'gl-actions' }, h('button', { type: 'submit', class: 'gl-primary' }, 'Enregistrer'),
+                h('button', { type: 'button', onclick: () => act(() => tb.updateModel(m.id, { params: {} }), 'Réglages par défaut') }, 'Tout par défaut'),
+                h('button', { type: 'button', onclick: closeTuning }, 'Fermer')));
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            act(() => tb.updateModel(m.id, { params: collect(form) }), 'Réglages enregistrés');
         });
         return h('section', { class: 'gl-tuning' }, h('h3', {}, `Réglages de ${m.label || m.filename}`), form);
+    }
+
+    // Fiche comme iAqua : réglages effectifs (valeurs retenues au chargement quand le modèle est en mémoire),
+    // puis l'activité depuis le chargement.
+    function loadRows(m) {
+        const c = m.config || {};
+        const p = m.loaded && m.placement;
+        const kv = (label, value, cls = '') => h('span', {}, `${label} `, h('b', { class: cls }, String(value)));
+        const yes = v => (v ? 'oui' : 'non');
+        const gpuShown = p ? `${p.gpu_layers}/${p.layers || '?'}` : c.n_gpu_layers;
+        const differs = p && (String(c.n_ctx) !== String(p.n_ctx) || !['auto', 'max'].includes(String(c.n_gpu_layers)) && Number(c.n_gpu_layers) !== p.gpu_layers);
+        const stats = m.stats;
+        return [h('div', { class: 'gl-params' }, kv('CTX', p ? p.n_ctx : c.n_ctx), kv('COUCHES GPU', gpuShown), kv('THREADS', c.n_threads), kv('BATCH', c.n_batch)),
+            h('div', { class: 'gl-params' }, kv('TTL', `${c.ttl} min`), kv('FLASH', c.flash_attn ? 'ON' : 'OFF', c.flash_attn ? 'on' : 'off'),
+                kv('MMAP', yes(c.use_mmap)), kv('MLOCK', yes(c.use_mlock)), c.random_seed === false ? kv('GRAINE', 'fixe') : null),
+            differs ? h('small', { class: 'gl-hint' }, `Enregistré : contexte ${c.n_ctx}, couches GPU ${c.n_gpu_layers}`) : null,
+            stats ? h('div', { class: 'gl-params gl-runtime' }, kv('CHARGÉ', ago(stats.loaded_at)), kv('DERNIER USAGE', ago(stats.last_used)),
+                kv('REQUÊTES', stats.requests), kv('JETONS', stats.tokens >= 1000 ? `${(stats.tokens / 1000).toFixed(1)} k` : stats.tokens)) : null];
     }
 
     function modelCard(m) {
@@ -424,12 +510,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                 nameCaps(m).map(capPill)),
             m.agents.length ? h('small', { class: 'gl-used' }, `Utilisé par ${m.agents.join(', ')}`) : null,
             tiny ? h('p', { class: 'gl-warning' }, 'Très petit : probablement un encodeur, pas un modèle de chat.') : null,
-            h('div', { class: 'gl-params' }, summary(cfg)),
-            m.gguf?.layers ? h('div', { class: 'gl-params' }, h('span', {}, 'Couches ', h('b', {}, m.gguf.layers)),
-                m.gguf.context_length ? h('span', {}, 'Contexte max ', h('b', {}, m.gguf.context_length)) : null,
-                m.gguf.architecture ? h('span', {}, 'Architecture ', h('b', {}, m.gguf.architecture)) : null) : null,
-            stats ? h('div', { class: 'gl-params' }, h('span', {}, 'Chargé ', h('b', {}, ago(stats.loaded_at))),
-                h('span', {}, 'Dernier usage ', h('b', {}, ago(stats.last_used))), h('span', {}, 'Requêtes ', h('b', {}, stats.requests))) : null,
+            m.kind === 'text' ? loadRows(m) : h('div', { class: 'gl-params' }, summary(cfg)),
             h('div', { class: 'gl-actions' },
                 m.kind === 'text' && categoryOf(m) !== 'guardian'
                     ? h('button', { type: 'button', onclick: () => moveTo(m.id, 'guardian') }, 'Pour le Gardien') : null,

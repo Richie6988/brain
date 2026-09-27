@@ -17,6 +17,7 @@ from . import fit
 from .params import clean, load_options, sampling_options
 
 DEFAULT_TTL = 720  # minutes d'inactivité avant de libérer la mémoire (iAqua)
+FIXED_SEED = 42
 
 
 class EngineUnavailable(Exception):
@@ -42,7 +43,7 @@ class Engine:
         self.placement = {}  # id du LocalModel → résumé du dernier calcul (couches GPU, contexte, mémoire libre)
         self._ttl = DEFAULT_TTL
         self._lock = threading.Lock()
-        self.stats = {}  # id du LocalModel → {loaded_at, last_used, requests, chunks}
+        self.stats = {}  # id du LocalModel → {loaded_at, last_used, requests, tokens}
         self._watcher = None
 
     @property
@@ -65,6 +66,11 @@ class Engine:
                     'n_threads': settings.LLM_THREADS or fit.default_threads(), 'n_batch': 1024,
                     'flash_attn': True, 'use_mmap': True, 'use_mlock': False}
         return {**defaults, **load_options(model.params)}
+
+    @classmethod
+    def config(cls, model):
+        """Réglages effectifs affichés sur la fiche (comme iAqua) : chargement, libération, graine."""
+        return {**cls.options(model), 'ttl': model.params.get('ttl', DEFAULT_TTL), 'random_seed': model.params.get('random_seed', True)}
 
     def gpu_offload(self):
         """llama-cpp-python compilé avec un backend GPU (CUDA, Metal, Vulkan) ; None s'il est absent."""
@@ -89,7 +95,7 @@ class Engine:
         self._loaded, self._options = model.pk, options
         self._ttl = float(model.params.get('ttl', DEFAULT_TTL))
         now = self.clock()
-        self.stats[model.pk] = {'loaded_at': now, 'last_used': now, 'requests': 0, 'chunks': 0}
+        self.stats[model.pk] = {'loaded_at': now, 'last_used': now, 'requests': 0, 'tokens': 0}
         self._watch()
         return self._llm
 
@@ -137,6 +143,8 @@ class Engine:
             stats['requests'] += 1
             # Réglages du modèle, puis ceux de l'appel (agent, Gardien) qui priment.
             options = {'temperature': 0.7, 'max_tokens': 1024, **sampling_options(model.params), **sampling_options(params)}
+            if model.params.get('random_seed') is False and 'seed' not in options:
+                options['seed'] = FIXED_SEED  # graine aléatoire coupée : réponses reproductibles
             if json_schema:
                 options['response_format'] = {'type': 'json_object', 'schema': json_schema}
             text = []
@@ -145,7 +153,7 @@ class Engine:
                     piece = chunk['choices'][0]['delta'].get('content') or ''
                     if piece:
                         text.append(piece)
-                        stats['chunks'] += 1
+                        stats['tokens'] += 1  # un fragment du flux = un jeton
                         if on_text:
                             on_text(piece)
             finally:

@@ -69,6 +69,12 @@ class Dispatcher:
                 self._waiting.remove(ticket)
             self._cond.notify_all()
 
+    def tickets(self, with_state=False):
+        """Demandes en cours puis en file (avec `running` si with_state), pour la console d'administration."""
+        with self._cond:
+            items = [(t, True) for t in self._running] + [(t, False) for t in self._waiting]
+        return items if with_state else [t for t, _ in items]
+
     def state(self):
         with self._cond:
             return {'running': len(self._running), 'waiting': len(self._waiting), 'workers': self.workers}

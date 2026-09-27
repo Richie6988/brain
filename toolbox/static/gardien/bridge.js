@@ -296,19 +296,68 @@ export function createBridge({ caption }) {
                 await wait(Math.min(6000, 1400 + action.text.length * 45));
             }
         },
-        // L'humain déclenche l'IA : Ctrl+Entrée (Cmd+Entrée sur Mac) dans un node en cours d'écriture
-        // l'envoie au Gardien. Écrire, déplacer ou quitter un node ne lance rien.
+        // L'humain déclenche l'IA : la pastille « Gardien » près du node en cours d'écriture (ou du seul node
+        // sélectionné), ou Ctrl+Entrée (Cmd+Entrée sur Mac) dans le node. Écrire, déplacer ou quitter un
+        // node ne lance rien.
         watchMessages(send) {
+            const textOf = node => node.children[0]?.children[0]?.innerText?.trim() || '';
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.id = 'gardien-send';
+            pill.hidden = true;
+            pill.title = 'Envoyer ce node au Gardien (Ctrl+Entrée)';
+            pill.innerHTML = '<i></i><span>Gardien</span><kbd>Ctrl ↵</kbd>';
+            document.body.append(pill);
+            let target = null;
+            const place = () => {
+                if (!target || !target.isConnected) return hide();
+                const shape = target.getAttribute('shape') === 'square' ? target.children[2] : target.children[1];
+                const r = (shape || target).getBoundingClientRect();
+                pill.style.left = `${Math.min(window.innerWidth - pill.offsetWidth - 8, r.right + 8)}px`;
+                pill.style.top = `${Math.max(8, r.top + r.height / 2 - pill.offsetHeight / 2)}px`;
+                pill.disabled = target.classList.contains('gardien-thinking');
+                requestAnimationFrame(place);  // suit le node pendant les zooms et glissés
+            };
+            const show = node => {
+                if (typeof admin !== 'undefined' && admin) return;  // univers d'un autre compte, en lecture
+                if (target === node) return;
+                const idle = !target;
+                target = node;
+                pill.hidden = false;
+                if (idle) place();
+            };
+            function hide() { target = null; pill.hidden = true; }
+            const fire = node => {
+                const input = node.children[0].children[0];
+                const text = textOf(node);
+                if (document.activeElement === input) input.blur();  // Nodz enregistre le node en le quittant
+                hide();
+                if (text) send(node, text);
+            };
+            const editing = () => {
+                const input = document.activeElement;
+                return input?.isContentEditable ? input.closest?.('.node-group') : null;
+            };
+            // Pendant l'écriture, dès qu'il y a du texte ; sinon le seul node sélectionné qui contient du texte.
+            const refresh = () => {
+                const node = editing() || (selectedNodes.length === 1 ? selectedNodes[0] : null);
+                if (node && textOf(node)) show(node);
+                else hide();
+            };
+            document.addEventListener('input', event => { if (event.target.isContentEditable) refresh(); }, true);
+            document.addEventListener('focusin', refresh, true);
+            document.addEventListener('focusout', () => setTimeout(refresh), true);
+            document.addEventListener('mouseup', () => setTimeout(refresh), true);
+            pill.addEventListener('mousedown', event => event.preventDefault());  // garde le focus dans le node
+            pill.addEventListener('click', () => { if (target && !pill.disabled) fire(target); });
             document.addEventListener('keydown', event => {
+                if (event.key === 'Escape') hide();
                 if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || !event.isTrusted) return;
-                const input = event.target;
-                const node = input?.isContentEditable ? input.closest?.('.node-group') : null;
+                const node = editing();
                 if (!node) return;
                 event.preventDefault();
                 event.stopImmediatePropagation();  // ni saut de ligne ni raccourci de Nodz
-                const text = input.innerText.trim();
-                input.blur();  // Nodz enregistre le node en le quittant
-                if (text) send(node, text);
+                fire(node);
             }, true);
         },
     };

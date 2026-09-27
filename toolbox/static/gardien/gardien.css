@@ -8,6 +8,20 @@
 @keyframes gardien-pulse { 50% { stroke-opacity: 0.25; } }
 .node-group.gardien-thinking .hitbox, .node-group.gardien-thinking .squareShape { animation: gardien-pulse 1.1s ease-in-out infinite; }
 
+/* Pastille « Gardien » : envoie le node en cours d'écriture (ou le seul sélectionné) au Gardien */
+#gardien-send {
+    position: fixed; z-index: 31; display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 5px; cursor: pointer;
+    font: 11px 'Cascadia Code', monospace; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF);
+    border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 999px; box-shadow: 0 0 14px rgba(104, 72, 166, 0.55);
+    animation: gardien-appear 0.18s ease-out; transition: filter 0.15s, box-shadow 0.15s;
+}
+#gardien-send[hidden] { display: none; }
+#gardien-send:hover:not(:disabled) { filter: brightness(1.12); box-shadow: 0 0 20px rgba(30, 144, 255, 0.7); }
+#gardien-send:disabled { opacity: 0.55; cursor: progress; }
+#gardien-send i { width: 20px; height: 20px; border-radius: 50%; background: rgba(255, 255, 255, 0.92) url('agents.svg') no-repeat center / 70%; }
+#gardien-send kbd { font: inherit; font-size: 9px; opacity: 0.75; padding: 1px 5px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 6px; }
+@keyframes gardien-appear { from { opacity: 0; transform: scale(0.85); } }
+
 /* Messages courts du Gardien */
 #gardien-toast {
     position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); z-index: 30; pointer-events: none;
@@ -125,6 +139,8 @@ body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255,
     font: 11px 'Cascadia Code', monospace; color: #440852; background: ivory; border: 1px solid #c9b8e0; border-radius: 12px; padding: 4px 10px;
 }
 .gl-window button { cursor: pointer; }
+.gl-window input[type=checkbox], .gl-window input[type=range] { padding: 0; margin: 0; background: none; border: 0; }
+.gl-window label { pointer-events: auto; }  /* Nodz coupe les clics sur tous les label (interface.css) */
 .gl-window button:hover:not(:disabled) { box-shadow: 0 -2px 6px #f0c8f3a9; }
 .gl-window button:disabled { opacity: 0.45; cursor: not-allowed; }
 .gl-tabs button.active { background: #440852; color: ivory; border-color: #440852; }
@@ -177,11 +193,42 @@ body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255,
 .gl-params-form legend { padding: 0 6px; font-weight: bold; color: #440852; }
 .gl-params-form label { display: flex; flex-direction: column; gap: 2px; }
 .gl-params-form input, .gl-params-form select { width: 100%; box-sizing: border-box; }
-.gl-offload { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid #1E90FF55; border-radius: 12px; background: #eef6ff; }
-.gl-offload-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.gl-offload-head strong { margin-right: auto; color: #440852; }
-.gl-offload input[type=range] { width: 100%; accent-color: #6848A6; }
-.gl-placed { color: #0f9f6e; }
+.gl-params b.on { color: #0f9f6e; }
+.gl-params b.off { color: #94a3b8; }
+.gl-runtime { padding-top: 4px; border-top: 1px dashed #e3dcef; }
+
+/* Réglages de chargement : le dialogue « Edit Params » d'iAqua, par-dessus la bibliothèque */
+.gl-window { position: relative; }
+.gl-dialog { position: fixed; inset: 0; z-index: 41; display: grid; place-items: center; background: rgba(5, 12, 23, 0.45); }
+.gl-dialog-card { width: min(620px, 90vw); max-height: 86vh; overflow-y: auto; padding: 14px 18px 16px; box-sizing: border-box; background: #fbfaff;
+    border: 1px solid #6848A6; border-radius: 18px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+.gl-dialog-card h3 { margin: 0; color: #440852; font-size: 13px; }
+.gl-load { display: grid; gap: 7px; }
+.gl-load-row { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: center; }
+.gl-load-row > label { color: #440852; }
+.gl-load-row > div { display: grid; gap: 4px; }
+.gl-load-row input[type=text], .gl-load-row input[type=number] { width: 100%; box-sizing: border-box; }
+.gl-check { display: flex; align-items: center; gap: 6px; color: #555; cursor: pointer; }
+.gl-check input { accent-color: #6848A6; }
+.gl-accent { color: #6848A6; font-size: 10px; line-height: 1.45; }
+.gl-gpu-quick { display: flex; align-items: center; gap: 6px; }
+.gl-gpu-quick input[type=range] { flex: 1; accent-color: #6848A6; }
+.gl-estimate { display: grid; gap: 4px; padding: 9px 12px; border: 1px solid #1E90FF55; border-radius: 12px; background: #eef6ff; }
+.gl-estimate strong { color: #440852; }
+.gl-estimate div { display: grid; grid-template-columns: 90px auto 1fr; gap: 8px; align-items: baseline; }
+.gl-estimate span { color: #6848A6; }
+.gl-estimate b { color: #0f9f6e; }
+.gl-estimate b.warn { color: #b45309; }
+.gl-estimate b.high { color: #c0392b; }
+.gl-estimate small { color: #666; }
+.gl-load .gl-params-form, .gl-load fieldset { margin: 0; padding: 6px 10px 10px; border: 1px solid #e3dcef; border-radius: 12px; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px 10px; font-size: 10px; color: #6848A6; }
+.gl-load fieldset label { display: flex; flex-direction: column; gap: 2px; }
+.gl-load fieldset input, .gl-load fieldset select { width: 100%; box-sizing: border-box; }
+.gl-load legend { display: none; }
+.gl-load footer { justify-content: flex-end; align-items: center; margin-top: 4px; }
+.gl-load footer .gl-status { margin-right: auto; color: #6848A6; }
+@media (max-width: 600px) { .gl-load-row { grid-template-columns: 1fr; gap: 3px; } }
 .gl-toolgroup { margin-bottom: 6px; }
 .gl-toolgroup summary { cursor: pointer; color: #6848A6; font-weight: bold; margin: 12px 0 6px; }
 .gl-tool { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 8px 10px; border: 1px solid #e3dcef; border-radius: 12px; margin-bottom: 6px; background: #fff; cursor: pointer; }
@@ -232,3 +279,52 @@ body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255,
 .gl-bar div { height: 100%; background: linear-gradient(90deg, #6848A6, #1E90FF); transition: width 0.4s; }
 
 @media (max-width: 700px) { .gl-board { grid-template-columns: 1fr; } }
+
+/* Consoles administrateur : Console IA (ancien Nod-Z Data) et Utilisateurs (ancien Nod-Z Users) */
+.ga-window { width: min(1080px, 94vw); }
+.ga-body { display: grid; gap: 10px; }
+.ga-body > h3 { margin-bottom: 0; }
+.ga-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.ga-tile { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid #e3dcef; border-radius: 14px; background: #fff; }
+.ga-tile b { font-size: 20px; color: #440852; }
+.ga-tile span { color: #888; font-size: 10px; }
+.ga-tile.bad b { color: #c0392b; }
+.ga-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ga-card { padding: 4px 14px 12px; border: 1px solid #e3dcef; border-radius: 14px; background: #fff; min-width: 0; }
+.ga-card h3 small { color: #888; font-weight: normal; margin-left: auto; }
+.ga-chart { position: relative; height: 180px; }
+.ga-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ga-queue li { display: flex; align-items: center; gap: 8px; }
+.ga-queue li small { margin-left: auto; color: #888; }
+.ga-queue i { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+.ga-queue li.running i { background: #1E90FF; box-shadow: 0 0 6px #1E90FF; animation: gardien-blink 1s ease-in-out infinite; }
+.ga-bars { display: grid; gap: 4px; }
+.ga-bars button { display: grid; grid-template-columns: minmax(120px, 34%) 1fr 40px; gap: 8px; align-items: center; text-align: left; background: transparent !important; border-color: transparent !important; }
+.ga-bars span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ga-bars i { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #6848A6, #1E90FF); }
+.ga-bars b { text-align: right; color: #440852; }
+.ga-table-wrap { overflow-x: auto; border: 1px solid #e3dcef; border-radius: 12px; background: #fff; }
+.ga-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.ga-table th { position: sticky; top: 0; background: #f6f2fc; color: #440852; text-align: left; font-weight: bold; padding: 7px 8px; white-space: nowrap; }
+.ga-table th.sortable { cursor: pointer; }
+.ga-table th.sortable:hover { color: #1E90FF; }
+.ga-table td { padding: 6px 8px; border-top: 1px solid #f0ebf7; vertical-align: top; }
+.ga-table td small { display: block; color: #888; font-size: 10px; }
+.ga-table tr.bad td { background: #fff5f4; }
+.ga-table .nowrap { white-space: nowrap; }
+.ga-table input[type=checkbox] { accent-color: #6848A6; }
+.ga-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.ga-link { background: transparent !important; border: 0 !important; padding: 0 !important; color: #1E90FF !important; text-align: left; }
+.gl-cap.running { color: #1E90FF; border-color: #1E90FF; }
+.gl-cap.failed, .gl-cap.aborted { color: #c0392b; border-color: #c0392b; }
+.gl-cap.done { color: #0f9f6e; border-color: #0f9f6e; }
+@media (max-width: 760px) { .ga-grid { grid-template-columns: 1fr; } }
+
+/* Univers d'un autre compte, en lecture */
+#ga-watching {
+    position: fixed; top: 58px; left: 50%; transform: translateX(-50%); z-index: 31; display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px 6px 14px; font: 11px 'Cascadia Code', monospace; color: #fff; background: rgba(192, 57, 43, 0.9);
+    border-radius: 999px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+#ga-watching[hidden] { display: none; }
+#ga-watching button { font: inherit; color: #c0392b; background: #fff; border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer; }

@@ -258,7 +258,7 @@ class EngineTests(TestCase):
             engine.chat(self.model, [])
         self.assertEqual({k: FakeLlama.instances[0].kwargs[k] for k in ('n_ctx', 'n_gpu_layers', 'n_batch')},
                          {'n_ctx': 1024, 'n_gpu_layers': -1, 'n_batch': 256})
-        self.assertEqual((engine.stats[self.model.pk]['requests'], engine.stats[self.model.pk]['chunks']), (1, 2))
+        self.assertEqual((engine.stats[self.model.pk]['requests'], engine.stats[self.model.pk]['tokens']), (1, 2))
         now[0] += 4 * 60
         self.assertFalse(engine.unload_if_idle())
         now[0] += 2 * 60
@@ -1031,6 +1031,10 @@ class CommandStreamTests(TransactionTestCase):
         kinds = [line.split(': ', 1)[1] for line in body.splitlines() if line.startswith('event: ')]
         self.assertEqual(kinds, ['start', 'intent', 'plan', 'intent', 'action', 'text', 'end'])
         self.assertIn('Bonjour', body)
+        from .models import GuardianLog
+
+        entry = await GuardianLog.objects.filter(owner=self.user, kind='demande').alast()  # la console IA en fait le compte
+        self.assertRegex(entry.detail, r'^dis bonjour → 1 actions, [\d.]+ s$')
 
     async def test_busy_user_is_refused(self):
         from .runtime import dispatcher
@@ -1043,6 +1047,51 @@ class CommandStreamTests(TransactionTestCase):
             dispatcher.done(ticket)
         self.assertEqual(r.status_code, 429)
         self.assertIn('déjà', json.loads(r.content)['error'])
+
+
+class AdminConsoleTests(TestCase):
+    def setUp(self):
+        from .models import GuardianLog, Schedule
+
+        self.user = NodzUser.objects.create_user(email='u@nodz.local', password='pw-123456')
+        self.admin = NodzUser.objects.create_user(email='root@nodz.local', password='pw-123456', is_staff=True)
+        self.guardian = Agent.objects.create(owner=self.user, name='Gardien', role=Agent.Role.ORCHESTRATOR)
+        GuardianLog.objects.create(owner=self.user, kind='demande', detail='range mes idées → 3 actions, 2.0 s')
+        GuardianLog.objects.create(owner=self.user, kind='demande', detail='x → échec : pas de modèle, 0.1 s')
+        self.schedule = Schedule.objects.create(owner=self.user, number=1, expr='hourly', title='veille')
+
+    def test_staff_only(self):
+        self.client.force_login(self.user)
+        for url in ('overview', 'log', 'users', 'planned'):
+            self.assertEqual(self.client.get(f'/api/v1/toolbox/admin/{url}').status_code, 403)
+
+    def test_overview_log_and_planned(self):
+        self.client.force_login(self.admin)
+        data = self.client.get('/api/v1/toolbox/admin/overview').json()
+        self.assertEqual((data['totals']['requests_today'], data['totals']['errors_week'], data['totals']['active_week']), (2, 1, 1))
+        self.assertEqual(data['days'][-1]['requests'], 2)
+        self.assertEqual(data['top'], [{'user': 'u@nodz.local', 'requests': 2}])
+        entries = self.client.get('/api/v1/toolbox/admin/log?q=idées').json()['entries']
+        self.assertEqual([e['user'] for e in entries], ['u@nodz.local'])
+        planned = self.client.get('/api/v1/toolbox/admin/planned').json()
+        self.assertEqual(planned['schedules'][0]['ref'], 'sched_0001')
+        r = self.client.patch(f'/api/v1/toolbox/admin/schedules/{self.schedule.pk}', {'enabled': False}, content_type='application/json')
+        self.assertEqual(r.status_code, 200)
+        self.schedule.refresh_from_db()
+        self.assertFalse(self.schedule.enabled)
+
+    def test_users_staff_and_guardian(self):
+        self.client.force_login(self.admin)
+        data = self.client.get('/api/v1/toolbox/admin/users').json()
+        row = next(u for u in data['users'] if u['id'] == self.user.pk)
+        self.assertEqual((row['requests_week'], row['guardian']['enabled'], row['staff']), (2, True, False))
+        url = f'/api/v1/toolbox/admin/users/{self.user.pk}'
+        row = self.client.patch(url, {'staff': True, 'guardian': False}, content_type='application/json').json()['user']
+        self.assertEqual((row['staff'], row['guardian']['enabled']), (True, False))
+        r = self.client.patch(f'/api/v1/toolbox/admin/users/{self.admin.pk}', {'staff': False}, content_type='application/json')
+        self.assertEqual(r.status_code, 400)  # jamais son propre droit
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_staff)
 
 
 @override_settings(GUARDIAN_SHELL=False)

@@ -24,6 +24,7 @@ SPEC = [
     {'key': 'use_mlock', 'group': 'Chargement', 'label': 'mlock (garder en mémoire)', 'kind': 'bool', 'load': True, 'hint': 'non'},
     {'key': 'ttl', 'group': 'Chargement', 'label': 'Libérer après', 'kind': 'float', 'min': 0, 'max': 10080,
      'hint': '720 min (0 = jamais)'},
+    {'key': 'random_seed', 'group': 'Chargement', 'label': 'Graine aléatoire', 'kind': 'bool', 'hint': 'non = réponses reproductibles'},
     # --- Avancé
     {'key': 'main_gpu', 'group': 'Avancé', 'label': 'GPU principal', 'kind': 'int', 'min': 0, 'max': 15, 'load': True,
      'hint': 'index de la carte (0 = première)'},

@@ -42,6 +42,9 @@
 .menuBtn:hover, #soundButton:hover, #exportButton:hover { background: rgba(104, 72, 166, 0.55); box-shadow: var(--nz-glow); transform: translateY(-2px); }
 .menuBtn:active, #soundButton:active, #exportButton:active { background: var(--nz-violet); transform: translateY(0) scale(0.95); }
 .menuBtn:focus-visible, #soundButton:focus-visible, #exportButton:focus-visible { outline: 2px solid var(--nz-blue); outline-offset: 2px; }
+/* Boutons du compte administrateur (Console IA, Utilisateurs) : fond jaune de Nodz remplacé par un liseré. */
+#statsButton, #usersButton { background-color: transparent; box-shadow: inset 0 0 0 1px rgba(243, 238, 88, 0.55); }
+#statsButton:hover, #usersButton:hover { background-color: rgba(104, 72, 166, 0.55); box-shadow: var(--nz-glow); }
 #notificationButton[data-count]:not([data-count="0"])::before {
     top: -4px; right: -4px; min-width: 16px; padding: 2px 4px; box-sizing: border-box; z-index: 1;
     background: #FF4D6D; font: 700 10px/12px 'Cascadia Code', monospace; box-shadow: 0 0 0 2px rgba(10, 16, 30, 0.9);

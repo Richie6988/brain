@@ -26,6 +26,14 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Outils du Gardien** : un catalogue unique (`toolbox/tools.py`) fusionne les outils de Nodz et ceux portés d'iAqua, avec leur origine ; onglet Outils pour les activer un par un (un outil coupé sort des consignes du Gardien et lui est refusé) et liste des outils d'iAqua non portés, avec la raison.
 
+**Pastille « Gardien »** : écrire dans un node (ou sélectionner un seul node qui contient du texte) fait apparaître à côté de lui une pastille « Gardien » qui l'envoie ; elle suit le node pendant les zooms et glissés et se grise pendant la réponse. Ctrl+Entrée reste le raccourci.
+
+**Dialogue de réglages comme iAqua** (« Edit Params ») : contexte et couches GPU en texte (`auto`, `max` ou un nombre) avec curseur CPU / Auto / Max, estimation mémoire en direct (VRAM, RAM, vitesse, calculées depuis l'en-tête GGUF et la machine, comme au chargement), cases flash attention, mmap, mlock, threads, batch, libération après inactivité et graine aléatoire (coupée : réponses reproductibles) ; avancé et échantillonnage repliés. La fiche modèle montre les valeurs effectives (CTX, COUCHES GPU, THREADS, BATCH, TTL, FLASH, MMAP, MLOCK), les valeurs retenues au chargement quand il est en mémoire, et l'activité (chargé, dernier usage, requêtes, jetons).
+
+**Consoles administrateur** sur les anciens boutons « Nod-Z Data » et « Nod-Z Users » (qui ouvraient un tableau figé et un graphique aux valeurs inventées) : **Console IA** (comptes, demandes du jour et de la semaine, échecs, file du Gardien en direct, modèle en mémoire, graphique des demandes sur 14 jours, comptes les plus actifs ; journal du Gardien de tous les comptes avec recherche ; planifications à mettre en pause, missions à arrêter, tâches ouvertes) et **Utilisateurs** (recherche, filtres, tri, nodes et demandes par compte, Gardien actif ou coupé par compte, droit administrateur donné ou retiré en deux temps, jamais le sien, univers d'un compte en lecture avec un bandeau « Revenir à mon univers »). Chaque demande au Gardien entre au journal (actions, durée, échec).
+
+**Corrections** : les cases à cocher des fenêtres du Gardien (onglet Outils, « actif ») ne répondaient pas (Nodz coupe les clics sur tous les `label`) ; en regardant l'univers d'un autre compte, un univers vide laissait l'enregistrement actif, et le drapeau administrateur écrasait l'identifiant du compte.
+
 **Profil** en cartes (identité, activité, parrainage, Premium, avis), coches dessinées au lieu d'emoji ; nouvelle icône du bouton Agents.
 
 **Session conservée** : ouvrir `/universe` ne déconnecte plus. Un autre onglet, un rechargement ou un préchargement déconnectait la page ouverte (sauvegardes, profil, modèles et Gardien refusés). La fenêtre LOGIN / GUEST s'affiche toujours ; la déconnexion se fait par le profil. Un refus 401 dit s'il manque le cookie ou si la session est inconnue.

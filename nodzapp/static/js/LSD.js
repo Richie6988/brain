@@ -334,10 +334,9 @@ function loadUser(param) {
         userID = param.value;        
     } else if (param.name === "admin") {
         console.log(param.value)
-        if(param.value && !document.getElementById('admin-overlay')) {
+        if(param.value && !document.getElementById('statsButton')) {
             administration();
         }
-        userID = param.value;        
     } else if (param.name === "email") {
         email = param.value;        
     } else if (param.name === "premium") {
