@@ -167,14 +167,20 @@ export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
             select.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { model: select.value || null }), `${agent.name} : modèle changé`));
             const enabled = h('input', { type: 'checkbox', checked: agent.enabled });
             enabled.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { enabled: enabled.checked })));
-            const prompt = h('textarea', { rows: 3, placeholder: 'Consignes propres à cet agent (vide = consignes par défaut)' }, agent.system_prompt);
-            prompt.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { system_prompt: prompt.value }), 'Consignes enregistrées'));
+            // Les consignes par défaut s'affichent telles quelles ; les garder inchangées n'enregistre rien.
+            const prompt = h('textarea', { rows: 12, 'aria-label': `Consignes de ${agent.name}` }, agent.system_prompt || agent.default_prompt);
+            const custom = () => (prompt.value.trim() === agent.default_prompt.trim() ? '' : prompt.value);
+            prompt.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { system_prompt: custom() }), 'Consignes enregistrées'));
+            const reset = h('button', { type: 'button', disabled: !agent.system_prompt }, 'Rétablir les consignes par défaut');
+            reset.addEventListener('click', () => act(() => tb.updateAgent(agent.id, { system_prompt: '' }), `${agent.name} : consignes par défaut`));
             return h('article', { class: `gl-agent ${agent.role === 'orchestrator' ? 'is-guardian' : ''}` },
                 h('div', { class: 'gl-agent-head' },
                     h('div', {}, h('strong', {}, agent.name), h('span', { class: 'gl-role' }, agent.role), h('small', {}, agent.description)),
                     h('label', { class: 'gl-switch', title: 'Actif' }, enabled, 'actif')),
                 select,
-                h('details', {}, h('summary', {}, 'Consignes'), prompt));
+                h('details', {}, h('summary', {}, agent.system_prompt ? 'Consignes (personnalisées)' : 'Consignes'), prompt,
+                    agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement.') : null,
+                    reset));
         }));
     }
 

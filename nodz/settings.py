@@ -194,6 +194,9 @@ HF_TOKEN = os.environ.get('HF_TOKEN', '')
 LLM_CTX = int(os.environ.get('LLM_CTX', '4096'))
 LLM_GPU_LAYERS = int(os.environ.get('LLM_GPU_LAYERS', '0'))  # -1 = tout sur le GPU
 LLM_THREADS = int(os.environ.get('LLM_THREADS', '0'))  # 0 = automatique
+GUARDIAN_WEB = os.environ.get('GUARDIAN_WEB', '1') == '1'  # recherche et lecture web par le Gardien
+GUARDIAN_WORKERS = int(os.environ.get('GUARDIAN_WORKERS', '1'))  # demandes au Gardien traitées en même temps
+GUARDIAN_QUEUE = int(os.environ.get('GUARDIAN_QUEUE', '8'))  # demandes en attente au plus
 
 LOGGING = {
     'version': 1,

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from django.db import connection
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 
 from nodzapp.models import NodzUser
 
@@ -285,6 +285,7 @@ class ToolboxApiTests(TestCase):
         self.assertGreater(data['disk']['total_gb'], 0)
         self.assertIsNone(data['model'])
         self.assertFalse(data['broker']['busy'])
+        self.assertEqual(data['dispatch'], {'running': 0, 'waiting': 0, 'workers': 1})
 
     def test_hub_errors_are_reported(self):
         with mock.patch.object(hub, 'api', side_effect=RuntimeError('hors ligne')):
@@ -440,7 +441,7 @@ class GuardianTests(TestCase):
         self.assertIn('N-2 : (vide)', prompt)
         self.assertIn('Liens : N-1-N-2', prompt)
         self.assertIn('Sélection : N-1', prompt)
-        self.assertEqual(engine.calls[0]['schema']['required'], ['say', 'actions'])
+        self.assertEqual(engine.calls[0]['schema']['required'], ['plan', 'say', 'actions'])
         from graph.models import AIRun
 
         run = AIRun.objects.get()
@@ -540,6 +541,95 @@ class GuardianTests(TestCase):
             self.run_guardian('pas du json')
         self.assertEqual(AIRun.objects.get().status, AIRun.Status.ERROR)
 
+    def test_guidelines_are_editable_but_tools_stay(self):
+        from . import prompts
+
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
+        system = engine.calls[0]['messages'][0]['content']
+        self.assertIn(prompts.GUARDIAN, system)
+        self.assertIn('{"op":"web_search"', system)
+        Agent.objects.filter(owner=self.user, role=Agent.Role.ORCHESTRATOR).update(system_prompt='Tu parles comme un pirate.')
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
+        system = engine.calls[0]['messages'][0]['content']
+        self.assertIn('Tu parles comme un pirate.', system)
+        self.assertNotIn(prompts.GUARDIAN, system)
+        self.assertIn('{"op":"mindmap"', system)  # une consigne réécrite ne retire pas les outils
+        agents = {a['name']: a for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
+        self.assertEqual(agents['Rédacteur']['default_prompt'], prompts.ROLES[Agent.Role.TEXT])
+
+    def test_follow_up_plan_and_intents(self):
+        self.run_guardian(json.dumps({'plan': ['Relier les idées', 'Montrer le résultat'], 'say': 'Voilà.', 'actions': [
+            {'op': 'link', 'source': 'N-1', 'target': 'N-2'}, {'op': 'overview'}]}))
+        kinds = [k for k, _ in self.events]
+        self.assertEqual(kinds[:3], ['start', 'intent', 'plan'])
+        self.assertEqual(dict(self.events)['plan']['steps'], ['Relier les idées', 'Montrer le résultat'])
+        intents = [d['text'] for k, d in self.events if k == 'intent']
+        self.assertIn('Je relie « Voyage au Japon » à N-2', intents)
+        self.assertIn('Je prends du recul sur tout le plan', intents)
+        self.assertLess(kinds.index('intent', 3), kinds.index('action'))  # l'intention précède le geste
+
+    def test_mindmap(self):
+        self.run_guardian(json.dumps({'plan': [], 'say': 'Carte.', 'actions': [
+            {'op': 'mindmap', 'ref': 'new1', 'text': 'Japon', 'children': ['Kyoto', 'Tokyo'], 'near': 'N-1'}]}))
+        ops = [(a['op'], a.get('ref') or (a.get('source'), a.get('target'))) for a in self.actions()]
+        self.assertEqual(ops[:5], [('create', 'new1'), ('create', 'new1.1'), ('link', ('new1', 'new1.1')),
+                                   ('create', 'new1.2'), ('link', ('new1', 'new1.2'))])
+        spots = [(a['x'], a['y']) for a in self.actions() if a['op'] == 'create']
+        self.assertTrue(all(math.dist(p, q) >= 100 for i, p in enumerate(spots) for q in spots[i + 1:]))
+
+    def test_agents_and_memory(self):
+        self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': [
+            {'op': 'create_agent', 'name': 'Traducteur', 'role': 'text', 'description': 'Traduit', 'prompt': 'Traduis en japonais', 'model': 'a.gguf'},
+            {'op': 'create_agent', 'name': 'traducteur'},
+            {'op': 'update_agent', 'agent': 'rédacteur', 'enabled': False, 'prompt': 'Sois bref'},
+            {'op': 'update_agent', 'agent': 'Gardien', 'enabled': False},
+            {'op': 'remember', 'text': 'Richard prépare un voyage au Japon'},
+            {'op': 'remember', 'text': 'Il aime les cartes mentales'},
+            {'op': 'forget', 'text': 'cartes'},
+        ]}))
+        traducteur = Agent.objects.get(owner=self.user, name='Traducteur')
+        self.assertEqual((traducteur.system_prompt, traducteur.model), ('Traduis en japonais', self.model))
+        redacteur = Agent.objects.get(owner=self.user, name='Rédacteur')
+        self.assertEqual((redacteur.enabled, redacteur.system_prompt), (False, 'Sois bref'))
+        gardien = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        self.assertTrue(gardien.enabled)  # le Gardien ne se désactive pas lui-même
+        self.assertEqual(gardien.memory, ['Richard prépare un voyage au Japon'])
+        self.assertIn('déjà pris', self.errors()[0])
+        again = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
+        self.assertIn('- Richard prépare un voyage au Japon', again.calls[0]['messages'][0]['content'])
+
+    def test_search_nodes_read_file_and_goto(self):
+        from nodzapp.models import Layer, Node
+
+        home = Layer.objects.create(user=self.user, layer_id=1, layer_name='Home')
+        trip = Layer.objects.create(user=self.user, layer_id=2, layer_name='Voyage')
+        Node.objects.create(user=self.user, node_id=45, layer=trip, text_content='<p>Budget Kyoto</p>')
+        Node.objects.create(user=self.user, node_id=46, layer=home, type='file', file_name='plan.pdf', file_text_content='Jour 1 : Kyoto')
+        Node.objects.create(user=self.user, node_id=47, layer=trip, text_content='Kyoto archivé', archive=True)
+        engine = self.run_guardian(
+            json.dumps({'plan': [], 'say': '', 'actions': [{'op': 'search_nodes', 'query': 'kyoto'}, {'op': 'read_file', 'ref': 'N-46'}]}),
+            json.dumps({'plan': [], 'say': 'Le voici.', 'actions': [{'op': 'goto', 'ref': 'N-45', 'text': 'Ton budget'}, {'op': 'goto', 'ref': 'N-99'}]}),
+        )
+        reads = engine.calls[1]['messages'][-1]['content']
+        self.assertIn('N-45 (dimension Voyage) : Budget Kyoto', reads)
+        self.assertIn('Jour 1 : Kyoto', reads)
+        self.assertNotIn('N-47', reads)
+        goto = [a for a in self.actions() if a['op'] == 'goto']
+        self.assertEqual(goto, [{'op': 'goto', 'ref': 'N-45', 'layer': 2, 'text': 'Ton budget'}])
+        self.assertIn('search_nodes', self.errors()[0])
+
+    def test_web_tools(self):
+        from . import web
+
+        with mock.patch.object(web, 'search', return_value=[{'title': 'Kyoto', 'url': 'https://ex.org/k', 'snippet': 'Temples'}]), \
+                mock.patch.object(web, 'fetch', side_effect=web.WebError('adresse interne refusée : localhost')):
+            engine = self.run_guardian(
+                json.dumps({'plan': ['Chercher'], 'say': '', 'actions': [{'op': 'web_search', 'query': 'Kyoto'}, {'op': 'web_fetch', 'url': 'http://localhost/'}]}),
+                json.dumps({'plan': [], 'say': 'Trouvé.', 'actions': []}),
+            )
+        self.assertIn('- Kyoto (https://ex.org/k) : Temples', engine.calls[1]['messages'][-1]['content'])
+        self.assertIn('interne', self.errors()[0])
+
     def test_free_spot(self):
         from .guardian import free_spot
 
@@ -548,6 +638,64 @@ class GuardianTests(TestCase):
         self.assertGreaterEqual(math.dist(spot, (0, 0)), 100)
         occupied.append(spot)
         self.assertTrue(all(math.dist(free_spot((0, 0), occupied), p) >= 100 for p in occupied))
+
+
+class DispatcherTests(SimpleTestCase):
+    def test_one_at_a_time_in_order_and_one_per_user(self):
+        from .dispatcher import Busy, Dispatcher
+
+        d = Dispatcher(workers=1, max_waiting=2)
+        a = d.admit('a')
+        self.assertTrue(d.wait(a))
+        with self.assertRaisesMessage(Busy, 'déjà'):
+            d.admit('a')  # une demande par utilisateur
+        b, c = d.admit('b'), d.admit('c')
+        with self.assertRaisesMessage(Busy, 'très demandé'):
+            d.admit('e')  # file pleine
+        positions, order = [], []
+
+        def run(ticket, name):
+            if d.wait(ticket, positions.append if name == 'c' else lambda p: None):
+                order.append(name)
+                d.done(ticket)
+
+        threads = [threading.Thread(target=run, args=(t, n)) for t, n in ((b, 'b'), (c, 'c'))]
+        [t.start() for t in threads]
+        time.sleep(0.2)
+        self.assertEqual(d.state(), {'running': 1, 'waiting': 2, 'workers': 1})
+        d.done(a)
+        [t.join(5) for t in threads]
+        self.assertEqual(order, ['b', 'c'])
+        self.assertEqual(positions[0], 2)
+        self.assertEqual(d.state()['running'] + d.state()['waiting'], 0)
+
+    def test_cancelled_request_leaves_the_queue(self):
+        from .dispatcher import Dispatcher
+
+        d = Dispatcher(workers=1)
+        a, b = d.admit('a'), d.admit('b')
+        d.wait(a)
+        d.cancel(b)
+        self.assertFalse(d.wait(b))
+        self.assertEqual(d.state()['waiting'], 0)
+        d.admit('b')  # l'utilisateur peut redemander
+
+
+class WebTests(TestCase):
+    def test_internal_addresses_are_refused(self):
+        from . import web
+
+        for url in ['http://127.0.0.1/', 'http://10.0.0.8/admin', 'http://[::1]/', 'http://169.254.169.254/latest', 'file:///etc/passwd']:
+            with self.assertRaises(web.WebError, msg=url):
+                web.fetch(url)
+        with self.settings(GUARDIAN_WEB=False), self.assertRaisesMessage(web.WebError, 'désactivé'):
+            web.search('kyoto')
+
+    def test_to_text(self):
+        from . import web
+
+        self.assertEqual(web.to_text('<head><title>x</title></head><script>a()</script><p>Kyoto &amp; <b>Nara</b></p><p>Osaka</p>'),
+                         'Kyoto & Nara\nOsaka')
 
 
 class CommandStreamTests(TransactionTestCase):
@@ -561,12 +709,24 @@ class CommandStreamTests(TransactionTestCase):
         url = '/api/v1/toolbox/command'
         r = await self.async_client.post(url, {'prompt': 'x'}, content_type='application/json')
         self.assertEqual(r.status_code, 400)
-        plan = json.dumps({'say': 'Fait.', 'actions': [{'op': 'create', 'ref': 'new1', 'text': 'Bonjour'}]})
+        plan = json.dumps({'plan': ['Créer un node'], 'say': 'Fait.', 'actions': [{'op': 'create', 'ref': 'new1', 'text': 'Bonjour'}]})
         with mock.patch.object(api, 'engine', ScriptedEngine(plan)):
             r = await self.async_client.post(url, {'prompt': 'dis bonjour', 'context': {'nodes': [], 'layers': []}},
                                              content_type='application/json')
             body = ''.join([chunk.decode() async for chunk in r.streaming_content])
         self.assertEqual(r['Content-Type'], 'text/event-stream')
         kinds = [line.split(': ', 1)[1] for line in body.splitlines() if line.startswith('event: ')]
-        self.assertEqual(kinds, ['start', 'action', 'text', 'end'])
+        self.assertEqual(kinds, ['start', 'intent', 'plan', 'intent', 'action', 'text', 'end'])
         self.assertIn('Bonjour', body)
+
+    async def test_busy_user_is_refused(self):
+        from .runtime import dispatcher
+
+        await self.async_client.aforce_login(self.user)
+        ticket = dispatcher.admit(self.user.pk)
+        try:
+            r = await self.async_client.post('/api/v1/toolbox/command', {'prompt': 'x', 'context': {}}, content_type='application/json')
+        finally:
+            dispatcher.done(ticket)
+        self.assertEqual(r.status_code, 429)
+        self.assertIn('déjà', json.loads(r.content)['error'])

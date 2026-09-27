@@ -8,6 +8,16 @@
 
 Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran permet de parler au Gardien, qui agit directement dans l'univers (création, liens, archivage) et confie le contenu aux agents ; tout ce qu'il fait s'annule d'un seul Ctrl+Z. Le bouton Agents ouvre la bibliothèque : choix du modèle de chaque agent, modèles installés, recherche et téléchargement sur Hugging Face (administrateurs).
 
+**L'humain déclenche l'IA** : Ctrl+Entrée (Cmd+Entrée) dans un node l'envoie au Gardien ; écrire, déplacer ou quitter un node ne lance plus rien. Une astuce le rappelle au premier node écrit.
+
+**Dispatcher** : les demandes au Gardien passent une à une (`GUARDIAN_WORKERS`, 1 par défaut), en file bornée (`GUARDIAN_QUEUE`, 8), une seule par utilisateur ; au-delà, refus immédiat (429) avec un message clair. La page affiche sa place dans la file ; une demande abandonnée quitte la file. La tour de contrôle montre les demandes en attente.
+
+**Fil de suivi** : le Gardien annonce son plan (étapes à venir), puis chaque étape au moment où la page l'exécute (« Je relie… », « Je cherche sur le web… », « Rédacteur écrit… ») ; les étapes faites se barrent, le fil s'efface après la réponse.
+
+**Outils d'iAqua portés au Gardien** : recherche web et lecture de page (`web_search`, `web_fetch`, adresses internes du serveur refusées, `GUARDIAN_WEB=0` pour couper), recherche dans tous les nodes de l'utilisateur (`search_nodes`) et voyage jusqu'au node trouvé (`goto`), lecture des documents (`read_file`), carte mentale (`mindmap`), création et réglage d'agents (`create_agent`, `update_agent`), mémoire durable (`remember`, `forget`), en plus de l'inventaire et de la délégation. Non portés, par sécurité sur un serveur partagé : bash, git, écriture de fichiers serveur, e-mail, MCP, suppression d'agent.
+
+**Consignes** : consignes par défaut écrites pour le Gardien (méthode, ton, règles) et pour chaque agent (Rédacteur, Codeur, Illustrateur, outils), visibles et modifiables dans Agents & modèles, avec retour aux consignes par défaut. Le format et les outils du Gardien restent fixes : une consigne réécrite ne les retire pas.
+
 **Tour de contrôle** (comme dans iAqua) : en haut à gauche de l'univers, CPU, RAM, GPU et VRAM (si NVIDIA), disque des modèles en barres vertes, ambres ou rouges, et le modèle en mémoire (pastille verte, bleue quand il travaille, file d'attente). Relue toutes les 3 s, traversée par les gestes (sélection, glissé) ; son en-tête ouvre Agents & modèles, qui l'affiche aussi.
 
 **Interface modernisée** (`css/modern.css`, chargée en dernier, chrome seulement) : barre de boutons en dock de verre dépoli aux icônes claires, dimension courante et recherche en pilules, liste des dimensions en carte avec icônes dessinées (plus de ➕ ni de ✎), fenêtres et boutons arrondis (accueil, profil, renommage), variantes du mode clair. Les boutons Son et Export gardent enfin leur icône quand Nodz change leur état. Nodes, liens, roue de couleurs et navigation inchangés.
@@ -25,7 +35,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 - nginx : les statiques sont revalidés à chaque chargement (l'ancien `expires 7d` gardait d'anciens CSS et modules JS).
 - Interface : `command.js` (barre de commande, flux SSE, réponse appliquée au store sans renvoi au serveur et annulable en un pas via `store.applyRemote` / `store.record`), `library.js` (bibliothèque, en bottom sheet sur mobile, suppression confirmée en deux temps), clavier virtuel pris en compte (`visualViewport`).
 - nginx : bloc sans tampon et délai de 15 min pour le flux du Gardien.
-- Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX`, `LLM_GPU_LAYERS`, `LLM_THREADS`.
+- Réglages `.env` : `MODELS_DIR`, `HF_TOKEN`, `LLM_CTX`, `LLM_GPU_LAYERS`, `LLM_THREADS`, `GUARDIAN_WORKERS`, `GUARDIAN_QUEUE`, `GUARDIAN_WEB`.
 
 ## Phase 3 (en cours) : nouvelle interface
 

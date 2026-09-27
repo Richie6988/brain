@@ -194,6 +194,15 @@ export function createBridge({ caption }) {
             await waitLoaded();
             await overview(take);
         },
+        // Node trouvé dans une autre dimension : voyage, puis travelling jusqu'à lui.
+        async goto({ ref, layer, zoom }) {
+            if (!nodeOf(ref) && layer !== layerNumber) {
+                load(layer);
+                await waitLoaded();
+            }
+            if (!nodeOf(ref)) throw new Error(`goto : ${ref} introuvable`);
+            await focus(nodeOf(ref), zoom ?? Math.max(1.2, currentZoom), take);
+        },
         async focus({ ref, zoom }) {
             await focus(nodeOf(ref), zoom ?? Math.max(1.2, currentZoom), take);
         },
@@ -226,31 +235,27 @@ export function createBridge({ caption }) {
             if (!tool) return;
             const needs = [action.ref, action.source, action.target].filter(Boolean);
             const missing = needs.find(r => !nodeOf(r));
-            if (missing && action.op !== 'create') throw new Error(`${action.op} : ${missing} n'est pas dans cette dimension`);
+            if (missing && !['create', 'goto'].includes(action.op)) throw new Error(`${action.op} : ${missing} n'est pas dans cette dimension`);
             const id = take;
             await tool(action);
-            if (action.text && ['focus', 'overview', 'travel'].includes(action.op) && id === take) {
+            if (action.text && ['focus', 'overview', 'travel', 'goto'].includes(action.op) && id === take) {
                 caption(action.text);
                 await wait(Math.min(6000, 1400 + action.text.length * 45));
             }
         },
-        // Un node écrit par l'utilisateur est un message : quand il le quitte après l'avoir modifié,
-        // `send(node, texte)` est appelé. Les textes posés par le Gardien (événements non fiables) ne comptent pas.
+        // L'humain déclenche l'IA : Ctrl+Entrée (Cmd+Entrée sur Mac) dans un node en cours d'écriture
+        // l'envoie au Gardien. Écrire, déplacer ou quitter un node ne lance rien.
         watchMessages(send) {
-            const edited = new Set();
-            const sent = new Map();
-            const inputOf = target => (target?.isContentEditable ? target.closest?.('.node-group') : null);
-            document.addEventListener('input', event => {
-                const node = inputOf(event.target);
-                if (node && event.isTrusted) edited.add(node.id);
-            }, true);
-            document.addEventListener('focusout', event => {
-                const node = inputOf(event.target);
-                if (!node || !edited.delete(node.id)) return;
-                const text = event.target.innerText.trim();
-                if (!text || sent.get(node.id) === text) return;
-                sent.set(node.id, text);
-                send(node, text);
+            document.addEventListener('keydown', event => {
+                if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || !event.isTrusted) return;
+                const input = event.target;
+                const node = input?.isContentEditable ? input.closest?.('.node-group') : null;
+                if (!node) return;
+                event.preventDefault();
+                event.stopImmediatePropagation();  // ni saut de ligne ni raccourci de Nodz
+                const text = input.innerText.trim();
+                input.blur();  // Nodz enregistre le node en le quittant
+                if (text) send(node, text);
             }, true);
         },
     };

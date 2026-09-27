@@ -18,12 +18,13 @@ from django.http import JsonResponse, StreamingHttpResponse
 from graph.api import api
 from graph.services import ChangeError
 
-from . import hub, monitor
+from . import hub, monitor, prompts
 from .broker import BrokerTimeout
+from .dispatcher import Busy
 from .engine import LOAD_PARAMS, EngineUnavailable
 from .guardian import Guardian, PlanError
 from .models import Agent, LocalModel
-from .runtime import broker, engine
+from .runtime import broker, dispatcher, engine
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ MODEL_PARAMS = {**{key: int for key in LOAD_PARAMS}, 'ttl': float, 'temperature'
 
 # Bibliothèque de départ : l'utilisateur choisit ensuite le modèle de chaque agent.
 DEFAULT_AGENTS = [
-    ('Gardien', Agent.Role.ORCHESTRATOR, "Lit chaque node écrit et répond dans l'univers : place, relie, délègue, archive."),
+    ('Gardien', Agent.Role.ORCHESTRATOR, "Répond aux nodes envoyés par Ctrl+Entrée : place, relie, cherche, délègue, guide."),
     ('Rédacteur', Agent.Role.TEXT, 'Écrit, résume, reformule.'),
     ('Codeur', Agent.Role.CODE, 'Écrit et explique du code.'),
     ('Illustrateur', Agent.Role.IMAGE, 'Génère des images.'),
@@ -71,7 +72,7 @@ def model_to_dict(m, user):
 
 def agent_to_dict(a):
     return {'id': str(a.id), 'name': a.name, 'role': a.role, 'description': a.description,
-            'model': str(a.model_id) if a.model_id else None, 'system_prompt': a.system_prompt,
+            'model': str(a.model_id) if a.model_id else None, 'system_prompt': a.system_prompt, 'default_prompt': prompts.default(a.role),
             'tools_allowed': a.tools_allowed, 'params': a.params, 'enabled': a.enabled}
 
 
@@ -93,7 +94,7 @@ def status(request, body):
 def system(request, body):
     """Moniteur du serveur : CPU, RAM, GPU, disque, modèle en mémoire, file du broker."""
     loaded = LocalModel.objects.filter(id=engine.loaded).first() if engine.loaded else None
-    return JsonResponse({**monitor.snapshot(), 'broker': broker.state(), 'engine': engine.available(),
+    return JsonResponse({**monitor.snapshot(), 'broker': broker.state(), 'dispatch': dispatcher.state(), 'engine': engine.available(),
                          'model': {'id': str(loaded.id), 'name': loaded.label or loaded.filename,
                                    'stats': engine.stats.get(loaded.id)} if loaded else None})
 
@@ -247,7 +248,8 @@ def agent_detail(request, body, agent_id):
 
 
 async def command(request):
-    """Demande au Gardien, réponse en flux SSE : start, text, action, notice, agent, agent_text, error, end.
+    """Demande au Gardien, réponse en flux SSE : queued, start, plan, intent, text, action, notice, agent,
+    agent_text, error, end.
 
     Le corps porte la demande et le contexte de la page Nodz (nodes, liens, dimensions, sélection) ;
     les événements `action` sont exécutés par la page avec les fonctions de Nodz.
@@ -270,10 +272,16 @@ async def command(request):
     if not prompt:
         return JsonResponse({'error': 'prompt requis'}, status=400)
 
+    try:
+        ticket = dispatcher.admit(user.pk)  # peu de demandes à la fois, une par utilisateur
+    except Busy as e:
+        return JsonResponse({'error': str(e)}, status=429)
     events = queue.Queue()
 
     def work():
         try:
+            if not dispatcher.wait(ticket, lambda position: events.put(('queued', {'position': position}))):
+                return  # la page est partie avant son tour
             Guardian(user, engine, lambda kind, data: events.put((kind, data))).handle(prompt, body['context'])
         except (PlanError, EngineUnavailable, BrokerTimeout) as e:
             events.put(('error', {'message': str(e)}))
@@ -281,15 +289,19 @@ async def command(request):
             logger.exception('Gardien')
             events.put(('error', {'message': 'erreur interne du Gardien'}))
         finally:
+            dispatcher.done(ticket)
             connection.close()
             events.put(None)
 
     threading.Thread(target=work, daemon=True).start()
 
     async def stream():
-        while (item := await asyncio.to_thread(events.get)) is not None:
-            yield f'event: {item[0]}\ndata: {json.dumps(item[1])}\n\n'
-        yield 'event: end\ndata: {}\n\n'
+        try:
+            while (item := await asyncio.to_thread(events.get)) is not None:
+                yield f'event: {item[0]}\ndata: {json.dumps(item[1])}\n\n'
+            yield 'event: end\ndata: {}\n\n'
+        finally:
+            dispatcher.cancel(ticket)  # connexion fermée : une demande encore en file ne sera pas traitée
 
     return StreamingHttpResponse(stream(), content_type='text/event-stream',
                                  headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})

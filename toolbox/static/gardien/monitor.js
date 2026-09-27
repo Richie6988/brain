@@ -55,14 +55,14 @@ export function createMonitor() {
     }
 
     function paint(view, data) {
-        const { cpu, ram, gpu, disk, model, broker, engine } = data;
+        const { cpu, ram, gpu, disk, model, broker, dispatch, engine } = data;
         set(view.rows.cpu, cpu.percent, `${cpu.cores} cœurs · charge ${cpu.load.join(' ')}`);
         set(view.rows.ram, ram?.percent, ram ? `${go(ram.used_mb)} / ${go(ram.total_mb)}` : '');
         set(view.rows.gpu, gpu?.percent, gpu ? `${gpu.name} · ${gpu.temperature} °C` : '');
         set(view.rows.vram, gpu?.vram_percent, gpu ? `${go(gpu.vram_used_mb)} / ${go(gpu.vram_total_mb)}` : '');
         set(view.rows.disk, disk?.percent, disk ? `${disk.free_gb} Go libres sur ${disk.total_gb} Go` : '');
         view.dot.className = `gm-dot ${model ? (broker.busy ? 'busy' : 'on') : ''}`;
-        const queue = broker.queued.length ? ` · ${broker.queued.length} en file` : '';
+        const queue = dispatch.waiting ? ` · ${dispatch.waiting} en file` : '';  // demandes au Gardien en attente
         view.name.textContent = model ? `${model.name}${broker.busy ? ' · au travail' : ''}${queue}`
             : engine ? 'aucun modèle en mémoire' : 'moteur local absent';
         view.head.title = `${model?.stats ? `${model.stats.requests} requêtes depuis le chargement · ` : ''}Ouvrir Agents & modèles`;

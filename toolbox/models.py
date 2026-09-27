@@ -63,6 +63,7 @@ class Agent(models.Model):
     system_prompt = models.TextField(blank=True)
     tools_allowed = models.JSONField(default=list, blank=True)
     params = models.JSONField(default=dict, blank=True)
+    memory = models.JSONField(default=list, blank=True)  # faits retenus (remember), relus à chaque demande
     enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

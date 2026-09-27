@@ -17,18 +17,23 @@ import time
 from django.db.models import Q
 
 from graph.models import AIRun
+from nodzapp.models import Node
 
 from . import broker as priorities
+from . import prompts, web
 from .engine import EngineUnavailable
 from .models import Agent, LocalModel
 
 RADIUS = 85  # rayon d'un node texte de Nodz une fois dimensionné (nodeSizing 120 × 120)
 MAX_CONTEXT_NODES = 60
-MAX_ROUNDS = 3  # un tour de plus après chaque lecture (inventaire)
+MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
 SHAPES = ['circle', 'square', 'none']
-OPS = ['create', 'update', 'style', 'set_type', 'link', 'unlink', 'portal', 'archive', 'cleanup',
-       'delegate', 'plug_agent', 'inventory', 'focus', 'overview', 'travel']
+OPS = ['create', 'update', 'style', 'set_type', 'link', 'unlink', 'portal', 'archive', 'cleanup', 'mindmap',
+       'delegate', 'plug_agent', 'create_agent', 'update_agent', 'remember', 'forget',
+       'inventory', 'search_nodes', 'read_file', 'web_search', 'web_fetch', 'focus', 'overview', 'travel', 'goto']
+ROLES = [Agent.Role.TEXT, Agent.Role.CODE, Agent.Role.TOOLS]  # rôles qu'un agent créé par le Gardien peut prendre
+MAX_MEMORY = 30
 HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}')
 
 
@@ -38,8 +43,9 @@ class PlanError(Exception):
 
 PLAN_SCHEMA = {
     'type': 'object',
-    'required': ['say', 'actions'],
+    'required': ['plan', 'say', 'actions'],
     'properties': {
+        'plan': {'type': 'array', 'items': {'type': 'string'}},
         'say': {'type': 'string'},
         'actions': {
             'type': 'array',
@@ -63,17 +69,27 @@ PLAN_SCHEMA = {
                     'model': {'type': 'string'},
                     'task': {'type': 'string'},
                     'zoom': {'type': 'number'},
+                    'query': {'type': 'string'},
+                    'url': {'type': 'string'},
+                    'children': {'type': 'array', 'items': {'type': 'string'}},
+                    'description': {'type': 'string'},
+                    'prompt': {'type': 'string'},
+                    'role': {'type': 'string', 'enum': ROLES},
+                    'enabled': {'type': 'boolean'},
                 },
             },
         },
     },
 }
 
-SYSTEM = """Tu es le Gardien de l'univers Nodz : une carte spatiale de nodes (idées) reliés entre eux,
-répartis sur des dimensions (plans) reliées par des portails. Tu pilotes le vaisseau de l'utilisateur :
-tes travellings de caméra le guident (tutoriels, visites, montrer ce que tu viens de faire).
+# Partie technique du Gardien (format et outils) : fixe. Ses consignes (prompts.GUARDIAN ou celles de
+# l'utilisateur) s'y ajoutent.
+SYSTEM = """L'univers Nodz est une carte spatiale de nodes (idées) reliés entre eux, répartis sur des
+dimensions (plans) reliées par des portails. Tes travellings de caméra guident l'utilisateur
+(tutoriels, visites, montrer ce que tu viens de faire).
 L'utilisateur t'écrit dans un node (le node message) ; tu réponds uniquement en JSON :
-{"say": ta réponse, courte, écrite dans un node relié au node message, "actions": [...]}.
+{"plan": ["étape à venir", ...], "say": ta réponse, courte, écrite dans un node relié au node message, "actions": [...]}.
+`plan` annonce à l'utilisateur, en quelques mots par étape, ce que tu vas faire (il le voit pendant que tu travailles).
 Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
 Actions possibles :
 - {"op":"create","ref":"new1","text":"...","near":"N-3","color":"#4D96FF","shape":"circle"} : nouveau node
@@ -86,25 +102,32 @@ Actions possibles :
 - {"op":"portal","ref":"N-2","name":"Recherche"} : téléporte N-2 dans une nouvelle dimension `name`, reliée par un portail.
 - {"op":"archive","ref":"N-4"} : supprime un node (annulable avec Ctrl+Z).
 - {"op":"cleanup"} : supprime les nodes vides du plan.
+- {"op":"mindmap","ref":"new1","text":"Sujet","children":["idée 1","idée 2"],"near":"N-3"} : carte mentale,
+  un node central (nouveau ou existant) entouré de ses idées, toutes reliées à lui.
 - {"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou N-2","near":"N-1"} : confie la
   production à un agent ; son résultat est publié dans le node `ref` (créé s'il est nouveau).
 - {"op":"plug_agent","agent":"<nom>","model":"<partie du nom du modèle>"} : branche un modèle sur un agent.
+- {"op":"create_agent","name":"Traducteur","role":"text","description":"...","prompt":"consignes","model":"qwen"} :
+  crée un agent spécialisé (rôles : text, code, tools). {"op":"update_agent","agent":"<nom>","description":"...",
+  "prompt":"...","enabled":false} : modifie ses consignes ou l'active / le désactive.
+- {"op":"remember","text":"fait durable sur l'utilisateur ou ses projets"} : tu le retrouveras à chaque demande ;
+  {"op":"forget","text":"..."} : oublie les souvenirs qui contiennent ce texte.
 - {"op":"focus","ref":"N-2","zoom":1.5,"text":"légende"} : travelling vers un node puis légende.
   Enchaîne plusieurs focus pour une visite guidée ou un tutoriel.
 - {"op":"overview","text":"..."} : prend du recul pour montrer tout le plan.
 - {"op":"travel","name":"<dimension>","text":"..."} : voyage vers une autre dimension.
-- {"op":"inventory"} : liste les dimensions, les agents et les modèles ; tu recevras la réponse et pourras continuer.
-Délègue tout contenu long (rédaction, code) ; écris toi-même seulement les titres courts.
-Ne supprime que ce que l'utilisateur demande ou ce qui est manifestement vide ou en double.
+- {"op":"goto","ref":"N-45","text":"légende"} : voyage jusqu'à un node trouvé par search_nodes, même dans une autre dimension.
+Lectures (tu reçois le résultat et continues au tour suivant) :
+- {"op":"inventory"} : dimensions, agents et modèles.
+- {"op":"search_nodes","query":"mots"} : cherche dans tous les nodes de l'utilisateur, toutes dimensions.
+- {"op":"read_file","ref":"N-7"} : lit le texte du document d'un node fichier.
+- {"op":"web_search","query":"..."} : recherche sur le web. {"op":"web_fetch","url":"https://..."} : lit une page.
+  Cite tes sources (adresse) dans les nodes que tu crées à partir du web.
 Agents équipés :
-{agents}"""
-
-AGENT_SYSTEM = {
-    Agent.Role.TEXT: 'Tu écris un contenu clair et concis en français, sans préambule.',
-    Agent.Role.CODE: 'Tu écris uniquement du code, dans un seul bloc, avec des commentaires brefs.',
-    Agent.Role.TOOLS: 'Tu accomplis la tâche et rends un résultat bref.',
-}
-
+{agents}
+{memory}
+Tes consignes :
+{guidelines}"""
 
 def plain(markup, length=120):
     """Texte lisible d'un contenu HTML de node (pour le prompt)."""
@@ -118,6 +141,44 @@ def text_html(text):
 def code_html(text):
     match = re.search(r'```[\w+-]*\n(.*?)```', text, re.S)
     return f'<pre>{html.escape((match.group(1) if match else text).strip(chr(10)))}</pre>'
+
+
+def short(text, length=40):
+    text = ' '.join(str(text or '').split())
+    return text if len(text) <= length else text[:length - 1] + '…'
+
+
+def intent(action, nodes):
+    """Ce que le Gardien s'apprête à faire, en une phrase (fil de suivi de l'utilisateur)."""
+    name = lambda ref: f"« {short(nodes[ref]['text'], 24)} »" if nodes.get(ref, {}).get('text') else (ref or '?')
+    op = action.get('op')
+    return {
+        'create': lambda a: f"Je crée « {short(a.get('text'))} »",
+        'update': lambda a: f"Je réécris {name(a.get('ref'))}",
+        'style': lambda a: f"Je change l'apparence de {name(a.get('ref'))}",
+        'set_type': lambda a: f"Je passe {name(a.get('ref'))} en {a.get('content_type')}",
+        'link': lambda a: f"Je relie {name(a.get('source'))} à {name(a.get('target'))}",
+        'unlink': lambda a: f"Je détache {name(a.get('source'))} de {name(a.get('target'))}",
+        'portal': lambda a: f"J'ouvre un portail vers « {short(a.get('name'))} »",
+        'archive': lambda a: f"Je supprime {name(a.get('ref'))} (Ctrl+Z pour annuler)",
+        'cleanup': lambda a: 'Je fais le ménage des nodes vides',
+        'mindmap': lambda a: f"Je dessine une carte mentale autour de « {short(a.get('text') or nodes.get(a.get('ref'), {}).get('text'))} »",
+        'delegate': lambda a: f"Je confie à {a.get('agent')} : {short(a.get('task'), 60)}",
+        'plug_agent': lambda a: f"Je branche {a.get('model')} sur {a.get('agent')}",
+        'create_agent': lambda a: f"Je crée l'agent {a.get('name')}",
+        'update_agent': lambda a: f"Je règle l'agent {a.get('agent')}",
+        'remember': lambda a: f"Je retiens : {short(a.get('text'), 60)}",
+        'forget': lambda a: f"J'oublie ce qui parle de « {short(a.get('text'))} »",
+        'inventory': lambda a: 'Je fais l\'inventaire des dimensions, agents et modèles',
+        'search_nodes': lambda a: f"Je cherche « {short(a.get('query'))} » dans tes nodes",
+        'read_file': lambda a: f"Je lis le document de {name(a.get('ref'))}",
+        'web_search': lambda a: f"Je cherche sur le web : {short(a.get('query'), 60)}",
+        'web_fetch': lambda a: f"Je lis {short(a.get('url'), 60)}",
+        'focus': lambda a: f"Je t'emmène vers {name(a.get('ref'))}",
+        'overview': lambda a: 'Je prends du recul sur tout le plan',
+        'travel': lambda a: f"Cap sur la dimension « {short(a.get('name'))} »",
+        'goto': lambda a: f"Je t'emmène vers {a.get('ref')}",
+    }.get(op, lambda a: str(op))(action)
 
 
 def free_spot(anchor, occupied, radius=RADIUS):
@@ -146,6 +207,7 @@ class Guardian:
         self.user, self.engine, self.emit = user, engine, emit
         self.run = None
         self.nodes = {}  # identifiant ou référence → {x, y, r, text, new}
+        self.found = {}  # nodes trouvés par search_nodes : identifiant → id de leur dimension
 
     # --- contexte envoyé par la page
 
@@ -276,15 +338,127 @@ class Guardian:
 
     def op_plug_agent(self, action, agents):
         agent = self.agent(agents, action.get('agent'))
-        query = (action.get('model') or '').strip()
-        ready = LocalModel.objects.filter(status=LocalModel.Status.READY)
-        model = ready.filter(Q(filename__icontains=query) | Q(repo__icontains=query)).first() if query else None
-        if model is None:
-            raise PlanError(f'aucun modèle prêt ne correspond à {query!r}')
+        model = self.ready_model(action.get('model'))
         agent.model = model
         agent.save(update_fields=['model'])
         self.emit('notice', {'text': f'{agent.name} utilise maintenant {model.filename}'})
         return None
+
+    def op_mindmap(self, action, agents):
+        ref = action.get('ref') or f'auto{len(self.nodes) + 1}'
+        children = [c for c in action.get('children') or [] if str(c).strip()][:12]
+        if not children:
+            raise PlanError('une carte mentale demande des idées (children)')
+        if ref not in self.nodes:
+            self.emit('action', self.op_create({**action, 'ref': ref}, agents))
+        for i, text in enumerate(children, 1):
+            child = f'{ref}.{i}'
+            self.emit('action', self.op_create({'ref': child, 'text': text, 'near': ref, 'color': action.get('color')}, agents))
+            self.emit('action', {'op': 'link', 'source': ref, 'target': child})
+        return None
+
+    def op_create_agent(self, action, agents):
+        name = (action.get('name') or '').strip()[:100]
+        if not name or Agent.objects.filter(owner=self.user, name__iexact=name).exists():
+            raise PlanError(f'nom d\'agent vide ou déjà pris : {name!r}')
+        role = action.get('role') if action.get('role') in ROLES else Agent.Role.TEXT
+        model = self.ready_model(action.get('model')) if action.get('model') else None
+        agent = Agent.objects.create(owner=self.user, name=name, role=role, model=model,
+                                     description=(action.get('description') or '')[:300], system_prompt=action.get('prompt') or '')
+        agents[agent.name] = agent
+        self.emit('notice', {'text': f"Nouvel agent : {agent.name}{f' ({model.filename})' if model else ' (sans modèle)'}"})
+        return None
+
+    def op_update_agent(self, action, agents):
+        agent = next((a for a in Agent.objects.filter(owner=self.user) if a.name.lower() == str(action.get('agent', '')).lower()), None)
+        if agent is None:
+            raise PlanError(f"agent inconnu : {action.get('agent')!r}")
+        fields = []
+        if action.get('description'):
+            agent.description, fields = action['description'][:300], fields + ['description']
+        if action.get('prompt'):
+            agent.system_prompt, fields = action['prompt'], fields + ['system_prompt']
+        if isinstance(action.get('enabled'), bool) and agent.role != Agent.Role.ORCHESTRATOR:
+            agent.enabled, fields = action['enabled'], fields + ['enabled']
+        if fields:
+            agent.save(update_fields=fields)
+            self.emit('notice', {'text': f'{agent.name} mis à jour'})
+        return None
+
+    def op_remember(self, action, agents):
+        fact = ' '.join(str(action.get('text') or '').split())[:200]
+        if fact and fact not in self.guardian.memory:
+            self.guardian.memory = (self.guardian.memory + [fact])[-MAX_MEMORY:]
+            self.guardian.save(update_fields=['memory'])
+        return None
+
+    def op_forget(self, action, agents):
+        needle = str(action.get('text') or '').strip().lower()
+        kept = [f for f in self.guardian.memory if not needle or needle not in f.lower()]
+        if needle and len(kept) != len(self.guardian.memory):
+            self.guardian.memory = kept
+            self.guardian.save(update_fields=['memory'])
+        return None
+
+    def op_search_nodes(self, action, agents):
+        query = str(action.get('query') or '').strip()
+        if not query:
+            raise PlanError('recherche vide')
+        words = query.split()[:6]
+        condition = Q()
+        for word in words:
+            condition |= Q(text_content__icontains=word) | Q(file_text_content__icontains=word) | Q(file_name__icontains=word)
+        nodes = Node.objects.filter(condition, user=self.user, archive=False).select_related('layer')[:40]
+        scored = sorted(nodes, key=lambda n: -sum(w.lower() in f'{n.text_content} {n.file_name} {n.file_text_content}'.lower() for w in words))[:10]
+        for n in scored:
+            self.found[f'N-{n.node_id}'] = n.layer.layer_id
+        lines = [f"N-{n.node_id} (dimension {n.layer.layer_name or n.layer.layer_id}) : "
+                 f"{plain(n.text_content) or n.file_name or '(vide)'}" for n in scored]
+        self.reads.append(f'Nodes trouvés pour « {query} » :\n' + ('\n'.join(lines) or 'aucun'))
+        return None
+
+    def op_read_file(self, action, agents):
+        ref = str(action.get('ref') or '')
+        node = Node.objects.filter(user=self.user, node_id=ref.removeprefix('N-')).first() if ref.startswith('N-') else None
+        if node is None or not (node.file_text_content or node.text_content):
+            raise PlanError(f'{ref} : aucun document lisible')
+        self.reads.append(f'Contenu de {ref} ({node.file_name or node.type}) :\n{(node.file_text_content or plain(node.text_content, 4000))[:4000]}')
+        return None
+
+    def op_web_search(self, action, agents):
+        query = str(action.get('query') or '').strip()
+        try:
+            results = web.search(query)
+        except web.WebError as e:
+            raise PlanError(str(e)) from None
+        self.reads.append(f'Résultats web pour « {query} » :\n' + ('\n'.join(
+            f"- {r['title']} ({r['url']}) : {r['snippet']}" for r in results) or 'aucun'))
+        return None
+
+    def op_web_fetch(self, action, agents):
+        url = str(action.get('url') or '').strip()
+        try:
+            text = web.fetch(url)
+        except web.WebError as e:
+            raise PlanError(str(e)) from None
+        self.reads.append(f'Page {url} :\n{text}')
+        return None
+
+    def op_goto(self, action, agents):
+        ref = str(action.get('ref') or '')
+        if ref in self.nodes:
+            return self.op_focus(action, agents)
+        if ref not in self.found:
+            raise PlanError(f'{ref} : cherche-le d\'abord (search_nodes)')
+        return {'op': 'goto', 'ref': ref, 'layer': self.found[ref], 'text': action.get('text', '')}
+
+    def ready_model(self, query):
+        query = (query or '').strip()
+        ready = LocalModel.objects.filter(status=LocalModel.Status.READY)
+        model = ready.filter(Q(filename__icontains=query) | Q(repo__icontains=query) | Q(label__icontains=query)).first() if query else None
+        if model is None:
+            raise PlanError(f'aucun modèle prêt ne correspond à {query!r}')
+        return model
 
     def op_focus(self, action, agents):
         zoom = action.get('zoom')
@@ -324,8 +498,9 @@ class Guardian:
             try:
                 if op not in OPS:
                     raise PlanError(f'action inconnue : {op!r}')
-                if op in ('create', 'delegate') and not str(action.get('ref', '')).startswith(('new', 'N-')):
+                if op in ('create', 'delegate', 'mindmap') and not str(action.get('ref', '')).startswith(('new', 'N-')):
                     action = {**action, 'ref': f'auto{len(self.nodes) + 1}'}  # référence manquante
+                self.emit('intent', {'text': intent(action, self.nodes)})
                 event = getattr(self, f'op_{op}')(action, agents)
                 if event:
                     self.emit('action', event)
@@ -345,7 +520,7 @@ class Guardian:
     def delegate(self, agent, task, ref):
         self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task})
         messages = [
-            {'role': 'system', 'content': agent.system_prompt or AGENT_SYSTEM.get(agent.role, '')},
+            {'role': 'system', 'content': agent.system_prompt or prompts.default(agent.role)},
             {'role': 'user', 'content': task},
         ]
         text = self.engine.chat(
@@ -360,7 +535,7 @@ class Guardian:
         started = time.monotonic()
         self.load(context)
         agents = self.agents()
-        guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
+        guardian = self.guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
         if guardian is None or guardian.model is None:
             raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
         self.run = AIRun.objects.create(
@@ -371,12 +546,15 @@ class Guardian:
         try:
             roster = '\n'.join(f'- {a.name} ({a.role}) : {a.description}' for a in agents.values()
                                if a.role != Agent.Role.ORCHESTRATOR and a.model_id) or '(aucun agent équipé)'
+            memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
             messages = [
-                {'role': 'system', 'content': guardian.system_prompt or SYSTEM.replace('{agents}', roster)},
+                {'role': 'system', 'content': SYSTEM.replace('{agents}', roster).replace('{memory}', memory)
+                    .replace('{guidelines}', guardian.system_prompt or prompts.GUARDIAN)},
                 {'role': 'user', 'content': self.prompt(request)},
             ]
             say = ''
-            for _ in range(MAX_ROUNDS):
+            for round_ in range(MAX_ROUNDS):
+                self.emit('intent', {'text': 'Je lis ton message et le plan…' if round_ == 0 else 'Je lis ce que j\'ai trouvé et je continue…'})
                 raw = self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT,
                                        owner='gardien', temperature=0.2)
                 try:
@@ -384,6 +562,9 @@ class Guardian:
                 except json.JSONDecodeError:
                     raise PlanError('le Gardien a répondu hors format') from None
                 say = plan.get('say') or say
+                steps = [short(step, 80) for step in plan.get('plan') or [] if str(step).strip()][:8]
+                if steps:
+                    self.emit('plan', {'steps': steps})
                 jobs, reads = self.execute(plan.get('actions') or [], agents)
                 for agent, task, ref in jobs:
                     self.delegate(agent, task, ref)
