@@ -18,7 +18,7 @@ from django.http import JsonResponse, StreamingHttpResponse
 from graph.api import api
 from graph.services import ChangeError
 
-from . import hub
+from . import hub, monitor
 from .broker import BrokerTimeout
 from .engine import LOAD_PARAMS, EngineUnavailable
 from .guardian import Guardian, PlanError
@@ -87,6 +87,15 @@ def status(request, body):
     return JsonResponse({'engine': engine.available(), 'staff': request.user.is_staff,
                          'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
                          'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR)})
+
+
+@api('GET')
+def system(request, body):
+    """Moniteur du serveur : CPU, RAM, GPU, disque, modèle en mémoire, file du broker."""
+    loaded = LocalModel.objects.filter(id=engine.loaded).first() if engine.loaded else None
+    return JsonResponse({**monitor.snapshot(), 'broker': broker.state(), 'engine': engine.available(),
+                         'model': {'id': str(loaded.id), 'name': loaded.label or loaded.filename,
+                                   'stats': engine.stats.get(loaded.id)} if loaded else None})
 
 
 @api('GET')

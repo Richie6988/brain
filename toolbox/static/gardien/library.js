@@ -76,7 +76,7 @@ const capPill = cap => {
 };
 const quantColor = q => (/Q8|Q6/.test(q) ? '#0f9f6e' : /Q[45]/.test(q) ? '#1E90FF' : /Q[23]/.test(q) ? '#c47a00' : /IQ/.test(q) ? '#6848A6' : '#64748b');
 
-export function createLibrary({ onChange = () => {} } = {}) {
+export function createLibrary({ onChange = () => {}, monitor = null } = {}) {
     let state = { staff: false, machine: {}, engine: false, loaded: null, agents: [], models: [] };
     let tab = 'agents';
     let poll = null;
@@ -87,11 +87,14 @@ export function createLibrary({ onChange = () => {} } = {}) {
     const nav = h('nav', { class: 'gl-tabs' }, tabs.map(([key, label]) =>
         h('button', { type: 'button', dataset: { tab: key }, onclick: () => show(key) }, label)));
     const machineLine = h('p', { class: 'gl-machine' });
+    const readOnly = h('p', { class: 'gl-warning', hidden: true },
+        'Compte invité ou non administrateur : tu peux tout consulter, pas installer. Pour ajouter des modèles, connecte-toi avec LOGIN ',
+        'et le compte administrateur du serveur, créé ou promu sur le VPS par ', h('code', {}, 'manage.py bootstrap --email … --password …'), '.');
     const notice = h('p', { class: 'gl-notice', role: 'status' });
     tabs.forEach(([key]) => { panels[key] = h('section', { class: 'gl-panel', dataset: { panel: key } }); });
     const windowEl = h('div', { class: 'gl-window', role: 'dialog', 'aria-label': 'Agents et modèles' },
         h('header', {}, h('h2', {}, 'Agents & modèles'), nav, h('button', { type: 'button', class: 'gl-close', title: 'Fermer', onclick: close }, 'Fermer')),
-        machineLine, notice, Object.values(panels));
+        monitor, machineLine, readOnly, notice, Object.values(panels));
     const modal = h('div', { class: 'gl-modal', hidden: true, onmousedown: event => { if (event.target === modal) close(); } }, windowEl);
     modal.addEventListener('keydown', event => {
         event.stopPropagation();  // la saisie ne déclenche pas les raccourcis de Nodz
@@ -132,8 +135,8 @@ export function createLibrary({ onChange = () => {} } = {}) {
         machineLine.replaceChildren(
             m.gpu ? `GPU ${(m.vram_mb / 1024).toFixed(1)} Go` : `Sans GPU · ${(m.ram_mb / 1024).toFixed(1)} Go de RAM`,
             ` · budget des poids ${(m.budget_mb / 1024).toFixed(1)} Go · `,
-            state.engine ? 'moteur local prêt' : 'moteur local absent (requirements-ai.txt)',
-            state.staff ? '' : ' · lecture seule (compte non administrateur)');
+            state.engine ? 'moteur local prêt' : 'moteur local absent (requirements-ai.txt)');
+        readOnly.hidden = state.staff;
         render();
         onChange(state);
         clearTimeout(poll);

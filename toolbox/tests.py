@@ -272,6 +272,20 @@ class ToolboxApiTests(TestCase):
         self.client.logout()
         self.assertEqual(self.client.get('/api/v1/toolbox/status').status_code, 401)
 
+    def test_system_monitor(self):
+        from . import monitor
+
+        with mock.patch.object(monitor, 'gpu', return_value={'name': 'RTX', 'percent': 42.0, 'vram_used_mb': 2048,
+                                                             'vram_total_mb': 8192, 'vram_percent': 25.0, 'temperature': 60.0}):
+            data = self.client.get('/api/v1/toolbox/system').json()
+        self.assertGreaterEqual(data['cpu']['percent'], 0)
+        self.assertLessEqual(data['cpu']['percent'], 100)
+        self.assertGreater(data['ram']['total_mb'], 0)
+        self.assertEqual(data['gpu']['vram_percent'], 25.0)
+        self.assertGreater(data['disk']['total_gb'], 0)
+        self.assertIsNone(data['model'])
+        self.assertFalse(data['broker']['busy'])
+
     def test_hub_errors_are_reported(self):
         with mock.patch.object(hub, 'api', side_effect=RuntimeError('hors ligne')):
             r = self.client.get('/api/v1/toolbox/hub/search?q=qwen')

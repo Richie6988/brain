@@ -4,6 +4,7 @@ from . import api
 
 urlpatterns = [
     path('status', api.status),
+    path('system', api.system),
     path('hub/search', api.hub_search),
     path('hub/files', api.hub_files),
     path('recommendations', api.recommendations),

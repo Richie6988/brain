@@ -1,11 +1,13 @@
 // Le Gardien dans Nodz (/universe) : pas de chat. Un node écrit est un message : quand
 // l'utilisateur le quitte, son texte part au Gardien, qui répond dans l'univers (un node-réponse
 // relié au message, et ses actions) avec les fonctions de Nodz. Le bouton « Agents » de la barre
-// de boutons ouvre la bibliothèque (agents, modèles, Hugging Face).
+// de boutons ouvre la bibliothèque (agents, modèles, Hugging Face) ; la tour de contrôle (haut gauche)
+// montre les ressources du serveur.
 
 import { api } from '../nodz/api.js';
 import { createBridge } from './bridge.js';
 import { createLibrary } from './library.js';
+import { createMonitor } from './monitor.js';
 
 const toast = document.getElementById('gardien-toast');
 
@@ -24,7 +26,9 @@ const bridge = createBridge({ caption: text => say(text, 'guide') });
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 let asleep = false;   // le Gardien n'a pas de modèle : on le dit une fois, sans insister
 
+const monitor = createMonitor();
 const library = createLibrary({
+    monitor: monitor.panel('gm-window').root,
     onChange: state => {
         guardian = state.agents.find(a => a.role === 'orchestrator') || null;
         asleep = false;
@@ -34,6 +38,18 @@ const library = createLibrary({
 const button = document.getElementById('agentsButton');
 button.addEventListener('click', () => library.open());
 button.addEventListener('mouseover', () => createTooltip('agentsButton', 'Agents & modèles'));
+
+// Tour de contrôle : l'en-tête replie ou déplie, le reste ouvre la bibliothèque.
+const tower = monitor.panel('gm-hud');
+const folded = () => { try { return localStorage.getItem('gardien-monitor') === 'folded'; } catch { return false; } };
+tower.root.classList.toggle('folded', folded());
+tower.root.title = 'Ressources du serveur : ouvrir Agents & modèles';
+tower.root.addEventListener('click', event => {
+    if (!tower.head.contains(event.target)) return library.open('library');
+    const fold = tower.root.classList.toggle('folded');
+    try { localStorage.setItem('gardien-monitor', fold ? 'folded' : 'open'); } catch { /* stockage indisponible */ }
+});
+document.body.append(tower.root);
 
 async function loadGuardian() {
     const { agents } = await api.request('GET', 'toolbox/agents');
