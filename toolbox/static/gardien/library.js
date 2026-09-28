@@ -474,7 +474,11 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                     h('small', {}, `contexte ${e.ctx} jetons${state.machine.ram_mb ? ` · ${fmt(state.machine.ram_mb)} Go de RAM` : ''}`)),
                 h('div', {}, h('span', {}, 'Vitesse'), h('b', { class: level }, speed)),
                 h('small', {}, `Fichier ${gb(m.size)}`, m.gguf?.context_length ? ` · contexte d'entraînement ${m.gguf.context_length}` : '',
-                    m.placement ? ` · dernier chargement : ${m.placement.gpu_layers} couches GPU, contexte ${m.placement.n_ctx}` : ''));
+                    m.placement ? ` · dernier chargement : ${m.placement.gpu_layers} couches GPU, contexte ${m.placement.n_ctx}`
+                        + `${m.placement.kv_q8 ? ', cache KV q8_0 (RAM juste)' : ''}` : ''),
+                m.placement && m.placement.fits === false ? h('small', { class: 'bad' }, `Ne tient pas dans la RAM libre `
+                    + `(${fmt(m.placement.need_mb)} Go demandés, ${fmt(m.placement.ram_free_mb)} Go libres) : il relit le disque à chaque jeton, `
+                    + 'moins d\'un jeton par seconde. Prends un modèle plus petit.') : '');
         }
         function setGpu(value) { gpu.value = value; show(); }
         slider?.addEventListener('input', () => setGpu(Number(slider.value) === layers ? 'max' : slider.value));

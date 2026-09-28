@@ -1,9 +1,10 @@
 """Perception du Gardien : chaque node de Nodz lui arrive en un seul objet, à la manière du graphe v2.
 
 Un objet par node, sur une ligne JSON, avec tout ce qu'il faut pour agir sans relire : type, texte (entier dans
-un budget, sinon `plus` dit combien il en reste), voisins par lien, portail, auteur (`par` : "humain", "moi" pour
-ce que le Gardien a créé, "message" pour un message qu'on lui a écrit), date de modification, position,
-apparence. Il écrit avec le même objet (op `put`). Les valeurs restent stables d'une demande à l'autre (date du
+un budget, sinon `plus` dit combien il en reste), voisins par lien, portail, auteur (`par` : "moi" pour ce que le
+Gardien a créé, "message" pour un message qu'on lui a écrit, absent pour l'humain), date de modification (absente
+tant que le node n'est pas sauvé), position, apparence. Les valeurs par défaut sont omises : chaque jeton relu à
+chaque demande coûte, sur CPU. Il écrit avec le même objet (op `put`). Les valeurs restent stables d'une demande à l'autre (date du
 jour et non « il y a 3 min », positions arrondies) : llama.cpp réutilise sa lecture du prompt.
 
 Sources : la page (état vivant, nodes pas encore sauvés compris), la base v1 (fichiers, portails, dates) et les
@@ -18,9 +19,9 @@ from nodzapp.models import Layer, Node
 
 from .models import NodeMark
 
-TEXT_NODE = 400  # caractères par node du contexte
+TEXT_NODE = 200  # caractères par node du contexte
 TEXT_FULL = 2000  # node sélectionné, joint ou cité : texte entier jusque-là
-TEXT_TOTAL = 6000  # tous les nodes non sélectionnés ensemble ; au-delà, `plus` indique le reste
+TEXT_TOTAL = 3000  # tous les nodes non sélectionnés ensemble ; au-delà, `plus` indique le reste
 BY = {NodeMark.Origin.AI: 'moi', NodeMark.Origin.MESSAGE: 'message'}
 TYPES = {'text': 'texte', 'image': 'image', 'file': 'fichier', 'canvas': 'dessin'}
 DEFAULT_COLOR, DEFAULT_SHAPE = '#33FF99', 'circle'
@@ -106,6 +107,8 @@ class Perception:
             if ref not in full:
                 budget -= len(obj.get('texte', ''))
             obj['liens'] = sorted(set(neighbours.get(ref, [])), key=lambda r: number(r) or 0) or None
+            if ref not in full:
+                obj['pos'] = None  # la place des nouveaux nodes est calculée (near) : position lue seulement là où l'on agit
             out.append({k: v for k, v in obj.items() if v not in (None, [], '')})
         return out
 
@@ -142,8 +145,8 @@ class Perception:
             'type': TYPES.get(kind, kind) if kind != 'text' else None,  # texte par défaut
             'texte': (text[:cap] + ('…' if cut else '')) or '(vide)',
             'plus': cut or None,  # caractères non montrés : read_file pour tout lire
-            'par': BY.get(mark, 'humain'),
-            'modifié': row.modified_at.strftime('%d/%m') if row else 'non sauvé',
+            'par': BY.get(mark),  # absent : l'humain
+            'modifié': row.modified_at.strftime('%d/%m') if row else None,
             'pos': [round(x or 0), round(y or 0)],
             'couleur': color if color and color != DEFAULT_COLOR else None,
             'forme': shape if shape and shape != DEFAULT_SHAPE else None,

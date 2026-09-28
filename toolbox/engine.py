@@ -104,7 +104,7 @@ class Engine:
         self.unload()  # autre modèle, ou réglages de chargement changés : on recharge
         if not model.path:
             raise EngineUnavailable(f'{model} n\'est pas téléchargé')
-        resolved, self.placement[model.pk] = fit.resolve(model.path, options, self.gpu_offload() is not False)
+        resolved, self.placement[model.pk] = fit.resolve(model.path, options, self.gpu_offload() is not False, set(load_options(model.params)))
         self._llm = self.factory(model_path=model.path, verbose=False, **resolved)
         self._loaded, self._options = model.pk, options
         self._ttl = float(model.params.get('ttl', DEFAULT_TTL))

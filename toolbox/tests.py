@@ -348,13 +348,13 @@ class EngineTests(TestCase):
 class FitTests(SimpleTestCase):
     INFO = {'layers': 28, 'context_length': 32768, 'embedding': 3584, 'heads': 28, 'kv_heads': 4}
 
-    def resolve(self, options, vram, ram=16000, offload=True, size_mb=4700):
+    def resolve(self, options, vram, ram=16000, offload=True, size_mb=4700, chosen=()):
         from . import fit
 
         with tempfile.NamedTemporaryFile() as f, mock.patch.object(fit.gguf, 'info', return_value=self.INFO), \
                 mock.patch.object(fit, 'free_memory', return_value=(vram, ram)):
             f.truncate(size_mb * 1024 ** 2)
-            return fit.resolve(f.name, options, offload)
+            return fit.resolve(f.name, options, offload, chosen)
 
     def test_auto_fits_the_vram_like_iaqua(self):
         from . import fit
@@ -370,8 +370,16 @@ class FitTests(SimpleTestCase):
         cpu, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=8000, offload=False)
         self.assertEqual((cpu['n_gpu_layers'], summary['gpu_offload']), (0, False))  # compilé sans CUDA
         self.assertEqual(cpu['n_ctx'], 8192)  # sur CPU, contexte auto plafonné : pas de swap
-        small, _ = self.resolve({'n_gpu_layers': 'max', 'n_ctx': 'auto'}, vram=0, ram=3800)
-        self.assertEqual((small['n_gpu_layers'], small['n_ctx']), (-1, 8192))  # peu de RAM : plancher du Gardien (à 2048, son prompt ne tient pas)
+        self.assertTrue(summary['fits'])
+        small, summary = self.resolve({'n_gpu_layers': 'max', 'n_ctx': 'auto', 'flash_attn': True}, vram=0, ram=3800)
+        self.assertEqual((small['n_gpu_layers'], small['n_ctx']), (-1, 4096))  # plancher du Gardien (à 2048, son prompt ne tient pas)
+        self.assertEqual((small['type_k'], small['n_batch'], summary['kv_q8']), (8, 512, True))  # RAM juste : cache et batch réduits
+        self.assertFalse(summary['fits'])  # 4,7 Go sur 3,8 Go : il relirait le disque à chaque jeton
+        tight, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto', 'flash_attn': True, 'n_batch': 1024}, vram=0, ram=3800, size_mb=2900)
+        self.assertEqual((tight['n_ctx'], tight['type_k'], tight['n_batch'], summary['fits']), (7168, 8, 512, True))
+        chosen, _ = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto', 'flash_attn': True, 'n_batch': 1024}, vram=0, ram=3800,
+                                 size_mb=2900, chosen={'n_batch', 'type_k'})
+        self.assertEqual((chosen['n_batch'], 'type_k' in chosen), (1024, False))  # réglages choisis : jamais changés
         fixed, _ = self.resolve({'n_gpu_layers': 12, 'n_ctx': 8192}, vram=8000)
         self.assertEqual((fixed['n_gpu_layers'], fixed['n_ctx']), (12, 8192))
 
@@ -649,8 +657,8 @@ class GuardianTests(TestCase):
         engine = self.run_guardian(json.dumps({'say': 'Ok.', 'actions': []}))
         prompt = engine.calls[0]['messages'][1]['content']
         # Un objet par node (perception.py) : texte et sa mise en forme, liens, auteur, date, position, apparence si elle change
-        self.assertIn('{"id": "N-1", "texte": "**Voyage** au Japon", "par": "humain", "modifié": "non sauvé", "pos": [0, 0], "liens": ["N-2"]}', prompt)
-        self.assertIn('{"id": "N-2", "texte": "(vide)", "par": "humain", "modifié": "non sauvé", "pos": [400, 0], "couleur": "#6848A6", "liens": ["N-1"]}', prompt)
+        self.assertIn('{"id": "N-1", "texte": "**Voyage** au Japon", "pos": [0, 0], "liens": ["N-2"]}', prompt)  # humain, pas sauvé : omis
+        self.assertIn('{"id": "N-2", "texte": "(vide)", "couleur": "#6848A6", "liens": ["N-1"]}', prompt)  # position : nodes sélectionnés ou cités
         self.assertIn('Sélection : N-1', prompt)
         self.assertEqual(engine.calls[0]['schema']['required'], ['plan', 'say', 'actions'])
         from graph.models import AIRun
@@ -901,7 +909,7 @@ class GuardianTests(TestCase):
         user = engine.calls[0]['messages'][1]['content']
         self.assertLess(user.index('"id": "N-1"'), user.index('"id": "N-2"'))  # ordre des identifiants, pas des distances
         self.assertLess(user.index('"id": "N-2"'), user.index('"id": "N-9"'))
-        self.assertIn('"plus": 79', user)  # 400 caractères montrés, le reste compté
+        self.assertIn('"plus": 279', user)  # 200 caractères montrés, le reste compté
         self.assertIn('Humain : crée un plan de voyage\nToi : Un arbre ou une liste ?\nHumain : Arbre', user)
         self.assertNotIn('ignoré', user)
         self.assertLess(user.index('Échanges récents'), user.index('Demande'))

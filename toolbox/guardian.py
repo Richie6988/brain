@@ -52,7 +52,8 @@ PLAN_SCHEMA = {
     'type': 'object',
     'required': ['plan', 'say', 'actions'],
     'properties': {
-        'plan': {'type': 'array', 'items': {'type': 'string'}},
+        # plan court : sur CPU, chaque jeton écrit coûte (moins d'une seconde à plusieurs), la grammaire le borne
+        'plan': {'type': 'array', 'items': {'type': 'string', 'maxLength': 60}, 'maxItems': 3},
         'say': {'type': 'string'},
         'actions': {
             'type': 'array',
@@ -370,7 +371,7 @@ class Guardian(IaquaOps):
                 *(f"{'Humain' if role == 'user' else 'Toi'} : {text}" for role, text in self.history)] if self.history else []
         return '\n'.join([
             f"Dimension : {self.layer.get('name') or 'sans nom'}",
-            'Nodes (un objet par node ; "par": "moi" = créé par toi ; "plus": caractères non montrés) :',
+            'Nodes (un objet par node ; sans "par", écrit par l\'humain ; "par": "moi" = créé par toi ; "plus": caractères non montrés) :',
             *(perception.lines(view) or ['(aucun)']),
             *talk,  # après les nodes, qui changent peu : seule la fin du message est relue
             *(['Correspondance (dimension Échanges) :', *self.letters] if self.letters else []),
@@ -667,6 +668,15 @@ class Guardian(IaquaOps):
         self.guardian.save(update_fields=['brain'])
         self.sync_brain()
         return None
+
+    def memory_hint(self, guardian):
+        """Le modèle ne tient pas dans la RAM libre : il relit le disque à chaque jeton écrit. Ce qu'il faut dire à
+        l'humain (tailles en Go), ou None."""
+        placement = (getattr(self.engine, 'placement', {}) or {}).get(guardian.model.pk) or {}
+        if placement.get('fits', True):
+            return None
+        return {'model_gb': round(placement['model_mb'] / 1024, 1), 'free_gb': round(placement['ram_free_mb'] / 1024, 1),
+                'advice_gb': round(max(0.5, placement['ram_free_mb'] * 0.6 / 1024), 1)}
 
     def op_schema(self, action, agents):
         if action.get('type') not in layouts.SCHEMAS:
@@ -1061,7 +1071,7 @@ class Guardian(IaquaOps):
                 self.emit('timing', {'calls': len(self.timings), 'total_s': round(time.monotonic() - started, 1),
                                      'wait_s': round(sum(t['wait_s'] for t in self.timings), 1),
                                      'prompt_tokens': self.timings[0]['prompt_tokens'],
-                                     'speed': self.timings[-1]['speed']})
+                                     'speed': self.timings[-1]['speed'], 'memory': self.memory_hint(guardian)})
             self.run.status = AIRun.Status.DONE
         except Exception as e:
             self.run.status, self.run.error = AIRun.Status.ERROR, str(e)

@@ -320,6 +320,12 @@ async function ask(node, text, attached = []) {
         if (timing) chat.add('notice', `${Math.round(timing.total_s)} s · ${timing.calls} appel${timing.calls > 1 ? 's' : ''} au modèle · `
             + `lecture du prompt ${Math.round(timing.wait_s)} s${timing.prompt_tokens ? ` (${timing.prompt_tokens} jetons)` : ''}`
             + `${timing.speed ? ` · ${timing.speed} jetons/s` : ''}`);
+        // Le modèle ne tient pas dans la RAM libre : il relit le disque à chaque mot écrit, c'est là que part le temps.
+        const go = n => String(n).replace('.', ',');
+        if (timing?.memory) chat.add('guardian', `Je suis lent parce que mon modèle (${go(timing.memory.model_gb)} Go) ne tient pas dans `
+            + `la mémoire libre (${go(timing.memory.free_gb)} Go) : je relis le disque à chaque mot. Donne-moi un modèle d'environ `
+            + `${go(timing.memory.advice_gb)} Go ou moins dans Agents & modèles (un 3B ou un 1.5B en Q4), ou branche un modèle par API : `
+            + 'j\'écrirai bien plus vite.', 'mémoire');
     } catch (error) {
         think?.end('Réflexion interrompue');
         follow.end(error.message);
