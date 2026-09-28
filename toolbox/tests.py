@@ -913,6 +913,26 @@ class GuardianTests(TestCase):
         self.assertEqual(prompt.count('visite.'), 60)  # texte complet, lu en base
         self.assertNotIn('N-99', prompt)
 
+    def test_build_forgives_like_an_internal_api(self):
+        # ce qu'un petit modèle a vraiment écrit pour « create kanban » : pas de cols, des champs d'un autre outil
+        kanban = {'op': 'build', 'layout': 'kanban', 'title': 'Kanban', 'names': ['Urgent', 'Pas urgent'],
+                  'slides': [{'title': 'Important', 'body': 'Déléguer'}]}
+        self.run_guardian(json.dumps({'plan': ['Créer un kanban'], 'say': 'Fait.', 'actions': [kanban]}))
+        texts = [a['text'] for a in self.actions() if a['op'] == 'create']
+        self.assertEqual(texts[:3], ['Kanban', 'Urgent', 'Pas urgent'])  # colonnes prises dans names
+        self.events = []
+        self.run_guardian(json.dumps({'plan': ['Frise'], 'say': 'Fait.', 'actions': [{'op': 'build', 'layout': 'frise', 'title': 'Projet'}]}))
+        self.assertEqual(len([a for a in self.actions() if a['op'] == 'create']), 4)  # « frise » compris, étapes par défaut
+        self.assertEqual(self.errors(), [])
+
+    def test_a_repeated_failure_stops_and_says_why(self):
+        bad = json.dumps({'plan': ['Relier'], 'say': 'Relié.', 'actions': [{'op': 'link', 'source': 'N-1', 'target': 'N-77'}]})
+        engine = self.run_guardian(bad, bad, bad)
+        self.assertEqual(len(engine.calls), 2)  # il refait ce qui a échoué : on s'arrête au lieu d'un 3e tour
+        answer = [d for k, d in self.events if k == 'text'][-1]['text']
+        self.assertIn("Je n'ai pas réussi", answer)
+        self.assertNotIn('aucune action', answer)  # la vraie raison, pas « aucune action »
+
     def test_build_templates_schema_and_tour(self):
         from .layouts import STEP
 
@@ -941,7 +961,7 @@ class GuardianTests(TestCase):
         self.assertEqual((schema['type'], schema['title']), ('swot', '<b>Café</b>'))  # mise en forme du Gardien convertie
         self.assertEqual(schema['fill'], {'Forces': ['Emplacement', '<i>Café</i> maison'], 'Menaces': 'Loyer'})
         self.assertEqual([a['ref'] for a in self.actions() if a['op'] == 'tour'], ['N-1'])
-        self.assertEqual(len(self.errors()), 4)  # matrice sans lignes, gabarit inconnu, modèle inconnu, fill sans textes
+        self.assertEqual(len(self.errors()), 3)  # gabarit inconnu, modèle inconnu, fill sans textes (la matrice sans lignes en prend par défaut)
         guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
         self.assertEqual(guardian.brain['templates']['eisenhower']['layout'], 'matrix')
 
@@ -1959,7 +1979,8 @@ class IaquaToolsTests(TestCase):
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn('outils/taches/ : tâches (5 outils)', system)  # dossier rare : son sujet seul
         self.assertIn('outils/nodes/ : put, create, update', system)  # dossier courant : les noms, sans mode d'emploi
-        self.assertNotIn('{"op":"archive"', system)  # les modes d'emploi viennent avec la demande qui les appelle
+        self.assertIn('  {"op":"archive","ref":"N-4"}', system)  # outil courant : son exemple JSON
+        self.assertNotIn('annulable avec Ctrl+Z', system)  # sa prose vient avec la demande qui l'appelle
         self.assertNotIn('execute_bash', system)
         self.assertIn(tools.BY_OP['create_task']['doc'], self.reads(engine))  # tool_help, ancien nom, toujours compris
 
@@ -1968,9 +1989,9 @@ class IaquaToolsTests(TestCase):
         messages = engine.calls[0]['messages']
         system, message = messages[0]['content'], messages[1]['content']  # la liste s'allonge aux tours suivants
         self.assertIn('Outils pour cette demande :', message)
-        self.assertIn('- link (', message)  # « relie » → outils/liens
-        self.assertIn('- create_task (', message)  # « tâche » → outils/taches
-        self.assertNotIn('- web_search (', message)
+        self.assertIn('outils/liens/link : ', message)  # « relie » → outils/liens, mode d'emploi complet
+        self.assertIn('outils/taches/create_task : ', message)  # « tâche » → outils/taches
+        self.assertNotIn('web_search', message)
         engine = self.run_guardian([], request='bonjour')
         self.assertNotIn('Outils pour cette demande', engine.calls[0]['messages'][1]['content'])
         self.assertEqual(engine.calls[0]['messages'][0]['content'], system)  # le prompt système ne bouge pas : relu du cache

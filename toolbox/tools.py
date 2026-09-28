@@ -9,6 +9,7 @@ Outils administrateur (admin) : ils exécutent du code sur le serveur, donc comp
 """
 
 import json
+import re
 import unicodedata
 
 NODZ, IAQUA, BOTH = 'nodz', 'iaqua', 'nodz+iaqua'
@@ -246,6 +247,9 @@ TOOLS = [
 BY_OP = {t['op']: t for t in TOOLS}
 
 RENAMED = {'backdrop': 'schema'}  # ancien nom d'un outil coché → son remplaçant (fonds dessinés → modèles en nodes)
+# Outils courants : leur exemple JSON reste dans le prompt système (un petit modèle imite la forme qu'il voit) ;
+# put, ask, build, grow, schema et open ont déjà le leur dans les exemples du prompt.
+CORE = {'note', 'link', 'archive', 'style', 'focus', 'tour', 'delegate', 'remember', 'search_nodes'}
 HIDDEN = {'tool_help'}  # ancien nom de open : toujours compris, jamais proposé
 # Dossiers rares : le prompt n'en donne que le sujet ; le Gardien les ouvre (open) pour voir leurs outils
 FOLDED = {'taches', 'projets', 'competences', 'fichiers', 'documents', 'images', 'administrateur'}
@@ -303,8 +307,9 @@ def folders(ops):
 
 def prompt(ops, docs=None):
     """Outils du prompt système, en répertoire : une ligne par dossier, les noms des outils (le sujet seul pour les
-    dossiers rares). Il ne dépend pas de la demande : llama.cpp le garde lu d'une demande à l'autre. Les modes
-    d'emploi utiles à une demande arrivent avec elle (relevant), le reste s'ouvre (open)."""
+    dossiers rares) et l'exemple JSON des outils courants. Il ne dépend pas de la demande : llama.cpp le garde lu
+    d'une demande à l'autre. Les modes d'emploi complets utiles à une demande arrivent avec elle (relevant), le reste
+    s'ouvre (open)."""
     lines = ['Outils, rangés en répertoire outils/<dossier>/<outil> ; ceux utiles à la demande te sont détaillés avec elle. '
              'Pour un autre : {"op":"open","path":"outils/web"} (un dossier) ou "outils/nodes/style" (un outil), lu au tour '
              'suivant. [L] : lecture, résultat au tour suivant.']
@@ -313,6 +318,7 @@ def prompt(ops, docs=None):
             lines.append(f"outils/{name}/ : {tools[0]['category'].lower()} ({len(tools)} outils)")
         else:
             lines.append(f"outils/{name}/ : " + ', '.join(f"{t['op']}{' [L]' if t.get('read') else ''}" for t in tools))
+            lines += [f"  {example(t['op'], docs)}" for t in tools if t['op'] in CORE]
     return '\n'.join(lines)
 
 
@@ -338,14 +344,40 @@ HINTS = {
 }
 
 
+def fold(text):
+    return unicodedata.normalize('NFD', str(text or '').lower()).encode('ascii', 'ignore').decode()
+
+
+def focused(text, words):
+    """Mode d'emploi raccourci pour une demande : d'une liste « Types et intitulés : a (…), b (…) » (schema), ne garde
+    en entier que les types que la demande cite ; les autres, leur nom seul."""
+    head, sep, tail = text.partition('Types et intitulés : ')
+    if not sep:
+        return text
+    entries = re.findall(r'(\w+) \(([^)]*)\)', tail)
+    kept = [f'{name} ({slots})' for name, slots in entries if name in words]
+    others = [name for name, _ in entries if name not in words]
+    return head + sep + ', '.join(kept + ([f"autres types : {', '.join(others)}"] if others else [])) + '.'
+
+
 def relevant(request, ops, docs=None, limit=3):
-    """Modes d'emploi des dossiers que la demande appelle (au plus `limit`, les plus cités d'abord), à joindre au
-    message : chaque outil et son exemple. Vide si rien ne ressort (les exemples du prompt suffisent)."""
-    text = unicodedata.normalize('NFD', str(request or '').lower()).encode('ascii', 'ignore').decode()
+    """Ce que la demande appelle, joint au message : les dossiers que ses mots évoquent (au plus `limit`) ; dans ces
+    dossiers, le mode d'emploi complet des outils que ses mots citent (« kanban » → build), l'exemple seul des
+    autres. Vide si rien ne ressort (les exemples du prompt suffisent)."""
+    text = fold(request)
+    words = set(re.findall(r'[a-z0-9]{4,}', text)) | {w for w in re.findall(r'[a-z0-9]{3}', text) if w in ('bcg', 'bmc', 'why', 'org')}
     tree = folders(ops)
-    scored = sorted(((sum(word in text for word in words), name) for name, words in HINTS.items() if name in tree),
+    scored = sorted(((sum(word in text for word in hints), name) for name, hints in HINTS.items() if name in tree),
                     key=lambda item: -item[0])
-    return '\n'.join(open_path(f'outils/{name}', ops, docs) for score, name in scored[:limit] if score > 0)
+    chosen = [name for score, name in scored[:limit] if score > 0]
+    tools = [t for name in chosen for t in tree[name]]
+    hits = {t['op']: sum(word in fold(f"{t['op']} {t['label']} {usage(t['op'], docs)}") for word in words) for t in tools}
+    full = sorted((t for t in tools if hits[t['op']]), key=lambda t: -hits[t['op']])[:3]
+    lines = []
+    for name in chosen:
+        for t in tree[name]:
+            lines.append(f"{address(t['op'])} : {focused(usage(t['op'], docs), words)}" if t in full else f"  {example(t['op'], docs)}")
+    return '\n'.join(lines)
 
 
 def open_path(path, ops, docs=None):

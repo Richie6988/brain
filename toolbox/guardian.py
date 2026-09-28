@@ -34,6 +34,9 @@ IMAGE_RADIUS = 180  # node image (nodeSizing 250 × 250)
 MAX_CONTEXT_NODES = 40  # nodes proches de la vue dans le prompt (chaque jeton du prompt coûte sur CPU)
 ATTACHED_TEXT, ATTACHED_TOTAL = 2000, 8000  # nodes joints à la demande : texte complet, dans cette limite
 MAX_ATTACHED_AWAY = 30  # nodes joints d'autres dimensions (lus en base)
+# build : noms de gabarit qu'un modèle écrit en français ou par synonyme
+LAYOUT_ALIASES = {'liste': 'list', 'frise': 'timeline', 'chronologie': 'timeline', 'arbre': 'tree', 'pyramide': 'pyramid',
+                  'matrice': 'matrix', 'tableau': 'matrix', 'table': 'matrix', 'grid': 'matrix', 'board': 'kanban'}
 HISTORY, HISTORY_TEXT = 6, 200  # derniers échanges du chat rappelés au Gardien (il suit la conversation)
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
@@ -588,6 +591,9 @@ class Guardian(IaquaOps):
             if not spec:
                 raise PlanError(f"gabarit inconnu : {action['template']!r} (templates pour la liste)")
         spec.update({k: action[k] for k in ('layout', 'title', 'rows', 'cols', 'cells', 'items') if action.get(k)})
+        spec = self.repaired(spec, action)
+        if spec['layout'] in layouts.SCHEMAS and spec['layout'] not in layouts.LAYOUTS:  # « build swot » : c'est un modèle
+            return self.op_schema({'type': spec['layout'], 'title': spec.get('title', ''), 'near': action.get('near')}, agents)
         try:
             nodes, links = layouts.build(spec.get('layout'), spec.get('title'), spec.get('rows'), spec.get('cols'), spec.get('cells'), spec.get('items'))
         except layouts.LayoutError as e:
@@ -610,6 +616,25 @@ class Guardian(IaquaOps):
         if action.get('save_as'):
             self.op_template_save({**spec, 'name': action['save_as'], 'description': action.get('description', '')}, agents)
         return None
+
+    def repaired(self, spec, action):
+        """build tolérant, comme une API interne : un petit modèle se trompe de nom de champ ou en oublie. Nom du
+        gabarit en français ou synonyme, listes prises où il les a mises (cols, items, rows, names, steps, titres de
+        slides), sinon des valeurs par défaut sensées : on construit plutôt que de refuser."""
+        spec = dict(spec)
+        layout = str(spec.get('layout') or '').strip().lower()
+        spec['layout'] = LAYOUT_ALIASES.get(layout, layout)
+        lists = [action.get(k) for k in ('cols', 'items', 'rows', 'names', 'steps')]
+        lists.append([s.get('title') for s in action.get('slides') or [] if isinstance(s, dict) and s.get('title')])
+        found = next((values for values in lists if isinstance(values, list) and values), [])
+        if spec['layout'] == 'kanban' and not spec.get('cols'):
+            spec['cols'] = found or ['À faire', 'En cours', 'Fait']
+        elif spec['layout'] == 'matrix':
+            spec['rows'] = spec.get('rows') or ['Ligne 1', 'Ligne 2']
+            spec['cols'] = spec.get('cols') or ['Colonne 1', 'Colonne 2']
+        elif spec['layout'] in ('timeline', 'pyramid', 'tree', 'list') and not spec.get('items'):
+            spec['items'] = found or [spec.get('title') or 'Étape 1', 'Étape 2', 'Étape 3']
+        return spec
 
     def op_grow(self, action, agents):
         """Un raisonnement qui pousse en étoile (layouts.organic) : le modèle écrit un plan libre dans `text`, une idée
@@ -1042,6 +1067,7 @@ class Guardian(IaquaOps):
         try:
             messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': self.prompt(request)}]
             say, done, steps, read, nudged, cut = '', [], [], False, False, False
+            failures = []  # toutes les erreurs de la demande : la raison dite à l'humain si rien n'a abouti
             for round_ in range(MAX_ROUNDS):
                 self.emit('intent', {'text': 'Je lis ton message et le plan…' if round_ == 0 else 'Je lis ce que j\'ai trouvé et je continue…'})
                 # Le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
@@ -1066,6 +1092,7 @@ class Guardian(IaquaOps):
                     self.emit('plan', {'steps': steps})
                 jobs, reads = self.execute(plan.get('actions') or [], agents)
                 done += self.done
+                failures += self.failed
                 read = read or bool(reads)
                 for job in jobs:  # (agent, consigne, node) ou, pour une retouche d'image, plus l'image source
                     self.delegate(*job)
@@ -1077,8 +1104,8 @@ class Guardian(IaquaOps):
                     feedback.append('Ces actions ont échoué ; corrige-les (identifiants existants, champs requis) :\n'
                                     + '\n'.join(f'- {f}' for f in self.failed))
                 if self.repeated and not (self.done or reads or self.failed):
-                    if nudged:
-                        break  # il reboucle : on garde sa dernière réponse
+                    if nudged or failures:
+                        break  # il reboucle, ou refait ce qui a échoué : inutile de relancer (chaque tour coûte)
                     nudged = True
                     feedback.append(f"Tu refais {', '.join(sorted(set(self.repeated)))} à l'identique (déjà fait ou refusé : voir plus haut). "
                                     "N'ajoute plus d'action : réponds maintenant dans say, à partir de ce que tu as lu.")
@@ -1094,7 +1121,7 @@ class Guardian(IaquaOps):
                 ]
             if steps and not done and not read:  # jamais de promesse dans le node-réponse quand rien n'a été fait
                 reason = "mon modèle s'est emballé en écrivant ses actions" if cut else \
-                    self.failed[-1].rsplit(' : ', 1)[-1] if self.failed else "mon modèle n'a proposé aucune action"
+                    failures[-1].rsplit(' : ', 1)[-1] if failures else "mon modèle n'a proposé aucune action"
                 say = (f"Je n'ai pas réussi à le faire ({reason}). Reformule ta demande, "
                        'ou donne-moi un modèle plus grand dans Agents & modèles.')
             if say:
