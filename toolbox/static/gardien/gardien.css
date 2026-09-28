@@ -260,7 +260,7 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
 #gardien-follow ol:last-of-type::before { content: 'À venir'; display: block; color: #6848A6; letter-spacing: 0.06em; margin-bottom: 2px; }
 #gardien-follow ol:last-of-type li::before { content: '○ '; color: #6848A6; }
 
-/* Filtres globaux (haut centre) : origine et période ; les nodes écartés s'estompent */
+/* Filtres de toutes les dimensions (haut centre) : mot-clé, auteurs, période ; les nodes écartés s'estompent */
 #gardien-filters {
     position: fixed; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px;
     padding: 5px 8px; font: 11px 'Cascadia Code', monospace; color: #cbd5e1; background: rgba(5, 12, 23, 0.72);
@@ -273,15 +273,15 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
 #gardien-filters :is(.count, .where) { white-space: nowrap; }
 #gardien-filters { max-width: calc(100vw - 560px); }  /* entre la tour de contrôle et le logo */
 #gardien-filters.viewer { visibility: hidden; }  /* un aperçu de document dessous : ses boutons d'abord */
-#gardien-filters input { flex: 0 1 150px; min-width: 70px; }
+#gardien-filters input[type=search] { flex: none; }
 #gardien-filters button:hover { color: #fff; background: rgba(104, 72, 166, 0.35); }
 #gardien-filters button.on { color: #fff; background: rgba(104, 72, 166, 0.55); border-color: rgba(184, 154, 242, 0.5); }
-#gardien-filters input {
-    width: 150px; font: inherit; color: #e2e8f0; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.25);
+#gardien-filters input[type=search] {
+    width: 120px; font: inherit; color: #e2e8f0; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.25);
     border-radius: 10px; padding: 3px 9px; outline: none; transition: width 0.2s, border-color 0.2s;
 }
-#gardien-filters input:focus, #gardien-filters input:not(:placeholder-shown) { width: 200px; border-color: rgba(184, 154, 242, 0.7); }
-body:has(.universe.lightmode) #gardien-filters input { color: #440852; background: rgba(68, 8, 82, 0.05); }
+#gardien-filters input[type=search]:focus, #gardien-filters input[type=search]:not(:placeholder-shown) { width: 160px; border-color: rgba(184, 154, 242, 0.7); }
+body:has(.universe.lightmode) #gardien-filters input[type=search] { color: #440852; background: rgba(68, 8, 82, 0.05); }
 #gardien-filters button.nav { padding: 2px 8px; font-size: 13px; line-height: 1; color: #b89af2; }
 #gardien-filters button.nav[hidden] { display: none; }
 #gardien-filters .where { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f3ee58; }
@@ -291,6 +291,24 @@ body:has(.universe.lightmode) #gardien-filters input { color: #440852; backgroun
 #gardien-filters .sep { width: 1px; height: 16px; margin: 0 4px; background: rgba(148, 163, 184, 0.3); }
 #gardien-filters .count { margin-left: 6px; color: #f3ee58; }
 #gardien-filters .count:empty { display: none; }
+.gf-who { position: relative; }
+.gf-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 5; display: grid; gap: 4px; min-width: 140px; padding: 8px 10px;
+    background: rgba(5, 12, 23, 0.95); border: 1px solid rgba(104, 72, 166, 0.6); border-radius: 12px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
+.gf-menu[hidden] { display: none; }
+.gf-menu label { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; color: #e2e8f0; }
+.gf-menu input { accent-color: #6848A6; margin: 0; pointer-events: auto; }
+/* double curseur : deux curseurs superposés, seule leur poignée capte la souris */
+.gf-range { position: relative; width: 100px; height: 18px; flex: none; }
+.gf-range .track { position: absolute; left: 0; right: 0; top: 8px; height: 3px; border-radius: 2px;
+    background: linear-gradient(90deg, rgba(148, 163, 184, 0.25) var(--lo, 0%), #b89af2 var(--lo, 0%), #1E90FF var(--hi, 100%), rgba(148, 163, 184, 0.25) var(--hi, 100%)); }
+.gf-range input[type=range] { position: absolute; inset: 0; width: 100%; margin: 0; background: none; pointer-events: none; appearance: none; -webkit-appearance: none; }
+.gf-range input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: #fff; border: 2px solid #6848A6; box-shadow: 0 0 6px rgba(104, 72, 166, 0.7); cursor: grab; }
+.gf-range input[type=range]::-moz-range-thumb { pointer-events: auto; width: 11px; height: 11px; border-radius: 50%; background: #fff; border: 2px solid #6848A6; cursor: grab; }
+.gf-range input[type=range]::-webkit-slider-runnable-track { background: none; }
+#gardien-filters .gf-span { flex: none; white-space: nowrap; color: #cbd5e1; }
+body:has(.universe.lightmode) .gf-menu { background: rgba(255, 255, 255, 0.97); border-color: rgba(104, 72, 166, 0.35); }
+body:has(.universe.lightmode) .gf-menu label, body:has(.universe.lightmode) #gardien-filters .gf-span { color: #440852; }
 .node-group.gardien-filtered, .link.gardien-filtered { opacity: 0.08; pointer-events: none; transition: opacity 0.3s; }
 
 /* Mode clair de Nodz */

@@ -283,7 +283,8 @@ def tool_list(request, body):
 
 @api('GET', 'POST')
 def marks(request, body):
-    """Origine et dates des nodes de l'utilisateur (filtres) ; POST marque des nodes (message, ai)."""
+    """Filtres de toutes les dimensions : origine, dates, dimension et début du texte de chaque node, auteurs à cocher et
+    noms des dimensions ; POST marque des nodes (message, ai)."""
     if request.method == 'POST':
         origin = body.get('origin')
         if origin not in NodeMark.Origin.values:
@@ -293,9 +294,16 @@ def marks(request, body):
             NodeMark.objects.get_or_create(owner=request.user, node_id=node_id, defaults={'origin': origin})
         return JsonResponse({'marked': len(ids)})
     origins = dict(NodeMark.objects.filter(owner=request.user).values_list('node_id', 'origin'))
-    nodes = Node.objects.filter(user=request.user, archive=False).values_list('node_id', 'created_at', 'modified_at')
-    return JsonResponse({'nodes': {f'N-{i}': {'origin': origins.get(i, 'user'), 'created': c.timestamp(), 'modified': m.timestamp()}
-                                   for i, c, m in nodes}})
+    nodes = Node.objects.filter(user=request.user, archive=False).values_list(
+        'node_id', 'created_at', 'modified_at', 'layer__layer_id', 'text_content', 'file_name')
+    plain = lambda t: ' '.join(re.sub(r'<[^>]+>', ' ', html.unescape(t or '')).split())[:300]  # la recherche par mot-clé
+    user = request.user
+    return JsonResponse({
+        'nodes': {f'N-{i}': {'origin': origins.get(i, 'user'), 'created': c.timestamp(), 'modified': m.timestamp(), 'layer': layer,
+                             'text': plain(text or name)} for i, c, m, layer, text, name in nodes},
+        'authors': [{'key': 'ai', 'label': 'IA'}, {'key': 'me', 'label': user.username or user.email.split('@')[0]}],
+        'layers': dict(Layer.objects.filter(user=user).values_list('layer_id', 'layer_name')),
+    })
 
 
 @api('GET', 'POST')

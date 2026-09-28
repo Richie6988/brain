@@ -528,13 +528,17 @@ class ToolboxApiTests(TestCase):
 
         layer = Layer.objects.create(user=self.user, layer_id=1, layer_name='Home')
         for i in (1, 2, 3):
-            Node.objects.create(user=self.user, node_id=i, layer=layer)
+            Node.objects.create(user=self.user, node_id=i, layer=layer, text_content='<b>Kyoto</b> &amp; Nara' if i == 3 else '')
         r = self.client.post('/api/v1/toolbox/marks', {'nodes': ['N-1'], 'origin': 'message'}, content_type='application/json')
         self.assertEqual(r.json(), {'marked': 1})
         self.client.post('/api/v1/toolbox/marks', {'nodes': ['N-1', 'N-2', 'x'], 'origin': 'ai'}, content_type='application/json')
         nodes = self.client.get('/api/v1/toolbox/marks').json()['nodes']
         self.assertEqual({k: v['origin'] for k, v in nodes.items()}, {'N-1': 'message', 'N-2': 'ai', 'N-3': 'user'})
         self.assertGreater(nodes['N-3']['modified'], 0)
+        self.assertEqual((nodes['N-3']['layer'], nodes['N-3']['text']), (1, 'Kyoto & Nara'))  # toutes les dimensions, texte brut
+        data = self.client.get('/api/v1/toolbox/marks').json()
+        self.assertEqual([a['key'] for a in data['authors']], ['ai', 'me'])
+        self.assertEqual(data['layers'], {'1': 'Home'})
         self.assertEqual(self.client.post('/api/v1/toolbox/marks', {'nodes': ['N-3'], 'origin': 'bot'},
                                           content_type='application/json').status_code, 400)
 
