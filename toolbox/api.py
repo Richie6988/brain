@@ -21,7 +21,7 @@ from django.http import FileResponse, JsonResponse, StreamingHttpResponse
 
 from graph.api import api, unauthenticated
 from graph.services import ChangeError
-from nodzapp.models import Layer, Node
+from nodzapp.models import Layer, Link, Node
 
 from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, tools, workspace
 from .broker import BrokerTimeout
@@ -116,6 +116,38 @@ def search(request, body):
                 'text': ' '.join(re.sub(r'<[^>]+>', ' ', html.unescape(n['text_content'] or n['file_name'] or '')).split())[:80], 'score': score}
                for score, n in sorted(scored, key=lambda item: -item[0]) if score > 0][:200]
     return JsonResponse({'results': results})
+
+
+SIDE_NODES = 4000  # nodes au plus dans la vue de côté
+
+
+@api('GET')
+def side(request, body):
+    """Vue de côté de l'univers : tous les nodes de toutes les dimensions, en léger (dimension, position, couleur, forme,
+    début du texte), les liens de chaque dimension et les portails entre nodes (champ quantum de Nodz)."""
+    nodes = list(Node.objects.filter(user=request.user, archive=False).order_by('layer__layer_id', 'node_id').values(
+        'node_id', 'layer__layer_id', 'x_coordinate', 'y_coordinate', 'color', 'shape', 'text_content', 'file_name', 'quantum')[:SIDE_NODES])
+    ids = {f"N-{n['node_id']}" for n in nodes}
+    portals = set()
+    for n in nodes:
+        try:
+            targets = json.loads(n['quantum'] or '[]')
+        except json.JSONDecodeError:
+            targets = []
+        for target in targets if isinstance(targets, list) else []:
+            other = str(target.get('node') or '') if isinstance(target, dict) else ''
+            other = other if other.startswith('N-') else f'N-{other}'
+            if other in ids and other != f"N-{n['node_id']}":
+                portals.add(tuple(sorted((f"N-{n['node_id']}", other))))
+    links = [[a, b] for a, b in Link.objects.filter(user=request.user, archive=False).values_list('linkA', 'linkB') if a in ids and b in ids]
+    return JsonResponse({
+        'layers': [{'id': i, 'name': name} for i, name in Layer.objects.filter(user=request.user).order_by('layer_id').values_list('layer_id', 'layer_name')],
+        'nodes': [{'id': f"N-{n['node_id']}", 'layer': n['layer__layer_id'], 'x': round(n['x_coordinate']), 'y': round(n['y_coordinate']),
+                   'color': n['color'], 'shape': n['shape'],
+                   'text': ' '.join(re.sub(r'<[^>]+>', ' ', html.unescape(n['text_content'] or n['file_name'] or '')).split())[:60]} for n in nodes],
+        'links': links,
+        'portals': [list(p) for p in sorted(portals)],
+    })
 
 
 _warming = set()  # utilisateurs dont le Gardien lit déjà son prompt système en arrière-plan

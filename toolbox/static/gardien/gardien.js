@@ -17,6 +17,7 @@ import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
 import { createPresence } from './presence.js';
+import { createSide } from './side.js';
 import { LATER, createSuggestions } from './suggest.js';
 import { createTour } from './tour.js';
 import { createTrees } from './trees.js';
@@ -100,6 +101,7 @@ createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utili
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes) });
 const tour = createTour({ bridge, say });
 createTrees({ bridge });  // arborescences de nodes dans la galerie de modèles
+createSide({ bridge, say });  // vue de côté : X = numéro de dimension, Y = Y
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 const presence = createPresence();  // l'avatar du Gardien là où il travaille

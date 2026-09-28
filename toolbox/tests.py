@@ -1403,6 +1403,30 @@ class SearchTests(TestCase):
         self.assertEqual(self.client.get('/api/v1/toolbox/search?q=').json()['results'], [])
 
 
+class SideViewTests(TestCase):
+    def test_all_dimensions_links_and_portals(self):
+        from nodzapp.models import Layer, Link, Node
+
+        user = NodzUser.objects.create_user(email='side@nodz.local', password='pw-123456')
+        other = NodzUser.objects.create_user(email='other@nodz.local', password='pw-123456')
+        home, far = Layer.objects.create(user=user, layer_name='Home'), Layer.objects.create(user=user, layer_name='Loin')
+        Node.objects.create(user=user, layer=home, node_id=1, y_coordinate=120.4, text_content='<b>Porte</b>', quantum='[{"node": "N-3", "layer": "2"}]')
+        Node.objects.create(user=user, layer=home, node_id=2, text_content='Voisin')
+        Node.objects.create(user=user, layer=far, node_id=3, quantum='[{"node": "N-1", "layer": "1"}]')
+        Node.objects.create(user=user, layer=far, node_id=4, archive=True)
+        Node.objects.create(user=other, layer=Layer.objects.create(user=other, layer_name='X'), node_id=5)
+        Link.objects.create(user=user, link_id=1, linkA='N-1', linkB='N-2', layer=home)
+        Link.objects.create(user=user, link_id=2, linkA='N-3', linkB='N-4', layer=far)  # vers un node archivé
+        self.client.force_login(user)
+        data = self.client.get('/api/v1/toolbox/side').json()
+        self.assertEqual([(n['id'], n['layer']) for n in data['nodes']], [('N-1', 1), ('N-2', 1), ('N-3', 2)])
+        self.assertEqual(data['nodes'][0]['y'], 120)
+        self.assertEqual(data['nodes'][0]['text'], 'Porte')
+        self.assertEqual(data['links'], [['N-1', 'N-2']])
+        self.assertEqual(data['portals'], [['N-1', 'N-3']])
+        self.assertEqual([layer['name'] for layer in data['layers']], ['Home', 'Loin'])
+
+
 class AdminConsoleTests(TestCase):
     def setUp(self):
         from .models import GuardianLog, Schedule
