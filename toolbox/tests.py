@@ -1411,6 +1411,76 @@ class SearchTests(TestCase):
         self.assertEqual(self.client.get('/api/v1/toolbox/search?q=').json()['results'], [])
 
 
+class FakeResponse:
+    def __init__(self, status=200, lines=(), body=None):
+        self.status_code, self.lines, self.body, self.closed = status, list(lines), body or {}, False
+        self.text = json.dumps(self.body)
+
+    def iter_lines(self, decode_unicode=False):
+        yield from self.lines
+
+    def json(self):
+        return self.body
+
+    def close(self):
+        self.closed = True
+
+
+class ApiModelTests(TestCase):
+    def setUp(self):
+        self.admin = NodzUser.objects.create_user(email='root@nodz.local', password='pw-123456', is_staff=True)
+        self.client.force_login(self.admin)
+
+    def sse(self, *pieces, usage=None):
+        lines = [f'data: {json.dumps({"choices": [{"delta": {"content": p}}]})}' for p in pieces]
+        if usage:
+            lines.append(f'data: {json.dumps({"choices": [], "usage": usage})}')
+        return FakeResponse(lines=[*lines, 'data: [DONE]'])
+
+    def test_add_check_and_hide_the_key(self):
+        with mock.patch('toolbox.remote.requests.post', return_value=FakeResponse(body={'choices': []})) as post:
+            r = self.client.post('/api/v1/toolbox/models', {'endpoint': 'http://localhost:11434/v1/', 'name': 'qwen2.5:3b', 'api_key': 'sk-secret'},
+                                 content_type='application/json')
+        self.assertEqual(r.status_code, 201)
+        data = r.json()
+        self.assertEqual((data['endpoint'], data['filename'], data['has_key'], data['status']), ('http://localhost:11434/v1', 'qwen2.5:3b', True, 'ready'))
+        self.assertNotIn('sk-secret', r.content.decode())  # la clé ne quitte jamais le serveur
+        self.assertEqual(post.call_args.args[0], 'http://localhost:11434/v1/chat/completions')
+        self.assertEqual(post.call_args.kwargs['headers']['Authorization'], 'Bearer sk-secret')
+        self.assertNotIn('sk-secret', self.client.get('/api/v1/toolbox/models').content.decode())
+        with mock.patch('toolbox.remote.requests.post', return_value=FakeResponse(status=401, body={'error': 'bad key'})):
+            r = self.client.post('/api/v1/toolbox/models', {'endpoint': 'https://api.example.com/v1', 'name': 'x'}, content_type='application/json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('401', r.json()['error'])
+        user = NodzUser.objects.create_user(email='u@nodz.local', password='pw-123456')
+        self.client.force_login(user)
+        self.assertEqual(self.client.post('/api/v1/toolbox/models', {'endpoint': 'http://x/v1', 'name': 'x'},
+                                          content_type='application/json').status_code, 403)  # administrateurs seulement
+
+    def test_engine_streams_from_the_api(self):
+        model = LocalModel.objects.create(repo='api:localhost', filename='qwen2.5:3b', endpoint='http://localhost:11434/v1',
+                                          status=LocalModel.Status.READY)
+        engine = Engine(Broker(), factory=lambda **kw: self.fail('pas de chargement local'))
+        pieces = []
+        with mock.patch('toolbox.remote.requests.post', return_value=self.sse('{"say"', ': "ok"}', usage={'prompt_tokens': 812})) as post:
+            text = engine.chat(model, [{'role': 'user', 'content': 'bonjour'}], json_schema={'type': 'object'}, on_text=pieces.append)
+        self.assertEqual((text, pieces), ('{"say": "ok"}', ['{"say"', ': "ok"}']))
+        payload = post.call_args.kwargs['json']
+        self.assertEqual((payload['model'], payload['stream'], payload['response_format']['type']), ('qwen2.5:3b', True, 'json_schema'))
+        self.assertNotIn('Authorization', post.call_args.kwargs['headers'])  # pas de clé : pas d'en-tête
+        self.assertEqual(engine.stats[model.pk]['last']['prompt_tokens'], 812)
+        self.assertIsNone(engine.loaded)  # rien de chargé en mémoire
+        self.assertFalse(engine.prefill(model, [{'role': 'system', 'content': 'consignes'}]))
+        refused = FakeResponse(status=400, body={'error': 'response_format json_schema not supported'})
+        with mock.patch('toolbox.remote.requests.post', side_effect=[refused, self.sse('{}')]) as post:
+            engine.chat(model, [{'role': 'user', 'content': 'x'}], json_schema={'type': 'object'})
+        self.assertEqual(post.call_args.kwargs['json']['response_format'], {'type': 'json_object'})  # serveur sans schéma
+        from .engine import EngineUnavailable
+        import requests
+        with mock.patch('toolbox.remote.requests.post', side_effect=requests.ConnectionError()), self.assertRaises(EngineUnavailable):
+            engine.chat(model, [{'role': 'user', 'content': 'x'}])
+
+
 class SideViewTests(TestCase):
     def test_all_dimensions_links_and_portals(self):
         from nodzapp.models import Layer, Link, Node

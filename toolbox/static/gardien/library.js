@@ -14,6 +14,7 @@ const tb = {
     removeModel: (id, file) => api.request('DELETE', `toolbox/models/${id}${file ? '?file=1' : ''}`),
     modelAction: (id, action) => api.request('POST', `toolbox/models/${id}/${action}`),
     download: file => api.request('POST', 'toolbox/models', file),
+    addApiModel: fields => api.request('POST', 'toolbox/models', fields),  // { endpoint, name, api_key, label }
     installPack: key => api.request('POST', `toolbox/packs/${key}`),
     tools: () => api.request('GET', 'toolbox/tools'),
     recommendations: () => api.request('GET', 'toolbox/recommendations'),
@@ -23,6 +24,13 @@ const tb = {
     importFile: path => api.request('POST', 'toolbox/files', { path }),
     deleteFile: path => api.request('DELETE', `toolbox/files?${new URLSearchParams({ path })}`),
 };
+
+// Serveurs compatibles OpenAI proposés dans l'onglet « Par API » (l'URL de base se modifie ensuite).
+const API_PRESETS = [
+    ['Ollama (local)', 'http://localhost:11434/v1', 'qwen2.5:3b'], ['LM Studio (local)', 'http://localhost:1234/v1', ''],
+    ['llama.cpp server', 'http://localhost:8080/v1', ''], ['OpenRouter', 'https://openrouter.ai/api/v1', ''],
+    ['OpenAI', 'https://api.openai.com/v1', ''], ['Groq', 'https://api.groq.com/openai/v1', ''], ['Mistral', 'https://api.mistral.ai/v1', ''],
+];
 
 // Types Hugging Face (liste du ModelLoader de SquidMind), regroupés.
 const PIPELINES = [
@@ -84,7 +92,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
     const hf = { q: '', pipeline: '', sort: 'downloads', quant: '', min_b: '', max_b: '', results: null, repo: null, files: null, error: '' };
 
     const panels = {};
-    const tabs = [['agents', 'Agents'], ['tools', 'Outils'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face']];
+    const tabs = [['agents', 'Agents'], ['tools', 'Outils'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face'], ['api', 'Par API']];
     const nav = h('nav', { class: 'gl-tabs' }, tabs.map(([key, label]) =>
         h('button', { type: 'button', dataset: { tab: key }, onclick: () => show(key) }, label)));
     const machineLine = h('p', { class: 'gl-machine' });
@@ -148,7 +156,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
     function render() {
         nav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         Object.entries(panels).forEach(([key, panel]) => { panel.hidden = key !== tab; });
-        ({ agents: renderAgents, tools: renderTools, library: renderLibrary, server: renderServer, hub: renderHub })[tab]();
+        ({ agents: renderAgents, tools: renderTools, library: renderLibrary, server: renderServer, hub: renderHub, api: renderApi })[tab]();
     }
 
     function show(key) {
@@ -606,6 +614,46 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
 
     function renderServer() {
         if (!panels.server.childElementCount) loadServerFiles();
+    }
+
+    // --- Par API : un modèle servi ailleurs (Ollama, LM Studio, OpenRouter…), aucun fichier ni mémoire ici.
+
+    function renderApi() {
+        const field = (label, input) => h('label', { class: 'gl-field' }, h('span', {}, label), input);
+        const name = h('input', { type: 'text', placeholder: 'qwen2.5:3b, gpt-4o-mini, mistral-small-latest…', autocomplete: 'off' });
+        const url = h('input', { type: 'url', placeholder: 'http://localhost:11434/v1', autocomplete: 'off' });
+        const key = h('input', { type: 'password', placeholder: 'facultative (serveur local)', autocomplete: 'new-password' });
+        const label = h('input', { type: 'text', placeholder: 'nom affiché (facultatif)', autocomplete: 'off' });
+        const add = h('button', { type: 'button', class: 'gl-primary', ...guard() }, 'Tester et ajouter');
+        add.addEventListener('click', () => act(async () => {
+            add.disabled = true;
+            add.textContent = 'Test de la connexion…';
+            try {
+                await tb.addApiModel({ endpoint: url.value.trim(), name: name.value.trim(), api_key: key.value.trim(), label: label.value.trim() });
+            } finally {
+                add.disabled = false;
+                add.textContent = 'Tester et ajouter';
+            }
+        }, `${name.value.trim()} ajouté : choisis-le pour le Gardien dans l'onglet Agents`));
+        const presets = h('div', { class: 'gl-presets' }, API_PRESETS.map(([title, base, model]) => h('button', { type: 'button', onclick: () => {
+            url.value = base;
+            if (model && !name.value) name.value = model;
+            (name.value ? key : name).focus();
+        } }, title)));
+        const connected = state.models.filter(m => m.endpoint);
+        panels.api.replaceChildren(
+            h('p', { class: 'gl-hint' }, "Un serveur compatible OpenAI fait tourner le modèle à la place de cette machine : plus de mémoire prise ici, ",
+                'et un gros modèle devient possible. La clé reste sur le serveur Nodz, jamais dans la page.'),
+            presets,
+            h('div', { class: 'gl-api-form' }, field('URL de base', url), field('Modèle', name), field('Clé API', key), field('Nom affiché', label), add),
+            connected.length ? h('div', { class: 'gl-list' }, connected.map(m => {
+                const newKey = h('input', { type: 'password', placeholder: m.has_key ? 'clé enregistrée : la remplacer' : 'ajouter une clé', autocomplete: 'new-password' });
+                return h('div', { class: 'gl-row' },
+                    h('span', { class: 'gl-badge' }, 'API'), h('span', { class: 'gl-name', title: m.endpoint }, `${m.label || m.filename} · ${m.endpoint}`),
+                    m.agents.length ? h('span', { class: 'gl-size' }, m.agents.join(', ')) : '',
+                    newKey, h('button', { type: 'button', ...guard(), onclick: () => act(() => tb.updateModel(m.id, { api_key: newKey.value.trim() }), 'Clé enregistrée') }, 'Enregistrer'),
+                    confirmButton('Retirer', () => tb.removeModel(m.id)));
+            })) : h('p', { class: 'gl-empty' }, 'Aucun modèle par API pour le moment.'));
     }
 
     // --- Hugging Face

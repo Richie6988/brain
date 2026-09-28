@@ -670,3 +670,12 @@ foreignObject.portal img:hover { animation-duration: 0.9s, 1.2s; filter: brightn
 #gardien-side .gs-labels text { fill: #cbd5e1; font-size: 11px; pointer-events: none; paint-order: stroke; stroke: #050c17; stroke-width: 3px; }
 #gardien-side .gs-dots circle.square { stroke-dasharray: 3 2; }
 #gardien-side .gs-dots circle:hover { fill: var(--c); filter: drop-shadow(0 0 8px var(--c)); }
+
+/* Onglet « Par API » de la bibliothèque : raccourcis de serveurs, formulaire en grille, modèles branchés. */
+.gl-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.gl-presets button { padding: 4px 12px; border-radius: 999px; font-size: 11px; }
+.gl-api-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; align-items: end; margin-bottom: 14px; }
+.gl-api-form .gl-primary { grid-column: 1 / -1; justify-self: start; padding: 8px 18px; border-radius: 999px; }
+.gl-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #94a3b8; }
+.gl-field input { padding: 8px 10px; border-radius: 10px; }
+.gl-row input[type=password] { width: 180px; }

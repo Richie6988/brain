@@ -1,4 +1,4 @@
-"""Inférence locale GGUF via llama-cpp-python (optionnel : sans lui, Nodz fonctionne sans IA).
+"""Inférence locale GGUF via llama-cpp-python (optionnel : sans lui, Nodz fonctionne sans IA), ou par API (remote.py).
 
 Un modèle chargé à la fois (le broker sérialise), sortie en flux, JSON contraint par grammaire
 quand un schéma est fourni (fiabilise l'orchestrateur, même avec un petit modèle sur CPU).
@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from django.conf import settings
 
 from . import broker as priorities
-from . import fit
+from . import fit, remote
 from .params import clean, load_options, sampling_options
 
 DEFAULT_TTL = 720  # minutes d'inactivité avant de libérer la mémoire (iAqua)
@@ -152,7 +152,9 @@ class Engine:
 
     def prefill(self, model, messages, *, priority=priorities.BACKGROUND, owner='préchauffage'):
         """Fait lire au modèle le début d'une conversation (prompt système) sans rien générer : llama.cpp le garde
-        en cache et une demande qui commence pareil ne relit que la suite. Faux s'il l'avait déjà lu."""
+        en cache et une demande qui commence pareil ne relit que la suite. Faux s'il l'avait déjà lu (ou par API)."""
+        if model.endpoint:
+            return False
         if self._loaded == model.pk and self.prefixes.get(model.pk) == hash(messages[0]['content']):
             return False
         self.chat(model, messages, priority=priority, owner=owner, max_tokens=1, temperature=0)
@@ -160,44 +162,58 @@ class Engine:
 
     def chat(self, model, messages, *, json_schema=None, on_text=None, priority=priorities.CHAT, owner='chat', **params):
         """Complétion de chat en flux. Renvoie le texte complet ; on_text reçoit chaque fragment. Une réponse JSON
-        (plan) qui se met à boucler est arrêtée net (stats['last']['stopped'])."""
+        (plan) qui se met à boucler est arrêtée net (stats['last']['stopped']). Un modèle par API n'occupe ni le broker
+        ni la mémoire locale."""
+        # Réglages du modèle, puis ceux de l'appel (agent, Gardien) qui priment.
+        options = {'temperature': 0.7, 'max_tokens': 1024, **sampling_options(model.params), **sampling_options(params)}
+        if model.params.get('random_seed') is False and 'seed' not in options:
+            options['seed'] = FIXED_SEED  # graine aléatoire coupée : réponses reproductibles
+        if model.endpoint:
+            self.stats.setdefault(model.pk, {'loaded_at': self.clock(), 'last_used': self.clock(), 'requests': 0, 'tokens': 0})
+            started = time.monotonic()
+            try:
+                stream = remote.Stream(model, messages, options, json_schema)
+            except remote.RemoteError as e:
+                raise EngineUnavailable(str(e)) from None
+            return self._collect(model, stream, (piece for piece in stream), messages, json_schema, on_text, None, started)
         with self.broker.slot(priority, owner), self._lock:
             llm = self._ensure(model)
-            stats = self.stats[model.pk]
-            stats['requests'] += 1
-            # Réglages du modèle, puis ceux de l'appel (agent, Gardien) qui priment.
-            options = {'temperature': 0.7, 'max_tokens': 1024, **sampling_options(model.params), **sampling_options(params)}
-            if model.params.get('random_seed') is False and 'seed' not in options:
-                options['seed'] = FIXED_SEED  # graine aléatoire coupée : réponses reproductibles
             if json_schema:
                 options['response_format'] = {'type': 'json_object', 'schema': json_schema}
-            text = []
             # Mesure de l'appel : taille du prompt, attente du premier jeton (lecture du prompt), vitesse ensuite.
             tokenize = getattr(llm, 'tokenize', None)
             prompt_tokens = len(tokenize(''.join(m['content'] for m in messages).encode())) if tokenize else None
-            started, first, count, stopped = time.monotonic(), None, 0, None
+            started = time.monotonic()
             stream = llm.create_chat_completion(messages=messages, stream=True, **options)
-            try:
-                for chunk in stream:
-                    piece = chunk['choices'][0]['delta'].get('content') or ''
-                    if piece:
-                        if first is None:
-                            first = time.monotonic()
-                        text.append(piece)
-                        count += 1
-                        stats['tokens'] += 1  # un fragment du flux = un jeton
-                        if on_text:
-                            on_text(piece)
-                        if json_schema and count % 8 == 0 and looping(''.join(text[-200:])):
-                            stopped = 'boucle'
-                            break
-                if messages and messages[0]['role'] == 'system':
-                    self.prefixes[model.pk] = hash(messages[0]['content'])
-            finally:
-                getattr(stream, 'close', lambda: None)()  # arrête la génération en cours
-                end = time.monotonic()
-                stats['last_used'] = self.clock()
-                stats['last'] = {'prompt_tokens': prompt_tokens, 'wait_s': round((first or end) - started, 2), 'tokens': count,
-                                 'speed': round(count / (end - first), 1) if first and end > first else None, 'total_s': round(end - started, 2),
-                                 'stopped': stopped}
-            return ''.join(text)
+            pieces = (chunk['choices'][0]['delta'].get('content') or '' for chunk in stream)
+            return self._collect(model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started)
+
+    def _collect(self, model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started):
+        """Lit le flux (local ou distant) : fragments vers on_text, arrêt d'une boucle, mesures de l'appel."""
+        stats = self.stats[model.pk]
+        stats['requests'] += 1
+        text, first, count, stopped = [], None, 0, None
+        try:
+            for piece in pieces:
+                if piece:
+                    if first is None:
+                        first = time.monotonic()
+                    text.append(piece)
+                    count += 1
+                    stats['tokens'] += 1  # un fragment du flux = un jeton
+                    if on_text:
+                        on_text(piece)
+                    if json_schema and count % 8 == 0 and looping(''.join(text[-200:])):
+                        stopped = 'boucle'
+                        break
+            if messages and messages[0]['role'] == 'system' and not model.endpoint:
+                self.prefixes[model.pk] = hash(messages[0]['content'])
+        finally:
+            getattr(stream, 'close', lambda: None)()  # arrête la génération en cours
+            end = time.monotonic()
+            usage = getattr(stream, 'usage', None) or {}  # par API : jetons du prompt comptés par le serveur
+            stats['last_used'] = self.clock()
+            stats['last'] = {'prompt_tokens': prompt_tokens or usage.get('prompt_tokens'), 'wait_s': round((first or end) - started, 2),
+                             'tokens': count, 'speed': round(count / (end - first), 1) if first and end > first else None,
+                             'total_s': round(end - started, 2), 'stopped': stopped}
+        return ''.join(text)

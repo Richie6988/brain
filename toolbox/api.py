@@ -23,7 +23,7 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Layer, Link, Node
 
-from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, tools, workspace
+from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, remote, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable
@@ -67,7 +67,7 @@ def hub_call(fn, *args, **kwargs):
 
 def model_to_dict(m, user):
     stats = engine.stats.get(m.id)
-    info = gguf.info(m.path) if m.status == LocalModel.Status.READY else {}
+    info = gguf.info(m.path) if m.status == LocalModel.Status.READY and m.path else {}
     return {'id': str(m.id), 'repo': m.repo, 'filename': m.filename, 'label': m.label, 'kind': m.kind,
             'capabilities': m.capabilities, 'quant': m.quant, 'size': m.size, 'downloaded': m.downloaded,
             'status': m.status, 'error': m.error, 'params': m.params, 'loaded': engine.loaded == m.id,
@@ -75,7 +75,8 @@ def model_to_dict(m, user):
             'agents': [a.name for a in m.agents.all() if a.owner_id == user.pk],
             'gguf': info, 'kv_bytes': fit.kv_bytes_per_token(info) if info else None,  # estimation mémoire du dialogue
             'config': Engine.config(m),  # réglages effectifs (défauts d'iAqua compris)
-            'placement': engine.placement.get(m.id)}  # couches GPU et contexte retenus au dernier chargement
+            'placement': engine.placement.get(m.id),  # couches GPU et contexte retenus au dernier chargement
+            'endpoint': m.endpoint, 'has_key': bool(m.api_key)}  # modèle par API : la clé ne quitte jamais le serveur
 
 
 def agent_to_dict(a):
@@ -357,6 +358,8 @@ def models(request, body):
     if request.method == 'GET':
         return JsonResponse({'models': [model_to_dict(m, request.user) for m in LocalModel.objects.prefetch_related('agents')]})
     staff_only(request)
+    if body.get('endpoint'):
+        return JsonResponse(model_to_dict(api_model(body), request.user), status=201)
     repo, filename = body.get('repo', ''), body.get('filename', '')
     if repo.count('/') != 1 or not filename.lower().endswith('.gguf') or '..' in filename:
         raise ChangeError('repo (organisation/dépôt) et filename (.gguf) requis')
@@ -365,6 +368,30 @@ def models(request, body):
         raise ChangeError(f'type {kind!r} inconnu')
     model = hub.start_download(repo, filename, body.get('size', 0), kind, body.get('capabilities', []))
     return JsonResponse(model_to_dict(model, request.user), status=202)
+
+
+def api_model(body, model=None):
+    """Entrée « modèle par API » (URL de base compatible OpenAI, nom du modèle, clé facultative), vérifiée par un petit
+    appel avant d'être gardée."""
+    endpoint = str(body.get('endpoint', model.endpoint if model else '')).strip().rstrip('/')
+    name = str(body.get('name', model.filename if model else '')).strip()
+    if not endpoint.startswith(('http://', 'https://')) or not name or len(endpoint) > 300 or len(name) > 300:
+        raise ChangeError('URL de base (http:// ou https://) et nom du modèle requis')
+    host = endpoint.split('/')[2]
+    model = model or LocalModel(repo=f'api:{host}'[:200], status=LocalModel.Status.READY, kind=LocalModel.Kind.TEXT,
+                                capabilities=['chat', 'api'])
+    model.endpoint, model.filename = endpoint, name
+    if 'api_key' in body:  # absente : on garde la clé enregistrée
+        model.api_key = str(body['api_key']).strip()[:300]
+    model.label = str(body.get('label') or model.label or name)[:120]
+    try:
+        remote.check(model)
+    except remote.RemoteError as e:
+        raise ChangeError(f'connexion impossible : {e}') from None
+    if LocalModel.objects.filter(repo=model.repo, filename=model.filename).exclude(pk=model.pk).exists():
+        raise ChangeError('ce modèle de cette API est déjà dans la bibliothèque')
+    model.save()
+    return model
 
 
 @api('PATCH', 'DELETE')
@@ -382,6 +409,8 @@ def model_detail(request, body, model_id):
             Path(model.path).unlink(missing_ok=True)
         model.delete()
         return JsonResponse({'deleted': str(model_id)})
+    if model.endpoint and any(k in body for k in ('endpoint', 'name', 'api_key')):
+        model = api_model(body, model)
     if 'label' in body:
         model.label = str(body['label'])[:120]
     if 'kind' in body:

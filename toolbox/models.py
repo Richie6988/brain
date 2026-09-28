@@ -35,6 +35,9 @@ class LocalModel(models.Model):
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.DOWNLOADING)
     error = models.TextField(blank=True)
     params = models.JSONField(default=dict, blank=True)  # n_ctx, n_gpu_layers, n_threads, n_batch, ttl, temperature, max_tokens
+    # Modèle par API (remote.py) : URL de base compatible OpenAI ; filename porte alors le nom du modèle distant.
+    endpoint = models.URLField(max_length=300, blank=True)
+    api_key = models.CharField(max_length=300, blank=True)  # jamais renvoyée au navigateur
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
