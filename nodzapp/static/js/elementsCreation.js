@@ -1948,6 +1948,7 @@ function createNode(x,y,id) {
 
     calendarButtonimg.addEventListener('click', function() { 
         const calendarOverlay = document.getElementById('calendarOverlay');
+        CurrentNode(nodeGroup);  // le calendrier lit et écrit le rappel de currentNode
         if(nodeGroup.getAttribute('notification') !== '') {
             fp.setDate(nodeGroup.getAttribute('notification'));
         } else {

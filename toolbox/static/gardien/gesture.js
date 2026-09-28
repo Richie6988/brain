@@ -3,7 +3,8 @@
 // une mesure force tout le calcul de mise en page pendant que Nodz déplace les nodes, et le glissé rame.
 
 let held = false, moved = false;
-document.addEventListener('pointerdown', event => { held = event.button === 0; moved = false; }, true);
+// une liste déroulante ouverte garde le pointerup pour elle : un appui sur un champ n'est jamais un glissé
+document.addEventListener('pointerdown', event => { held = event.button === 0 && !event.target.closest?.('select, input, textarea'); moved = false; }, true);
 document.addEventListener('pointermove', () => { if (held) moved = true; }, true);
 ['pointerup', 'pointercancel'].forEach(type => document.addEventListener(type, () => { held = moved = false; }, true));
 
