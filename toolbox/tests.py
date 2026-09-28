@@ -1522,7 +1522,7 @@ class SideViewTests(TestCase):
         data = self.client.get('/api/v1/toolbox/side').json()
         self.assertEqual([(n['id'], n['layer']) for n in data['nodes']], [('N-1', 1), ('N-2', 1), ('N-3', 2)])
         self.assertEqual(data['nodes'][0]['y'], 120)
-        self.assertEqual(data['nodes'][0]['text'], 'Porte')
+        self.assertEqual((data['nodes'][0]['text'], data['nodes'][0]['html']), ('Porte', '<b>Porte</b>'))
         self.assertEqual(data['links'], [['N-1', 'N-2']])
         self.assertEqual(data['portals'], [['N-1', 'N-3']])
         self.assertEqual([layer['name'] for layer in data['layers']], ['Home', 'Loin'])

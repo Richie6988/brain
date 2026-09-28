@@ -144,7 +144,8 @@ def side(request, body):
     """Vue de côté de l'univers : tous les nodes de toutes les dimensions, en léger (dimension, position, couleur, forme,
     début du texte), les liens de chaque dimension et les portails entre nodes (champ quantum de Nodz)."""
     nodes = list(Node.objects.filter(user=request.user, archive=False).order_by('layer__layer_id', 'node_id').values(
-        'node_id', 'layer__layer_id', 'x_coordinate', 'y_coordinate', 'color', 'shape', 'text_content', 'file_name', 'quantum')[:SIDE_NODES])
+        'node_id', 'layer__layer_id', 'x_coordinate', 'y_coordinate', 'color', 'shape', 'radius', 'text_content', 'file_name',
+        'quantum')[:SIDE_NODES])
     ids = {f"N-{n['node_id']}" for n in nodes}
     portals = set()
     for n in nodes:
@@ -161,7 +162,8 @@ def side(request, body):
     return JsonResponse({
         'layers': [{'id': i, 'name': name} for i, name in Layer.objects.filter(user=request.user).order_by('layer_id').values_list('layer_id', 'layer_name')],
         'nodes': [{'id': f"N-{n['node_id']}", 'layer': n['layer__layer_id'], 'x': round(n['x_coordinate']), 'y': round(n['y_coordinate']),
-                   'color': n['color'], 'shape': n['shape'],
+                   'color': n['color'], 'shape': n['shape'], 'radius': round(n['radius'] or 0),
+                   'html': (n['text_content'] or html.escape(n['file_name'] or ''))[:3000],  # son propre texte, rendu comme Nodz le rend
                    'text': ' '.join(re.sub(r'<[^>]+>', ' ', html.unescape(n['text_content'] or n['file_name'] or '')).split())[:60]} for n in nodes],
         'links': links,
         'portals': [list(p) for p in sorted(portals)],

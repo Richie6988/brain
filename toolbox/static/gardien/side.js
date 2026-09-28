@@ -1,90 +1,95 @@
 // Vue de côté : l'univers tourne d'un quart de tour autour de l'axe vertical. Le plan (X, Y) d'une dimension devient
-// le plan (dimension, Y) : chaque dimension est une colonne placée à son numéro, Y ne change pas, et l'ancien X ne
-// reste qu'en léger décalage (profondeur). La dimension ouverte tourne réellement (X·cos θ + Z·sin θ), les autres
-// apparaissent en colonnes ; liens de chaque dimension en traits fins, portails en arcs entre colonnes.
-// Survol : le texte du node ; clic : la vue retourne dans le plan et va au node, dans sa dimension. Molette et
-// glissé : zoom et déplacement. Échap ou le bouton : retour. Lecture seule, rien n'est modifié dans Nodz.
+// (dimension, Y) : chaque dimension est une colonne, dans l'ordre de leurs numéros, et Y ne change pas. Les nodes y
+// gardent leur apparence (forme, couleur, texte mis en forme) : ce sont des répliques posées dans le groupe `universe`
+// de Nodz, si bien que la molette, le glissé, Tab et les flèches déplacent la vue exactement comme en vue standard.
+// Dans une colonne, les nodes de même hauteur s'écartent (aucun chevauchement) ; les colonnes s'écartent d'autant.
+// La dimension ouverte tourne réellement (X·cos θ + Z·sin θ), les autres apparaissent ; liens de chaque dimension et
+// portails en arcs entre colonnes. Clic sur un node : retour dans le plan et voyage jusqu'à lui ; Échap ou le cube :
+// retour. Les nodes réels sont seulement cachés et les touches de création de Nodz bloquées : rien n'est modifié.
 
 import { api } from './api.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const DURATION = 1100;
-const LABELS = 80;  // au-delà, les textes ne s'affichent qu'au survol
+const DURATION = 1300;
+const GAP = 40;          // entre deux nodes d'une colonne
+const COLUMN_GAP = 280;  // entre deux colonnes
+const RICH = 600;        // au-delà, nodes sans texte (la vue reste fluide)
+const KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Shift', 'Control', 'Alt', 'Meta']);
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
-const lerp = (a, b, k) => a + (b - a) * k;
-const svgEl = (tag, attrs = {}) => {
+const make = (tag, attrs = {}) => {
     const node = document.createElementNS(NS, tag);
     Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
     return node;
 };
 
-export function createSide({ bridge, say }) {
-    const dock = document.getElementById('agentsButton');
-    const button = Object.assign(document.createElement('button'), { className: 'menuBtn', id: 'sideButton' });
-    dock.after(button);
-    button.addEventListener('mouseover', () => createTooltip('sideButton', 'Vue de côté : X = dimension, Y = Y'));
-    button.addEventListener('click', () => (root.hidden ? open() : close()));
+// Nodes d'une colonne, du haut vers le bas : chacun reste à sa hauteur et s'écarte à gauche ou à droite tant qu'il en
+// chevauche un autre. Rend l'étendue de la colonne.
+function spread(nodes) {
+    const placed = [];
+    nodes.sort((a, b) => b.y - a.y).forEach(n => {
+        for (let k = 0; ; k++) {
+            const ox = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (2 * n.r + GAP);
+            if (!placed.some(p => Math.hypot(p.ox - ox, p.y - n.y) < p.r + n.r + GAP)) {
+                n.ox = ox;
+                placed.push(n);
+                break;
+            }
+        }
+    });
+    return { min: Math.min(0, ...placed.map(n => n.ox - n.r)), max: Math.max(0, ...placed.map(n => n.ox + n.r)) };
+}
 
-    const root = document.createElement('section');
-    root.id = 'gardien-side';
-    root.hidden = true;
-    root.innerHTML = '<header><strong>Vue de côté</strong><span>X = numéro de dimension · Y = Y · clic sur un node pour y aller</span>'
-        + '<button type="button" class="gs-close" title="Revenir dans le plan (Échap)">✕</button></header><p class="gs-tip" hidden></p>';
-    const svg = svgEl('svg', { class: 'gs-canvas' });
-    const view = svgEl('g');
-    const [guides, links, portals, dots, labels] = ['gs-guides', 'gs-links', 'gs-portals', 'gs-dots', 'gs-labels'].map(c => view.appendChild(svgEl('g', { class: c })));
-    svg.append(view);
-    root.prepend(svg);
-    document.body.append(root);
-    const tip = root.querySelector('.gs-tip');
-    root.querySelector('.gs-close').addEventListener('click', () => close());
-    document.addEventListener('keydown', event => {
-        if (!root.hidden && event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); close(); }
-    }, true);
+export function createSide({ bridge, say }) {
+    const cube = document.createElement('button');
+    cube.type = 'button';
+    cube.id = 'gardien-cube';
+    cube.title = 'Vue de côté : X = numéro de dimension, Y = Y (Échap pour revenir)';
+    cube.innerHTML = '<span class="gc3">' + '<i></i>'.repeat(6) + '</span><small>côté</small>';
+    document.body.append(cube);
+    const banner = document.createElement('div');
+    banner.id = 'gardien-side-banner';
+    banner.hidden = true;
+    banner.innerHTML = '<strong>Vue de côté</strong><span>X = numéro de dimension · Y = Y · clic sur un node pour y aller · Échap pour revenir</span>';
+    document.body.append(banner);
+    const tip = Object.assign(document.createElement('p'), { id: 'gardien-side-tip', hidden: true });
+    document.body.append(tip);
 
     let scene = null, busy = false;
-    let pan = { x: 0, y: 0, k: 1 };
-    const applyPan = () => view.setAttribute('transform', `translate(${pan.x} ${pan.y}) scale(${pan.k})`);
+    cube.addEventListener('click', () => (scene ? close() : open()));
 
-    // Place tout à l'angle θ (e = avancement 0 → 1 de la rotation).
+    // En vue de côté, Nodz ne crée ni n'écrit rien : seules ses touches de déplacement passent.
+    document.addEventListener('keydown', event => {
+        if (!scene) return;
+        if (event.key === 'Escape') close();
+        if (KEYS.has(event.key)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }, true);
+
     function frame(e) {
-        const s = scene, theta = (e * Math.PI) / 2, cos = Math.cos(theta), sin = Math.sin(theta);
-        const scale = lerp(s.s0, s.s1, e), mx = lerp(0, s.mx, e), my = lerp(0, s.my, e);
-        const W = window.innerWidth / 2, H = window.innerHeight / 2;
-        const point = n => {
-            const X = (n.x - s.vx) * (s.depth + (1 - s.depth) * cos) + n.z * sin;  // l'ancien X s'efface en profondeur
-            return [W + (X - mx) * scale, H - (n.y - s.vy - my) * scale];
-        };
-        root.style.setProperty('--veil', (0.97 * e).toFixed(3));
-        s.nodes.forEach(n => {
-            [n.px, n.py] = point(n);
-            n.dot.setAttribute('cx', n.px.toFixed(1));
-            n.dot.setAttribute('cy', n.py.toFixed(1));
-            n.dot.setAttribute('r', lerp(n.r0, 7, e).toFixed(1));
-            n.dot.style.opacity = n.here ? 1 : e;
-            n.dot.style.fillOpacity = n.here ? e : 1;  // au départ, le texte du vrai node reste lisible
-            if (n.label) {
-                n.label.setAttribute('x', (n.px + 11).toFixed(1));
-                n.label.setAttribute('y', (n.py + 4).toFixed(1));
-                n.label.style.opacity = e.toFixed(3);
-            }
+        const { nodes, links, portals, columns, pivot } = scene;
+        const theta = (e * Math.PI) / 2, cos = Math.cos(theta), sin = Math.sin(theta);
+        const squeeze = 0.25 + 0.75 * Math.abs(Math.cos(2 * theta));  // de profil à mi-rotation
+        nodes.forEach(n => {
+            n.px = n.here ? pivot + (n.x - pivot) * cos + (n.fx - pivot) * sin : pivot + (n.fx - pivot) * sin;
+            n.el.setAttribute('transform', `translate(${n.px.toFixed(1)} ${(-n.y).toFixed(1)}) scale(${squeeze.toFixed(3)} 1)`);
+            n.el.style.opacity = n.here ? 1 : e;
         });
-        s.links.forEach(l => {
-            l.el.setAttribute('x1', l.a.px); l.el.setAttribute('y1', l.a.py);
-            l.el.setAttribute('x2', l.b.px); l.el.setAttribute('y2', l.b.py);
-            l.el.style.opacity = (l.a.here ? 0.5 : 0.5 * e).toFixed(3);
+        links.forEach(l => {
+            l.el.setAttribute('x1', l.a.px); l.el.setAttribute('y1', -l.a.y);
+            l.el.setAttribute('x2', l.b.px); l.el.setAttribute('y2', -l.b.y);
+            l.el.style.opacity = l.a.here ? 1 : e;
         });
-        s.portals.forEach(p => {
-            const lift = Math.min(160, Math.abs(p.b.px - p.a.px) * 0.35);
-            p.el.setAttribute('d', `M${p.a.px} ${p.a.py} Q${(p.a.px + p.b.px) / 2} ${Math.min(p.a.py, p.b.py) - lift} ${p.b.px} ${p.b.py}`);
-            p.el.style.opacity = e.toFixed(3);
+        portals.forEach(p => {
+            const lift = Math.min(400, Math.abs(p.b.px - p.a.px) * 0.3);
+            p.el.setAttribute('d', `M${p.a.px} ${-p.a.y} Q${(p.a.px + p.b.px) / 2} ${-Math.max(p.a.y, p.b.y) - lift} ${p.b.px} ${-p.b.y}`);
+            p.el.style.opacity = e;
         });
-        s.columns.forEach(c => {
-            const x = W + (c.z - mx) * scale;
+        columns.forEach(c => {
+            const x = pivot + (c.x - pivot) * sin;
             c.line.setAttribute('x1', x); c.line.setAttribute('x2', x);
-            c.line.setAttribute('y1', 100); c.line.setAttribute('y2', window.innerHeight - 90);
-            c.label.setAttribute('x', x); c.label.setAttribute('y', 90);
-            c.line.style.opacity = c.label.style.opacity = e.toFixed(3);
+            c.label.setAttribute('x', x);
+            c.line.style.opacity = c.label.style.opacity = e;
         });
     }
 
@@ -93,10 +98,109 @@ export function createSide({ bridge, say }) {
             const start = performance.now();
             (function step(now) {
                 const t = Math.min(1, (now - start) / DURATION);
-                frame(ease(lerp(from, to, t)));
+                frame(ease(from + (to - from) * t));
                 if (t < 1) requestAnimationFrame(step); else resolve();
             })(start);
         });
+    }
+
+    function replica(n, rich) {
+        const g = make('g', { class: 'gs-node' });
+        g.style.setProperty('--c', n.color || '#33FF99');
+        const r = n.r;
+        g.append(n.shape === 'square' ? make('rect', { class: 'gs-shape', x: -r, y: -r, width: 2 * r, height: 2 * r })
+            : make('circle', { class: `gs-shape${n.shape === 'none' ? ' bare' : ''}`, r }));
+        if (rich && n.html) {
+            const fo = make('foreignObject', { x: -r * 0.78, y: -r * 0.78, width: r * 1.56, height: r * 1.56 });
+            const box = document.createElement('div');
+            box.className = 'gs-text';
+            const text = document.createElement('span');
+            text.className = 'node-text-input';
+            text.innerHTML = n.html;
+            box.append(text);
+            fo.append(box);
+            g.append(fo);
+        }
+        g.addEventListener('pointerenter', () => {
+            tip.textContent = `${n.layer} · ${n.dimension}`;
+            tip.hidden = false;
+        });
+        g.addEventListener('pointerleave', () => { tip.hidden = true; });
+        let press = null;
+        g.addEventListener('pointerdown', event => { press = [event.clientX, event.clientY]; });
+        g.addEventListener('pointerup', event => {
+            if (press && Math.hypot(event.clientX - press[0], event.clientY - press[1]) < 5) close(n);
+            press = null;
+        });
+        return g;
+    }
+
+    function build({ layers: known, nodes: stored, links: pairs, portals: bridges }) {
+        const current = layerNumber;
+        const names = new Map(known.map(l => [l.id, l.name]));
+        // La dimension ouverte telle qu'à l'écran (nodes pas encore sauvés compris), les autres telles qu'en base.
+        const live = [...document.querySelectorAll('.node-group')].map(g => {
+            const shape = g.getAttribute('shape') === 'square' ? g.children[2] : g.children[1];
+            const r = g.getAttribute('shape') === 'square' ? Number(shape.getAttribute('width')) / 2 : Number(shape.getAttribute('r'));
+            return { id: g.id, layer: current, x: Number(g.getAttribute('x')), y: Number(g.getAttribute('y')), r: r || 60,
+                color: g.getAttribute('color'), shape: g.getAttribute('shape'), html: g.children[0].children[0].innerHTML };
+        });
+        const seen = new Set(live.map(n => n.id));
+        const nodes = [...live, ...stored.filter(n => n.layer !== current && !seen.has(n.id))
+            .map(n => ({ ...n, r: Math.min(300, Math.max(40, n.radius || 60)) }))];
+        const livePairs = [...document.querySelectorAll('.link')].map(l => [l.getAttribute('Node1'), l.getAttribute('Node2')]);
+        const center = bridge.center();
+        // Colonnes dans l'ordre des numéros de dimension, écartées selon leur largeur ; la dimension ouverte reste
+        // au centre de la vue (elle pivote sur place).
+        const byLayer = new Map([[current, []]]);
+        nodes.forEach(n => {
+            n.here = n.layer === current;
+            n.dimension = names.get(n.layer) || `dimension ${n.layer}`;
+            if (!byLayer.has(n.layer)) byLayer.set(n.layer, []);
+            byLayer.get(n.layer).push(n);
+        });
+        const order = [...byLayer.keys()].sort((a, b) => a - b);
+        let cursor = 0;
+        const centers = new Map();
+        order.forEach(layer => {
+            const { min, max } = spread(byLayer.get(layer));
+            centers.set(layer, cursor - min);
+            cursor = cursor - min + max + COLUMN_GAP;
+        });
+        const shift = center.x - centers.get(current);
+        const rich = nodes.length <= RICH;
+        // Dans `universe`, Nodz dessine un node à sa position plus (centerX, centerY) : même décalage ici.
+        const group = make('g', { class: 'gardien-side-layer', transform: `translate(${centerX} ${centerY})` });
+        const [guides, linkLayer, portalLayer, nodeLayer] = ['gs-guides', 'gs-links', 'gs-portals', 'gs-nodes'].map(c => group.appendChild(make('g', { class: c })));
+        const byId = new Map();
+        nodes.forEach(n => {
+            n.fx = centers.get(n.layer) + shift + n.ox;
+            n.el = nodeLayer.appendChild(replica(n, rich));
+            byId.set(n.id, n);
+        });
+        const links = [];
+        const linked = new Set();
+        [...pairs, ...livePairs].forEach(([a, b]) => {
+            const key = [a, b].sort().join('|');
+            if (!byId.has(a) || !byId.has(b) || linked.has(key)) return;
+            linked.add(key);
+            links.push({ a: byId.get(a), b: byId.get(b), el: linkLayer.appendChild(make('line')) });
+        });
+        const portals = bridges.filter(([a, b]) => byId.has(a) && byId.has(b))
+            .map(([a, b]) => ({ a: byId.get(a), b: byId.get(b), el: portalLayer.appendChild(make('path')) }));
+        const ys = nodes.length ? nodes : [{ y: center.y, r: 0 }];
+        const top = Math.max(...ys.map(n => n.y + n.r)) + 220;  // étiquettes des colonnes au-dessus
+        const bottom = Math.min(...ys.map(n => n.y - n.r)) - 120;
+        const columns = order.map(layer => {
+            const x = centers.get(layer) + shift;
+            const line = guides.appendChild(make('line', { class: layer === current ? 'here' : '', y1: -top + 60, y2: -bottom }));
+            const label = guides.appendChild(make('text', { class: layer === current ? 'here' : '', y: -top }));
+            label.textContent = `${layer} · ${names.get(layer) || ''}`;
+            return { x, line, label };
+        });
+        const xs = nodes.map(n => n.fx).concat(columns.map(c => c.x));
+        scene = { nodes, links, portals, columns, group, pivot: center.x,
+            bounds: { x0: Math.min(...xs) - 200, x1: Math.max(...xs) + 200, y0: bottom, y1: top } };
     }
 
     async function open() {
@@ -104,118 +208,43 @@ export function createSide({ bridge, say }) {
         busy = true;
         try {
             const data = await api.request('GET', 'toolbox/side');
+            selectedNodes.slice().forEach(n => nodeUnselection(n));
+            const c = bridge.center(), hw = window.innerWidth / 2 / Number(currentZoom), hh = window.innerHeight / 2 / Number(currentZoom);
+            const back = { x0: c.x - hw, x1: c.x + hw, y0: c.y - hh, y1: c.y + hh };  // la vue à retrouver en sortant
             build(data);
-            pan = { x: 0, y: 0, k: 1 };
-            applyPan();
-            root.hidden = false;
-            button.classList.add('on');
-            await animate(0, 1);
+            scene.back = back;
+            universe.append(scene.group);
+            document.body.classList.add('gardien-side-on');
+            cube.classList.add('on');
+            banner.hidden = false;
+            frame(0);
+            await Promise.all([animate(0, 1), bridge.frame(scene.bounds, 80)]);
         } catch (error) {
             say(`Vue de côté : ${error.message}`, 'error');
+            teardown();
         } finally {
             busy = false;
         }
     }
 
+    function teardown() {
+        scene?.group.remove();
+        scene = null;
+        document.body.classList.remove('gardien-side-on');
+        cube.classList.remove('on');
+        banner.hidden = tip.hidden = true;
+    }
+
     async function close(target = null) {
-        if (busy || root.hidden) return;
+        if (busy || !scene) return;
         busy = true;
         tip.hidden = true;
-        pan = { x: 0, y: 0, k: 1 };
-        applyPan();
-        await animate(1, 0);
-        root.hidden = true;
-        button.classList.remove('on');
+        const back = scene.back;
+        await Promise.all([animate(1, 0), target ? null : bridge.frame(back, 0)]);
+        teardown();
         busy = false;
         if (target) await bridge.perform({ op: 'goto', ref: target.id, layer: target.layer, zoom: 1.2 });
     }
-
-    function build({ layers: known, nodes, links: pairs, portals: bridges }) {
-        const current = layerNumber;
-        const center = bridge.center();
-        const W = window.innerWidth / 2, H = window.innerHeight / 2, s0 = Number(currentZoom);
-        // Calage : les coordonnées enregistrées n'ont pas tout à fait l'origine de l'écran. Les nodes de la page donnent
-        // leur centre réel ; l'écart médian corrige tous les nodes (Y reste comparable d'une dimension à l'autre).
-        const live = new Map([...document.querySelectorAll('.node-group')].map(g => {
-            const r = (g.getAttribute('shape') === 'square' ? g.children[2] : g.children[1]).getBoundingClientRect();
-            return [g.id, { x: center.x + (r.left + r.width / 2 - W) / s0, y: center.y - (r.top + r.height / 2 - H) / s0, r: r.width / 2 }];
-        }));
-        const deltas = nodes.filter(n => n.layer === current && live.has(n.id)).map(n => [live.get(n.id).x - n.x, live.get(n.id).y - n.y]);
-        const median = k => (deltas.length ? deltas.map(d => d[k]).sort((a, b) => a - b)[Math.floor(deltas.length / 2)] : 0);
-        const [dx, dy] = [median(0), median(1)];
-        nodes.forEach(n => {
-            const here = n.layer === current && live.get(n.id);
-            Object.assign(n, here ? { x: here.x, y: here.y, r0: here.r } : { x: n.x + dx, y: n.y + dy, r0: 7 });
-        });
-        const ys = nodes.map(n => n.y), xs = nodes.map(n => n.x);
-        const spanY = Math.max(600, Math.max(...ys, 0) - Math.min(...ys, 0));
-        const spanX = Math.max(600, Math.max(...xs, 0) - Math.min(...xs, 0));
-        const col = Math.min(1500, Math.max(250, spanY / 3));  // écart entre deux numéros de dimension
-        const depth = Math.min(0.12, (col * 0.35) / spanX);    // part de l'ancien X gardée en profondeur
-        const byId = new Map();
-        [guides, links, portals, dots, labels].forEach(g => g.replaceChildren());
-        const named = nodes.length <= LABELS;  // peu de nodes : leur texte à côté du point
-        const s = { vx: center.x, vy: center.y, s0, depth, nodes: [], links: [], portals: [], columns: [] };
-        nodes.forEach(n => {
-            const node = { ...n, z: (n.layer - current) * col, here: n.layer === current };
-            node.dot = dots.appendChild(svgEl('circle', { class: n.shape === 'square' ? 'square' : '' }));
-            node.dot.style.setProperty('--c', n.color || '#33FF99');
-            node.dot.addEventListener('mouseenter', () => {
-                const name = (known.find(l => l.id === n.layer) || {}).name || '';
-                tip.textContent = `${n.text || '(node vide)'}  ·  ${n.layer} ${name}`;
-                tip.hidden = false;
-            });
-            node.dot.addEventListener('mouseleave', () => { tip.hidden = true; });
-            node.dot.addEventListener('click', () => close(n));
-            if (named && n.text) {
-                node.label = labels.appendChild(svgEl('text'));
-                node.label.textContent = n.text.length > 24 ? `${n.text.slice(0, 23)}…` : n.text;
-            }
-            byId.set(n.id, node);
-            s.nodes.push(node);
-        });
-        pairs.forEach(([a, b]) => byId.has(a) && byId.has(b) && s.links.push({ a: byId.get(a), b: byId.get(b), el: links.appendChild(svgEl('line')) }));
-        bridges.forEach(([a, b]) => byId.has(a) && byId.has(b) && s.portals.push({ a: byId.get(a), b: byId.get(b), el: portals.appendChild(svgEl('path')) }));
-        const used = new Set(nodes.map(n => n.layer).concat(current));
-        known.filter(l => used.has(l.id)).forEach(l => {
-            const line = guides.appendChild(svgEl('line', { class: l.id === current ? 'here' : '' }));
-            const label = guides.appendChild(svgEl('text', { class: l.id === current ? 'here' : '' }));
-            label.textContent = `${l.id} · ${l.name}`;
-            s.columns.push({ z: (l.id - current) * col, line, label });
-        });
-        // Vue finale : toutes les colonnes et tout Y tiennent à l'écran.
-        const fx = s.nodes.map(n => (n.x - s.vx) * depth + n.z).concat(s.columns.map(c => c.z));
-        const fy = s.nodes.map(n => n.y - s.vy).concat(0);
-        const [x0, x1, y0, y1] = [Math.min(...fx), Math.max(...fx), Math.min(...fy), Math.max(...fy)];
-        s.s1 = Math.min((window.innerWidth - 160) / Math.max(1, x1 - x0), (window.innerHeight - 220) / Math.max(1, y1 - y0), 1.5);
-        s.mx = (x0 + x1) / 2;
-        s.my = (y0 + y1) / 2;
-        scene = s;
-    }
-
-    // Molette : zoom sous le pointeur ; glissé : déplacement (vue finale seulement).
-    svg.addEventListener('wheel', event => {
-        event.preventDefault();
-        if (busy) return;
-        const k = Math.min(8, Math.max(0.3, pan.k * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
-        pan.x = event.clientX - ((event.clientX - pan.x) * k) / pan.k;
-        pan.y = event.clientY - ((event.clientY - pan.y) * k) / pan.k;
-        pan.k = k;
-        applyPan();
-    }, { passive: false });
-    let drag = null;
-    svg.addEventListener('pointerdown', event => {
-        if (busy || event.target.closest('circle')) return;
-        drag = { x: event.clientX - pan.x, y: event.clientY - pan.y };
-        svg.setPointerCapture(event.pointerId);
-    });
-    svg.addEventListener('pointermove', event => {
-        if (!drag) return;
-        pan.x = event.clientX - drag.x;
-        pan.y = event.clientY - drag.y;
-        applyPan();
-    });
-    svg.addEventListener('pointerup', () => { drag = null; });
 
     return { open, close };
 }

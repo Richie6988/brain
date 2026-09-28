@@ -280,6 +280,15 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             const v = view();
             return zoomTo(zoom, v.x, v.y, take);
         },
+        // Cadre une zone (coordonnées de Nodz) avec les gestes de Nodz : crans de molette puis glissé, comme overview.
+        async frame({ x0, x1, y0, y1 }, margin = 160) {
+            cut();
+            const id = take, v = view();
+            const zoom = Math.min(window.innerWidth / (x1 - x0 + 2 * margin), (window.innerHeight - 140) / (y1 - y0 + 2 * margin), 1.6);
+            if (!(await zoomTo(zoom, v.x, v.y, id))) return false;
+            const c = toScreen((x0 + x1) / 2, (y0 + y1) / 2);
+            return pan(v.x - c.x, v.y - c.y, id);
+        },
         // La visite passe un portail : la dimension de l'autre bout se charge, la caméra suit ensuite.
         async enter(layer) {
             if (layer === layerNumber) return;
