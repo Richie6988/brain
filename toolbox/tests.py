@@ -1411,7 +1411,7 @@ class SearchTests(TestCase):
         self.assertEqual(self.client.get('/api/v1/toolbox/search?q=').json()['results'], [])
 
 
-class FakeResponse:
+class ApiResponse:
     def __init__(self, status=200, lines=(), body=None):
         self.status_code, self.lines, self.body, self.closed = status, list(lines), body or {}, False
         self.text = json.dumps(self.body)
@@ -1435,10 +1435,10 @@ class ApiModelTests(TestCase):
         lines = [f'data: {json.dumps({"choices": [{"delta": {"content": p}}]})}' for p in pieces]
         if usage:
             lines.append(f'data: {json.dumps({"choices": [], "usage": usage})}')
-        return FakeResponse(lines=[*lines, 'data: [DONE]'])
+        return ApiResponse(lines=[*lines, 'data: [DONE]'])
 
     def test_add_check_and_hide_the_key(self):
-        with mock.patch('toolbox.remote.requests.post', return_value=FakeResponse(body={'choices': []})) as post:
+        with mock.patch('toolbox.remote.requests.post', return_value=ApiResponse(body={'choices': []})) as post:
             r = self.client.post('/api/v1/toolbox/models', {'endpoint': 'http://localhost:11434/v1/', 'name': 'qwen2.5:3b', 'api_key': 'sk-secret'},
                                  content_type='application/json')
         self.assertEqual(r.status_code, 201)
@@ -1448,7 +1448,7 @@ class ApiModelTests(TestCase):
         self.assertEqual(post.call_args.args[0], 'http://localhost:11434/v1/chat/completions')
         self.assertEqual(post.call_args.kwargs['headers']['Authorization'], 'Bearer sk-secret')
         self.assertNotIn('sk-secret', self.client.get('/api/v1/toolbox/models').content.decode())
-        with mock.patch('toolbox.remote.requests.post', return_value=FakeResponse(status=401, body={'error': 'bad key'})):
+        with mock.patch('toolbox.remote.requests.post', return_value=ApiResponse(status=401, body={'error': 'bad key'})):
             r = self.client.post('/api/v1/toolbox/models', {'endpoint': 'https://api.example.com/v1', 'name': 'x'}, content_type='application/json')
         self.assertEqual(r.status_code, 400)
         self.assertIn('401', r.json()['error'])
@@ -1471,7 +1471,7 @@ class ApiModelTests(TestCase):
         self.assertEqual(engine.stats[model.pk]['last']['prompt_tokens'], 812)
         self.assertIsNone(engine.loaded)  # rien de chargé en mémoire
         self.assertFalse(engine.prefill(model, [{'role': 'system', 'content': 'consignes'}]))
-        refused = FakeResponse(status=400, body={'error': 'response_format json_schema not supported'})
+        refused = ApiResponse(status=400, body={'error': 'response_format json_schema not supported'})
         with mock.patch('toolbox.remote.requests.post', side_effect=[refused, self.sse('{}')]) as post:
             engine.chat(model, [{'role': 'user', 'content': 'x'}], json_schema={'type': 'object'})
         self.assertEqual(post.call_args.kwargs['json']['response_format'], {'type': 'json_object'})  # serveur sans schéma
