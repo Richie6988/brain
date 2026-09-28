@@ -93,6 +93,20 @@ Shell, environnement Python, outils forgés et serveurs MCP exécutent du code s
 proposés qu'au compte administrateur, après `GUARDIAN_SHELL=1` dans `.env`, puis cochés un par un dans
 Agents & modèles, onglet Outils. Serveurs MCP : `MCP_SERVERS={"nom": {"url": "https://…/mcp", "headers": {}}}`.
 
+## Nodes de code (IDE)
+
+L'IDE des nodes de code exécute JavaScript et Python dans le navigateur, et Python, Bash ou Node sur le serveur
+(administrateur, `GUARDIAN_SHELL=1`, dans l'espace de travail de l'utilisateur).
+
+Python dans le navigateur utilise Pyodide, chargé depuis le CDN jsdelivr au premier usage. Pour un serveur sans accès
+au CDN (ou pour ne rien charger d'ailleurs), installer une copie locale (14 Mo, hors dépôt), elle sera prise d'abord :
+
+```bash
+cd nodzapp/static/vendor && npm pack pyodide@0.27.7 && tar xzf pyodide-0.27.7.tgz \
+  && mkdir -p pyodide && cp package/{pyodide.js,pyodide.asm.js,pyodide.asm.wasm,python_stdlib.zip,pyodide-lock.json} pyodide/ \
+  && rm -rf package pyodide-0.27.7.tgz && cd - && python manage.py collectstatic --noinput
+```
+
 ## Désinstallation
 
 ```bash

@@ -8,3 +8,5 @@ nodzapp/media/
 GeoLite2-*.mmdb
 node_modules/
 var/
+# Python dans le navigateur (14 Mo) : copie locale facultative, voir DEPLOY.md
+nodzapp/static/vendor/pyodide/

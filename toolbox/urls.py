@@ -20,6 +20,7 @@ urlpatterns = [
     path('search', api.search),
     path('side', api.side),
     path('nodes/meta', api.node_meta),
+    path('run', api.run_code),
     path('images/<str:name>', api.image),
     path('workspace/<path:path>', api.workspace_file),
     path('brain-map', api.brain_map),

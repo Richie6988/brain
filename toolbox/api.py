@@ -119,6 +119,30 @@ def search(request, body):
     return JsonResponse({'results': results})
 
 
+RUNNERS = {'python': ['python3', '-c'], 'bash': ['/bin/bash', '-c'], 'javascript': ['node', '-e']}
+
+
+@api('POST')
+def run_code(request, body):
+    """IDE des nodes de code, exécution sur le serveur : dans l'espace de travail confiné de l'utilisateur, avec un
+    délai. Comme le shell du Gardien : compte administrateur et GUARDIAN_SHELL=1 seulement (sinon, le navigateur)."""
+    if not (request.user.is_staff and settings.GUARDIAN_SHELL):
+        return JsonResponse({'error': "exécution sur le serveur réservée à l'administrateur (GUARDIAN_SHELL=1) : "
+                                      'exécute dans le navigateur'}, status=403)
+    language, code = body.get('language'), str(body.get('code') or '')
+    if language not in RUNNERS:
+        raise ChangeError(f"langage {language!r} non exécutable sur le serveur ({', '.join(RUNNERS)})")
+    if not code.strip() or len(code) > 100_000:
+        raise ChangeError('code vide ou trop long (100 000 caractères au plus)')
+    started = time.monotonic()
+    try:
+        result = workspace.run([*RUNNERS[language], code], workspace.root(request.user), workspace.TIMEOUT,
+                               workspace.safe_env(request.user))
+    except workspace.WorkspaceError as e:
+        result = {'code': None, 'stdout': '', 'stderr': str(e)}
+    return JsonResponse({**result, 'duration_ms': int((time.monotonic() - started) * 1000)})
+
+
 @api('GET')
 def node_meta(request, body):
     """Traçabilité des nodes (visite) : création, dernière modification, origine (main de l'utilisateur, Gardien,

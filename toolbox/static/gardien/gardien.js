@@ -10,6 +10,7 @@ import { api } from './api.js';
 import { createBridge } from './bridge.js';
 import { createChat } from './chat.js';
 import { createCorners } from './corners.js';
+import { createIde } from './ide.js';
 import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
 import { createLibrary } from './library.js';
@@ -102,6 +103,7 @@ const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node 
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title) });
 const tour = createTour({ bridge, say });
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
+createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur
 createSide({ bridge, say });  // vue de côté : X = numéro de dimension, Y = Y
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur

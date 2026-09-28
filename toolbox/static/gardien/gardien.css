@@ -602,7 +602,7 @@ body:has(.universe.lightmode) .gc-links button { color: #440852; }
 /* Correspondance : le bouton Échanges du chat s'allume quand le Gardien a laissé des notes. */
 .gc-panel header .gc-exchanges.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
 
-/* Portail : l'image (img/portal.svg) s'anime seule (cœur qui respire, anneaux qui tournent) ; ici son halo, plus vif
+/* Portail : l'image (img/portal-vortex.svg) s'anime seule (cœur qui respire, anneaux qui tournent) ; ici son halo, plus vif
    au survol. Même place et même taille (le feel ne bouge pas). La visite le traverse (tour.js) : bouton de choix et
    passage « ⟿ » dans le fil d'Ariane. */
 @keyframes gardien-portal-glow { 50% { filter: drop-shadow(0 0 7px rgba(30, 144, 255, 0.85)); } }
@@ -650,13 +650,18 @@ body.gardien-side-on :is(.node-group, .link, .triangle-container, #gardien-nodeb
 .gardien-side-layer .gs-guides line.here { stroke: rgba(30, 144, 255, 0.6); stroke-dasharray: none; }
 .gardien-side-layer .gs-guides text { fill: #94a3b8; font: 600 34px 'Cascadia Code', monospace; text-anchor: middle; }
 .gardien-side-layer .gs-guides text.here { fill: #1E90FF; }
-#gardien-side-banner {
-    position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 32; display: flex; gap: 12px; align-items: center; padding: 6px 16px;
-    font: 11px 'Cascadia Code', monospace; color: #94a3b8; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(184, 154, 242, 0.35);
-    border-radius: 999px; backdrop-filter: blur(10px); box-shadow: 0 0 14px rgba(104, 72, 166, 0.4); animation: gardien-appear 0.3s ease-out; pointer-events: none;
-}
-#gardien-side-banner[hidden], #gardien-side-tip[hidden] { display: none; }
-#gardien-side-banner strong { color: #b89af2; }
+/* mode clair : répliques claires, texte, colonnes et liens foncés, comme les nodes réels en mode clair */
+body:has(.universe.lightmode) .gardien-side-layer .gs-shape { fill: #ffffff; }
+body:has(.universe.lightmode) .gardien-side-layer .gs-shape.bare { fill: transparent; }
+body:has(.universe.lightmode) .gardien-side-layer .gs-links line { stroke: rgba(68, 8, 82, 0.45); }
+body:has(.universe.lightmode) .gardien-side-layer .gs-guides line { stroke: rgba(68, 8, 82, 0.2); }
+body:has(.universe.lightmode) .gardien-side-layer .gs-guides line.here { stroke: rgba(104, 72, 166, 0.6); }
+body:has(.universe.lightmode) .gardien-side-layer .gs-guides text { fill: #6b5b8a; }
+body:has(.universe.lightmode) .gardien-side-layer .gs-guides text.here { fill: #6848A6; }
+body:has(.universe.lightmode) .gardien-side-layer .gs-portals path { stroke: #6848A6; filter: drop-shadow(0 0 4px rgba(104, 72, 166, 0.5)); }
+body:has(.universe.lightmode) #gardien-side-tip { color: #440852; background: rgba(255, 255, 255, 0.95); border-color: rgba(68, 8, 82, 0.2); }
+body:has(.universe.lightmode) #gardien-cube small { color: #6b5b8a; }
+#gardien-side-tip[hidden] { display: none; }
 #gardien-side-tip {
     position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); z-index: 32; margin: 0; padding: 6px 14px; pointer-events: none;
     font: 12px 'Cascadia Code', monospace; color: #f8fafc; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 12px;
@@ -724,3 +729,56 @@ body:has(.universe.lightmode) #gardien-tour { background: linear-gradient(rgba(2
     linear-gradient(135deg, var(--c, #6848A6), #6848A6 45%, #1E90FF) border-box; }
 body:has(.universe.lightmode) .gt-title { color: #1e1b4b; }
 body:has(.universe.lightmode) .gt-meta span { color: #440852; }
+
+/* Nodes de code : bloc monospace aligné à gauche dans le node ; IDE (ide.js) en verre sombre, CodeMirror au thème de
+   Nodz, console sous l'éditeur. */
+.node-group[type=code] .node-text-input { text-align: left; }
+.node-group[type=code] .node-text-input code {
+    display: block; white-space: pre; overflow: hidden; font: 11px/1.4 'Cascadia Code', ui-monospace, monospace; color: #c4b5fd; tab-size: 4;
+}
+body:has(.universe.lightmode) .node-group[type=code] .node-text-input code { color: #440852; }
+#gardien-nodebar .gn-action { width: auto; padding: 0 10px; border-radius: 999px; font-weight: 600; }
+#gardien-ide {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 45; width: min(960px, calc(100vw - 40px)); height: min(680px, calc(100vh - 80px));
+    display: grid; grid-template-rows: auto 1fr auto minmax(90px, 28%); font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: linear-gradient(rgba(8, 13, 28, 0.97), rgba(8, 13, 28, 0.97)) padding-box, linear-gradient(135deg, #6848A6, #1E90FF) border-box;
+    border: 1px solid transparent; border-radius: 20px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 30px rgba(104, 72, 166, 0.35); overflow: hidden;
+    animation: gardien-appear 0.2s ease-out;
+}
+#gardien-ide[hidden] { display: none; }
+#gardien-ide header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid rgba(148, 163, 184, 0.15); }
+#gardien-ide header strong { flex: 1; color: #b89af2; letter-spacing: 0.04em; }
+#gardien-ide .gi-logo { padding: 2px 8px; border-radius: 8px; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); font-weight: 700; }
+#gardien-ide select, #gardien-ide button {
+    font: inherit; color: #e2e8f0; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+}
+#gardien-ide button:hover:not(:disabled) { background: rgba(104, 72, 166, 0.5); }
+#gardien-ide button:disabled { opacity: 0.5; cursor: progress; }
+#gardien-ide .gi-run { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); border: 0; font-weight: 700; box-shadow: 0 0 14px rgba(104, 72, 166, 0.5); }
+#gardien-ide .gi-save { border-color: rgba(51, 255, 153, 0.5); }
+#gardien-ide .gi-editor { min-height: 0; }
+#gardien-ide .gi-editor .CodeMirror { height: 100%; font: 13px/1.55 'Cascadia Code', ui-monospace, monospace; }
+#gardien-ide footer { display: flex; justify-content: space-between; padding: 6px 14px; color: #94a3b8; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    border-top: 1px solid rgba(148, 163, 184, 0.15); background: rgba(5, 12, 23, 0.6); }
+#gardien-ide .gi-status { text-transform: none; letter-spacing: 0; }
+#gardien-ide .gi-status.ok { color: #33FF99; }
+#gardien-ide .gi-status.bad { color: #FF6B6B; }
+#gardien-ide .gi-console { margin: 0; padding: 10px 14px; overflow: auto; white-space: pre-wrap; background: #03070f; font: 12px/1.5 'Cascadia Code', ui-monospace, monospace; }
+#gardien-ide .gi-console .err { color: #FF6B6B; }
+#gardien-ide .gi-console .info { color: #b89af2; }
+/* Thème CodeMirror « nodz » */
+.cm-s-nodz.CodeMirror { background: #070d1c; color: #e2e8f0; }
+.cm-s-nodz .CodeMirror-gutters { background: #050a16; border-right: 1px solid rgba(148, 163, 184, 0.12); }
+.cm-s-nodz .CodeMirror-linenumber { color: #475569; }
+.cm-s-nodz .CodeMirror-cursor { border-left: 2px solid #b89af2; }
+.cm-s-nodz .CodeMirror-activeline-background { background: rgba(104, 72, 166, 0.14); }
+.cm-s-nodz .CodeMirror-selected, .cm-s-nodz.CodeMirror-focused .CodeMirror-selected { background: rgba(30, 144, 255, 0.28); }
+.cm-s-nodz .CodeMirror-matchingbracket { color: #33FF99 !important; text-decoration: underline; }
+.cm-s-nodz .cm-keyword { color: #c084fc; }
+.cm-s-nodz .cm-def, .cm-s-nodz .cm-variable-2 { color: #60a5fa; }
+.cm-s-nodz .cm-builtin { color: #22d3ee; }
+.cm-s-nodz .cm-string, .cm-s-nodz .cm-string-2 { color: #33FF99; }
+.cm-s-nodz .cm-number, .cm-s-nodz .cm-atom { color: #FFB84D; }
+.cm-s-nodz .cm-comment { color: #64748b; font-style: italic; }
+.cm-s-nodz .cm-operator { color: #f472b6; }
+.cm-s-nodz .cm-property, .cm-s-nodz .cm-attribute { color: #93c5fd; }

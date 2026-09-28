@@ -556,7 +556,7 @@ function nodeSizing(nodeGroup,w,h) {
     // Rectangle étiré (attribut ratio = largeur / hauteur) : à surface égale, ses proportions sont gardées quel que
     // soit l'appel, et sa hauteur n'est plus seulement celle du texte.
     const ratio = parseFloat(nodeGroup.getAttribute('ratio')) || 0;
-    const stretched = ratio > 0 && nodeGroup.getAttribute('shape') === 'square' && nodeGroup.getAttribute('type') === 'text';
+    const stretched = ratio > 0 && nodeGroup.getAttribute('shape') === 'square' && ['text', 'code'].includes(nodeGroup.getAttribute('type'));
     if (stretched) {
         const area = w * h;
         w = Math.sqrt(area * ratio);
@@ -616,7 +616,7 @@ function nodeSizing(nodeGroup,w,h) {
                 reduction_factor = 2*hitboxRadius - h*nw/nh; 
             }               
         }           
-    } else if (nodeGroup.getAttribute('type') === 'text' && nodeGroup.getAttribute('shape') === 'square') {
+    } else if (['text', 'code'].includes(nodeGroup.getAttribute('type')) && nodeGroup.getAttribute('shape') === 'square') {
         square.setAttribute('width', w + 30); 
         square.setAttribute('height', Math.max(input.scrollHeight, stretched ? h : 0) + 30);
         reduction_factor = 2*hitboxRadius - w - 30; 

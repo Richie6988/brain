@@ -1484,6 +1484,32 @@ class ApiModelTests(TestCase):
             engine.chat(model, [{'role': 'user', 'content': 'x'}])
 
 
+class RunCodeTests(TestCase):
+    def setUp(self):
+        self.user = NodzUser.objects.create_user(email='dev@nodz.local', password='pw-123456', is_staff=True)
+        self.client.force_login(self.user)
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def run_code(self, **body):
+        return self.client.post('/api/v1/toolbox/run', body, content_type='application/json')
+
+    def test_server_run_is_gated_confined_and_timed(self):
+        self.assertEqual(self.run_code(language='python', code='print(1)').status_code, 403)  # GUARDIAN_SHELL=0
+        with self.settings(GUARDIAN_SHELL=True, WORKSPACE_DIR=self.tmp):
+            r = self.run_code(language='python', code='import os\nprint(6 * 7, os.getcwd())').json()
+            self.assertEqual(r['code'], 0)
+            self.assertIn('42', r['stdout'])
+            self.assertIn(self.tmp, r['stdout'])  # dans son espace de travail
+            self.assertIn('boom', self.run_code(language='bash', code='echo boom >&2; exit 3').json()['stderr'])
+            self.assertEqual(self.run_code(language='ruby', code='x').status_code, 400)
+            with mock.patch('toolbox.workspace.TIMEOUT', 1):
+                self.assertIn('délai', self.run_code(language='python', code='import time\ntime.sleep(5)').json()['stderr'])
+            self.user.is_staff = False
+            self.user.save()
+            self.assertEqual(self.run_code(language='python', code='print(1)').status_code, 403)  # pas administrateur
+
+
 class NodeMetaTests(TestCase):
     def test_created_modified_and_author(self):
         from nodzapp.models import Layer, Node

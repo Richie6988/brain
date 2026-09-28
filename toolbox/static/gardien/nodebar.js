@@ -45,6 +45,10 @@ const TOOLS = {
         { icon: 'colorpicking', title: 'Couleur du trait', group: CANVAS, index: 7, on: 'click' },
         { kind: 'size', title: 'Épaisseur', group: CANVAS, index: 6 },
     ],
+    code: [  // nodes de code : l'IDE (ide.js) s'ouvre par un événement
+        { kind: 'action', action: 'ide', label: '</> IDE', title: "Ouvrir l'IDE" },
+        { kind: 'action', action: 'run', label: '▶', title: 'Ouvrir et exécuter' },
+    ],
     file: [
         { icon: 'upload', title: 'Importer un fichier', group: FILE, index: 0, on: 'mousedown', pick: 'div' },
         { icon: 'download', title: 'Télécharger', group: FILE, index: 1, on: 'mousedown', pick: 'div' },
@@ -173,7 +177,7 @@ export function createNodebar() {
         const selected = typeof selectedNodes !== 'undefined' && selectedNodes.length ? selectedNodes[selectedNodes.length - 1] : null;
         const target = selected?.isConnected ? selected : drawn?.isConnected ? drawn : null;
         if (!target) return [null, []];
-        const extra = { canvas: 'canvas', file: 'file' }[target.getAttribute('type')];
+        const extra = { canvas: 'canvas', file: 'file', code: 'code' }[target.getAttribute('type')];
         return [target, ['params', ...(extra ? [extra] : [])]];
     };
     const source = (node, tool) => {
@@ -225,6 +229,11 @@ export function createNodebar() {
 
     function control(node, tool) {
         if (tool.kind === 'family') return family();
+        if (tool.kind === 'action') {
+            const b = Object.assign(document.createElement('button'), { type: 'button', title: tool.title, textContent: tool.label, className: 'gn-action' });
+            b.addEventListener('click', () => document.dispatchEvent(new CustomEvent('gardien-code', { detail: { node, action: tool.action } })));
+            return b;
+        }
         const element = source(node, tool);
         if (tool.kind === 'type') {
             const select = element.cloneNode(true);  // mêmes types que la liste de Nodz
@@ -256,7 +265,7 @@ export function createNodebar() {
         key = next;
         bar.replaceChildren(...modes.flatMap((mode, i) => [
             ...(i ? [Object.assign(document.createElement('span'), { className: 'sep' })] : []),
-            ...TOOLS[mode].filter(tool => tool.kind === 'family' || source(node, tool)).map(tool => control(node, tool)),
+            ...TOOLS[mode].filter(tool => ['family', 'action'].includes(tool.kind) || source(node, tool)).map(tool => control(node, tool)),
         ]));
     }
 

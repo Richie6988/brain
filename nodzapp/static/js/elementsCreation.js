@@ -169,6 +169,7 @@ function createNode(x,y,id) {
         { text: 'Image' },
         { text: 'File' },
         { text: 'Canvas' },
+        { text: 'Code' },
       ];
       
       options.forEach(option => {
@@ -283,6 +284,18 @@ function createNode(x,y,id) {
                     }            
                 } 
             });            
+            break;
+        case 'code':
+            // Node de code : le code est dans le texte, sous <code data-lang>, et s'édite dans l'IDE du Gardien (ide.js)
+            nodeGroup.setAttribute('type', 'code');
+            input.style.display = 'block';
+            if (!input.querySelector('code')) {
+                const code = document.createElement('code');
+                code.dataset.lang = 'python';
+                code.textContent = input.innerText.trim();
+                input.replaceChildren(code);
+                nodeGroup.setAttribute('textcontent', input.innerHTML);
+            }
             break;
         case 'file':
             // console.log('Document option selected');
@@ -895,7 +908,7 @@ function createNode(x,y,id) {
     var quantumButtonfo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     quantumButtonfo.setAttribute('class', 'stylebutton'); 
     const quantumButtonimg = document.createElement('img');
-    quantumButtonimg.setAttribute('src', NODZ_BASE + '/static/img/portal.svg');
+    quantumButtonimg.setAttribute('src', NODZ_BASE + '/static/img/portal-vortex.svg');  // nouveau nom : aucune ancienne copie en cache
     quantumButtonimg.style.width = '100%';
     quantumButtonimg.style.height = '100%';
     quantumButtonfo.classList.add("portal");
