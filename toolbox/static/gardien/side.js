@@ -46,11 +46,6 @@ export function createSide({ bridge, say }) {
     cube.title = 'Vue de côté : X = numéro de dimension, Y = Y (Échap pour revenir)';
     cube.innerHTML = '<span class="gc3">' + '<i></i>'.repeat(6) + '</span><small>côté</small>';
     document.body.append(cube);
-    const banner = document.createElement('div');
-    banner.id = 'gardien-side-banner';
-    banner.hidden = true;
-    banner.innerHTML = '<strong>Vue de côté</strong><span>X = numéro de dimension · Y = Y · clic sur un node pour y aller · Échap pour revenir</span>';
-    document.body.append(banner);
     const tip = Object.assign(document.createElement('p'), { id: 'gardien-side-tip', hidden: true });
     document.body.append(tip);
 
@@ -216,7 +211,6 @@ export function createSide({ bridge, say }) {
             universe.append(scene.group);
             document.body.classList.add('gardien-side-on');
             cube.classList.add('on');
-            banner.hidden = false;
             frame(0);
             await Promise.all([animate(0, 1), bridge.frame(scene.bounds, 80)]);
         } catch (error) {
@@ -232,7 +226,7 @@ export function createSide({ bridge, say }) {
         scene = null;
         document.body.classList.remove('gardien-side-on');
         cube.classList.remove('on');
-        banner.hidden = tip.hidden = true;
+        tip.hidden = true;
     }
 
     async function close(target = null) {
