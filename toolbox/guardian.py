@@ -85,6 +85,8 @@ PLAN_SCHEMA = {
                     # gabarits (build, template_save, schema)
                     'layout': {'type': 'string', 'enum': layouts.LAYOUTS},
                     'type': {'type': 'string', 'enum': layouts.SCHEMAS},
+                    # schema : intitulé d'une case du modèle → nouveau texte, ou idées posées autour d'elle
+                    'fill': {'type': 'object', 'additionalProperties': {'anyOf': [{'type': 'string'}, {'type': 'array', 'items': {'type': 'string'}}]}},
                     **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('rows', 'cols', 'items')},
                     'cells': {'type': 'array', 'items': {'type': 'array', 'items': {'type': 'string'}}},
                     'template': {'type': 'string'},
@@ -132,6 +134,7 @@ Exemples (imite leur forme) :
 « bonjour » → {"plan": [], "say": "Bonjour ! Je peux créer, relier, ranger tes nodes ou te faire visiter. Que veux-tu faire ?", "actions": []}
 « ajoute Voyage relié à N-3 » → {"plan": ["Créer Voyage relié à N-3"], "say": "J'ai créé « Voyage » et je l'ai relié à N-3.", "actions": [{"op":"put","ref":"new1","near":"N-3","text":"Voyage","links":["N-3"]}]}
 « mets N-5 en rouge et relie-le à N-2 » → {"plan": ["Changer N-5"], "say": "N-5 est rouge et relié à N-2.", "actions": [{"op":"put","ref":"N-5","color":"#FF6B6B","links":["N-2"]}]}
+« fais un SWOT de mon café » → {"plan": ["Poser le SWOT rempli"], "say": "J'ai posé le SWOT de ton café.", "actions": [{"op":"schema","type":"swot","title":"**Mon café**","fill":{"Forces":["Emplacement","Café maison"],"Faiblesses":["Petite salle"],"Opportunités":["Terrasse"],"Menaces":["Loyer en hausse"]}}]}
 « arbre de compétences d'un jeu » → {"plan": ["Construire l'arbre"], "say": "J'ai construit l'arbre de compétences.", "actions": [{"op":"build","layout":"tree","items":["Compétences","  Combat","    Épée","  Magie","    Feu"],"title":"Compétences"}]}
 « explique la photosynthèse en détail » → {"plan": ["Déployer l'explication"], "say": "J'ai déployé l'explication en étoile.", "actions": [{"op":"grow","text":"^^🌱 **Photosynthèse**^^\n- ☀️ **Lumière** : captée par la [#33FF99]chlorophylle[/]\n  - Phase claire : *ATP*\n- 💧 **Eau et CO2**\n  - Cycle de Calvin : __glucose__\n- 🌬️ **Oxygène** rejeté"}]}
 « résume N-12 » (son texte complet est donné) → {"plan": [], "say": "N-12 dit que…", "actions": []}
@@ -681,10 +684,25 @@ class Guardian(IaquaOps):
     def op_schema(self, action, agents):
         if action.get('type') not in layouts.SCHEMAS:
             raise PlanError(f"modèle inconnu : {action.get('type')!r} ({', '.join(layouts.SCHEMAS)})")
+        fill = action.get('fill') or {}
+        if not isinstance(fill, dict) or len(fill) > 16:
+            raise PlanError('schema : fill attend un objet {intitulé: texte ou [idées]} (16 cases au plus)')
+        cells = {}
+        for label, value in fill.items():
+            items = value if isinstance(value, list) else [value]
+            if not all(isinstance(v, str) for v in items) or len(items) > 10:
+                raise PlanError(f'schema : {label!r} attend un texte ou une liste de 10 idées au plus')
+            texts = [text_html(short(v, 300)) for v in items if v.strip()]
+            cells[short(str(label), 60)] = texts if isinstance(value, list) else (texts[0] if texts else '')
         target = self.nodes.get(action.get('near'))
         x, y = free_spot((target['x'], target['y']) if target else self.anchor, self.occupied, layouts.SCHEMA_SPAN)
         self.occupied.append((x, y, layouts.SCHEMA_SPAN))
-        return {'op': 'schema', 'type': action['type'], 'x': x, 'y': y}
+        out = {'op': 'schema', 'type': action['type'], 'x': x, 'y': y}
+        if cells:
+            out['fill'] = cells
+        if str(action.get('title') or '').strip():
+            out['title'] = text_html(short(action['title'], 200))
+        return out
 
     def op_tour(self, action, agents):
         return {'op': 'tour', 'ref': self.existing(action.get('ref'))}

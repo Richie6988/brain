@@ -79,10 +79,23 @@ TOOLS = [
     {'op': 'template_delete', 'category': 'Gabarits', 'source': NODZ, 'label': 'Oublier un gabarit',
      'doc': '{"op":"template_delete","name":"retro"} : oublie un gabarit gardé.'},
     {'op': 'schema', 'category': 'Gabarits', 'source': NODZ, 'label': 'Modèle connu de la galerie (SWOT, Ishikawa…)',
-     'doc': '{"op":"schema","type":"swot","near":"N-3"} : pose un modèle de la galerie, fait de nodes et de liens à '
-            'remplir ensuite (update) : decision, family, organic, org, why (5 pourquoi), swot, eisenhower, bcg, ansoff, '
-            'tows, m3x3, bmc (Business Model Canvas), porter, pestel, ikigai, smart, pdca, process, timeline, kanban, '
-            'design (design thinking), aida, maslow, ishikawa.'},
+     'doc': '{"op":"schema","type":"swot","near":"N-3","title":"Mon projet","fill":{"Forces":["idée","idée"],"Menaces":"Concurrence"}} : '
+            'pose un modèle de la galerie, fait de nodes et de liens, déjà rempli. title : le node central. fill : intitulé d\'une '
+            'case → un texte (la case change de texte) ou une liste d\'idées (posées autour d\'elle, à la place des exemples). '
+            'Types et intitulés : swot (Forces, Faiblesses, Opportunités, Menaces), eisenhower (Faire, Planifier, Déléguer, '
+            'Abandonner), bcg (Vedettes, Dilemmes, Vaches à lait, Poids morts), pestel (Politique, Économique, Social, '
+            'Technologique, Écologique, Légal), porter (Nouveaux entrants, Pouvoir des fournisseurs, Produits de substitution, '
+            'Pouvoir des clients), smart (Spécifique, Mesurable, Atteignable, Réaliste, Temporel), organic (Pourquoi, Qui, Comment, '
+            'Quand, Risques), org (Pôle 1, Pôle 2, Pôle 3), decision (Option A, Option B), family (Père, Mère), '
+            'bmc (Partenaires clés, Activités clés, Ressources clés, Proposition de valeur, Relations clients, Canaux, Segments de '
+            'clientèle, Structure de coûts, Sources de revenus), ikigai (Ce que tu aimes, Ce en quoi tu es doué, Ce dont le monde '
+            'a besoin, Ce pour quoi tu peux être payé, Passion, Mission, Profession, Vocation), ansoff (Pénétration, '
+            'Développement de produits, Développement de marchés, Diversification), tows (SO : attaquer, WO : renforcer, '
+            'ST : défendre, WT : éviter), m3x3 (Ligne 1…3, Colonne 1…3), ishikawa (Main-d\'œuvre, Méthodes, Matériel, Matière, '
+            'Milieu, Mesure), kanban (À faire, En cours, Fait), timeline (2024, 2025, 2026, 2027), pdca (Planifier, Faire, '
+            'Vérifier, Agir), process (Étape 1, Étape 2, Étape 3), design (Empathie, Définir, Idéer, Prototyper, Tester), '
+            'aida (Attention, Intérêt, Désir, Action), maslow (Physiologiques, Sécurité, Appartenance, Estime, Accomplissement), '
+            'why (Problème, Cause racine).'},
     # --- Agents
     {'op': 'delegate', 'category': 'Agents', 'source': BOTH, 'iaqua': 'dispatch_to_agent, generate_image', 'label': 'Confier à un agent',
      'doc': '{"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou N-2","near":"N-1"} : confie la '

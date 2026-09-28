@@ -99,7 +99,7 @@ createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes),
-    onSchema: (type, at) => schemas.build(type, at) });
+    onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title) });
 const tour = createTour({ bridge, say });
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
 createSide({ bridge, say });  // vue de côté : X = numéro de dimension, Y = Y

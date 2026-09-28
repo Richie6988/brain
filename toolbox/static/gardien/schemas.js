@@ -238,9 +238,61 @@ export const SCHEMAS = [
         '<b>Effet</b>', ['Main-d\'œuvre', 'Méthodes', 'Matériel', 'Matière', 'Milieu', 'Mesure']) },
 ];
 
+// Exemples à remplacer quand le Gardien remplit une case avec des idées.
+const PLACEHOLDERS = new Set(['idée', '…', 'tâche', 'événement', 'équipe', 'grand-père', 'grand-mère']);
+const plain = html => html.split(/<br\s*\/?>/i)[0].replace(/<[^>]+>/g, '').trim().toLowerCase();
+
+// Remplissage par le Gardien (op schema) : `title` remplace le node central ; `fill` associe l'intitulé d'une case à un
+// texte (la case change de texte, en gras si elle l'était) ou à une liste d'idées, qui prennent la place et les liens
+// des exemples de la case (Idée, Tâche, …) ; les idées en plus se posent en éventail autour d'elle.
+function applyFill({ nodes, links }, fill = {}, title = '') {
+    const bold = (old, text) => (/^<b>/.test(old) && !/^<b>/.test(text) ? `<b>${text}</b>` : text);
+    if (title) nodes[0].text = bold(nodes[0].text, title);
+    const wanted = new Map(Object.entries(fill).map(([label, value]) => [label.trim().toLowerCase(), value]));
+    let next = nodes.length;
+    const removed = new Set();
+    for (const slot of [...nodes]) {
+        const value = wanted.get(plain(slot.text));
+        if (value === undefined) continue;
+        if (!Array.isArray(value)) {
+            slot.text = bold(slot.text, value);
+            continue;
+        }
+        // Exemples de la case : atteints depuis elle en ne traversant que des exemples (colonne de kanban comprise).
+        const examples = [], parentOf = new Map();
+        for (let queue = [slot.id]; queue.length;) {
+            const from = queue.shift();
+            links.filter(([a, b]) => a === from && !removed.has(b) && PLACEHOLDERS.has(plain(nodes.find(n => n.id === b)?.text || ''))).forEach(([, b]) => {
+                if (parentOf.has(b)) return;
+                parentOf.set(b, from);
+                examples.push(nodes.find(n => n.id === b));
+                queue.push(b);
+            });
+        }
+        examples.forEach(n => removed.add(n.id));
+        const made = new Map();  // exemple remplacé → nouvelle idée
+        const out = [slot.x, slot.y], len = Math.hypot(...out) || 1;
+        value.forEach((text, k) => {
+            const spot = examples[k];
+            const angle = Math.atan2(out[1] / len, out[0] / len) + ((k - examples.length) - (value.length - examples.length - 1) / 2) * 0.45;
+            const node = { id: next++, text, depth: slot.depth + 1,
+                ...(spot ? { x: spot.x, y: spot.y } : { x: slot.x + 280 * Math.cos(angle), y: slot.y + 280 * Math.sin(angle) }) };
+            nodes.push(node);
+            const parent = spot ? parentOf.get(spot.id) : slot.id;
+            links.push([made.get(parent) ?? parent, node.id]);
+            if (spot) made.set(spot.id, node.id);
+        });
+    }
+    // Renumérotés : l'identifiant redevient la position dans la liste
+    const kept = nodes.filter(n => !removed.has(n.id));
+    const index = new Map(kept.map((n, i) => [n.id, i]));
+    return { nodes: kept.map((n, i) => ({ ...n, id: i })),
+        links: links.filter(([a, b]) => index.has(a) && index.has(b)).map(([a, b]) => [index.get(a), index.get(b)]) };
+}
+
 // Nodes et liens du modèle, centrés sur (0, 0), avec couleur (par profondeur) et forme.
-export function layout(schema) {
-    const { nodes, links } = schema.build();
+export function layout(schema, fill, title) {
+    const { nodes, links } = applyFill(schema.build(), fill, title);
     // Un lien pile horizontal ou vertical perd son dégradé dans Nodz (boîte de hauteur nulle) : on l'incline à peine.
     links.forEach(([a, b]) => {
         if (Math.abs(nodes[a].y - nodes[b].y) < 1) nodes[b].y += 24;
@@ -280,11 +332,12 @@ export function createSchemas({ bridge }) {
         }),
     ]));
 
-    // Construit le modèle `key` centré sur `at` (coordonnées de Nodz) ; `fit` : la caméra recule pour tout montrer.
-    async function build(key, at, fit = false) {
+    // Construit le modèle `key` centré sur `at` (coordonnées de Nodz), rempli par `fill` et `title` (Gardien) ;
+    // `fit` : la caméra recule pour tout montrer.
+    async function build(key, at, fit = false, fill = {}, title = '') {
         const schema = SCHEMAS.find(s => s.key === key);
         if (!schema) throw new Error(`schéma inconnu : ${key}`);
-        const { nodes, links, width, height } = layout(schema);
+        const { nodes, links, width, height } = layout(schema, fill, title);
         const prefix = `schema${++built}-`;
         selectedNodes.slice().forEach(n => nodeUnselection(n));
         for (const n of nodes) {
@@ -293,6 +346,7 @@ export function createSchemas({ bridge }) {
         }
         for (const [a, b] of links) await bridge.perform({ op: 'link', source: prefix + a, target: prefix + b });
         if (fit) await bridge.fit(width + 360, height + 360);
+        return { width, height };
     }
     return { build };
 }

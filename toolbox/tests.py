@@ -836,7 +836,8 @@ class GuardianTests(TestCase):
             matrix, {'op': 'build', 'template': 'eisenhower', 'cells': [['a', 'b'], ['c', 'd']]},
             {'op': 'build', 'layout': 'tree', 'items': ['Recherche', '  Web', 'Écriture']},
             {'op': 'build', 'layout': 'matrix'}, {'op': 'build', 'template': 'inconnu'},
-            {'op': 'schema', 'type': 'swot', 'near': 'N-1'}, {'op': 'schema', 'type': 'SWOT'}, {'op': 'tour', 'ref': 'N-1'}]}))
+            {'op': 'schema', 'type': 'swot', 'near': 'N-1', 'title': '**Café**', 'fill': {'Forces': ['Emplacement', '*Café* maison'], 'Menaces': 'Loyer'}},
+            {'op': 'schema', 'type': 'SWOT'}, {'op': 'schema', 'type': 'pdca', 'fill': {'Faire': [1, 2]}}, {'op': 'tour', 'ref': 'N-1'}]}))
         creates = [a for a in self.actions() if a['op'] == 'create']
         first = [a for a in creates if a['ref'] == 'build1' or a['ref'].startswith('build1.')]
         self.assertEqual(len(first), 9)  # titre, 2 en-têtes de colonnes, 2 de lignes, 4 cases
@@ -850,9 +851,11 @@ class GuardianTests(TestCase):
         self.assertTrue(all(math.dist(p, q) >= 170 for i, p in enumerate(spots) for q in spots[i + 1:]))
         tree = [a for a in self.actions() if a['op'] == 'link' and a['source'].startswith('build3')]
         self.assertEqual([(a['source'], a['target']) for a in tree], [('build3.i1', 'build3.i2')])
-        self.assertEqual([a['type'] for a in self.actions() if a['op'] == 'schema'], ['swot'])
+        schema = next(a for a in self.actions() if a['op'] == 'schema')
+        self.assertEqual((schema['type'], schema['title']), ('swot', '<b>Café</b>'))  # mise en forme du Gardien convertie
+        self.assertEqual(schema['fill'], {'Forces': ['Emplacement', '<i>Café</i> maison'], 'Menaces': 'Loyer'})
         self.assertEqual([a['ref'] for a in self.actions() if a['op'] == 'tour'], ['N-1'])
-        self.assertEqual(len(self.errors()), 3)  # matrice sans lignes, gabarit inconnu, modèle inconnu
+        self.assertEqual(len(self.errors()), 4)  # matrice sans lignes, gabarit inconnu, modèle inconnu, fill sans textes
         guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
         self.assertEqual(guardian.brain['templates']['eisenhower']['layout'], 'matrix')
 

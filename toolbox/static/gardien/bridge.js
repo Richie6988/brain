@@ -253,9 +253,14 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         tour({ ref }) {
             onTour(nodeOf(ref));
         },
-        // Modèle de la galerie (SWOT, Eisenhower, Ishikawa…), fait de nodes et de liens (schemas.js).
-        async schema({ type, x, y }) {
-            await onSchema(type, { x, y });
+        // Modèle de la galerie (SWOT, Eisenhower, Ishikawa…), fait de nodes et de liens (schemas.js), puis travelling
+        // jusqu'à lui : la caméra le centre et recule s'il dépasse l'écran.
+        async schema({ type, x, y, fill, title }) {
+            const { width, height } = await onSchema(type, { x, y }, fill, title);
+            const id = take, v = view(), c = toScreen(x, y);
+            if (!(await pan(v.x - c.x, v.y - c.y, id))) return;
+            const zoom = Math.min(Number(currentZoom), window.innerWidth / (width + 360), window.innerHeight / (height + 360));
+            if (zoom < Number(currentZoom)) await zoomTo(zoom, v.x, v.y, id);
         },
     };
 
