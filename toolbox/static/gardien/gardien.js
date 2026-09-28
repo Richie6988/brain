@@ -9,6 +9,7 @@ import { createAdmin } from './admin.js';
 import { api } from './api.js';
 import { createBridge } from './bridge.js';
 import { createChat } from './chat.js';
+import { createCorners } from './corners.js';
 import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
 import { createLibrary } from './library.js';
@@ -93,6 +94,7 @@ const signedIn = setInterval(() => {
 const filters = createFilters();
 createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
+createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes) });
 const tour = createTour({ bridge, say });
