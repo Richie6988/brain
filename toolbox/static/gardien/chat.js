@@ -11,7 +11,7 @@ const KEY = 'gardien-chat';
 const KEEP = 60;
 const THINK_KEEP = 6000;  // caractères de réflexion gardés par message
 
-export function createChat({ onSend, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {} }) {
+export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {} }) {
     let history = [];
     try {
         history = JSON.parse(localStorage.getItem(KEY) || '[]');
@@ -28,6 +28,7 @@ export function createChat({ onSend, onMemory = () => {}, onGoto = () => {}, onE
     const send = h('button', { type: 'submit', class: 'gc-send', title: 'Envoyer (Entrée)' }, '↑');
     const form = h('form', { class: 'gc-form' }, input, send);
     let attached = [];  // nodes joints au prochain message
+    let working = false;  // une demande est en cours : le bouton d'envoi l'arrête
     const tray = h('div', { class: 'gc-attach' });
     const nodeText = node => node.children[0]?.children[0]?.innerText?.trim() || '(vide)';
     function renderTray() {
@@ -64,15 +65,16 @@ export function createChat({ onSend, onMemory = () => {}, onGoto = () => {}, onE
     input.addEventListener('keydown', event => {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
-            form.requestSubmit();
+            if (!working) form.requestSubmit();  // Entrée n'arrête jamais le Gardien : seul le bouton stop
         }
         if (event.key === 'Escape') toggle(false);
     });
     input.addEventListener('input', grow);
     form.addEventListener('submit', event => {
         event.preventDefault();
+        if (working) return onStop();  // pendant une réflexion, le bouton d'envoi est le stop
         const text = input.value.trim();
-        if (!text || send.disabled) return;
+        if (!text) return;
         input.value = '';
         grow();
         onSend(text, attached.filter(n => n.isConnected).map(n => n.id));
@@ -246,7 +248,10 @@ export function createChat({ onSend, onMemory = () => {}, onGoto = () => {}, onE
         },
         status(text) { status.textContent = text || ''; },
         busy(on) {
-            send.disabled = on;
+            working = on;
+            send.textContent = on ? '■' : '↑';
+            send.title = on ? 'Arrêter le Gardien' : 'Envoyer (Entrée)';
+            send.classList.toggle('stop', on);
             root.classList.toggle('busy', on);
             if (!on) status.textContent = '';
         },

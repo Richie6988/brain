@@ -1344,6 +1344,34 @@ class CommandStreamTests(TransactionTestCase):
         entry = await GuardianLog.objects.filter(owner=self.user, kind='demande').alast()  # la console IA en fait le compte
         self.assertRegex(entry.detail, r'^dis bonjour → 1 actions, [\d.]+ s$')
 
+    async def test_stop_cuts_the_model_and_ends_the_request(self):
+        from .runtime import dispatcher
+
+        user, closed = self.user, []
+
+        class Endless(ScriptedEngine):  # écrit sans fin ; le bouton stop arrive au troisième fragment
+            def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
+                try:
+                    for i in range(10_000):
+                        if i == 2:
+                            dispatcher.stop(user.pk)
+                        on_text('{"plan"')
+                finally:
+                    closed.append(i)  # le flux du modèle est fermé
+                return ''
+
+        await self.async_client.aforce_login(user)
+        r = await self.async_client.post('/api/v1/toolbox/command/stop', {}, content_type='application/json')
+        self.assertFalse(json.loads(r.content)['stopped'])  # rien en cours
+        with mock.patch.object(api, 'engine', Endless()):
+            r = await self.async_client.post('/api/v1/toolbox/command', {'prompt': 'x', 'context': {'nodes': [], 'layers': []}},
+                                             content_type='application/json')
+            body = ''.join([chunk.decode() async for chunk in r.streaming_content])
+        kinds = [line.split(': ', 1)[1] for line in body.splitlines() if line.startswith('event: ')]
+        self.assertEqual(kinds[-2:], ['stopped', 'end'])
+        self.assertEqual(closed, [2])
+        self.assertEqual(dispatcher.state()['running'], 0)  # l'utilisateur peut redemander
+
     async def test_busy_user_is_refused(self):
         from .runtime import dispatcher
 
@@ -1538,8 +1566,8 @@ class SideViewTests(TestCase):
         other = NodzUser.objects.create_user(email='other@nodz.local', password='pw-123456')
         home, far = Layer.objects.create(user=user, layer_name='Home'), Layer.objects.create(user=user, layer_name='Loin')
         Node.objects.create(user=user, layer=home, node_id=1, y_coordinate=120.4, text_content='<b>Porte</b>', quantum='[{"node": "N-3", "layer": "2"}]')
-        Node.objects.create(user=user, layer=home, node_id=2, text_content='Voisin')
-        Node.objects.create(user=user, layer=far, node_id=3, quantum='[{"node": "N-1", "layer": "1"}]')
+        Node.objects.create(user=user, layer=home, node_id=2, text_content='Voisin', type='image', image_content='data:image/png;base64,AAAA')
+        Node.objects.create(user=user, layer=far, node_id=3, quantum='[{"node": "N-1", "layer": "1"}]', type='file', file_name='rapport.pdf')
         Node.objects.create(user=user, layer=far, node_id=4, archive=True)
         Node.objects.create(user=other, layer=Layer.objects.create(user=other, layer_name='X'), node_id=5)
         Link.objects.create(user=user, link_id=1, linkA='N-1', linkB='N-2', layer=home)
@@ -1549,6 +1577,9 @@ class SideViewTests(TestCase):
         self.assertEqual([(n['id'], n['layer']) for n in data['nodes']], [('N-1', 1), ('N-2', 1), ('N-3', 2)])
         self.assertEqual(data['nodes'][0]['y'], 120)
         self.assertEqual((data['nodes'][0]['text'], data['nodes'][0]['html']), ('Porte', '<b>Porte</b>'))
+        self.assertNotIn('image', data['nodes'][0])  # images et documents : pour leurs seuls nodes
+        self.assertEqual(data['nodes'][1]['image'], 'data:image/png;base64,AAAA')
+        self.assertEqual((data['nodes'][2]['type'], data['nodes'][2]['file']), ('file', 'rapport.pdf'))
         self.assertEqual(data['links'], [['N-1', 'N-2']])
         self.assertEqual(data['portals'], [['N-1', 'N-3']])
         self.assertEqual([layer['name'] for layer in data['layers']], ['Home', 'Loin'])

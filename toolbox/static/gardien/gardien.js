@@ -104,7 +104,7 @@ const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node 
 const tour = createTour({ bridge, say });
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
 createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur
-createSide({ bridge, say });  // vue de côté : X = numéro de dimension, Y = Y
+createSide({ bridge, say, filters });  // vue de côté : X = numéro de dimension, Y = Y
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 const presence = createPresence();  // l'avatar du Gardien là où il travaille
@@ -260,7 +260,7 @@ async function ask(node, text, attached = []) {
         follow.start();
         chat.status('Le Gardien réfléchit…');
         const created = [], changed = [];
-        let timing = null;
+        let timing = null, stopped = false;
         const home = layerNumber;  // la demande reste liée à cette dimension
         let away = false;
         const perform = data => pending.run(home, data).then(waiting => {
@@ -284,6 +284,7 @@ async function ask(node, text, attached = []) {
         await api.command({ prompt: text, context: { ...context, ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
             ...(history.length ? { history } : {}) } }, (type, data) => {
             if (type === 'thinking') thought(data);
+            else if (type === 'stopped') stopped = true;
             else if (type === 'text' || type === 'notice') reply(type, data.text);
             else if (type === 'queued') {
                 const where = data.position === 1 ? 'Tu es le prochain : le Gardien finit une autre demande' : `En file d'attente : ${data.position}e`;
@@ -307,9 +308,14 @@ async function ask(node, text, attached = []) {
                 else if (['update', 'style'].includes(data.op)) changed.push(data.ref);
             }
         });
-        think?.end(`A réfléchi (${pieces} jetons, ${Math.round((performance.now() - thinkStart) / 1000)} s)`);
+        think?.end(`${stopped ? 'Arrêté après' : 'A réfléchi'} (${pieces} jetons, ${Math.round((performance.now() - thinkStart) / 1000)} s)`);
         think = null;
         await actions;
+        if (stopped) {
+            follow.end('Arrêté');
+            chat.add('notice', 'Gardien arrêté : ce qu\'il avait déjà posé reste (Ctrl+Z pour l\'annuler).');
+            return;
+        }
         filters.mark(created.map(bridge.idOf).filter(id => id.startsWith('N-')), 'ai');
         // Liens vers ce que le Gardien a posé ou retouché : un clic y voyage.
         const item = id => ({ id, layer: home, label: (document.getElementById(id)?.children[0]?.children[0]?.innerText || '').trim().slice(0, 28) });
@@ -343,6 +349,11 @@ const chat = createChat({
     onSend: (text, attached) => {
         if (text === LATER) return chat.add('notice', 'D\'accord, je n\'y touche pas.');  // une proposition écartée : rien à demander
         queue = queue.then(() => ask(null, text, attached));
+    },
+    // Stop : le serveur coupe le modèle à son prochain jeton ; la lecture du prompt, elle, va à son terme avant.
+    onStop: () => {
+        chat.status('Arrêt demandé : le Gardien s\'arrête à son prochain mot…');
+        api.request('POST', 'toolbox/command/stop').catch(error => chat.add('error', error.message));
     },
     onMemory: () => showMemory().catch(error => chat.add('error', error.message)),
     onGoto: (ref, layer) => bridge.perform({ op: 'goto', ref, layer }).catch(() => say(`${ref} n'existe plus`, 'error')),

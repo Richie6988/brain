@@ -39,7 +39,9 @@ function spread(nodes) {
     return { min: Math.min(0, ...placed.map(n => n.ox - n.r)), max: Math.max(0, ...placed.map(n => n.ox + n.r)) };
 }
 
-export function createSide({ bridge, say }) {
+const plain = html => new DOMParser().parseFromString(html || '', 'text/html').body.textContent;  // sans charger d'image
+
+export function createSide({ bridge, say, filters }) {
     const cube = document.createElement('button');
     cube.type = 'button';
     cube.id = 'gardien-cube';
@@ -55,6 +57,7 @@ export function createSide({ bridge, say }) {
     // En vue de côté, Nodz ne crée ni n'écrit rien : seules ses touches de déplacement passent.
     document.addEventListener('keydown', event => {
         if (!scene) return;
+        if (event.target.closest?.('input, textarea')) return;  // la recherche des filtres reste utilisable
         if (event.key === 'Escape') close();
         if (KEYS.has(event.key)) return;
         event.preventDefault();
@@ -105,7 +108,19 @@ export function createSide({ bridge, say }) {
         const r = n.r;
         g.append(n.shape === 'square' ? make('rect', { class: 'gs-shape', x: -r, y: -r, width: 2 * r, height: 2 * r })
             : make('circle', { class: `gs-shape${n.shape === 'none' ? ' bare' : ''}`, r }));
-        if (rich && n.html) {
+        if (rich && n.image) {  // image (ou dessin de la dimension ouverte) : dans la forme, comme en vue standard
+            const fo = make('foreignObject', { x: -r, y: -r, width: 2 * r, height: 2 * r });
+            fo.append(Object.assign(document.createElement('img'), { className: `gs-image${n.shape === 'square' ? '' : ' round'}`, src: n.image, alt: '', loading: 'lazy' }));
+            g.append(fo);
+        } else if (rich && n.file) {  // document : sa carte (type et nom)
+            const fo = make('foreignObject', { x: -r * 0.78, y: -r * 0.78, width: r * 1.56, height: r * 1.56 });
+            const card = Object.assign(document.createElement('div'), { className: 'gs-file' });
+            const dot = n.file.lastIndexOf('.');
+            card.append(Object.assign(document.createElement('b'), { textContent: dot > 0 ? n.file.slice(dot + 1, dot + 6).toUpperCase() : 'DOC' }),
+                Object.assign(document.createElement('span'), { textContent: n.file }));
+            fo.append(card);
+            g.append(fo);
+        } else if (rich && n.html) {
             const fo = make('foreignObject', { x: -r * 0.78, y: -r * 0.78, width: r * 1.56, height: r * 1.56 });
             const box = document.createElement('div');
             box.className = 'gs-text';
@@ -137,12 +152,17 @@ export function createSide({ bridge, say }) {
         const live = [...document.querySelectorAll('.node-group')].map(g => {
             const shape = g.getAttribute('shape') === 'square' ? g.children[2] : g.children[1];
             const r = g.getAttribute('shape') === 'square' ? Number(shape.getAttribute('width')) / 2 : Number(shape.getAttribute('r'));
+            const type = g.getAttribute('type'), sketch = g.children[0].children[3];
+            const image = type === 'image' ? g.getAttribute('imagecontent')
+                : type === 'canvas' && sketch instanceof HTMLCanvasElement ? sketch.toDataURL() : '';
             return { id: g.id, layer: current, x: Number(g.getAttribute('x')), y: Number(g.getAttribute('y')), r: r || 60,
-                color: g.getAttribute('color'), shape: g.getAttribute('shape'), html: g.children[0].children[0].innerHTML };
+                color: g.getAttribute('color'), shape: g.getAttribute('shape'), html: g.children[0].children[0].innerHTML,
+                plain: g.children[0].children[0].innerText, image: image && image !== 'null' ? image : '',
+                file: type === 'file' && g.getAttribute('filename') !== 'null' ? g.getAttribute('filename') : '' };
         });
         const seen = new Set(live.map(n => n.id));
         const nodes = [...live, ...stored.filter(n => n.layer !== current && !seen.has(n.id))
-            .map(n => ({ ...n, r: Math.min(300, Math.max(40, n.radius || 60)) }))];
+            .map(n => ({ ...n, r: Math.min(300, Math.max(40, n.radius || 60)), plain: plain(n.html) }))];
         const livePairs = [...document.querySelectorAll('.link')].map(l => [l.getAttribute('Node1'), l.getAttribute('Node2')]);
         const center = bridge.center();
         // Colonnes dans l'ordre des numéros de dimension, écartées selon leur largeur ; la dimension ouverte reste
@@ -196,7 +216,18 @@ export function createSide({ bridge, say }) {
         const xs = nodes.map(n => n.fx).concat(columns.map(c => c.x));
         scene = { nodes, links, portals, columns, group, pivot: center.x,
             bounds: { x0: Math.min(...xs) - 200, x1: Math.max(...xs) + 200, y0: bottom, y1: top } };
+        sift();
     }
+
+    // Filtres du haut (texte, origine, période) : comme en vue standard, les nodes écartés et leurs liens s'estompent.
+    function sift() {
+        if (!scene) return;
+        const on = filters.active();
+        scene.nodes.forEach(n => { n.out = on && !filters.keeps(n.id, n.plain || ''); n.el.classList.toggle('gs-out', n.out); });
+        [...scene.links, ...scene.portals].forEach(l => l.el.classList.toggle('gs-out', l.a.out || l.b.out));
+        filters.counted(scene.nodes.filter(n => !n.out).length, scene.nodes.length);  // toutes les dimensions
+    }
+    filters.onChange(sift);
 
     async function open() {
         if (busy || (typeof admin !== 'undefined' && admin)) return;

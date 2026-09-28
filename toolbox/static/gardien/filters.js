@@ -153,9 +153,13 @@ export function createFilters() {
 
     function keep(node) {
         if (node.contains(document.activeElement)) return true;  // le node en cours d'écriture reste visible
-        if (state.text && !fold(node.children[0]?.children[0]?.innerText || '').includes(state.text)) return false;
-        const info = nodes[node.id];
-        const found = local.get(node.id) || info?.origin || 'user';
+        return keeps(node.id, node.children[0]?.children[0]?.innerText || '');
+    }
+    // Un node (id, texte) passe-t-il les filtres ? Aussi pour les répliques de la vue de côté, toutes dimensions.
+    function keeps(id, text) {
+        if (state.text && !fold(text).includes(state.text)) return false;
+        const info = nodes[id];
+        const found = local.get(id) || info?.origin || 'user';
         if (!state.origins.has(found === 'message' ? 'user' : found)) return false;
         const date = info?.[state.basis] ?? Date.now() / 1000;  // node nouveau : il vient d'être créé et modifié
         return !state.days || Date.now() / 1000 - date <= state.days * DAY;
@@ -175,7 +179,9 @@ export function createFilters() {
             link.classList.toggle('gardien-filtered', hidden.has(link.getAttribute('Node1')) || hidden.has(link.getAttribute('Node2')));
         });
         count.textContent = on ? `${shown} / ${shown + hidden.size}` : '';
+        listeners.forEach(listener => listener());
     }
+    const listeners = [];
 
     async function refresh() {
         try {
@@ -210,6 +216,11 @@ export function createFilters() {
 
     update();
     return {
+        // Vue de côté : même filtre sur ses répliques, réappliqué à chaque changement (onChange).
+        active,
+        keeps,
+        onChange: listener => listeners.push(listener),
+        counted: (shown, total) => { count.textContent = active() ? `${shown} / ${total}` : ''; },
         // Marque des nodes (message au Gardien, création de l'IA) côté serveur et tout de suite à l'écran.
         mark(ids, origin) {
             ids = ids.filter(Boolean);

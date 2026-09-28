@@ -61,6 +61,15 @@ class Dispatcher:
             ticket.cancelled = True
             self._cond.notify_all()
 
+    def stop(self, owner):
+        """Arrête les demandes de cet utilisateur (en file ou en cours). Vrai s'il y en avait une."""
+        with self._cond:
+            tickets = [t for t in self._running + self._waiting if t.owner == owner]
+            for ticket in tickets:
+                ticket.cancelled = True
+            self._cond.notify_all()
+        return bool(tickets)
+
     def done(self, ticket):
         with self._cond:
             if ticket in self._running:
