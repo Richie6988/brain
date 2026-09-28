@@ -296,6 +296,7 @@ function createNode(x,y,id) {
                 input.replaceChildren(code);
                 nodeGroup.setAttribute('textcontent', input.innerHTML);
             }
+            save(nodeGroup);  // le type et le code partent en base (le texte, lui, se sauve en quittant le node)
             break;
         case 'file':
             // console.log('Document option selected');

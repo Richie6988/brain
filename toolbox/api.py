@@ -18,6 +18,7 @@ from django.conf import settings
 from django.db import connection
 from django.db.models import Count
 from django.http import FileResponse, JsonResponse, StreamingHttpResponse
+from django.utils import timezone
 
 from graph.api import api, unauthenticated
 from graph.services import ChangeError
@@ -26,9 +27,9 @@ from nodzapp.models import Layer, Link, Node
 from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, remote, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
-from .engine import Engine, EngineUnavailable
+from .engine import Engine, EngineUnavailable, acting_for
 from .guardian import Guardian, PlanError
-from .models import Agent, LocalModel, NodeMark, Preference
+from .models import Agent, LocalModel, Mission, NodeMark, Preference
 from .runtime import broker, dispatcher, engine
 
 logger = logging.getLogger(__name__)
@@ -214,7 +215,8 @@ def warm(request, body):
 
     def work():
         try:
-            Guardian(user, engine, lambda kind, data: None).warm()
+            with acting_for(user.pk):
+                Guardian(user, engine, lambda kind, data: None).warm()
         except (EngineUnavailable, BrokerTimeout):
             pass  # pas de modèle, ou file trop longue : la première demande lira tout
         except Exception:
@@ -614,15 +616,16 @@ async def command(request):
             if not dispatcher.wait(ticket, lambda position: events.put(('queued', {'position': position}))):
                 return  # la page est partie avant son tour
             outcome['ran'], started = True, time.monotonic()
-            Guardian(user, engine, emit).handle(prompt, body['context'])
+            with acting_for(user.pk):
+                Guardian(user, engine, emit).handle(prompt, body['context'])
             if ticket.cancelled:
                 raise Stopped
         except Stopped:
             outcome['error'] = 'arrêté'
             events.put(('stopped', {}))
         except (PlanError, EngineUnavailable, BrokerTimeout) as e:
-            outcome['error'] = str(e)
-            emit('error', {'message': outcome['error']})
+            outcome['error'] = 'arrêté' if ticket.cancelled else str(e)
+            events.put(('stopped', {}) if ticket.cancelled else ('error', {'message': outcome['error']}))
         except Exception as e:
             logger.exception('Gardien')
             # La cause en clair pour l'administrateur (journal du serveur : « Gardien » avec la trace), son type pour tous.
@@ -655,6 +658,12 @@ async def command(request):
 
 @api('POST')
 def command_stop(request, body):
-    """Bouton stop du chat : la demande en cours de l'utilisateur s'arrête au prochain jeton du modèle (le flux de
-    génération est fermé, le broker libéré) ; une demande encore en file n'est pas traitée."""
-    return JsonResponse({'stopped': dispatcher.stop(request.user.pk)})
+    """Bouton stop du chat : tout ce que le modèle fait pour l'utilisateur s'arrête. Sa demande (au prochain calcul de
+    llama.cpp, lecture du prompt comprise), son préchauffage, sa tâche de fond en cours et ses missions ; une demande
+    encore en file n'est pas traitée."""
+    user = request.user
+    stopped = dispatcher.stop(user.pk)
+    interrupted = engine.interrupt(user.pk) if hasattr(engine, 'interrupt') else False  # le modèle, lecture du prompt comprise
+    missions = Mission.objects.filter(owner=user, status=Mission.Status.RUNNING).update(status=Mission.Status.ABORTED,
+                                                                                         finished_at=timezone.now())
+    return JsonResponse({'stopped': stopped or interrupted or bool(missions), 'missions': missions})

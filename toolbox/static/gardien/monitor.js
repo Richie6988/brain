@@ -28,7 +28,14 @@ export function createMonitor({ onSignedOut = () => {} } = {}) {
         const head = el('div', 'gm-head');
         const dot = el('span', 'gm-dot');
         const name = el('span', 'gm-name', '…');
-        head.append(dot, name);
+        // Stop : coupe ce que le modèle fait pour toi (demande, préchauffage, tâche de fond, mission), même hors du chat.
+        const stop = el('button', 'gm-stop', '■');
+        Object.assign(stop, { type: 'button', hidden: true, title: 'Arrêter le modèle : ta demande et tes tâches de fond' });
+        stop.addEventListener('click', event => {
+            event.stopPropagation();  // l'en-tête ouvre Agents & modèles
+            api.request('POST', 'toolbox/command/stop').catch(() => {});
+        });
+        head.append(dot, name, stop);
         const rows = Object.fromEntries(ROWS.map(([key, label]) => {
             const row = el('div', 'gm-row');
             const fill = el('i');
@@ -39,7 +46,7 @@ export function createMonitor({ onSignedOut = () => {} } = {}) {
             return [key, { row, fill, value }];
         }));
         root.append(head, ...Object.values(rows).map(r => r.row));
-        const view = { root, head, dot, name, rows };
+        const view = { root, head, dot, name, stop, rows };
         views.push(view);
         if (last) paint(view, last);
         return view;
@@ -62,6 +69,7 @@ export function createMonitor({ onSignedOut = () => {} } = {}) {
         set(view.rows.vram, gpu?.vram_percent, gpu ? `${go(gpu.vram_used_mb)} / ${go(gpu.vram_total_mb)}` : '');
         set(view.rows.disk, disk?.percent, disk ? `${disk.free_gb} Go libres sur ${disk.total_gb} Go` : '');
         view.dot.className = `gm-dot ${model ? (broker.busy ? 'busy' : 'on') : ''}`;
+        view.stop.hidden = !broker.busy;
         const queue = dispatch.waiting ? ` · ${dispatch.waiting} en file` : '';  // demandes au Gardien en attente
         view.name.textContent = model ? `${model.name}${broker.busy ? ' · au travail' : ''}${queue}`
             : engine ? 'aucun modèle en mémoire' : 'moteur local absent';

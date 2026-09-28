@@ -19,7 +19,7 @@ from nodzapp.models import NodzUser
 
 from . import api, hub
 from .broker import AGENT, BACKGROUND, CHAT, Broker, BrokerTimeout
-from .engine import Engine
+from .engine import Engine, EngineUnavailable
 from .models import Agent, LocalModel
 
 
@@ -253,6 +253,59 @@ class EngineTests(TestCase):
         engine.unload()  # le modèle rechargé devra tout relire
         self.assertTrue(engine.prefill(self.model, system))
 
+    def test_prompt_and_answer_fit_the_context(self):
+        class Windowed(FakeLlama):  # 2048 jetons de contexte, un jeton par caractère
+            def n_ctx(self):
+                return 2048
+
+            def tokenize(self, data):
+                return list(data)
+
+        engine = Engine(Broker(), factory=Windowed)
+        engine._watch = lambda: None
+        engine.chat(self.model, [{'role': 'user', 'content': 'x' * 1500}])
+        self.assertEqual(Windowed.instances[0].calls[-1]['max_tokens'], 2048 - 1500 - 64)  # réponse raccourcie pour tenir
+        with self.assertRaisesMessage(EngineUnavailable, 'trop longue'):
+            engine.chat(self.model, [{'role': 'user', 'content': 'x' * 1950}])
+
+    def test_stop_is_per_user_and_chat_preempts_background(self):
+        from .broker import BACKGROUND
+        from .engine import acting_for
+
+        class Slow(FakeLlama):
+            def create_chat_completion(self, messages, stream, **options):
+                for _ in range(400):
+                    time.sleep(0.01)
+                    yield {'choices': [{'delta': {'content': 'mot '}}]}
+
+        engine = Engine(Broker(), factory=Slow)
+        engine._watch = lambda: None
+        results = []
+
+        def background(user):
+            try:
+                with acting_for(user):
+                    engine.chat(self.model, [{'role': 'user', 'content': 'x'}], priority=BACKGROUND, owner='task')
+                results.append('fini')
+            except EngineUnavailable as e:
+                results.append(str(e))
+
+        worker = threading.Thread(target=background, args=(5,))
+        worker.start()
+        while engine._current is None:
+            time.sleep(0.01)
+        self.assertFalse(engine.interrupt(6))  # le stop d'un autre utilisateur ne la touche pas
+        self.assertTrue(engine.interrupt(5))
+        worker.join(5)
+        self.assertEqual(results, ['arrêté'])
+        worker = threading.Thread(target=background, args=(5,))
+        worker.start()
+        while engine._current is None:
+            time.sleep(0.01)
+        engine.chat(self.model, [{'role': 'user', 'content': 'vite'}], max_tokens=5)  # une demande du chat passe devant
+        worker.join(5)
+        self.assertEqual(results, ['arrêté', 'arrêté'])
+
     def test_a_looping_plan_is_stopped(self):
         engine = Engine(Broker(), factory=LoopingLlama)
         engine._watch = lambda: None
@@ -372,11 +425,11 @@ class FitTests(SimpleTestCase):
         self.assertEqual(cpu['n_ctx'], 8192)  # sur CPU, contexte auto plafonné : pas de swap
         self.assertTrue(summary['fits'])
         small, summary = self.resolve({'n_gpu_layers': 'max', 'n_ctx': 'auto', 'flash_attn': True}, vram=0, ram=3800)
-        self.assertEqual((small['n_gpu_layers'], small['n_ctx']), (-1, 4096))  # plancher du Gardien (à 2048, son prompt ne tient pas)
+        self.assertEqual((small['n_gpu_layers'], small['n_ctx']), (-1, 8192))  # plancher du Gardien (à 4096, son prompt et sa réponse débordaient)
         self.assertEqual((small['type_k'], small['n_batch'], summary['kv_q8']), (8, 512, True))  # RAM juste : cache et batch réduits
         self.assertFalse(summary['fits'])  # 4,7 Go sur 3,8 Go : il relirait le disque à chaque jeton
         tight, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto', 'flash_attn': True, 'n_batch': 1024}, vram=0, ram=3800, size_mb=2900)
-        self.assertEqual((tight['n_ctx'], tight['type_k'], tight['n_batch'], summary['fits']), (7168, 8, 512, True))
+        self.assertEqual((tight['n_ctx'], tight['type_k'], tight['n_batch'], summary['fits']), (8192, 8, 512, True))
         chosen, _ = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto', 'flash_attn': True, 'n_batch': 1024}, vram=0, ram=3800,
                                  size_mb=2900, chosen={'n_batch', 'type_k'})
         self.assertEqual((chosen['n_batch'], 'type_k' in chosen), (1024, False))  # réglages choisis : jamais changés

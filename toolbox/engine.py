@@ -37,6 +37,20 @@ class EngineUnavailable(Exception):
     pass
 
 
+_acting = threading.local()
+
+
+@contextmanager
+def acting_for(user_id):
+    """Les appels au modèle faits dans ce bloc (ce thread) sont ceux de cet utilisateur : son bouton stop les coupe."""
+    previous = getattr(_acting, 'user', None)
+    _acting.user = user_id
+    try:
+        yield
+    finally:
+        _acting.user = previous
+
+
 def default_factory(**kwargs):
     try:
         from llama_cpp import Llama
@@ -59,6 +73,18 @@ class Engine:
         self.stats = {}  # id du LocalModel → {loaded_at, last_used, requests, tokens}
         self.prefixes = {}  # id du LocalModel chargé → empreinte du dernier prompt système lu (réutilisé par llama.cpp)
         self._watcher = None
+        # Arrêt dur : llama.cpp consulte ce drapeau entre deux calculs (lecture du prompt comprise), le flux entre deux jetons.
+        self._abort = threading.Event()
+        self._current = None  # (utilisateur, priorité) de l'appel en cours
+        self._abort_callback = None  # gardé en vie tant que le modèle l'est
+
+    def interrupt(self, user_id=None, background=False):
+        """Coupe l'appel en cours s'il est à cet utilisateur (ou, avec background, si c'est une tâche de fond)."""
+        current = self._current
+        if current and ((user_id is not None and current[0] == user_id) or (background and current[1] == priorities.BACKGROUND)):
+            self._abort.set()
+            return True
+        return False
 
     @property
     def loaded(self):
@@ -106,12 +132,22 @@ class Engine:
             raise EngineUnavailable(f'{model} n\'est pas téléchargé')
         resolved, self.placement[model.pk] = fit.resolve(model.path, options, self.gpu_offload() is not False, set(load_options(model.params)))
         self._llm = self.factory(model_path=model.path, verbose=False, **resolved)
+        self._install_abort(self._llm)
         self._loaded, self._options = model.pk, options
         self._ttl = float(model.params.get('ttl', DEFAULT_TTL))
         now = self.clock()
         self.stats[model.pk] = {'loaded_at': now, 'last_used': now, 'requests': 0, 'tokens': 0}
         self._watch()
         return self._llm
+
+    def _install_abort(self, llm):
+        try:
+            import llama_cpp
+            ctx = llm._ctx.ctx
+        except (ImportError, AttributeError):
+            return  # autre moteur (tests) : l'arrêt se fait entre deux jetons
+        self._abort_callback = llama_cpp.ggml_abort_callback(lambda _: self._abort.is_set())
+        llama_cpp.llama_set_abort_callback(ctx, self._abort_callback, None)
 
     def unload(self):
         self._llm = None
@@ -168,7 +204,10 @@ class Engine:
         options = {'temperature': 0.7, 'max_tokens': 1024, **sampling_options(model.params), **sampling_options(params)}
         if model.params.get('random_seed') is False and 'seed' not in options:
             options['seed'] = FIXED_SEED  # graine aléatoire coupée : réponses reproductibles
+        if priority < priorities.BACKGROUND:
+            self.interrupt(background=True)  # une demande interactive passe devant : la tâche de fond en cours cède
         if model.endpoint:
+            self._abort.clear()
             self.stats.setdefault(model.pk, {'loaded_at': self.clock(), 'last_used': self.clock(), 'requests': 0, 'tokens': 0})
             started = time.monotonic()
             try:
@@ -177,16 +216,34 @@ class Engine:
                 raise EngineUnavailable(str(e)) from None
             return self._collect(model, stream, (piece for piece in stream), messages, json_schema, on_text, None, started)
         with self.broker.slot(priority, owner), self._lock:
-            llm = self._ensure(model)
-            if json_schema:
-                options['response_format'] = {'type': 'json_object', 'schema': json_schema}
-            # Mesure de l'appel : taille du prompt, attente du premier jeton (lecture du prompt), vitesse ensuite.
-            tokenize = getattr(llm, 'tokenize', None)
-            prompt_tokens = len(tokenize(''.join(m['content'] for m in messages).encode())) if tokenize else None
-            started = time.monotonic()
-            stream = llm.create_chat_completion(messages=messages, stream=True, **options)
-            pieces = (chunk['choices'][0]['delta'].get('content') or '' for chunk in stream)
-            return self._collect(model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started)
+            self._abort.clear()
+            self._current = (getattr(_acting, 'user', None), priority)
+            try:
+                return self._local(model, messages, json_schema, on_text, options)
+            finally:
+                self._current = None
+
+    def _local(self, model, messages, json_schema, on_text, options):
+        llm = self._ensure(model)
+        if json_schema:
+            options['response_format'] = {'type': 'json_object', 'schema': json_schema}
+        # Mesure de l'appel : taille du prompt, attente du premier jeton (lecture du prompt), vitesse ensuite.
+        tokenize = getattr(llm, 'tokenize', None)
+        prompt_tokens = len(tokenize(''.join(m['content'] for m in messages).encode())) if tokenize else None
+        # Le prompt et la réponse doivent tenir dans la fenêtre : sinon llama.cpp refuse (ou coupe le plan en plein
+        # JSON). La réponse se raccourcit pour tenir ; un prompt qui la remplit seul est refusé en clair.
+        n_ctx = llm.n_ctx() if callable(getattr(llm, 'n_ctx', None)) else None
+        if prompt_tokens and n_ctx:
+            room = n_ctx - prompt_tokens - 64  # marge : le gabarit de chat ajoute ses balises
+            if room < 128:
+                raise EngineUnavailable(f'demande trop longue pour le contexte du modèle ({prompt_tokens} jetons sur {n_ctx}) : '
+                                        'augmente le contexte dans les réglages du modèle, ou réduis la conversation')
+            wanted = options.get('max_tokens')
+            options['max_tokens'] = room if not wanted or wanted < 0 else min(wanted, room)
+        started = time.monotonic()
+        stream = llm.create_chat_completion(messages=messages, stream=True, **options)
+        pieces = (chunk['choices'][0]['delta'].get('content') or '' for chunk in stream)
+        return self._collect(model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started)
 
     def _collect(self, model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started):
         """Lit le flux (local ou distant) : fragments vers on_text, arrêt d'une boucle, mesures de l'appel."""
@@ -195,6 +252,8 @@ class Engine:
         text, first, count, stopped = [], None, 0, None
         try:
             for piece in pieces:
+                if self._abort.is_set():
+                    raise EngineUnavailable('arrêté')
                 if piece:
                     if first is None:
                         first = time.monotonic()
@@ -208,6 +267,10 @@ class Engine:
                         break
             if messages and messages[0]['role'] == 'system' and not model.endpoint:
                 self.prefixes[model.pk] = hash(messages[0]['content'])
+        except RuntimeError:  # llama_decode interrompu par le drapeau d'arrêt
+            if self._abort.is_set():
+                raise EngineUnavailable('arrêté') from None
+            raise
         finally:
             getattr(stream, 'close', lambda: None)()  # arrête la génération en cours
             end = time.monotonic()

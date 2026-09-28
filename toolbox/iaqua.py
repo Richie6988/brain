@@ -22,6 +22,7 @@ from nodzapp.models import Layer, Link, Node
 
 from . import broker as priorities
 from . import imaging, workspace
+from .engine import acting_for
 from .errors import PlanError
 from .models import Agent, ForgedTool, GuardianLog, LocalModel, Mission, Project, Schedule, Skill, Task
 from .prompts import default
@@ -130,9 +131,10 @@ def run_task(task_id, engine):
         task.status = Task.Status.IN_PROGRESS
         task.save(update_fields=['status', 'updated_at'])
         prompt = f'{task.title}\n{task.description}' + (f'\nCritères de réussite : {task.acceptance}' if task.acceptance else '')
-        text = engine.chat(agent.model, [{'role': 'system', 'content': agent.system_prompt or default(agent.role)},
-                                         {'role': 'user', 'content': prompt}],
-                           priority=priorities.BACKGROUND, owner=f'task:{task.key}', **agent.params)
+        with acting_for(task.owner_id):  # le bouton stop de son propriétaire la coupe
+            text = engine.chat(agent.model, [{'role': 'system', 'content': agent.system_prompt or default(agent.role)},
+                                             {'role': 'user', 'content': prompt}],
+                               priority=priorities.BACKGROUND, owner=f'task:{task.key}', **agent.params)
         task.result, task.status = text[:20000], Task.Status.COMPLETED
         task.progress = task.progress + [f'{timezone.now():%d/%m %H:%M} terminé par {agent.name}']
         task.save(update_fields=['result', 'status', 'progress', 'updated_at'])
@@ -161,6 +163,12 @@ Agents : {agents}"""
 
 
 def run_mission(mission_id, engine):
+    """Mission en fond, au nom de son propriétaire : son bouton stop coupe l'appel au modèle en cours."""
+    with acting_for(Mission.objects.values_list('owner_id', flat=True).get(pk=mission_id)):
+        _run_mission(mission_id, engine)
+
+
+def _run_mission(mission_id, engine):
     mission = Mission.objects.select_related('project').get(pk=mission_id)
     try:
         agents = {a.name.lower(): a for a in Agent.objects.filter(owner=mission.owner, enabled=True).select_related('model')

@@ -244,6 +244,8 @@ export function createNodebar() {
             select.addEventListener('change', () => {
                 element.value = select.value;
                 element.dispatchEvent(new Event('change'));
+                // Nodz vide la sélection en changeant de type : le node reste choisi, ses outils (IDE…) apparaissent
+                if (!selectedNodes.includes(node)) nodeSelection(node);
                 key = '';
             });
             return select;

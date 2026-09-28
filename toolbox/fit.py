@@ -18,7 +18,7 @@ OVERHEAD_MB = 600  # contexte CUDA et tampons de calcul
 WORK_CTX = 8192  # contexte réservé quand les couches GPU sont calculées (celui du Gardien)
 MAX_AUTO_CTX = 32768
 MAX_AUTO_CTX_CPU = 8192  # sur CPU : un grand cache pousse la RAM au swap et tout ralentit ; 8192 couvre le Gardien
-MIN_AUTO_CTX = 4096  # plancher : le prompt du Gardien (environ 3 500 jetons) et sa réponse ; au-delà, il réduit les nodes
+MIN_AUTO_CTX = 8192  # plancher : le prompt du Gardien (3 000 à 5 000 jetons selon l'univers) plus sa réponse ; à 4096 il débordait
 COMPUTE_MB = 300  # tampons de calcul sur CPU (batch 512)
 DEFAULT_KV_BYTES = 128 * 1024  # par jeton, quand l'en-tête ne permet pas de le calculer
 

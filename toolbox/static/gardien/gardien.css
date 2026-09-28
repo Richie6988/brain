@@ -211,6 +211,9 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
 .gm-dot.busy { background: #1E90FF; box-shadow: 0 0 6px rgba(30, 144, 255, 0.7); animation: gardien-blink 1s ease-in-out infinite; }
 @keyframes gardien-blink { 50% { opacity: 0.35; } }
 .gm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm-stop { flex: none; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #fff; font-size: 8px;
+    background: linear-gradient(135deg, #b9538b, #e11d48); box-shadow: 0 0 8px rgba(225, 29, 72, 0.5); }
+.gm-stop:hover { filter: brightness(1.2); }
 .gm-row { display: flex; align-items: center; gap: 8px; }
 .gm-row[hidden] { display: none; }
 .gm-label { width: 40px; flex: none; letter-spacing: 0.06em; opacity: 0.75; }

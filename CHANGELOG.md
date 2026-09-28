@@ -77,6 +77,13 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Correctifs** : changer le type d'un node depuis sa barre (la liste déroulante se refermait aussitôt : un appui sur un champ comptait comme un glissé) ; le bouton Rappel ouvrait un calendrier vide (erreur JS), il s'ouvre en carte de verre centrée, SET / RESET au style de Nodz. Infobulles des boutons du bas lisibles sur tous les fonds ; plus de cube « côté » sur l'écran d'accueil.
 
+**Le Gardien retourne, et s'arrête vraiment** (vérifié avec le vrai llama.cpp) :
+- *Contexte* : sur machine juste en RAM, le contexte automatique tombait à 4096 jetons alors que le prompt du Gardien en fait 3 000 à 5 000 : llama.cpp refusait la demande ou coupait le plan en plein JSON. Plancher relevé à 8192 ; si prompt et réponse ne tiennent pas, la réponse se raccourcit, et un prompt trop long pour le contexte donne un message clair.
+- *Arrêt dur* : le moteur pose le callback d'abandon de llama.cpp. Le stop coupe le modèle en quelques dizaines de millisecondes, lecture du prompt comprise, et le modèle resservit aussitôt. Il ne touche que ce qui est à l'utilisateur qui l'actionne.
+- *Tâches de fond* : le stop arrête aussi le préchauffage, la tâche de fond en cours et les missions de l'utilisateur ; un bouton ■ apparaît dans la tour de contrôle dès que le modèle travaille, même hors du chat. Une demande du chat ne fait plus la queue derrière une tâche de fond : elle la coupe et passe.
+
+**Nodes de code** : le type Code tient après rechargement (il n'était jamais enregistré, le node revenait en texte) ; les boutons IDE et ▶ apparaissent dès le choix du type.
+
 **Partage et profil** : le lien d'invitation s'affiche dans un champ (sélection d'un clic) avec un vrai bouton COPY, qui copie aussi sur une page en http (sans API presse-papiers, il ne faisait rien). Le camembert du profil devient un anneau sans bordure : plus de trait du centre quand il n'y a qu'une catégorie.
 
 **Rectangles étirables** : un node texte carré se redimensionne en largeur et en hauteur à part ; la double flèche est à son vrai coin bas droit et le suit. Ses proportions (`ratio`, largeur / hauteur) sont gardées par nodeSizing quel que soit l'appel, sauvegardées, rechargées et copiées avec le node ; sa hauteur n'est plus seulement celle du texte. Migration nodzapp 0016 : champ `ratio` du Node (ajout, 0 par défaut : les nodes existants ne changent pas). Cercles inchangés, bancs du feel identiques.
