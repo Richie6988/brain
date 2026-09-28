@@ -84,6 +84,10 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Nodes de code** : le type Code tient après rechargement (il n'était jamais enregistré, le node revenait en texte) ; les boutons IDE et ▶ apparaissent dès le choix du type.
 
+**Prompt du Gardien allégé, outils en répertoire** : le prompt système passe de 2980 à 1869 jetons (−37 %, mesuré avec le vrai tokenizer Qwen2), autant de lecture en moins avant chaque réponse. Les outils sont rangés en répertoire, `outils/<dossier>/<outil>` : une ligne par dossier courant (noms des outils, exemple JSON des plus utilisés), le seul sujet pour les dossiers rares (tâches, projets, compétences, fichiers, documents, images). Le Gardien ouvre une adresse avec `{"op":"open","path":"outils/nodes/style"}` (un outil : son mode d'emploi complet ; un dossier : ses outils et leurs exemples ; « outils » : les dossiers) et la lit au tour suivant ; `tool_help` reste compris. Consignes par défaut et exemples resserrés, sans règle perdue (les emojis vont dans les nodes, pas dans `say`). Un univers où le Gardien est déjà installé garde ses consignes du node « Prompt système » : « Rétablir les consignes par défaut » prend les nouvelles.
+
+**Cube HYPERSPACE** : le bouton de la vue de côté s'appelle HYPERSPACE ; plus d'infobulle, ni sur le cube ni au survol des nodes.
+
 **Diagnostic du Gardien et test du vrai moteur** :
 - *Diagnostic* (bouton dans la fiche du Gardien, route `toolbox/doctor`) : Gardien actif, modèle choisi, fichier présent, moteur installé, mémoire (besoin et libre, couches GPU), contexte comparé à son vrai prompt, essai réel de génération (lecture des consignes, jetons/s). Chaque ligne en vert ou en rouge, avec quoi faire ; il s'arrête à la première panne.
 - *Chargement qui se rattrape* : si llama.cpp refuse le contexte (cache quantifié incompatible avec le modèle, flash attention absente du build), le moteur réessaie sans ces options au lieu de laisser le Gardien sans modèle.

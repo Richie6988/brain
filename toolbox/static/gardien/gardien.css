@@ -690,13 +690,7 @@ body:has(.universe.lightmode) .gardien-side-layer .gs-guides line.here { stroke:
 body:has(.universe.lightmode) .gardien-side-layer .gs-guides text { fill: #6b5b8a; }
 body:has(.universe.lightmode) .gardien-side-layer .gs-guides text.here { fill: #6848A6; }
 body:has(.universe.lightmode) .gardien-side-layer .gs-portals path { stroke: #6848A6; filter: drop-shadow(0 0 4px rgba(104, 72, 166, 0.5)); }
-body:has(.universe.lightmode) #gardien-side-tip { color: #440852; background: rgba(255, 255, 255, 0.95); border-color: rgba(68, 8, 82, 0.2); }
 body:has(.universe.lightmode) #gardien-cube small { color: #6b5b8a; }
-#gardien-side-tip[hidden] { display: none; }
-#gardien-side-tip {
-    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); z-index: 32; margin: 0; padding: 6px 14px; pointer-events: none;
-    font: 12px 'Cascadia Code', monospace; color: #f8fafc; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 12px;
-}
 @keyframes gc3-spin { from { transform: rotateX(-22deg) rotateY(0deg); } to { transform: rotateX(-22deg) rotateY(360deg); } }
 #gardien-cube {
     position: fixed; top: 108px; right: 22px; z-index: 32; width: 84px; height: 96px; padding: 0; border: 0; background: none; cursor: pointer;

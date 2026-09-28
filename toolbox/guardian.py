@@ -104,7 +104,7 @@ PLAN_SCHEMA = {
                         'cwd', 'code', 'test_input', 'input', 'server', 'arguments')},
                     **{k: {'type': 'number'} for k in ('budget', 'limit', 'strength', 'timeout')},
                     **{k: {'type': 'boolean'} for k in ('run', 'abort')},
-                    **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('steps', 'files', 'packages', 'names')},
+                    **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('steps', 'files', 'packages', 'names', 'paths')},
                     'slides': {'type': 'array', 'items': {'type': 'object', 'properties': {
                         'title': {'type': 'string'}, 'body': {'type': 'string'}, 'bullets': {'type': 'array', 'items': {'type': 'string'}}}}},
                 },
@@ -115,28 +115,23 @@ PLAN_SCHEMA = {
 
 # Partie technique du Gardien (format et outils) : fixe. Ses consignes (prompts.GUARDIAN ou celles de
 # l'utilisateur) s'y ajoutent.
-SYSTEM = """L'univers Nodz est une carte spatiale de nodes (idées) reliés entre eux, répartis sur des
-dimensions (plans) reliées par des portails. Tes travellings de caméra guident l'utilisateur
-(tutoriels, visites, montrer ce que tu viens de faire).
-L'utilisateur t'écrit dans un node (le node message) ; tu réponds uniquement en JSON :
+SYSTEM = """Nodz : une carte de nodes (idées) reliés, sur des dimensions (plans) reliées par des portails ; tes travellings
+de caméra guident l'utilisateur. Il t'écrit dans un node (le node message) ; tu réponds uniquement en JSON :
 {"plan": ["étape", ...], "say": ce que tu as fait, "actions": [...]}.
-`plan` annonce, en quelques mots par étape, ce que tu fais dans CETTE réponse : chaque étape a ses actions dans
-`actions`, maintenant. Un plan sans actions ne fait rien : ne promets jamais pour plus tard. Si la demande
-n'appelle aucune action (simple question), `plan` et `actions` sont vides et `say` répond.
-`say` est écrit dans un node relié au node message : au passé (« J'ai relié… »), jamais « je vais ».
-Les nodes existants ont un identifiant (N-12) ; les nouveaux, une référence new1, new2...
-Tu lis chaque node comme un objet JSON (texte, liens, auteur, position) ; tu l'écris avec le même objet : put.
-Pour dire quelque chose plus tard (idée, rappel, question pas urgente), laisse une note : note ; l'humain la
-trouve dans la dimension Échanges et y répond. ask, c'est pour une question à trancher tout de suite.
-Mets le texte des nodes en forme pour hiérarchiser et donner vie : **gras**, *italique*, __souligné__,
-[#FF6B6B]en couleur[/], ^^grand^^, ^^^très grand^^^, ,,petit,, ; les emojis sont bienvenus.
+`plan` : les étapes de CETTE réponse, chacune avec ses actions maintenant ; jamais de promesse pour plus tard.
+Simple question : `plan` et `actions` vides, `say` répond. `say` s'écrit dans un node relié au message : au passé
+(« J'ai relié… »), jamais « je vais ». Nodes existants : identifiant N-12 ; nouveaux : new1, new2...
+Tu lis chaque node comme un objet JSON (texte, liens, auteur, position) et l'écris pareil : put.
+Pour plus tard (idée, rappel, question pas urgente) : note, que l'humain lit dans la dimension Échanges ; à trancher
+tout de suite : ask. Texte des nodes mis en forme : **gras**, *italique*, __souligné__, [#FF6B6B]couleur[/],
+^^grand^^, ^^^très grand^^^, ,,petit,, ; emojis bienvenus.
 Exemples (imite leur forme) :
 « bonjour » → {"plan": [], "say": "Bonjour ! Je peux créer, relier, ranger tes nodes ou te faire visiter. Que veux-tu faire ?", "actions": []}
-« ajoute Voyage relié à N-3 » → {"plan": ["Créer Voyage relié à N-3"], "say": "J'ai créé « Voyage » et je l'ai relié à N-3.", "actions": [{"op":"put","ref":"new1","near":"N-3","text":"Voyage","links":["N-3"]}]}
+« ajoute Voyage relié à N-3 » → {"plan": ["Créer Voyage relié à N-3"], "say": "J'ai créé « Voyage » relié à N-3.", "actions": [{"op":"put","ref":"new1","near":"N-3","text":"Voyage","links":["N-3"]}]}
 « mets N-5 en rouge et relie-le à N-2 » → {"plan": ["Changer N-5"], "say": "N-5 est rouge et relié à N-2.", "actions": [{"op":"put","ref":"N-5","color":"#FF6B6B","links":["N-2"]}]}
-« fais un SWOT de mon café » → {"plan": ["Poser le SWOT rempli"], "say": "J'ai posé le SWOT de ton café.", "actions": [{"op":"schema","type":"swot","title":"**Mon café**","fill":{"Forces":["Emplacement","Café maison"],"Faiblesses":["Petite salle"],"Opportunités":["Terrasse"],"Menaces":["Loyer en hausse"]}}]}
-« arbre de compétences d'un jeu » → {"plan": ["Construire l'arbre"], "say": "J'ai construit l'arbre de compétences.", "actions": [{"op":"build","layout":"tree","items":["Compétences","  Combat","    Épée","  Magie","    Feu"],"title":"Compétences"}]}
-« explique la photosynthèse en détail » → {"plan": ["Déployer l'explication"], "say": "J'ai déployé l'explication en étoile.", "actions": [{"op":"grow","text":"^^🌱 **Photosynthèse**^^\n- ☀️ **Lumière** : captée par la [#33FF99]chlorophylle[/]\n  - Phase claire : *ATP*\n- 💧 **Eau et CO2**\n  - Cycle de Calvin : __glucose__\n- 🌬️ **Oxygène** rejeté"}]}
+« fais un SWOT de mon café » → {"plan": ["Poser le SWOT rempli"], "say": "J'ai posé le SWOT de ton café.", "actions": [{"op":"schema","type":"swot","title":"**Mon café**","fill":{"Forces":["Emplacement"],"Menaces":["Loyer en hausse"]}}]}
+« arbre de compétences d'un jeu » → {"plan": ["Construire l'arbre"], "say": "J'ai construit l'arbre.", "actions": [{"op":"build","layout":"tree","items":["Compétences","  Combat","    Épée","  Magie"],"title":"Compétences"}]}
+« explique la photosynthèse » → {"plan": ["Déployer l'explication"], "say": "J'ai déployé l'explication en étoile.", "actions": [{"op":"grow","text":"^^🌱 **Photosynthèse**^^\n- ☀️ **Lumière** : la [#33FF99]chlorophylle[/]\n  - Phase claire : *ATP*\n- 🌬️ **Oxygène** rejeté"}]}
 « résume N-12 » (son texte complet est donné) → {"plan": [], "say": "N-12 dit que…", "actions": []}
 « fais quelque chose avec ça » (ambigu) → {"plan": [], "say": "", "actions": [{"op":"ask","text":"Je le résume ou j'en fais une carte mentale ?","choices":["Résumer","Carte mentale"]}]}
 {tools}
@@ -798,6 +793,16 @@ class Guardian(IaquaOps):
         if node is None or not (node.file_text_content or node.text_content):
             raise PlanError(f'{ref} : aucun document lisible')
         self.reads.append(f'Contenu de {ref} ({node.file_name or node.type}) :\n{(node.file_text_content or plain(node.text_content, 4000))[:4000]}')
+        return None
+
+    def op_open(self, action, agents):
+        """Répertoire d'outils : ouvre une ou plusieurs adresses (outil, dossier, « outils ») ; lu au tour suivant."""
+        paths = action.get('paths') or [action.get('path') or action.get('name') or 'outils']
+        opened = [(p, tools.open_path(p, self.allowed, self.docs)) for p in paths[:6]]
+        missing = [p for p, text in opened if text is None]
+        if missing and len(missing) == len(opened):
+            raise PlanError(f"adresse inconnue : {', '.join(map(str, missing))} (exemple : outils/nodes/style ; « outils » liste les dossiers)")
+        self.reads.append('Ouvert :\n' + '\n'.join(text for _, text in opened if text))
         return None
 
     def op_tool_help(self, action, agents):

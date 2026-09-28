@@ -858,13 +858,13 @@ class GuardianTests(TestCase):
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn(prompts.GUARDIAN, system)
-        self.assertIn('Web : web_search [L], web_fetch [L]', system)
+        self.assertIn('outils/web/ : web_search [L], web_fetch [L]', system)
         Agent.objects.filter(owner=self.user, role=Agent.Role.ORCHESTRATOR).update(system_prompt='Tu parles comme un pirate.')
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn('Tu parles comme un pirate.', system)
         self.assertNotIn(prompts.GUARDIAN, system)
-        self.assertIn('Nodes : style, set_type, cleanup, mindmap', system)  # une consigne réécrite ne retire pas les outils
+        self.assertIn('outils/nodes/ : put, create, update, style, set_type, archive, cleanup, mindmap', system)  # une consigne réécrite ne retire pas les outils
         agents = {a['name']: a for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
         self.assertEqual(agents['Rédacteur']['default_prompt'], prompts.ROLES[Agent.Role.TEXT])
 
@@ -1880,10 +1880,10 @@ class IaquaToolsTests(TestCase):
         self.assertNotIn('execute_bash', tools.enabled(guardian, self.user))
         guardian.tools_allowed = ['create', 'execute_bash']
         guardian.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask', 'put', 'note'])  # pas administrateur ; ask, put et note toujours permis
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'open', 'tool_help', 'ask', 'put', 'note'])  # pas administrateur ; open, ask, put et note toujours permis
         self.user.is_staff = True
         self.user.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'tool_help', 'ask', 'put', 'note'])  # GUARDIAN_SHELL=0
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'open', 'tool_help', 'ask', 'put', 'note'])  # GUARDIAN_SHELL=0
         with self.settings(GUARDIAN_SHELL=True):
             self.assertIn('execute_bash', tools.enabled(guardian, self.user))
             engine = self.run_guardian([{'op': 'execute_bash', 'command': 'echo bonjour > salut.txt && cat salut.txt'}])
@@ -1898,7 +1898,7 @@ class IaquaToolsTests(TestCase):
         guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
         guardian.tools_allowed = ['create', 'backdrop', 'schema']
         guardian.save()
-        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'schema', 'tool_help', 'ask', 'put', 'note'])
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'schema', 'open', 'tool_help', 'ask', 'put', 'note'])
 
     def test_delete_agent_needs_an_explicit_request(self):
         Agent.objects.create(owner=self.user, name='Traducteur')
@@ -1944,10 +1944,22 @@ class IaquaToolsTests(TestCase):
 
         engine = self.run_guardian([{'op': 'tool_help', 'names': ['create_task', 'execute_bash']}])
         system = engine.calls[0]['messages'][0]['content']
-        self.assertIn('Tâches : create_task, list_tasks [L]', system)  # le nom seul ; le détail par tool_help
-        self.assertIn('{"op":"create","ref":"new1"', system)  # outils essentiels en entier
+        self.assertIn('outils/taches/ : tâches (5 outils, à ouvrir)', system)  # dossier rare : son sujet seul
+        self.assertIn('outils/nodes/ : put, create, update', system)  # dossier courant : les noms
+        self.assertIn('  {"op":"archive","ref":"N-4"}', system)  # outil courant : son exemple JSON, sans la prose
         self.assertNotIn('execute_bash', system)
-        self.assertIn(tools.BY_OP['create_task']['doc'], self.reads(engine))
+        self.assertIn(tools.BY_OP['create_task']['doc'], self.reads(engine))  # tool_help, ancien nom, toujours compris
+
+    def test_open_reads_the_tool_directory(self):
+        from . import tools
+
+        engine = self.run_guardian([{'op': 'open', 'paths': ['outils/taches', 'outils/nodes/style', 'outils', 'outils/rien']}])
+        read = self.reads(engine)
+        self.assertIn('- create_task (', read)  # le dossier : ses outils et leur exemple
+        self.assertIn(f"outils/nodes/style : {tools.BY_OP['style']['doc']}", read)  # l'outil : son mode d'emploi complet
+        self.assertIn('outils/ : dialogue/ (2)', read)  # la racine : les dossiers
+        engine = self.run_guardian([{'op': 'open', 'path': 'outils/rien'}])
+        self.assertIn('adresse inconnue', self.errors()[-1])
 
     def test_memory_and_brain_live_in_the_universe(self):
         from nodzapp.models import Layer, Node

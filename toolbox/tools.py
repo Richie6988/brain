@@ -1,10 +1,14 @@
 """Catalogue des outils du Gardien : ceux de Nodz et tous ceux d'iAqua (Poseidon), en une liste.
 
-Chaque outil a son mode d'emploi (`doc`). Le prompt du Gardien reste court : mode d'emploi complet pour les
-outils essentiels (CORE), une ligne pour les autres, détaillés à la demande par tool_help ; un mode
+Chaque outil a son mode d'emploi (`doc`) et une adresse, outils/<dossier>/<outil> (le dossier est sa famille). Le
+prompt du Gardien est un répertoire : une ligne par dossier, l'exemple JSON des outils courants (CORE), et il ouvre
+une adresse (op open) pour lire un mode d'emploi complet ou la liste d'un dossier au tour suivant. Un mode
 d'emploi réécrit dans le node de l'outil (dimension Gardien de l'univers) prime sur celui du catalogue.
 Outils administrateur (admin) : ils exécutent du code sur le serveur, donc compte admin et GUARDIAN_SHELL=1.
 """
+
+import json
+import unicodedata
 
 NODZ, IAQUA, BOTH = 'nodz', 'iaqua', 'nodz+iaqua'
 
@@ -232,14 +236,21 @@ TOOLS = [
     {'op': 'call_mcp_tool', 'category': 'Administrateur', 'source': IAQUA, 'iaqua': 'call_mcp_tool', 'read': True, 'admin': True,
      'label': 'Outil MCP', 'doc': '{"op":"call_mcp_tool","server":"nom","name":"tools/list","arguments":{}} : tools/list pour découvrir, puis le nom de l\'outil.'},
     # --- Aide
+    {'op': 'open', 'category': 'Lecture', 'source': NODZ, 'read': True, 'label': 'Ouvrir une adresse du répertoire d\'outils',
+     'doc': '{"op":"open","path":"outils/nodes/style"} : mode d\'emploi complet d\'un outil ; un dossier ("outils/web") liste ses '
+            'outils avec leur exemple ; "outils" liste les dossiers. Plusieurs d\'un coup : "paths":[...].'},
     {'op': 'tool_help', 'category': 'Lecture', 'source': NODZ, 'read': True, 'label': 'Mode d\'emploi d\'outils',
      'doc': '{"op":"tool_help","names":["create_task","launch_mission"]} : mode d\'emploi détaillé des outils cités.'},
 ]
 BY_OP = {t['op']: t for t in TOOLS}
 
-# Outils décrits en entier dans le prompt ; les autres n'y ont qu'une ligne (mode d'emploi par tool_help).
+# Outils courants : leur exemple JSON est dans le prompt ; les autres n'y ont que leur nom (mode d'emploi par open).
 RENAMED = {'backdrop': 'schema'}  # ancien nom d'un outil coché → son remplaçant (fonds dessinés → modèles en nodes)
-CORE = {'ask', 'note', 'put', 'grow', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
+# (put, ask, build, grow, schema et open ont déjà le leur dans les exemples du prompt système)
+CORE = {'note', 'link', 'archive', 'delegate', 'focus', 'search_nodes', 'remember', 'tour'}
+HIDDEN = {'tool_help'}  # ancien nom de open : toujours compris, jamais proposé
+# Dossiers rares : le prompt n'en donne que le sujet ; le Gardien les ouvre (open) pour voir leurs outils
+FOLDED = {'taches', 'projets', 'competences', 'fichiers', 'documents', 'images', 'administrateur'}
 
 
 def available(op, user):
@@ -255,7 +266,7 @@ def enabled(agent, user):
     ops = allowed or [t['op'] for t in TOOLS if t.get('default', not t.get('admin'))]
     # tool_help, ask et note (parler à l'humain) et put (écrire un node comme il le lit) restent toujours permis, même avec
     # une liste d'outils cochés d'avant.
-    return [op for op in ops if available(op, user)] + [op for op in ('tool_help', 'ask', 'put', 'note') if op not in ops]
+    return [op for op in ops if available(op, user)] + [op for op in ('open', 'tool_help', 'ask', 'put', 'note') if op not in ops]
 
 
 def usage(op, docs=None):
@@ -263,16 +274,58 @@ def usage(op, docs=None):
     return (docs or {}).get(op) or BY_OP[op]['doc']
 
 
+def folder(category):
+    """Dossier d'une famille d'outils : son premier mot, sans accent (Tâches → taches)."""
+    return unicodedata.normalize('NFD', category.split()[0].lower()).encode('ascii', 'ignore').decode()
+
+
+def address(op):
+    return f"outils/{folder(BY_OP[op]['category'])}/{op}"
+
+
+def example(op, docs=None):
+    """L'exemple JSON d'un outil (le début de son mode d'emploi) ; un mode d'emploi réécrit dans l'univers, en entier."""
+    text = usage(op, docs)
+    if op in (docs or {}) or not text.startswith('{'):
+        return text
+    try:
+        return text[:json.JSONDecoder().raw_decode(text)[1]]  # l'objet JSON entier, même s'il contient « : »
+    except ValueError:
+        return text
+
+
+def folders(ops):
+    """Dossiers du répertoire : nom → outils permis, dans l'ordre du catalogue."""
+    out = {}
+    for t in TOOLS:
+        if t['op'] in ops and t['op'] not in HIDDEN:
+            out.setdefault(folder(t['category']), []).append(t)
+    return out
+
+
 def prompt(ops, docs=None):
-    """Outils du prompt, par famille : mode d'emploi complet pour les essentiels (et ceux réécrits dans l'univers),
-    les autres par leur nom seul, sur une ligne : le prompt reste court (tool_help les détaille)."""
-    lines = ['Outils (lectures marquées [L] : tu reçois le résultat au tour suivant). Mode d\'emploi d\'un outil cité par son nom : tool_help.']
-    for category in dict.fromkeys(t['category'] for t in TOOLS):
-        tools = [t for t in TOOLS if t['category'] == category and t['op'] in ops]
-        if not tools:
+    """Outils du prompt, en répertoire : une ligne par dossier (noms des outils), l'exemple JSON des outils courants
+    et de ceux réécrits dans l'univers. Le reste s'ouvre à la demande (open) : le prompt reste court."""
+    lines = ['Outils, rangés en répertoire outils/<dossier>/<outil>. Mode d\'emploi complet d\'un outil, ou liste d\'un '
+             'dossier : {"op":"open","path":"outils/nodes/style"}, lu au tour suivant. [L] : lecture, résultat au tour suivant.']
+    for name, tools in folders(ops).items():
+        if name in FOLDED and not any(t['op'] in (docs or {}) for t in tools):  # dossier rare : son sujet, à ouvrir
+            lines.append(f"outils/{name}/ : {tools[0]['category'].lower()} ({len(tools)} outils, à ouvrir)")
             continue
-        full = [t for t in tools if t['op'] in CORE or t['op'] in (docs or {})]
-        names = [f"{t['op']}{' [L]' if t.get('read') else ''}" for t in tools if t not in full]
-        lines.append(f"{category} :{' ' + ', '.join(names) if names else ''}")
-        lines += [f"- {usage(t['op'], docs)}{' [L]' if t.get('read') else ''}" for t in full]
+        lines.append(f"outils/{name}/ : " + ', '.join(f"{t['op']}{' [L]' if t.get('read') else ''}" for t in tools))
+        lines += [f"  {example(t['op'], docs)}" for t in tools if t['op'] in CORE or t['op'] in (docs or {})]
     return '\n'.join(lines)
+
+
+def open_path(path, ops, docs=None):
+    """Ce que le Gardien lit en ouvrant une adresse : un outil (mode d'emploi complet), un dossier (ses outils et leur
+    exemple) ou « outils » (les dossiers). None si l'adresse n'existe pas ou n'est pas permise."""
+    parts = [p for p in str(path or '').strip().split('/') if p]
+    if parts and parts[-1] in BY_OP and parts[-1] in ops:
+        return f"{address(parts[-1])} : {usage(parts[-1], docs)}"
+    tree = folders(ops)
+    if parts in ([], ['outils']):
+        return 'outils/ : ' + ', '.join(f'{name}/ ({len(tools)})' for name, tools in tree.items())
+    if len(parts) == 2 and parts[0] == 'outils' and parts[1] in tree:
+        return f"outils/{parts[1]}/ :\n" + '\n'.join(f"- {t['op']} ({t['label']}) : {example(t['op'], docs)}" for t in tree[parts[1]])
+    return None

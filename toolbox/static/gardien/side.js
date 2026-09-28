@@ -45,11 +45,8 @@ export function createSide({ bridge, say, filters }) {
     const cube = document.createElement('button');
     cube.type = 'button';
     cube.id = 'gardien-cube';
-    cube.title = 'Vue de côté : X = numéro de dimension, Y = Y (Échap pour revenir)';
-    cube.innerHTML = '<span class="gc3">' + '<i></i>'.repeat(6) + '</span><small>côté</small>';
+    cube.innerHTML = '<span class="gc3">' + '<i></i>'.repeat(6) + '</span><small>hyperspace</small>';
     document.body.append(cube);
-    const tip = Object.assign(document.createElement('p'), { id: 'gardien-side-tip', hidden: true });
-    document.body.append(tip);
 
     let scene = null, busy = false;
     cube.addEventListener('click', () => (scene ? close() : open()));
@@ -131,11 +128,6 @@ export function createSide({ bridge, say, filters }) {
             fo.append(box);
             g.append(fo);
         }
-        g.addEventListener('pointerenter', () => {
-            tip.textContent = `${n.layer} · ${n.dimension}`;
-            tip.hidden = false;
-        });
-        g.addEventListener('pointerleave', () => { tip.hidden = true; });
         let press = null;
         g.addEventListener('pointerdown', event => { press = [event.clientX, event.clientY]; });
         g.addEventListener('pointerup', event => {
@@ -170,7 +162,6 @@ export function createSide({ bridge, say, filters }) {
         const byLayer = new Map([[current, []]]);
         nodes.forEach(n => {
             n.here = n.layer === current;
-            n.dimension = names.get(n.layer) || `dimension ${n.layer}`;
             if (!byLayer.has(n.layer)) byLayer.set(n.layer, []);
             byLayer.get(n.layer).push(n);
         });
@@ -257,13 +248,11 @@ export function createSide({ bridge, say, filters }) {
         scene = null;
         document.body.classList.remove('gardien-side-on');
         cube.classList.remove('on');
-        tip.hidden = true;
     }
 
     async function close(target = null) {
         if (busy || !scene) return;
         busy = true;
-        tip.hidden = true;
         const back = scene.back;
         await Promise.all([animate(1, 0), target ? null : bridge.frame(back, 0)]);
         teardown();
