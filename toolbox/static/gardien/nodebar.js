@@ -27,6 +27,7 @@ const TOOLS = {
         { icon: 'underline', title: 'Souligné', group: TEXT, index: 2, on: 'mousedown' },
         { kind: 'font', step: -1, label: 'A−', title: 'Plus petit', group: TEXT, index: 3 },
         { kind: 'font', step: 1, label: 'A+', title: 'Plus grand', group: TEXT, index: 3 },
+        { kind: 'family', label: 'Aa', title: 'Police' },
         { icon: 'colorpicking', title: 'Couleur du texte', group: TEXT, index: 4, on: 'mousedown' },
         { icon: 'smiley', title: 'Emoji', group: TEXT, index: 5, on: 'mousedown' },
     ],
@@ -45,6 +46,16 @@ const TOOLS = {
         { icon: 'download', title: 'Télécharger', group: FILE, index: 1, on: 'mousedown', pick: 'div' },
     ],
 };
+
+// Polices du bouton « Aa » : familles génériques avec repli, présentes sur toute machine.
+const FAMILIES = [
+    ['Cascadia Code', "'Cascadia Code', monospace"],
+    ['Sans', "system-ui, 'Segoe UI', Roboto, sans-serif"],
+    ['Serif', "Georgia, 'Times New Roman', serif"],
+    ['Manuscrite', "'Segoe Script', 'Bradley Hand', 'Comic Sans MS', cursive"],
+    ['Machine', "'Courier New', Courier, monospace"],
+    ['Affiche', "Impact, 'Arial Black', sans-serif"],
+];
 
 const img = name => `${NODZ_BASE}/static/img/${name}${typeof dark !== 'undefined' && !dark ? '-light' : ''}.svg`;
 const fire = (element, type) => element?.dispatchEvent(new MouseEvent(type, { bubbles: false, cancelable: true }));
@@ -179,7 +190,28 @@ export function createNodebar() {
         return b;
     }
 
+    // Choix de police : menu HTML sous la barre ; le texte garde le focus (la barre retient le mousedown), la police
+    // s'applique à la sélection comme le gras (execCommand, balise font face), Nodz l'enregistre en quittant le node.
+    function family() {
+        const wrap = Object.assign(document.createElement('span'), { className: 'gn-family' });
+        const b = Object.assign(document.createElement('button'), { type: 'button', title: 'Police', textContent: 'Aa' });
+        const menu = Object.assign(document.createElement('div'), { className: 'gn-menu', hidden: true });
+        FAMILIES.forEach(([name, stack]) => {
+            const item = Object.assign(document.createElement('button'), { type: 'button', textContent: name, title: name });
+            item.style.fontFamily = stack;
+            item.addEventListener('click', () => {
+                document.execCommand('fontName', false, stack);
+                menu.hidden = true;
+            });
+            menu.append(item);
+        });
+        b.addEventListener('click', () => { menu.hidden = !menu.hidden; });
+        wrap.append(b, menu);
+        return wrap;
+    }
+
     function control(node, tool) {
+        if (tool.kind === 'family') return family();
         const element = source(node, tool);
         if (tool.kind === 'type') {
             const select = element.cloneNode(true);  // mêmes types que la liste de Nodz
@@ -211,7 +243,7 @@ export function createNodebar() {
         key = next;
         bar.replaceChildren(...modes.flatMap((mode, i) => [
             ...(i ? [Object.assign(document.createElement('span'), { className: 'sep' })] : []),
-            ...TOOLS[mode].filter(tool => source(node, tool)).map(tool => control(node, tool)),
+            ...TOOLS[mode].filter(tool => tool.kind === 'family' || source(node, tool)).map(tool => control(node, tool)),
         ]));
     }
 

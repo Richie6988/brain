@@ -571,6 +571,16 @@ body:has(.universe.lightmode) #gardien-sizer svg { stroke: #440852; }
 }
 #gardien-nodebar select:disabled { opacity: 0.5; cursor: not-allowed; }
 #gardien-nodebar input[type=range] { width: 70px; accent-color: #b89af2; cursor: pointer; }
+#gardien-nodebar .gn-family { position: relative; display: flex; }
+#gardien-nodebar .gn-family > button { font-family: Georgia, serif; font-size: 13px; }
+#gardien-nodebar .gn-menu {
+    position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 2px;
+    padding: 6px; min-width: 150px; background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 14px rgba(104, 72, 166, 0.35); animation: gardien-appear 0.15s ease-out;
+}
+#gardien-nodebar .gn-menu[hidden] { display: none; }
+#gardien-nodebar .gn-menu button { width: auto; height: 30px; padding: 0 12px; border-radius: 10px; text-align: left; font-size: 14px; font-weight: 400; }
+body:has(.universe.lightmode) #gardien-nodebar .gn-menu { background: rgba(255, 255, 255, 0.97); border-color: rgba(68, 8, 82, 0.2); }
 #gardien-nodebar .sep { width: 1px; height: 18px; margin: 0 4px; background: rgba(184, 154, 242, 0.35); }
 body:has(.universe.lightmode) #gardien-nodebar { background: rgba(255, 255, 255, 0.92); border-color: rgba(68, 8, 82, 0.2); }
 body:has(.universe.lightmode) #gardien-nodebar button, body:has(.universe.lightmode) #gardien-nodebar select { color: #440852; }
