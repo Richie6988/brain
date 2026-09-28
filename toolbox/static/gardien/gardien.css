@@ -616,3 +616,19 @@ foreignObject.portal img {
 foreignObject.portal img:hover { animation-duration: 0.9s, 1.2s; filter: brightness(1.25) drop-shadow(0 0 6px #1E90FF); }
 .gt-crumbs .gt-portal { flex: none; color: #b89af2; font-size: 14px; text-shadow: 0 0 8px #1E90FF; }
 .gt-choices button.portal { border-style: dashed !important; }
+
+/* Galerie : arborescences de vrais nodes (trees.js), cartes sombres à l'aperçu dessiné, avant les fonds de réflexion. */
+#templates .gt-trees-title { grid-column: 1 / -1; justify-self: start; margin: 4px 0 -6px; font: 600 12px 'Cascadia Code', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #b89af2; }
+#templates .template-tree {
+    display: flex; flex-direction: column; align-items: center; gap: 2px; width: 200px; height: 200px; padding: 8px 10px 10px; cursor: pointer;
+    font-family: 'Cascadia Code', monospace; color: #e2e8f0; text-align: center;
+    background: radial-gradient(circle at 50% 40%, rgba(104, 72, 166, 0.35), rgba(5, 12, 23, 0.95) 70%);
+    border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 14px; transition: transform 0.25s, box-shadow 0.25s;
+}
+#templates .template-tree:hover { transform: translateY(-4px); box-shadow: 0 0 0 2px #6848A6, 0 0 18px rgba(30, 144, 255, 0.45); }
+#templates .template-tree svg { width: 130px; height: 130px; flex: none; }
+#templates .template-tree .gt-lines line { stroke: rgba(184, 154, 242, 0.55); stroke-width: 2; }
+#templates .template-tree .gt-dots :is(circle, rect) { fill: #050c17; stroke-width: 2.5; transition: transform 0.3s; transform-box: fill-box; transform-origin: center; }
+#templates .template-tree:hover .gt-dots :is(circle, rect) { transform: scale(1.25); }
+#templates .template-tree b { font-size: 12px; }
+#templates .template-tree small { font-size: 10px; color: #94a3b8; }

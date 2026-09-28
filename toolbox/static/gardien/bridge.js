@@ -266,6 +266,15 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {} }
             return focus(node, zoom, take);
         },
         setTempo(k) { tempo = k; },
+        center: () => toWorld(window.innerWidth / 2, window.innerHeight / 2),  // centre de la vue, en coordonnées de Nodz
+        // Recule (jamais n'avance) pour montrer une zone de `width` × `height` autour du centre de la vue.
+        async fit(width, height) {
+            const zoom = Math.min(window.innerWidth / width, window.innerHeight / height);
+            if (zoom >= currentZoom) return true;
+            cut();
+            const v = view();
+            return zoomTo(zoom, v.x, v.y, take);
+        },
         // La visite passe un portail : la dimension de l'autre bout se charge, la caméra suit ensuite.
         async enter(layer) {
             if (layer === layerNumber) return;
