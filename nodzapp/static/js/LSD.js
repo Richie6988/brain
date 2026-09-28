@@ -199,6 +199,7 @@ function displayNode(node) {
     const id = `N-${node.node_id}`;  
     const newNode = createNode(transfoX,transfoY,id);
     newNode.children[1].setAttribute('r',node.radius)
+    newNode.setAttribute('ratio', node.ratio || 0);  // rectangle étiré : ses proportions (nodeSizing)
     newNode.setAttribute('type', node.type);
     newNode.setAttribute('color', node.color);
     newNode.setAttribute('shape', node.shape);
@@ -455,6 +456,7 @@ function save(nodeGroup,tunnel){
         const shape = nodeGroup.getAttribute('shape');
         const likes = nodeGroup.getAttribute('likes');
         const radius = nodeGroup.children[1].getAttribute('r');
+        const ratio = nodeGroup.getAttribute('ratio') || 0;
         const layer = nodeGroup.getAttribute('layer');
         const textContent = nodeGroup.getAttribute('textcontent');
         const imgContent = nodeGroup.getAttribute('imagecontent');
@@ -476,6 +478,7 @@ function save(nodeGroup,tunnel){
             shape: shape,
             likes: likes,
             radius: radius,
+            ratio: ratio,
             layer: layer,
             textContent: textContent,
             imgContent: imgContent,

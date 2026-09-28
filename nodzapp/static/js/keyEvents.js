@@ -414,6 +414,7 @@ function pastenodes(tunnel) {
             redrawCanvas(pasteNode.children[0].children[3].id,0, drawingData);
 
             pasteNode.children[1].setAttribute('r', parseFloat(element.children[1].getAttribute('r')));
+            pasteNode.setAttribute('ratio', element.getAttribute('ratio') || 0);
 
             pasteNode.tools.type.children[0].children[0].value = pasteNode.getAttribute('type'); 
             var event = new Event('change');

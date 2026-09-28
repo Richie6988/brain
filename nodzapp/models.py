@@ -122,6 +122,7 @@ class Node(models.Model):
     shape = models.TextField(default='circle')
     likes = models.IntegerField(default=0)
     radius = models.FloatField(default=0)
+    ratio = models.FloatField(default=0)  # rectangle étiré : largeur / hauteur (0 : taille selon le texte)
     links = models.TextField(default='')
     siblings = models.TextField(default='')
     quantum = models.TextField(default='')

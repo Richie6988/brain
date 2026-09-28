@@ -434,6 +434,7 @@ def save_node(request):
                     shape=group_data['shape'],
                     likes=group_data['likes'],
                     radius=group_data['radius'],
+                    ratio=float(group_data.get('ratio') or 0),
                     layer=layer_instance,
                     text_content=group_data['textContent'],
                     image_content=group_data['imgContent'],
@@ -685,7 +686,7 @@ def loading(request):
         layer_instance = Layer.objects.get(user=user, layer_id=layer)                          
         # Retrieve all groups and link data from the database
         nodes = Node.objects.filter(user=user,archive=False, layer=layer_instance).values('node_id', 'x_coordinate', 'y_coordinate', 'layer__layer_id',
-                                          'type', 'color','shape','likes', 'radius', 'rank', 'quantum',
+                                          'type', 'color','shape','likes', 'radius', 'ratio', 'rank', 'quantum',
                                           'text_content','image_content','canvas_content',
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
@@ -1672,7 +1673,7 @@ def admin_loading(request):
         layer_instance = Layer.objects.get(user=user, layer_id=layer)                          
         # Retrieve all groups and link data from the database
         nodes = Node.objects.filter(user=user,archive=False, layer=layer_instance).values('node_id', 'x_coordinate', 'y_coordinate', 'layer__layer_id',
-                                          'type', 'color','shape','likes', 'radius', 'rank', 'quantum',
+                                          'type', 'color','shape','likes', 'radius', 'ratio', 'rank', 'quantum',
                                           'text_content','image_content','canvas_content',
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')

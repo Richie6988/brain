@@ -9,6 +9,8 @@
 // Poignée de taille : une pastille HTML de taille constante au coin bas droit du node sélectionné ou survolé (elle
 // reste tant que le pointeur est près du node). La tirer donne au node le rayon de la distance entre pointeur et
 // centre ; même redimensionnement (nodeSizing) et même sauvegarde que Nodz. Elle remplace la double flèche SVG.
+// Un node texte carré devient un rectangle : la poignée est à son vrai coin et règle largeur et hauteur à part
+// (attribut ratio, gardé par nodeSizing et sauvegardé).
 
 import { dragging as gesture } from './gesture.js';
 
@@ -81,12 +83,13 @@ function createSizer() {
 
     const center = target => {
         const r = shapeOf(target).getBoundingClientRect();
-        return [r.left + r.width / 2, r.top + r.height / 2, r.width / 2];
+        return [r.left + r.width / 2, r.top + r.height / 2, r.width / 2, r.height / 2];
     };
     const near = target => {
-        const [cx, cy, radius] = center(target);
-        return Math.hypot(pointer[0] - cx, pointer[1] - cy) < radius + 48;
+        const [cx, cy, halfW, halfH] = center(target);
+        return Math.hypot(pointer[0] - cx, pointer[1] - cy) < Math.max(halfW, halfH) + 48;
     };
+    const rectangle = target => target.getAttribute('shape') === 'square' && target.getAttribute('type') === 'text';
     function candidate() {
         if (dragging) return node;
         if ((typeof isDragging !== 'undefined' && isDragging) || gesture()) return null;
@@ -107,6 +110,13 @@ function createSizer() {
     knob.addEventListener('pointermove', event => {
         if (!dragging) return;
         const [cx, cy] = center(node);
+        if (rectangle(node)) {  // largeur et hauteur à part : le rectangle mesure (w + 30) × (h + 30)
+            const w = Math.max(60, (2 * Math.abs(event.clientX - cx)) / currentZoom - 30);
+            const h = Math.max(20, (2 * Math.abs(event.clientY - cy)) / currentZoom - 30);
+            node.setAttribute('ratio', (w / h).toFixed(4));
+            nodeSizing(node, w, h);
+            return;
+        }
         const radius = Math.max(20, Math.hypot(event.clientX - cx, event.clientY - cy) / currentZoom);  // rayon en unités de Nodz
         nodeSizing(node, radius * Math.SQRT2, radius * Math.SQRT2);
     });
@@ -124,10 +134,11 @@ function createSizer() {
         if (!node || (typeof admin !== 'undefined' && admin)) {
             knob.hidden = true;
         } else {
-            const [cx, cy, radius] = center(node);
-            const corner = node.getAttribute('shape') === 'square' ? radius : radius * Math.SQRT1_2;  // bas droit du cercle ou du carré
+            const [cx, cy, halfW, halfH] = center(node);
+            const square = node.getAttribute('shape') === 'square';  // bas droit du carré ou du rectangle, sinon du cercle
+            const [dx, dy] = square ? [halfW, halfH] : [halfW * Math.SQRT1_2, halfH * Math.SQRT1_2];
             knob.hidden = false;
-            knob.style.transform = `translate(${Math.round(cx + corner - 14)}px, ${Math.round(cy + corner - 14)}px)`;
+            knob.style.transform = `translate(${Math.round(cx + dx - 14)}px, ${Math.round(cy + dy - 14)}px)`;
             knob.style.setProperty('--c', node.getAttribute('color') || '#b89af2');
         }
         requestAnimationFrame(follow);
