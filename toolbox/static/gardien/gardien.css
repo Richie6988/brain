@@ -588,3 +588,21 @@ body:has(.universe.lightmode) .gc-links button { color: #440852; }
 
 /* Correspondance : le bouton Échanges du chat s'allume quand le Gardien a laissé des notes. */
 .gc-panel header .gc-exchanges.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
+
+/* Portail : vortex au lieu d'une spirale grise posée sur le bord. Pastille de verre sombre, anneau irisé qui tourne
+   autour de la spirale claire (même en mode clair), halo pulsé ; au survol il accélère. Même place et même taille (le feel ne bouge pas).
+   La visite le traverse (tour.js) : bouton de choix et passage « ⟿ » dans le fil d'Ariane. */
+@keyframes gardien-portal-spin { to { transform: rotate(360deg); } }
+@keyframes gardien-portal-glow { 50% { box-shadow: 0 0 16px 3px rgba(30, 144, 255, 0.55), inset 0 0 6px rgba(184, 154, 242, 0.6); } }
+foreignObject.portal { overflow: visible; animation: none; }
+foreignObject.portal img {
+    box-sizing: border-box; padding: 6px; border-radius: 50%; cursor: pointer;
+    background: radial-gradient(circle, rgba(5, 12, 23, 0.95) 0 58%, transparent 60%),
+        conic-gradient(from 0deg, #6848A6, #1E90FF, #33FF99, #b89af2, #6848A6);
+    box-shadow: 0 0 8px 1px rgba(104, 72, 166, 0.5), inset 0 0 4px rgba(184, 154, 242, 0.4);
+    animation: gardien-portal-spin 4s linear infinite, gardien-portal-glow 2.4s ease-in-out infinite;
+    transition: transform 0.2s, filter 0.2s;
+}
+foreignObject.portal img:hover { animation-duration: 0.9s, 1.2s; filter: brightness(1.25) drop-shadow(0 0 6px #1E90FF); }
+.gt-crumbs .gt-portal { flex: none; color: #b89af2; font-size: 14px; text-shadow: 0 0 8px #1E90FF; }
+.gt-choices button.portal { border-style: dashed !important; }

@@ -4,6 +4,8 @@
 // resté ouvert. Le parcours est gardé comme l'historique d'un navigateur : ⏮ et ⏭ (← →) y font autant
 // d'allers-retours qu'on veut, le fil d'Ariane y saute d'un clic ; au bout du parcours, ⏭ explore la suite, et
 // quand tout est vu, il continue de suivre les liens. Lecture / pause, vitesse, mode auto (il choisit seul).
+// Les portails comptent comme des liens : la visite les prend et continue dans la dimension de l'autre bout (elle
+// s'y charge). Un pas du parcours est donc { id, layer } et non un élément de la page, que le chargement remplace.
 // Un geste sur l'univers (clic, molette) met la visite en pause ; rien n'est modifié dans Nodz.
 
 import { h } from './library.js';
@@ -13,20 +15,35 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const textOf = node => node?.children[0]?.children[0]?.innerText?.trim() || '';
 const short = (text, n = 70) => (text.length > n ? `${text.slice(0, n - 1)}…` : text) || '(node vide)';
 
-// Voisins d'un node par ses liens (attributs Node1 / Node2 des liens de Nodz).
-function neighbours(node) {
-    let ids = [];
+const parse = raw => {
     try {
-        ids = JSON.parse(node.getAttribute('links') || '[]');
-    } catch { /* node sans liens */ }
-    return ids.map(id => document.getElementById(id)).filter(Boolean)
+        const value = JSON.parse(raw || '[]');
+        return Array.isArray(value) ? value : [];
+    } catch {
+        return [];
+    }
+};
+const layerName = layer => layers.find(l => l.id === layer)?.name || `dimension ${layer}`;
+
+// Pas voisins d'un node : par ses liens (attributs Node1 / Node2 des liens de Nodz), puis par ses portails (champ
+// quantum : [{ node, layer }]). Un univers d'un autre compte (admin) ne se charge pas : ses portails sont ignorés.
+function neighbours(node) {
+    const linked = parse(node.getAttribute('links')).map(id => document.getElementById(id)).filter(Boolean)
         .map(link => (link.getAttribute('Node1') === node.id ? link.getAttribute('Node2') : link.getAttribute('Node1')))
-        .map(id => document.getElementById(id)).filter(n => n?.classList.contains('node-group'));
+        .filter(id => document.getElementById(id)?.classList.contains('node-group'))
+        .map(id => ({ id, layer: layerNumber }));
+    const portals = parse(node.getAttribute('quantum')).filter(p => p?.node)
+        .map(p => ({ id: String(p.node).startsWith('N-') ? String(p.node) : `N-${p.node}`, layer: Number(p.layer) || layerNumber, portal: true }))
+        .filter(p => !(typeof admin !== 'undefined' && admin && p.layer !== layerNumber) && !linked.some(l => l.id === p.id));
+    return [...linked, ...portals];
 }
 
 export function createTour({ bridge, say }) {
     // trail : chaque arrivée, dans l'ordre ; at : où l'on en est dans ce parcours (⏮ ⏭ s'y déplacent).
-    const state = { trail: [], at: -1, seen: new Set(), total: 0, playing: false, auto: false, speed: 1, choices: [], run: 0 };
+    // next : voisins de chaque node déjà atteint (on ne peut plus les lire une fois sa dimension quittée) ;
+    // info : texte, couleur et dimension de chaque pas, pour le fil d'Ariane et les choix ; known : nodes connus.
+    const state = { trail: [], at: -1, seen: new Set(), known: new Set(), next: new Map(), info: new Map(),
+        playing: false, auto: false, speed: 1, choices: [], run: 0 };
 
     const title = h('strong', {});
     const bar = h('i');
@@ -71,46 +88,62 @@ export function createTour({ bridge, say }) {
     }, true);
 
     const here = () => state.trail[state.at];
-    const open = node => neighbours(node).filter(n => !state.seen.has(n.id));
-    const colorOf = node => node?.getAttribute('color') || '#b89af2';
+    const element = step => (step && step.layer === layerNumber ? document.getElementById(step.id) : null);
+    const open = step => (state.next.get(step.id) || []).filter(n => !state.seen.has(n.id));
+    const colorOf = step => state.info.get(step?.id)?.color || '#b89af2';
+    const label = step => (state.info.has(step.id) ? state.info.get(step.id).text : `⟿ ${layerName(step.layer)}`);
 
-    // Nodes atteignables depuis le départ : la barre de progression de la visite.
-    function reachable(start) {
-        const found = new Set([start.id]);
-        for (let queue = [start]; queue.length;) {
-            neighbours(queue.shift()).forEach(n => { if (!found.has(n.id)) { found.add(n.id); queue.push(n); } });
+    // Ce que la page montre de la dimension chargée : voisins et textes des nodes atteignables depuis `node`
+    // (ils font la barre de progression ; les portails comptent, leur dimension sera lue en y arrivant).
+    function survey(node) {
+        for (let queue = [node]; queue.length;) {
+            const n = queue.shift();
+            if (state.next.has(n.id)) continue;
+            state.known.add(n.id);
+            state.info.set(n.id, { text: textOf(n), color: n.getAttribute('color'), layer: layerNumber });
+            const steps = neighbours(n);
+            state.next.set(n.id, steps);
+            steps.forEach(s => {
+                state.known.add(s.id);
+                const el = element(s);
+                if (el && !state.next.has(s.id)) queue.push(el);
+            });
         }
-        return found.size;
     }
 
     function paint() {
-        const node = here();
-        title.textContent = `Visite · ${state.seen.size} / ${state.total} node${state.total > 1 ? 's' : ''}`;
-        bar.style.width = `${state.total ? (100 * state.seen.size) / state.total : 0}%`;
-        swatch.style.background = colorOf(node);
-        text.textContent = node ? short(textOf(node), 160) : '';
+        const step = here();
+        const total = state.known.size;
+        const away = step && state.trail[0] && step.layer !== state.trail[0].layer;
+        title.textContent = `Visite · ${state.seen.size} / ${total} node${total > 1 ? 's' : ''}${away ? ` · ${layerName(step.layer)}` : ''}`;
+        bar.style.width = `${total ? (100 * state.seen.size) / total : 0}%`;
+        swatch.style.background = colorOf(step);
+        text.textContent = step ? short(label(step), 160) : '';
         play.textContent = state.playing ? '⏸' : '▶';
         back.disabled = state.at <= 0;
-        ahead.disabled = !node || (state.at === state.trail.length - 1 && !neighbours(node).length);
+        ahead.disabled = !step || (state.at === state.trail.length - 1 && !(state.next.get(step.id) || []).length);
         // Fil d'Ariane : les étapes autour de la position, chacune cliquable (aller-retour direct).
         const from = Math.max(0, state.at - 3), to = Math.min(state.trail.length, state.at + 3);
-        crumbs.replaceChildren(...(from > 0 ? [h('span', {}, '…')] : []), ...state.trail.slice(from, to).map((n, k) => {
+        crumbs.replaceChildren(...(from > 0 ? [h('span', {}, '…')] : []), ...state.trail.slice(from, to).flatMap((n, k) => {
             const index = from + k;
-            const crumb = h('button', { type: 'button', class: index === state.at ? 'on' : '', title: textOf(n) || '(node vide)',
-                onclick: () => jump(index) }, short(textOf(n), 18));
+            const crumb = h('button', { type: 'button', class: index === state.at ? 'on' : '', title: label(n) || '(node vide)',
+                onclick: () => jump(index) }, short(label(n), 18));
             crumb.style.setProperty('--c', colorOf(n));
-            return crumb;
+            const crossed = index > 0 && state.trail[index - 1].layer !== n.layer;  // passage d'un portail
+            return crossed ? [h('span', { class: 'gt-portal', title: `Portail vers ${layerName(n.layer)}` }, '⟿'), crumb] : [crumb];
         }), ...(to < state.trail.length ? [h('span', {}, '…')] : []));
         auto.classList.toggle('on', state.auto);
         speeds.querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === state.speed));
         document.querySelectorAll('.gardien-choice').forEach(n => n.classList.remove('gardien-choice'));
         choices.replaceChildren(...(state.choices.length ? [h('small', {}, `${state.choices.length} branches : laquelle ?`),
             ...state.choices.map((n, i) => {
-                n.classList.add('gardien-choice');
-                const button = h('button', { type: 'button', onclick: () => choose(n) }, h('b', {}, String(i + 1)), short(textOf(n), 48));
+                const el = element(n);
+                el?.classList.add('gardien-choice');
+                const button = h('button', { type: 'button', class: n.portal ? 'portal' : '', onclick: () => choose(n) },
+                    h('b', {}, String(i + 1)), short(n.portal && n.layer !== layerNumber ? `⟿ ${layerName(n.layer)}` : label(n), 48));
                 button.style.setProperty('--c', colorOf(n));
-                button.addEventListener('mouseenter', () => n.classList.add('gardien-choice-hover'));
-                button.addEventListener('mouseleave', () => n.classList.remove('gardien-choice-hover'));
+                button.addEventListener('mouseenter', () => el?.classList.add('gardien-choice-hover'));
+                button.addEventListener('mouseleave', () => el?.classList.remove('gardien-choice-hover'));
                 return button;
             })] : []));
     }
@@ -121,17 +154,27 @@ export function createTour({ bridge, say }) {
         paint();
     }
 
-    // Travelling vers `node`, pause de lecture proportionnelle au texte, puis la suite. Un nouveau pas s'ajoute au
-    // parcours (et coupe l'éventuelle suite déjà vue, comme un navigateur) ; `replay` rejoue un pas du parcours.
-    async function go(node, { replay = false } = {}) {
+    // Travelling vers le pas `step` (après chargement de sa dimension s'il est au bout d'un portail), pause de lecture
+    // proportionnelle au texte, puis la suite. Un nouveau pas s'ajoute au parcours (et coupe l'éventuelle suite déjà
+    // vue, comme un navigateur) ; `replay` rejoue un pas du parcours.
+    async function go(step, { replay = false } = {}) {
         const run = ++state.run;
         state.choices = [];
         if (!replay) {
-            state.trail = [...state.trail.slice(0, state.at + 1), node];
+            state.trail = [...state.trail.slice(0, state.at + 1), { id: step.id, layer: step.layer }];
             state.at = state.trail.length - 1;
         }
-        state.seen.add(node.id);
+        state.seen.add(step.id);
         document.querySelectorAll('.gardien-visiting').forEach(n => n.classList.remove('gardien-visiting'));
+        paint();
+        if (step.layer !== layerNumber) {
+            say(`Portail : je passe dans « ${layerName(step.layer)} »`, 'guide');
+            await bridge.enter(step.layer);
+            if (run !== state.run) return;
+        }
+        const node = element(step);
+        if (!node) return pause('Ce node n\'existe plus : ⏮ pour revenir');
+        survey(node);
         node.classList.add('gardien-visiting');
         paint();
         const arrived = await bridge.visit(node);
@@ -169,7 +212,7 @@ export function createTour({ bridge, say }) {
         for (let i = state.at - 1; i >= 0; i--) {
             if (open(state.trail[i]).length) {
                 const fork = state.trail[i];
-                say(`Retour à « ${short(textOf(fork), 40)} » : il reste des branches`, 'guide');
+                say(`Retour à « ${short(label(fork), 40)} » : il reste des branches`, 'guide');
                 return go(fork);
             }
         }
@@ -179,10 +222,10 @@ export function createTour({ bridge, say }) {
         return null;
     }
 
-    function choose(node) {
-        if (!state.choices.includes(node)) return;
+    function choose(step) {
+        if (!state.choices.includes(step)) return;
         state.playing = true;
-        go(node);
+        go(step);
     }
 
     // Un pas du parcours déjà fait, en pause (fil d'Ariane, ⏮, ⏭ dans le parcours).
@@ -207,8 +250,8 @@ export function createTour({ bridge, say }) {
         if (state.at < state.trail.length - 1) return go(state.trail[++state.at], { replay: true });
         if (state.trail.some(n => open(n).length)) return next();
         const came = state.trail[state.at - 1];
-        const links = neighbours(here());
-        go(links.find(n => n !== came) || links[0]);
+        const links = state.next.get(here().id) || [];
+        go(links.find(n => n.id !== came?.id) || links[0]);
     }
 
     function pause(message) {
@@ -219,14 +262,15 @@ export function createTour({ bridge, say }) {
     }
 
     function resume() {
-        const node = here();
-        if (!node) return;
+        const step = here();
+        if (!step) return;
         state.playing = true;
         paint();
         if (!state.choices.length) {
-            // reprise : on recale la caméra sur le node, puis la suite
+            // reprise : on recale la caméra sur le node (dans sa dimension), puis la suite
+            if (!element(step)) return go(step, { replay: true });
             const run = ++state.run;
-            bridge.visit(node).then(ok => { if (ok && run === state.run && state.playing) advance(); });
+            bridge.visit(element(step)).then(ok => { if (ok && run === state.run && state.playing) advance(); });
         }
     }
 
@@ -245,10 +289,10 @@ export function createTour({ bridge, say }) {
             stop();
             selectedNodes.slice().forEach(n => nodeUnselection(n));  // la pastille du node se retire
             document.dispatchEvent(new MouseEvent('mouseup'));
-            Object.assign(state, { trail: [], at: -1, seen: new Set(), total: reachable(node), choices: [], playing: true });
+            Object.assign(state, { trail: [], at: -1, seen: new Set(), known: new Set(), next: new Map(), info: new Map(), choices: [], playing: true });
             bridge.setTempo(state.speed);
             card.hidden = false;
-            go(node);
+            go({ id: node.id, layer: layerNumber });
         },
         stop,
     };

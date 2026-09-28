@@ -266,6 +266,13 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {} }
             return focus(node, zoom, take);
         },
         setTempo(k) { tempo = k; },
+        // La visite passe un portail : la dimension de l'autre bout se charge, la caméra suit ensuite.
+        async enter(layer) {
+            if (layer === layerNumber) return;
+            cut();
+            load(layer);
+            await waitLoaded();
+        },
         cut,
         idOf: ref => refs.get(ref) || ref,  // identifiant Nodz (N-12) d'une référence du Gardien
         // Se rend dans la dimension `name` (créée si besoin, comme le bouton « New dimension » de Nodz) et y reste.
