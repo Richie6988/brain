@@ -665,6 +665,69 @@ async def command(request):
 
 
 @api('POST')
+def doctor(request, body):
+    """Diagnostic du Gardien, en clair : ce qu'une vraie demande va rencontrer (agent, modèle, moteur, mémoire, contexte
+    comparé à son vrai prompt, essai de génération avec sa vitesse). Chaque ligne : {label, ok, detail}."""
+    checks = []
+
+    def check(label, ok, detail):
+        checks.append({'label': label, 'ok': bool(ok), 'detail': detail})
+        return ok
+
+    user = request.user
+    guardian_ = Guardian(user, engine, lambda kind, data: None)
+    agents = guardian_.agents()
+    orchestrator = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
+    if not check('Gardien actif', orchestrator, 'activé' if orchestrator else 'le Gardien est désactivé dans Agents & modèles'):
+        return JsonResponse({'checks': checks})
+    model = orchestrator.model
+    if not check('Modèle choisi', model, (model.label or model.filename) if model else 'aucun modèle : choisis-en un pour le Gardien'):
+        return JsonResponse({'checks': checks})
+    n_ctx = None
+    if model.endpoint:
+        try:
+            remote.check(model)
+            check('Modèle par API', True, model.endpoint)
+        except remote.RemoteError as e:
+            check('Modèle par API', False, str(e))
+            return JsonResponse({'checks': checks})
+    else:
+        present = bool(model.path) and Path(model.path).is_file()
+        if not check('Fichier du modèle', present, model.path if present else
+                     f"{model.path or 'rien'} introuvable : retélécharge-le (Hugging Face) ou réimporte-le (Fichiers du serveur)"):
+            return JsonResponse({'checks': checks})
+        if not check('Moteur local', engine.available(), 'llama-cpp-python installé' if engine.available()
+                     else 'llama-cpp-python absent : pip install -r requirements-ai.txt'):
+            return JsonResponse({'checks': checks})
+        _, placement = fit.resolve(model.path, Engine.options(model), engine.gpu_offload() is not False,
+                                   set(model_params.load_options(model.params)))
+        n_ctx = placement['n_ctx']
+        go = lambda mb: f"{mb / 1024:.1f} Go".replace('.', ',')
+        check('Mémoire', placement['fits'], f"besoin {go(placement['need_mb'])}, libre {go(placement['ram_free_mb'])}"
+              + (f", {placement['gpu_layers']}/{placement['layers']} couches sur GPU" if placement['gpu_layers'] else ', sur CPU')
+              + ('' if placement['fits'] else " : il relira le disque à chaque mot, prends un modèle plus petit"))
+    # Essai réel : le prompt système du Gardien, une réponse de quelques jetons.
+    try:
+        system = guardian_.system(agents)
+        with acting_for(user.pk):
+            engine.chat(model, [{'role': 'system', 'content': system}, {'role': 'user', 'content': 'Réponds seulement : OK'}],
+                        owner='diagnostic', max_tokens=8, temperature=0)
+    except Exception as e:  # le diagnostic rapporte toute panne au lieu d'échouer
+        check('Essai du modèle', False, f'{type(e).__name__} : {e}'[:300])
+        return JsonResponse({'checks': checks})
+    last = (engine.stats.get(model.pk) or {}).get('last') or {}
+    prompt = last.get('prompt_tokens')
+    if n_ctx and prompt:
+        check('Contexte', prompt + 1024 <= n_ctx, f'{prompt} jetons de consignes, fenêtre de {n_ctx}'
+              + ('' if prompt + 1024 <= n_ctx else ' : augmente le contexte du modèle (réglages) pour laisser la place à sa réponse'))
+    wait, speed = last.get('wait_s'), last.get('speed')
+    check('Essai du modèle', True, f'lecture des consignes {wait} s' + (f', {speed} jetons/s' if speed else ''))
+    if speed:
+        check('Vitesse', speed >= 2, f'{speed} jetons/s' + ('' if speed >= 2 else ' : très lent, un plan prendra plusieurs minutes'))
+    return JsonResponse({'checks': checks})
+
+
+@api('POST')
 def command_stop(request, body):
     """Bouton stop du chat : tout ce que le modèle fait pour l'utilisateur s'arrête. Sa demande (au prochain calcul de
     llama.cpp, lecture du prompt comprise), son préchauffage, sa tâche de fond en cours et ses missions ; une demande

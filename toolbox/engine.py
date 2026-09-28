@@ -131,7 +131,7 @@ class Engine:
         if not model.path:
             raise EngineUnavailable(f'{model} n\'est pas téléchargé')
         resolved, self.placement[model.pk] = fit.resolve(model.path, options, self.gpu_offload() is not False, set(load_options(model.params)))
-        self._llm = self.factory(model_path=model.path, verbose=False, **resolved)
+        self._llm = self._load(model, resolved)
         self._install_abort(self._llm)
         self._loaded, self._options = model.pk, options
         self._ttl = float(model.params.get('ttl', DEFAULT_TTL))
@@ -139,6 +139,25 @@ class Engine:
         self.stats[model.pk] = {'loaded_at': now, 'last_used': now, 'requests': 0, 'tokens': 0}
         self._watch()
         return self._llm
+
+    def _load(self, model, resolved):
+        """Charge le modèle ; si llama.cpp refuse le contexte (cache quantifié incompatible avec ce modèle, flash
+        attention absente de ce build), réessaie sans ces options au lieu de laisser le Gardien sans modèle."""
+        tries = [resolved]
+        plain = {k: v for k, v in resolved.items() if k not in ('type_k', 'type_v')}
+        if plain != resolved:
+            tries.append(plain)
+        if plain.get('flash_attn'):
+            tries.append({**plain, 'flash_attn': False})
+        for options in tries:
+            try:
+                llm = self.factory(model_path=model.path, verbose=False, **options)
+            except ValueError as e:  # « Failed to create llama_context »
+                error = e
+                continue
+            self.placement[model.pk]['kv_q8'] = options.get('type_k') == 8
+            return llm
+        raise EngineUnavailable(f'{model} ne se charge pas ({error}) : réduis le contexte dans ses réglages') from None
 
     def _install_abort(self, llm):
         try:

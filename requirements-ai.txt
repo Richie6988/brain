@@ -2,3 +2,5 @@
 # Compilation depuis les sources : apt-get install build-essential cmake
 # GPU NVIDIA : CMAKE_ARGS="-DGGML_CUDA=on" pip install -r requirements-ai.txt
 llama-cpp-python==0.3.35
+# Écriture du mini-modèle des tests du moteur réel (toolbox/test_real_engine.py)
+gguf>=0.10

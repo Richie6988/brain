@@ -84,6 +84,11 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Nodes de code** : le type Code tient après rechargement (il n'était jamais enregistré, le node revenait en texte) ; les boutons IDE et ▶ apparaissent dès le choix du type.
 
+**Diagnostic du Gardien et test du vrai moteur** :
+- *Diagnostic* (bouton dans la fiche du Gardien, route `toolbox/doctor`) : Gardien actif, modèle choisi, fichier présent, moteur installé, mémoire (besoin et libre, couches GPU), contexte comparé à son vrai prompt, essai réel de génération (lecture des consignes, jetons/s). Chaque ligne en vert ou en rouge, avec quoi faire ; il s'arrête à la première panne.
+- *Chargement qui se rattrape* : si llama.cpp refuse le contexte (cache quantifié incompatible avec le modèle, flash attention absente du build), le moteur réessaie sans ces options au lieu de laisser le Gardien sans modèle.
+- *Test du vrai moteur* (`toolbox/test_real_engine.py`) : un mini-modèle aux poids aléatoires, fabriqué sur le vocabulaire de llama.cpp (fixtures/, licence MIT), reçoit le vrai prompt du Gardien sur une machine simulée à court de RAM, puis l'arrêt dur en pleine lecture. Il échoue avec l'ancien plancher de 4096. Ignoré sans llama-cpp-python et gguf (ajouté à requirements-ai.txt).
+
 **Filtres sur toutes les dimensions, plus simples** : une recherche par mot-clé et des filtres qui portent sur tout l'univers. Auteurs dans une liste à cocher (IA, l'utilisateur ; le dernier coché reste), période au double curseur de « toujours » à « maintenant » (échelle resserrée vers le présent), sur la création ou la dernière modification, ordre Récent / Ancien. Le compteur donne les nodes gardés et leurs dimensions ; ‹ › (Entrée, Maj+Entrée) mènent de l'un à l'autre en changeant de dimension. La route `toolbox/marks` donne aussi la dimension et le début du texte de chaque node, les auteurs et les noms des dimensions. Le crayon d'une dimension ferme la liste ; la barre s'efface quand un aperçu de document passe dessous.
 
 **Partage et profil** : le lien d'invitation s'affiche dans un champ (sélection d'un clic) avec un vrai bouton COPY, qui copie aussi sur une page en http (sans API presse-papiers, il ne faisait rien). Le camembert du profil devient un anneau sans bordure : plus de trait du centre quand il n'y a qu'une catégorie.

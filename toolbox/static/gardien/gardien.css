@@ -814,3 +814,15 @@ body:has(.universe.lightmode) .node-group[type=code] .node-text-input code { col
 .cm-s-nodz .cm-comment { color: #64748b; font-style: italic; }
 .cm-s-nodz .cm-operator { color: #f472b6; }
 .cm-s-nodz .cm-property, .cm-s-nodz .cm-attribute { color: #93c5fd; }
+
+/* Diagnostic du Gardien (Agents & modèles) : une ligne par vérification, pastille verte ou rouge */
+.gl-doctor-box { display: grid; gap: 8px; }
+.gl-doctor-box > button { justify-self: start; }
+.gl-doctor { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
+.gl-doctor:empty { display: none; }
+.gl-doctor li { padding: 6px 10px 6px 26px; border-radius: 10px; background: rgba(148, 163, 184, 0.08); position: relative; line-height: 1.4; }
+.gl-doctor li::before { content: ''; position: absolute; left: 10px; top: 11px; width: 8px; height: 8px; border-radius: 50%; }
+.gl-doctor li.ok::before { background: #06ffa5; box-shadow: 0 0 6px rgba(6, 255, 165, 0.6); }
+.gl-doctor li.bad { background: rgba(225, 29, 72, 0.12); }
+.gl-doctor li.bad::before { background: #e11d48; box-shadow: 0 0 6px rgba(225, 29, 72, 0.6); }
+.gl-doctor li.wait::before { background: #1E90FF; animation: gardien-blink 1s ease-in-out infinite; }

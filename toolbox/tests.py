@@ -268,6 +268,22 @@ class EngineTests(TestCase):
         with self.assertRaisesMessage(EngineUnavailable, 'trop longue'):
             engine.chat(self.model, [{'role': 'user', 'content': 'x' * 1950}])
 
+    def test_load_falls_back_when_llama_refuses_the_context(self):
+        class Picky(FakeLlama):  # ce build refuse le cache quantifié, puis la flash attention
+            def __init__(self, **kwargs):
+                if kwargs.get('type_k') or kwargs.get('flash_attn'):
+                    raise ValueError('Failed to create llama_context')
+                super().__init__(**kwargs)
+
+        engine = Engine(Broker(), factory=Picky)
+        engine._watch = lambda: None
+        self.model.params = {'type_k': 'q8_0', 'type_v': 'q8_0', 'flash_attn': True}
+        self.model.save()
+        self.assertEqual(engine.chat(self.model, [{'role': 'user', 'content': 'x'}]), 'Bonjour')
+        loaded = FakeLlama.instances[-1].kwargs
+        self.assertNotIn('type_k', loaded)
+        self.assertFalse(loaded['flash_attn'])
+
     def test_stop_is_per_user_and_chat_preempts_background(self):
         from .broker import BACKGROUND
         from .engine import acting_for
@@ -1968,3 +1984,53 @@ class IaquaToolsTests(TestCase):
         self.assertIn("Mon mode d'emploi à moi", self.reads(engine))
         self.assertIn('outil désactivé', self.errors()[0])  # son node a été supprimé
         self.assertTrue(self.client.get('/api/v1/toolbox/brain-map').json()['installed'])
+
+
+class DoctorTests(TestCase):
+    """Diagnostic du Gardien : chaque étape en clair, arrêt à la première panne."""
+
+    def setUp(self):
+        self.user = NodzUser.objects.create_user(email='doc@nodz.local', password='pw-123456')
+        self.client.force_login(self.user)
+        self.url = '/api/v1/toolbox/doctor'
+
+    def labels(self):
+        return [(c['label'], c['ok']) for c in self.client.post(self.url, {}, content_type='application/json').json()['checks']]
+
+    def test_stops_at_the_first_failure(self):
+        self.assertEqual(self.labels(), [('Gardien actif', False)])
+        guardian = Agent.objects.create(owner=self.user, name='Gardien', role=Agent.Role.ORCHESTRATOR)
+        self.assertEqual(self.labels(), [('Gardien actif', True), ('Modèle choisi', False)])
+        guardian.model = LocalModel.objects.create(repo='org/m', filename='m.gguf', path='/absent/m.gguf', status=LocalModel.Status.READY)
+        guardian.save()
+        self.assertEqual(self.labels()[-1], ('Fichier du modèle', False))
+
+    def test_full_run_reports_context_and_speed(self):
+        path = Path(tempfile.mkdtemp()) / 'm.gguf'
+        path.write_bytes(b'x')
+        self.addCleanup(shutil.rmtree, path.parent)
+        model = LocalModel.objects.create(repo='org/m', filename='m.gguf', path=str(path), status=LocalModel.Status.READY)
+        Agent.objects.create(owner=self.user, name='Gardien', role=Agent.Role.ORCHESTRATOR, model=model)
+
+        class Measured(ScriptedEngine):
+            stats = {}
+
+            def available(self):
+                return True
+
+            def gpu_offload(self):
+                return False
+
+            def chat(self, model, messages, **params):
+                self.stats[model.pk] = {'last': {'prompt_tokens': 3500, 'wait_s': 30.0, 'speed': 1.2}}
+                return 'OK'
+
+        placement = {'n_ctx': 4096, 'fits': True, 'need_mb': 1500, 'ram_free_mb': 3000, 'gpu_layers': 0, 'layers': 28}
+        with mock.patch.object(api, 'engine', Measured()), mock.patch.object(api.fit, 'resolve', return_value=({}, placement)):
+            checks = self.client.post(self.url, {}, content_type='application/json').json()['checks']
+        by = {c['label']: c for c in checks}
+        self.assertTrue(by['Mémoire']['ok'])
+        self.assertFalse(by['Contexte']['ok'])  # 3500 + 1024 > 4096 : sa réponse ne tiendrait pas
+        self.assertIn('augmente le contexte', by['Contexte']['detail'])
+        self.assertFalse(by['Vitesse']['ok'])
+        self.assertIn('30.0 s', by['Essai du modèle']['detail'])

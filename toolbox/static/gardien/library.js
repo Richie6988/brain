@@ -200,6 +200,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                 agent.role === 'orchestrator' ? h('button', { type: 'button', class: 'gl-primary', onclick: onInstallBrain,
                     title: 'Crée ou complète la dimension Gardien : Prompt système, Mémoire, Cerveau, Outils, un node par outil avec son mode d\'emploi' },
                     'Installer / compléter le Gardien dans l\'univers') : null,
+                agent.role === 'orchestrator' ? doctor() : null,
                 h('details', {}, h('summary', {}, agent.system_prompt ? 'Consignes (personnalisées)' : 'Consignes'), prompt,
                     agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement. '
                         + 'Une fois le Gardien installé dans l\'univers, ses consignes se lisent et se réécrivent dans le node « Prompt système ».') : null,
@@ -207,6 +208,25 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                 h('details', {}, h('summary', {}, Object.keys(agent.params || {}).length ? 'Échantillonnage (propre à cet agent)' : 'Échantillonnage'),
                     h('p', { class: 'gl-hint' }, "Vide = réglages du modèle. Ces valeurs priment pour cet agent."), sampling));
         }));
+    }
+
+    // Diagnostic : ce qu'une vraie demande au Gardien rencontrera, étape par étape (essai réel du modèle).
+    function doctor() {
+        const out = h('ul', { class: 'gl-doctor' });
+        const run = h('button', { type: 'button', title: 'Vérifie modèle, moteur, mémoire, contexte et vitesse par un essai réel' }, 'Diagnostic');
+        run.addEventListener('click', async () => {
+            run.disabled = true;
+            out.replaceChildren(h('li', { class: 'wait' }, 'Essai du modèle en cours (le charger peut prendre une minute)…'));
+            try {
+                const { checks } = await api.request('POST', 'toolbox/doctor', {});
+                out.replaceChildren(...checks.map(c => h('li', { class: c.ok ? 'ok' : 'bad' }, h('b', {}, c.label), ` ${c.detail}`)));
+            } catch (error) {
+                out.replaceChildren(h('li', { class: 'bad' }, h('b', {}, 'Diagnostic'), ` ${error.message}`));
+            } finally {
+                run.disabled = false;
+            }
+        });
+        return h('div', { class: 'gl-doctor-box' }, run, out);
     }
 
     // --- Outils du Gardien : Nodz et iAqua en un catalogue, activables un par un
