@@ -20,7 +20,6 @@ import { createPending } from './pending.js';
 import { createPresence } from './presence.js';
 import { createSchemas } from './schemas.js';
 import { createSide } from './side.js';
-import { LATER, createSuggestions } from './suggest.js';
 import { createTour } from './tour.js';
 
 const toast = document.getElementById('gardien-toast');
@@ -348,7 +347,7 @@ async function ask(node, text, attached = []) {
 
 const chat = createChat({
     onSend: (text, attached) => {
-        if (text === LATER) return chat.add('notice', 'D\'accord, je n\'y touche pas.');  // une proposition écartée : rien à demander
+        if (text === 'Plus tard') return chat.add('notice', 'D\'accord, je n\'y touche pas.');  // une note écartée : rien à demander au modèle
         queue = queue.then(() => ask(null, text, attached));
     },
     // Stop : le serveur coupe le modèle à son prochain jeton ; la lecture du prompt, elle, va à son terme avant.
@@ -361,7 +360,6 @@ const chat = createChat({
     onExchanges: () => openExchanges().catch(error => say(error.message, 'error')),
 });
 
-createSuggestions({ chat, busy: () => document.getElementById('gardien-chat')?.classList.contains('busy') });  // propose, n'agit pas
 
 // Une fois par navigateur, au premier node écrit : comment parler au Gardien.
 document.addEventListener('input', function hint(event) {

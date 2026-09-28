@@ -1957,11 +1957,23 @@ class IaquaToolsTests(TestCase):
 
         engine = self.run_guardian([{'op': 'tool_help', 'names': ['create_task', 'execute_bash']}])
         system = engine.calls[0]['messages'][0]['content']
-        self.assertIn('outils/taches/ : tâches (5 outils, à ouvrir)', system)  # dossier rare : son sujet seul
-        self.assertIn('outils/nodes/ : put, create, update', system)  # dossier courant : les noms
-        self.assertIn('  {"op":"archive","ref":"N-4"}', system)  # outil courant : son exemple JSON, sans la prose
+        self.assertIn('outils/taches/ : tâches (5 outils)', system)  # dossier rare : son sujet seul
+        self.assertIn('outils/nodes/ : put, create, update', system)  # dossier courant : les noms, sans mode d'emploi
+        self.assertNotIn('{"op":"archive"', system)  # les modes d'emploi viennent avec la demande qui les appelle
         self.assertNotIn('execute_bash', system)
         self.assertIn(tools.BY_OP['create_task']['doc'], self.reads(engine))  # tool_help, ancien nom, toujours compris
+
+    def test_the_request_brings_the_tools_it_calls_for(self):
+        engine = self.run_guardian([], request='relie Kyoto à Tokyo et crée une tâche pour demain')
+        messages = engine.calls[0]['messages']
+        system, message = messages[0]['content'], messages[1]['content']  # la liste s'allonge aux tours suivants
+        self.assertIn('Outils pour cette demande :', message)
+        self.assertIn('- link (', message)  # « relie » → outils/liens
+        self.assertIn('- create_task (', message)  # « tâche » → outils/taches
+        self.assertNotIn('- web_search (', message)
+        engine = self.run_guardian([], request='bonjour')
+        self.assertNotIn('Outils pour cette demande', engine.calls[0]['messages'][1]['content'])
+        self.assertEqual(engine.calls[0]['messages'][0]['content'], system)  # le prompt système ne bouge pas : relu du cache
 
     def test_open_reads_the_tool_directory(self):
         from . import tools

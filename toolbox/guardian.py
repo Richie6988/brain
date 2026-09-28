@@ -309,6 +309,7 @@ class Guardian(IaquaOps):
         self.scale = 1.0  # part du contexte montrée au modèle (réduite si son contexte déborde)
         self.letters = []  # réponses de l'humain à ses notes (correspondance)
         self.attached_away = []  # nodes joints d'autres dimensions (sélecteur de contexte)
+        self.allowed = []  # outils permis (lus avec le prompt système)
 
     # --- contexte envoyé par la page
 
@@ -370,6 +371,7 @@ class Guardian(IaquaOps):
         view = self.perception.objects(shown, self.links, full=full, limits=limits, scale=self.scale)
         away = self.perception.outside([ref for ref in cited if ref not in self.nodes])
         joined = [o for o in self.perception.outside(self.attached_away) if not o.get('introuvable')] if self.attached_away else []
+        guide = tools.relevant(request, self.allowed, self.docs)
         talk = ['Échanges récents (du plus ancien au plus récent) :',
                 *(f"{'Humain' if role == 'user' else 'Toi'} : {text}" for role, text in self.history)] if self.history else []
         return '\n'.join([
@@ -381,6 +383,7 @@ class Guardian(IaquaOps):
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
             *(['Nodes cités hors de cette dimension :', *perception.lines(away)] if away else []),
             *(['Nodes joints d\'autres dimensions (contexte choisi par l\'humain) :', *perception.lines(joined)] if joined else []),
+            *(['Outils pour cette demande :', guide] if guide else []),  # aiguillage : ceux que ses mots appellent
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
         ])
 

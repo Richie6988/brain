@@ -1,9 +1,10 @@
 """Catalogue des outils du Gardien : ceux de Nodz et tous ceux d'iAqua (Poseidon), en une liste.
 
 Chaque outil a son mode d'emploi (`doc`) et une adresse, outils/<dossier>/<outil> (le dossier est sa famille). Le
-prompt du Gardien est un répertoire : une ligne par dossier, l'exemple JSON des outils courants (CORE), et il ouvre
-une adresse (op open) pour lire un mode d'emploi complet ou la liste d'un dossier au tour suivant. Un mode
-d'emploi réécrit dans le node de l'outil (dimension Gardien de l'univers) prime sur celui du catalogue.
+prompt du Gardien est un répertoire stable (une ligne par dossier) ; les modes d'emploi des dossiers que la
+demande appelle lui arrivent avec elle (aiguillage par mots-clés, relevant), et il ouvre une autre adresse (op open)
+au besoin. Un mode d'emploi réécrit dans le node de l'outil (dimension Gardien de l'univers) prime sur celui du
+catalogue.
 Outils administrateur (admin) : ils exécutent du code sur le serveur, donc compte admin et GUARDIAN_SHELL=1.
 """
 
@@ -244,10 +245,7 @@ TOOLS = [
 ]
 BY_OP = {t['op']: t for t in TOOLS}
 
-# Outils courants : leur exemple JSON est dans le prompt ; les autres n'y ont que leur nom (mode d'emploi par open).
 RENAMED = {'backdrop': 'schema'}  # ancien nom d'un outil coché → son remplaçant (fonds dessinés → modèles en nodes)
-# (put, ask, build, grow, schema et open ont déjà le leur dans les exemples du prompt système)
-CORE = {'note', 'link', 'archive', 'delegate', 'focus', 'search_nodes', 'remember', 'tour'}
 HIDDEN = {'tool_help'}  # ancien nom de open : toujours compris, jamais proposé
 # Dossiers rares : le prompt n'en donne que le sujet ; le Gardien les ouvre (open) pour voir leurs outils
 FOLDED = {'taches', 'projets', 'competences', 'fichiers', 'documents', 'images', 'administrateur'}
@@ -304,17 +302,50 @@ def folders(ops):
 
 
 def prompt(ops, docs=None):
-    """Outils du prompt, en répertoire : une ligne par dossier (noms des outils), l'exemple JSON des outils courants
-    et de ceux réécrits dans l'univers. Le reste s'ouvre à la demande (open) : le prompt reste court."""
-    lines = ['Outils, rangés en répertoire outils/<dossier>/<outil>. Mode d\'emploi complet d\'un outil, ou liste d\'un '
-             'dossier : {"op":"open","path":"outils/nodes/style"}, lu au tour suivant. [L] : lecture, résultat au tour suivant.']
+    """Outils du prompt système, en répertoire : une ligne par dossier, les noms des outils (le sujet seul pour les
+    dossiers rares). Il ne dépend pas de la demande : llama.cpp le garde lu d'une demande à l'autre. Les modes
+    d'emploi utiles à une demande arrivent avec elle (relevant), le reste s'ouvre (open)."""
+    lines = ['Outils, rangés en répertoire outils/<dossier>/<outil> ; ceux utiles à la demande te sont détaillés avec elle. '
+             'Pour un autre : {"op":"open","path":"outils/web"} (un dossier) ou "outils/nodes/style" (un outil), lu au tour '
+             'suivant. [L] : lecture, résultat au tour suivant.']
     for name, tools in folders(ops).items():
-        if name in FOLDED and not any(t['op'] in (docs or {}) for t in tools):  # dossier rare : son sujet, à ouvrir
-            lines.append(f"outils/{name}/ : {tools[0]['category'].lower()} ({len(tools)} outils, à ouvrir)")
-            continue
-        lines.append(f"outils/{name}/ : " + ', '.join(f"{t['op']}{' [L]' if t.get('read') else ''}" for t in tools))
-        lines += [f"  {example(t['op'], docs)}" for t in tools if t['op'] in CORE or t['op'] in (docs or {})]
+        if name in FOLDED:  # dossier rare : son sujet, à ouvrir
+            lines.append(f"outils/{name}/ : {tools[0]['category'].lower()} ({len(tools)} outils)")
+        else:
+            lines.append(f"outils/{name}/ : " + ', '.join(f"{t['op']}{' [L]' if t.get('read') else ''}" for t in tools))
     return '\n'.join(lines)
+
+
+# Aiguillage : les mots d'une demande (sans accents, en minuscules) qui appellent un dossier d'outils. Local et
+# instantané : le Gardien reçoit les modes d'emploi de ce dont il a besoin, sans appel au modèle pour les choisir.
+HINTS = {
+    'dialogue': ('plus tard', 'rappelle-moi', 'note'),
+    'nodes': ('node', 'supprim', 'efface', 'couleur', 'forme', 'carre', 'cercle', 'nettoie', 'vide', 'renomme', 'carte mentale'),
+    'liens': ('reli', 'lien', 'connect', 'portail', 'dimension'),
+    'navigation': ('montre', 'visite', 'emmene', 'va a', 'va sur', 'zoom', 'focus', 'guide', 'vue d', 'ou est'),
+    'gabarits': ('matrice', 'arbre', 'swot', 'schema', 'modele', 'gabarit', 'kanban', 'frise', 'pdca', 'processus', 'organigramme',
+                 'ishikawa', 'canvas', 'eisenhower', 'deploie', 'explique'),
+    'agents': ('agent', 'redige', 'redaction', 'code', 'programme', 'delegue', 'article'),
+    'memoire': ('retiens', 'souviens', 'memoire', 'oublie', 'rappelle-toi', 'mes preferences'),
+    'lecture': ('cherche', 'trouve', 'retrouve', 'document', 'lis ', 'inventaire', 'combien'),
+    'web': ('web', 'internet', 'google', 'site', 'en ligne', 'actualite', 'url', 'http'),
+    'taches': ('tache', 'todo', 'a faire', 'planifie', 'chaque jour', 'tous les', 'rappel'),
+    'projets': ('projet', 'mission', 'objectif', 'feuille de route'),
+    'competences': ('competence', 'skill', 'savoir-faire'),
+    'fichiers': ('fichier', 'git', 'depot', 'enregistre dans'),
+    'documents': ('docx', 'word', 'pptx', 'powerpoint', 'presentation', 'diaporama', 'e-mail', 'email', 'mail'),
+    'images': ('image', 'dessine', 'illustr', 'photo', 'logo'),
+}
+
+
+def relevant(request, ops, docs=None, limit=3):
+    """Modes d'emploi des dossiers que la demande appelle (au plus `limit`, les plus cités d'abord), à joindre au
+    message : chaque outil et son exemple. Vide si rien ne ressort (les exemples du prompt suffisent)."""
+    text = unicodedata.normalize('NFD', str(request or '').lower()).encode('ascii', 'ignore').decode()
+    tree = folders(ops)
+    scored = sorted(((sum(word in text for word in words), name) for name, words in HINTS.items() if name in tree),
+                    key=lambda item: -item[0])
+    return '\n'.join(open_path(f'outils/{name}', ops, docs) for score, name in scored[:limit] if score > 0)
 
 
 def open_path(path, ops, docs=None):
