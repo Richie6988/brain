@@ -216,7 +216,6 @@ export function createSide({ bridge, say, filters }) {
         const on = filters.active();
         scene.nodes.forEach(n => { n.out = on && !filters.keeps(n.id, n.plain || ''); n.el.classList.toggle('gs-out', n.out); });
         [...scene.links, ...scene.portals].forEach(l => l.el.classList.toggle('gs-out', l.a.out || l.b.out));
-        filters.counted(scene.nodes.filter(n => !n.out).length, scene.nodes.length);  // toutes les dimensions
     }
     filters.onChange(sift);
 

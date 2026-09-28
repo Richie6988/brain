@@ -165,7 +165,7 @@ body:has(.universe.lightmode) .gt-current { color: #440852; }
 body:has(.universe.lightmode) .gt-crumbs button.on { color: #fff !important; }
 
 body.gardien-gesture :is(#gardien-chat, #gardien-send, #gardien-tour) { pointer-events: none; }
-body:not(.gardien-ready) :is(#gardien-chat, #gardien-filters) { display: none; }
+body:not(.gardien-ready) :is(#gardien-chat, #gardien-context-button) { display: none; }
 
 /* Liste des dimensions : recherche, épinglées, nombre de nodes */
 #dropdown-content { max-height: min(62vh, 520px); overflow-y: auto; }
@@ -260,56 +260,69 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
 #gardien-follow ol:last-of-type::before { content: 'À venir'; display: block; color: #6848A6; letter-spacing: 0.06em; margin-bottom: 2px; }
 #gardien-follow ol:last-of-type li::before { content: '○ '; color: #6848A6; }
 
-/* Filtres de toutes les dimensions (haut centre) : mot-clé, auteurs, période ; les nodes écartés s'estompent */
-#gardien-filters {
-    position: fixed; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px;
-    padding: 5px 8px; font: 11px 'Cascadia Code', monospace; color: #cbd5e1; background: rgba(5, 12, 23, 0.72);
-    border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 14px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    opacity: 0.55; transition: opacity 0.2s, border-color 0.2s;
+/* Sélecteur de contexte (au-dessus du dock) : choisir des nodes de toutes les dimensions pour le Gardien */
+#button-container :is(#semanticsearch, #prevsearch, #nextsearch) { display: none !important; }  /* la recherche est dans le panneau */
+#gardien-context-button::after { content: none; }
+#gardien-context-button svg { width: 18px; height: 18px; fill: none; stroke: #eef2ff; stroke-width: 1.8; stroke-linejoin: round; }
+#gardien-context-button.on { background: var(--nz-violet, #6848A6); box-shadow: 0 0 0 1px rgba(184, 154, 242, 0.7), 0 6px 18px rgba(104, 72, 166, 0.45); }
+body:has(.universe.lightmode) #gardien-context-button:not(.on) svg { stroke: #6848A6; }
+#gardien-context {
+    position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 40; width: min(980px, calc(100vw - 32px));
+    display: grid; gap: 8px; padding: 10px 12px; box-sizing: border-box; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: rgba(5, 12, 23, 0.94); border: 1px solid rgba(104, 72, 166, 0.6); border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(104, 72, 166, 0.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
-#gardien-filters:hover, #gardien-filters.active { opacity: 1; }
-#gardien-filters.active { border-color: rgba(104, 72, 166, 0.8); }
-#gardien-filters button { font: inherit; color: #94a3b8; background: transparent; border: 1px solid transparent; border-radius: 10px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
-#gardien-filters :is(.count, .where) { white-space: nowrap; }
-#gardien-filters { max-width: calc(100vw - 560px); }  /* entre la tour de contrôle et le logo */
-#gardien-filters.viewer { visibility: hidden; }  /* un aperçu de document dessous : ses boutons d'abord */
-#gardien-filters input[type=search] { flex: none; }
-#gardien-filters button:hover { color: #fff; background: rgba(104, 72, 166, 0.35); }
-#gardien-filters button.on { color: #fff; background: rgba(104, 72, 166, 0.55); border-color: rgba(184, 154, 242, 0.5); }
-#gardien-filters input[type=search] {
-    width: 120px; font: inherit; color: #e2e8f0; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.25);
-    border-radius: 10px; padding: 3px 9px; outline: none; transition: width 0.2s, border-color 0.2s;
-}
-#gardien-filters input[type=search]:focus, #gardien-filters input[type=search]:not(:placeholder-shown) { width: 160px; border-color: rgba(184, 154, 242, 0.7); }
-body:has(.universe.lightmode) #gardien-filters input[type=search] { color: #440852; background: rgba(68, 8, 82, 0.05); }
-#gardien-filters button.nav { padding: 2px 8px; font-size: 13px; line-height: 1; color: #b89af2; }
-#gardien-filters button.nav[hidden] { display: none; }
-#gardien-filters .where { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f3ee58; }
-#gardien-filters .where:empty { display: none; }
-/* La recherche de la barre du bas est reprise en haut (Nodz garde l'élément, caché). */
-#button-container :is(#semanticsearch, #prevsearch, #nextsearch) { display: none !important; }
-#gardien-filters .sep { width: 1px; height: 16px; margin: 0 4px; background: rgba(148, 163, 184, 0.3); }
-#gardien-filters .count { margin-left: 6px; color: #f3ee58; }
-#gardien-filters .count:empty { display: none; }
-.gf-who { position: relative; }
-.gf-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 5; display: grid; gap: 4px; min-width: 140px; padding: 8px 10px;
-    background: rgba(5, 12, 23, 0.95); border: 1px solid rgba(104, 72, 166, 0.6); border-radius: 12px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
-.gf-menu[hidden] { display: none; }
-.gf-menu label { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; color: #e2e8f0; }
-.gf-menu input { accent-color: #6848A6; margin: 0; pointer-events: auto; }
+#gardien-context[hidden] { display: none; }
+#gardien-context button { font: inherit; color: #cbd5e1; background: rgba(148, 163, 184, 0.1); border: 1px solid transparent; border-radius: 10px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+#gardien-context button:hover { color: #fff; background: rgba(104, 72, 166, 0.4); }
+#gardien-context button.on { color: #fff; background: rgba(104, 72, 166, 0.6); border-color: rgba(184, 154, 242, 0.5); }
+#gardien-context input[type=checkbox] { accent-color: #6848A6; margin: 0; pointer-events: auto; flex: none; }
+.gx-head { display: flex; align-items: center; gap: 6px; }
+.gx-head input[type=search] { flex: 1; min-width: 120px; font: inherit; color: #e2e8f0; background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 10px; padding: 6px 10px; outline: none; }
+.gx-head input[type=search]:focus { border-color: rgba(184, 154, 242, 0.8); }
+#gardien-context .gx-close { background: none; font-size: 15px; padding: 2px 8px; }
+.gx-wrap { position: relative; }
+.gx-pop { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 2; display: grid; gap: 6px; min-width: 150px; padding: 10px 12px;
+    background: rgba(5, 12, 23, 0.98); border: 1px solid rgba(104, 72, 166, 0.6); border-radius: 12px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
+.gx-pop[hidden] { display: none; }
+.gx-pop label { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.gx-period { min-width: 230px; justify-items: start; }
+.gx-span { white-space: nowrap; color: #cbd5e1; }
 /* double curseur : deux curseurs superposés, seule leur poignée capte la souris */
-.gf-range { position: relative; width: 100px; height: 18px; flex: none; }
-.gf-range .track { position: absolute; left: 0; right: 0; top: 8px; height: 3px; border-radius: 2px;
+.gx-range { position: relative; width: 210px; height: 18px; }
+.gx-range .track { position: absolute; left: 0; right: 0; top: 8px; height: 3px; border-radius: 2px;
     background: linear-gradient(90deg, rgba(148, 163, 184, 0.25) var(--lo, 0%), #b89af2 var(--lo, 0%), #1E90FF var(--hi, 100%), rgba(148, 163, 184, 0.25) var(--hi, 100%)); }
-.gf-range input[type=range] { position: absolute; inset: 0; width: 100%; margin: 0; background: none; pointer-events: none; appearance: none; -webkit-appearance: none; }
-.gf-range input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+.gx-range input[type=range] { position: absolute; inset: 0; width: 100%; margin: 0; background: none; pointer-events: none; appearance: none; -webkit-appearance: none; }
+.gx-range input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
     background: #fff; border: 2px solid #6848A6; box-shadow: 0 0 6px rgba(104, 72, 166, 0.7); cursor: grab; }
-.gf-range input[type=range]::-moz-range-thumb { pointer-events: auto; width: 11px; height: 11px; border-radius: 50%; background: #fff; border: 2px solid #6848A6; cursor: grab; }
-.gf-range input[type=range]::-webkit-slider-runnable-track { background: none; }
-#gardien-filters .gf-span { flex: none; white-space: nowrap; color: #cbd5e1; }
-body:has(.universe.lightmode) .gf-menu { background: rgba(255, 255, 255, 0.97); border-color: rgba(104, 72, 166, 0.35); }
-body:has(.universe.lightmode) .gf-menu label, body:has(.universe.lightmode) #gardien-filters .gf-span { color: #440852; }
+.gx-range input[type=range]::-moz-range-thumb { pointer-events: auto; width: 11px; height: 11px; border-radius: 50%; background: #fff; border: 2px solid #6848A6; cursor: grab; }
+.gx-range input[type=range]::-webkit-slider-runnable-track { background: none; }
+/* résultats : une colonne par dimension, la dimension ouverte d'abord */
+.gx-cols { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.gx-col { flex: 0 0 220px; display: grid; grid-template-rows: auto 1fr; gap: 4px; min-width: 0; padding: 6px; border-radius: 12px; background: rgba(148, 163, 184, 0.06); }
+.gx-col.here { background: rgba(104, 72, 166, 0.14); }
+.gx-dim { display: flex; align-items: center; gap: 6px; padding: 2px 4px; cursor: pointer; }
+.gx-dim b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b89af2; }
+.gx-dim small { color: #94a3b8; }
+.gx-list { display: grid; gap: 2px; max-height: 26vh; overflow-y: auto; align-content: start; }
+.gx-item { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 8px; }
+.gx-item.on { background: rgba(30, 144, 255, 0.16); }
+#gardien-context .gx-text { flex: 1; min-width: 0; text-align: left; background: none; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; color: #e2e8f0; }
+#gardien-context .gx-text:hover { background: none; color: #b89af2; text-decoration: underline; }
+.gx-more, .gx-empty { margin: 4px; color: #94a3b8; font-style: italic; }
+.gx-foot { display: flex; align-items: center; gap: 6px; }
+.gx-count { flex: 1; color: #f3ee58; }
+#gardien-context .gx-join { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); font-weight: 700; }
+#gardien-context .gx-join:disabled { opacity: 0.4; cursor: default; }
+body:has(.universe.lightmode) #gardien-context { color: #440852; background: rgba(255, 255, 255, 0.97); border-color: rgba(104, 72, 166, 0.35); box-shadow: 0 16px 40px rgba(68, 8, 82, 0.18); }
+body:has(.universe.lightmode) #gardien-context button { color: #6848A6; background: rgba(104, 72, 166, 0.08); }
+body:has(.universe.lightmode) #gardien-context button.on { color: #fff; background: #6848A6; }
+body:has(.universe.lightmode) :is(.gx-head input[type=search], #gardien-context .gx-text) { color: #440852; }
+body:has(.universe.lightmode) .gx-pop { background: rgba(255, 255, 255, 0.98); border-color: rgba(104, 72, 166, 0.35); }
+body:has(.universe.lightmode) .gx-span, body:has(.universe.lightmode) .gx-count { color: #6848A6; }
 .node-group.gardien-filtered, .link.gardien-filtered { opacity: 0.08; pointer-events: none; transition: opacity 0.3s; }
+.node-group.gardien-picked > :is(circle, rect) { filter: drop-shadow(0 0 10px #1E90FF) drop-shadow(0 0 4px #1E90FF); }
 
 /* Mode clair de Nodz */
 body:has(.universe.lightmode) .gm-hud { color: #5b4a78; background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }
@@ -318,9 +331,6 @@ body:has(.universe.lightmode) .gm-hud .gm-bar { background: rgba(68, 8, 82, 0.1)
 body:has(.universe.lightmode) .gm-hud .gm-bar i.ok { background: #10b981; }
 body:has(.universe.lightmode) #gardien-follow { color: #5b4a78; background: rgba(255, 255, 255, 0.9); }
 body:has(.universe.lightmode) #gardien-follow p { color: #440852; }
-body:has(.universe.lightmode) #gardien-filters { color: #5b4a78; background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); }
-body:has(.universe.lightmode) #gardien-filters button { color: #6848A6; }
-body:has(.universe.lightmode) #gardien-filters button.on { color: #fff; }
 body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255, 0.92); color: #440852; border-color: rgba(68, 8, 82, 0.18); }
 
 /* Fenêtre Agents & modèles */

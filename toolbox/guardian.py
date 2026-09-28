@@ -33,6 +33,7 @@ RADIUS = 85  # rayon d'un node texte de Nodz une fois dimensionné (nodeSizing 1
 IMAGE_RADIUS = 180  # node image (nodeSizing 250 × 250)
 MAX_CONTEXT_NODES = 40  # nodes proches de la vue dans le prompt (chaque jeton du prompt coûte sur CPU)
 ATTACHED_TEXT, ATTACHED_TOTAL = 2000, 8000  # nodes joints à la demande : texte complet, dans cette limite
+MAX_ATTACHED_AWAY = 30  # nodes joints d'autres dimensions (lus en base)
 HISTORY, HISTORY_TEXT = 6, 200  # derniers échanges du chat rappelés au Gardien (il suit la conversation)
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
@@ -307,6 +308,7 @@ class Guardian(IaquaOps):
         self.asked = False  # une question posée à l'humain : on attend sa réponse
         self.scale = 1.0  # part du contexte montrée au modèle (réduite si son contexte déborde)
         self.letters = []  # réponses de l'humain à ses notes (correspondance)
+        self.attached_away = []  # nodes joints d'autres dimensions (sélecteur de contexte)
 
     # --- contexte envoyé par la page
 
@@ -321,6 +323,8 @@ class Guardian(IaquaOps):
         attached = [str(i) for i in context.get('attached') or []]
         by_id = {n['id']: n for n in nodes}
         self.attached, budget = [], ATTACHED_TOTAL
+        # joints depuis d'autres dimensions (sélecteur de contexte) : lus en base, texte complet et dimension
+        self.attached_away = [i for i in dict.fromkeys(attached) if i not in by_id and node_id(i)][:MAX_ATTACHED_AWAY]
         for i in dict.fromkeys(attached):
             if i in by_id and budget > 0:
                 text = multiline(by_id[i].get('text', ''))[:min(ATTACHED_TEXT, budget)]
@@ -365,6 +369,7 @@ class Guardian(IaquaOps):
                                                             key=lambda n: node_id(n['id']) or 0)
         view = self.perception.objects(shown, self.links, full=full, limits=limits, scale=self.scale)
         away = self.perception.outside([ref for ref in cited if ref not in self.nodes])
+        joined = [o for o in self.perception.outside(self.attached_away) if not o.get('introuvable')] if self.attached_away else []
         talk = ['Échanges récents (du plus ancien au plus récent) :',
                 *(f"{'Humain' if role == 'user' else 'Toi'} : {text}" for role, text in self.history)] if self.history else []
         return '\n'.join([
@@ -375,6 +380,7 @@ class Guardian(IaquaOps):
             *(['Correspondance (dimension Échanges) :', *self.letters] if self.letters else []),
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
             *(['Nodes cités hors de cette dimension :', *perception.lines(away)] if away else []),
+            *(['Nodes joints d\'autres dimensions (contexte choisi par l\'humain) :', *perception.lines(joined)] if joined else []),
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
         ])
 

@@ -900,6 +900,19 @@ class GuardianTests(TestCase):
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}), context={**context, 'attached': [], 'selection': []})
         self.assertIn('"plus": ', engine.calls[0]['messages'][1]['content'])  # demande suivante : texte ordinaire, le reste compté
 
+    def test_attached_nodes_from_other_dimensions(self):
+        from nodzapp.models import Layer, Node
+
+        far = Layer.objects.create(user=self.user, layer_id=7, layer_name='Voyage')
+        Node.objects.create(user=self.user, node_id=40, layer=far, text_content='<b>Temples</b> de Kyoto, ' + 'visite. ' * 60)
+        context = {**self.CONTEXT, 'attached': ['N-40', 'N-99']}  # N-99 n'existe pas
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}), context=context)
+        prompt = engine.calls[0]['messages'][1]['content']
+        self.assertIn("Nodes joints d'autres dimensions", prompt)
+        self.assertIn('"dimension": "Voyage"', prompt)
+        self.assertEqual(prompt.count('visite.'), 60)  # texte complet, lu en base
+        self.assertNotIn('N-99', prompt)
+
     def test_build_templates_schema_and_tour(self):
         from .layouts import STEP
 

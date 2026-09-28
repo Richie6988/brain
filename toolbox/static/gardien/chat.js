@@ -31,14 +31,15 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     let working = false;  // une demande est en cours : le bouton d'envoi l'arrête
     const tray = h('div', { class: 'gc-attach' });
     const nodeText = node => node.children[0]?.children[0]?.innerText?.trim() || '(vide)';
+    const item = node => ({ id: node.id, text: nodeText(node) });  // un node joint : son id et son texte (autre dimension comprise)
     function renderTray() {
         const selection = (typeof selectedNodes !== 'undefined' ? selectedNodes : []).filter(n => n.isConnected);
         tray.replaceChildren(...(attached.length
-            ? [h('span', { class: 'gc-chip', title: attached.map(n => `${n.id} : ${nodeText(n).slice(0, 60)}`).join('\n') },
+            ? [h('span', { class: 'gc-chip', title: attached.map(n => `${n.id} : ${n.text.slice(0, 60)}`).join('\n') },
                 `${attached.length} node${attached.length > 1 ? 's' : ''} joint${attached.length > 1 ? 's' : ''} : `,
-                attached.slice(0, 3).map(n => nodeText(n).slice(0, 18)).join(', ') + (attached.length > 3 ? '…' : ''),
+                attached.slice(0, 3).map(n => (n.text || '(vide)').slice(0, 18)).join(', ') + (attached.length > 3 ? '…' : ''),
                 h('button', { type: 'button', title: 'Retirer', onclick: () => { attached = []; renderTray(); } }, '×'))]
-            : selection.length ? [h('button', { type: 'button', class: 'gc-join', onclick: () => { attached = selection; renderTray(); input.focus(); } },
+            : selection.length ? [h('button', { type: 'button', class: 'gc-join', onclick: () => { attached = selection.map(item); renderTray(); input.focus(); } },
                 `+ Joindre la sélection (${selection.length} node${selection.length > 1 ? 's' : ''})`)] : []));
     }
     // Correspondance : les notes que le Gardien a laissées, posées dans la dimension « Échanges » à l'ouverture.
@@ -77,7 +78,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         if (!text) return;
         input.value = '';
         grow();
-        onSend(text, attached.filter(n => n.isConnected).map(n => n.id));
+        onSend(text, attached.map(n => n.id));
         attached = [];  // contexte de cette demande seulement
         renderTray();
     });
@@ -256,9 +257,9 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
             if (!on) status.textContent = '';
         },
         open: () => toggle(true),
-        // Multisélection envoyée par la pastille : jointe au prochain message.
-        attach(nodes) {
-            attached = nodes;
+        // Nodes joints (pastille, sélecteur de contexte) : [{ id, text }], de toutes les dimensions.
+        attach(items) {
+            attached = items;
             toggle(true);
             renderTray();
         },

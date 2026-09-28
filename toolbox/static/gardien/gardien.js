@@ -94,12 +94,13 @@ const signedIn = setInterval(() => {
     refreshLetters();  // notes du Gardien en attente dans Échanges
 }, 400);
 
-const filters = createFilters();
+const joined = node => ({ id: node.id, text: (node.children[0]?.children[0]?.innerText || '').trim() });  // node joint au chat
+const filters = createFilters({ onAttach: items => chat.attach(items) });  // sélecteur de contexte au-dessus du dock
 createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
-const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes),
+const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title) });
 const tour = createTour({ bridge, say });
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
