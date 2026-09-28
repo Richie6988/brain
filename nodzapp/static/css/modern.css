@@ -232,6 +232,15 @@ body:has(.universe.lightmode) {
 
 /* Texte en cours d'écriture : pas l'anneau de focus du navigateur (le node le coupe en deux traits), un curseur violet. */
 .node-text-input:focus { outline: none; caret-color: #b89af2; }
+/* Texte des nodes lisible : clair sur le fond sombre (sombre en mode clair), liseré de la couleur du fond pour rester net
+   sur un lien ou une image, lissage fin. Ni taille ni graisse changées : la place du texte et la taille des nodes
+   restent celles de Nodz. Les couleurs choisies dans le texte (balises font) gardent la main. */
+.node-text-input {
+    color: #eef2ff; text-shadow: 0 0 3px #050c17, 0 0 1px #050c17;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
+}
+.node-text-input[contenteditable]:empty:focus::before { color: #94a3b8; }
+body:has(.universe.lightmode) .node-text-input { color: #1e1b4b; text-shadow: 0 0 3px #fff, 0 0 1px #fff; }
 
 /* Icônes des barres (format, couleur, forme, verrou, calendrier, portail, fichiers, dessin) : les SVG de
    img/ sont dessinés à trait (clair, prune en mode clair, violet vif quand l'outil est actif). */
