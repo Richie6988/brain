@@ -214,6 +214,18 @@ export function createFilters() {
         requestAnimationFrame(() => { pending = false; apply(); });
     }).observe(document.body, { childList: true, subtree: true });
 
+    // Lecteur de document : quand l'aperçu d'un node Fichier (iframe PDF) passe sous la barre, elle s'efface pour
+    // laisser ses boutons (pages, zoom, téléchargement) cliquables ; elle revient dès qu'on s'en éloigne.
+    setInterval(() => {
+        const zone = bar.getBoundingClientRect();
+        const under = [...document.querySelectorAll('.node-group .filepreview')].some(frame => {
+            if (frame.style.display === 'none') return false;
+            const r = frame.getBoundingClientRect();
+            return r.width > 0 && r.top < zone.bottom + 8 && r.bottom > zone.top && r.left < zone.right && r.right > zone.left;
+        });
+        bar.classList.toggle('viewer', under);
+    }, 300);
+
     update();
     return {
         // Vue de côté : même filtre sur ses répliques, réappliqué à chaque changement (onChange).

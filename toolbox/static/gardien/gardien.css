@@ -272,6 +272,7 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
 #gardien-filters button { font: inherit; color: #94a3b8; background: transparent; border: 1px solid transparent; border-radius: 10px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
 #gardien-filters :is(.count, .where) { white-space: nowrap; }
 #gardien-filters { max-width: calc(100vw - 560px); }  /* entre la tour de contrôle et le logo */
+#gardien-filters.viewer { visibility: hidden; }  /* un aperçu de document dessous : ses boutons d'abord */
 #gardien-filters input { flex: 0 1 150px; min-width: 70px; }
 #gardien-filters button:hover { color: #fff; background: rgba(104, 72, 166, 0.35); }
 #gardien-filters button.on { color: #fff; background: rgba(104, 72, 166, 0.55); border-color: rgba(184, 154, 242, 0.5); }
