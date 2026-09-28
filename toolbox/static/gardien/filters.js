@@ -1,17 +1,19 @@
 // Filtres globaux de l'univers : texte (avec la recherche dans toutes les dimensions), origine des
-// nodes (écrits à la main ou créés par l'IA) et période (dernière modification). Les nodes écartés et
-// leurs liens s'estompent et ne captent plus la souris ; rien n'est modifié dans Nodz (une classe CSS,
-// retirée quand tout est affiché).
+// nodes (écrits à la main ou créés par l'IA) et période, sur la date de création ou de dernière modification.
+// Les nodes écartés et leurs liens s'estompent et ne captent plus la souris ; rien n'est modifié dans Nodz (une
+// classe CSS, retirée quand tout est affiché). Parcours chronologique : « Récents » ou « Anciens » mène de node
+// en node (‹ ›) dans l'ordre de la date choisie, parmi ceux que les filtres gardent.
 
 import { api } from './api.js';
 
 const ORIGINS = [['user', 'Moi'], ['ai', 'IA']];  // un message au Gardien compte comme écrit à la main
-const PERIODS = [[0, 'Tout'], [1, '24 h'], [7, '7 j'], [30, '30 j']];
+const PERIODS = [[0, 'Tout'], [1 / 24, '1 h'], [1, '24 h'], [7, '7 j'], [30, '30 j'], [365, '1 an']];
+const BASES = [['modified', 'Modifiés'], ['created', 'Créés']];
 const DAY = 24 * 3600;
 const fold = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 export function createFilters() {
-    const state = { origins: new Set(ORIGINS.map(([key]) => key)), days: 0, text: '' };
+    const state = { origins: new Set(ORIGINS.map(([key]) => key)), days: 0, text: '', basis: 'modified' };
     let nodes = {};  // N-12 → {origin, created, modified} (serveur)
     const local = new Map();  // marques posées depuis le chargement, avant la prochaine lecture
     let timer = null;
@@ -35,6 +37,21 @@ export function createFilters() {
         b.dataset.days = days;
         return b;
     });
+    const bases = BASES.map(([key, label]) => {
+        const b = chip(label, () => { state.basis = key; update(); });
+        b.dataset.basis = key;
+        b.title = key === 'created' ? 'La période et le parcours suivent la date de création' : 'La période et le parcours suivent la dernière modification';
+        return b;
+    });
+    // Parcours chronologique
+    const walk = { dir: 0, list: [], index: -1 };
+    const newest = chip('Récents', () => startWalk(-1));
+    const oldest = chip('Anciens', () => startWalk(1));
+    newest.title = 'Du plus récent au plus ancien : ‹ › pour avancer';
+    oldest.title = 'Du plus ancien au plus récent : ‹ › pour avancer';
+    const back = Object.assign(chip('‹', () => stepWalk(-1)), { className: 'nav', hidden: true, title: 'Node précédent dans le temps' });
+    const ahead = Object.assign(chip('›', () => stepWalk(1)), { className: 'nav', hidden: true, title: 'Node suivant dans le temps' });
+    const moment = Object.assign(document.createElement('span'), { className: 'where' });
     const count = document.createElement('span');
     count.className = 'count';
     const sep = () => Object.assign(document.createElement('i'), { className: 'sep' });
@@ -91,7 +108,44 @@ export function createFilters() {
             load(hit.layer, hit.id);
         }
     }
-    bar.append(search, prev, next, where, sep(), ...origins, sep(), ...periods, count);
+    bar.append(search, prev, next, where, sep(), ...origins, sep(), ...periods, sep(), ...bases, sep(), newest, oldest, back, ahead, moment, count);
+
+    const dateOf = id => (nodes[id]?.[state.basis] ?? Date.now() / 1000);  // node pas encore sauvé : maintenant
+    const ago = seconds => {
+        const minutes = Math.round((Date.now() / 1000 - seconds) / 60);
+        if (minutes < 60) return minutes < 1 ? "à l'instant" : `il y a ${minutes} min`;
+        if (minutes < 1440) return `il y a ${Math.round(minutes / 60)} h`;
+        return new Date(seconds * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+    async function startWalk(dir) {
+        if (walk.dir === dir) return stopWalk();  // second clic : on arrête
+        await refresh();
+        const kept = [...document.querySelectorAll('.node-group')].filter(n => !n.classList.contains('gardien-filtered'));
+        walk.list = kept.map(n => n.id).sort((a, b) => dir * (dateOf(a) - dateOf(b)));
+        Object.assign(walk, { dir, index: -1 });
+        newest.classList.toggle('on', dir === -1);
+        oldest.classList.toggle('on', dir === 1);
+        back.hidden = ahead.hidden = walk.list.length < 2;
+        stepWalk(1);
+    }
+    function stepWalk(step) {
+        const n = walk.list.length;
+        if (!n) return stopWalk();
+        walk.index = Math.min(n - 1, Math.max(0, walk.index + step));
+        const id = walk.list[walk.index];
+        const verb = state.basis === 'created' ? 'créé' : 'modifié';
+        moment.textContent = `${walk.index + 1} / ${n} · ${verb} ${ago(dateOf(id))}`;
+        back.disabled = walk.index === 0;
+        ahead.disabled = walk.index === n - 1;
+        const node = document.getElementById(id);
+        if (node) focusNode(node, true);
+    }
+    function stopWalk() {
+        Object.assign(walk, { dir: 0, list: [], index: -1 });
+        [newest, oldest].forEach(b => b.classList.remove('on'));
+        back.hidden = ahead.hidden = true;
+        moment.textContent = '';
+    }
     document.getElementById('button-container').after(bar);
 
     const active = () => state.days > 0 || state.origins.size < ORIGINS.length || !!state.text;
@@ -103,8 +157,8 @@ export function createFilters() {
         const info = nodes[node.id];
         const found = local.get(node.id) || info?.origin || 'user';
         if (!state.origins.has(found === 'message' ? 'user' : found)) return false;
-        const modified = info?.modified ?? Date.now() / 1000;  // node nouveau : il vient d'être modifié
-        return !state.days || Date.now() / 1000 - modified <= state.days * DAY;
+        const date = info?.[state.basis] ?? Date.now() / 1000;  // node nouveau : il vient d'être créé et modifié
+        return !state.days || Date.now() / 1000 - date <= state.days * DAY;
     }
 
     function apply() {
@@ -134,6 +188,8 @@ export function createFilters() {
     function update() {
         origins.forEach(b => b.classList.toggle('on', state.origins.has(b.dataset.key)));
         periods.forEach(b => b.classList.toggle('on', Number(b.dataset.days) === state.days));
+        bases.forEach(b => b.classList.toggle('on', b.dataset.basis === state.basis));
+        if (walk.dir) stopWalk();  // les filtres ont changé : le parcours repart d'un clic
         bar.classList.toggle('active', active());
         clearInterval(timer);
         if (dated()) {
