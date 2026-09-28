@@ -6,13 +6,30 @@
 // quand tout est vu, il continue de suivre les liens. Lecture / pause, vitesse, mode auto (il choisit seul).
 // Les portails comptent comme des liens : la visite les prend et continue dans la dimension de l'autre bout (elle
 // s'y charge). Un pas du parcours est donc { id, layer } et non un élément de la page, que le chargement remplace.
-// Un geste sur l'univers (clic, molette) met la visite en pause ; rien n'est modifié dans Nodz.
+// À chaque node, sa traçabilité : création, dernière modification, origine et auteur (route toolbox/nodes/meta).
+// Un clic hors de la carte quitte la visite ; un glissé ou la molette sur l'univers la met en pause. Rien n'est modifié.
 
+import { api } from './api.js';
 import { h } from './library.js';
 
 const SPEEDS = [0.5, 1, 1.5, 2, 3];
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-const textOf = node => node?.children[0]?.children[0]?.innerText?.trim() || '';
+// Texte d'un node avec ses retours à la ligne (innerText les perd quand le node est caché hors de l'écran).
+function textOf(node) {
+    const html = node?.children[0]?.children[0]?.innerHTML || '';
+    const box = document.createElement('div');
+    box.innerHTML = html.replace(/<br\s*\/?>|<\/(div|p|li)>/gi, '\n');
+    return box.textContent.split('\n').map(line => line.trim()).filter(Boolean).join('\n');
+}
+const ORIGIN = { human: 'écrit par', ai: 'créé par', message: 'message de' };
+const when = iso => {
+    const date = new Date(iso), minutes = Math.round((Date.now() - date) / 60000);
+    if (minutes < 1) return "à l'instant";
+    if (minutes < 60) return `il y a ${minutes} min`;
+    if (minutes < 24 * 60) return `il y a ${Math.round(minutes / 60)} h`;
+    return `le ${date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })}`
+        + ` à ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+};
 const short = (text, n = 70) => (text.length > n ? `${text.slice(0, n - 1)}…` : text) || '(node vide)';
 
 const parse = raw => {
@@ -42,15 +59,19 @@ export function createTour({ bridge, say }) {
     // trail : chaque arrivée, dans l'ordre ; at : où l'on en est dans ce parcours (⏮ ⏭ s'y déplacent).
     // next : voisins de chaque node déjà atteint (on ne peut plus les lire une fois sa dimension quittée) ;
     // info : texte, couleur et dimension de chaque pas, pour le fil d'Ariane et les choix ; known : nodes connus.
-    const state = { trail: [], at: -1, seen: new Set(), known: new Set(), next: new Map(), info: new Map(),
+    const state = { trail: [], at: -1, seen: new Set(), known: new Set(), next: new Map(), info: new Map(), meta: new Map(),
         playing: false, auto: false, speed: 1, choices: [], run: 0 };
 
     const title = h('strong', {});
     const bar = h('i');
     const crumbs = h('nav', { class: 'gt-crumbs', 'aria-label': 'Parcours' });
     const swatch = h('span', { class: 'gt-swatch' });
-    const text = h('span');
-    const current = h('p', { class: 'gt-current' }, swatch, text);
+    const place = h('span', { class: 'gt-place' });
+    const heading = h('b', { class: 'gt-title' });
+    const body = h('span', { class: 'gt-body' });
+    const text = h('span', { class: 'gt-text' }, heading, body);
+    const current = h('div', { class: 'gt-current' }, swatch, text);
+    const meta = h('p', { class: 'gt-meta' });
     const choices = h('div', { class: 'gt-choices' });
     const play = h('button', { type: 'button', class: 'gt-play', title: 'Lecture / pause (Espace)' });
     const back = h('button', { type: 'button', title: 'Node précédent (←)' }, '⏮');
@@ -60,11 +81,18 @@ export function createTour({ bridge, say }) {
     const quit = h('button', { type: 'button', class: 'gt-quit', title: 'Quitter la visite (Échap)', onclick: stop }, '✕');
     const card = h('section', { id: 'gardien-tour', hidden: true, role: 'region', 'aria-label': 'Visite' },
         h('div', { class: 'gt-progress' }, bar),
-        h('header', {}, h('span', { class: 'gt-dot' }), title, quit), crumbs, current, choices,
+        h('header', {}, h('span', { class: 'gt-dot' }), title, place, quit), crumbs, current, meta, choices,
         h('footer', {}, h('div', { class: 'gt-transport' }, back, play, ahead), speeds, auto));
     document.body.append(card);
 
     play.addEventListener('click', () => (state.playing ? pause() : resume()));
+    // Un clic (sans glissé) hors de la carte quitte la visite.
+    let press = null;
+    document.addEventListener('pointerdown', event => { press = card.hidden || card.contains(event.target) ? null : [event.clientX, event.clientY]; }, true);
+    document.addEventListener('pointerup', event => {
+        if (press && Math.hypot(event.clientX - press[0], event.clientY - press[1]) < 5) stop();
+        press = null;
+    }, true);
     back.addEventListener('click', previous);
     ahead.addEventListener('click', forward);
     auto.addEventListener('click', () => {
@@ -100,7 +128,7 @@ export function createTour({ bridge, say }) {
             const n = queue.shift();
             if (state.next.has(n.id)) continue;
             state.known.add(n.id);
-            state.info.set(n.id, { text: textOf(n), color: n.getAttribute('color'), layer: layerNumber });
+            state.info.set(n.id, { text: textOf(n) || '(node vide)', color: n.getAttribute('color'), layer: layerNumber });
             const steps = neighbours(n);
             state.next.set(n.id, steps);
             steps.forEach(s => {
@@ -109,16 +137,35 @@ export function createTour({ bridge, say }) {
                 if (el && !state.next.has(s.id)) queue.push(el);
             });
         }
+        const missing = [...state.info.keys()].filter(id => !state.meta.has(id));
+        if (missing.length) {
+            missing.forEach(id => state.meta.set(id, null));  // une seule demande par node
+            api.request('GET', `toolbox/nodes/meta?ids=${missing.join(',')}`)
+                .then(({ nodes }) => { Object.entries(nodes).forEach(([id, facts]) => state.meta.set(id, facts)); paint(); })
+                .catch(() => {});  // sans traçabilité, la visite continue
+        }
     }
 
     function paint() {
         const step = here();
         const total = state.known.size;
         const away = step && state.trail[0] && step.layer !== state.trail[0].layer;
-        title.textContent = `Visite · ${state.seen.size} / ${total} node${total > 1 ? 's' : ''}${away ? ` · ${layerName(step.layer)}` : ''}`;
+        title.textContent = `Visite · ${state.seen.size} / ${total}`;
+        place.textContent = step ? layerName(step.layer) : '';
+        place.classList.toggle('away', Boolean(away));
         bar.style.width = `${total ? (100 * state.seen.size) / total : 0}%`;
         swatch.style.background = colorOf(step);
-        text.textContent = step ? short(label(step), 160) : '';
+        card.style.setProperty('--c', colorOf(step));  // liseré et halo à la couleur du node
+        const [first = '', ...rest] = (step ? label(step) : '').split('\n');
+        heading.textContent = short(first, 90);
+        body.textContent = rest.length ? short(rest.join(' · '), 220) : '';
+        // Traçabilité : créé, modifié, par qui (Nodz ne garde pas l'auteur de chaque modification)
+        const facts = step && state.meta.get(step.id);
+        meta.replaceChildren(...(facts ? [
+            h('span', { class: `gt-origin ${facts.origin}` }, `${ORIGIN[facts.origin] || 'par'} ${facts.author}`),
+            h('span', {}, `créé ${when(facts.created)}`),
+            ...(Math.abs(new Date(facts.modified) - new Date(facts.created)) > 60000 ? [h('span', {}, `modifié ${when(facts.modified)}`)] : []),
+        ] : []));
         play.textContent = state.playing ? '⏸' : '▶';
         back.disabled = state.at <= 0;
         ahead.disabled = !step || (state.at === state.trail.length - 1 && !(state.next.get(step.id) || []).length);
@@ -258,7 +305,10 @@ export function createTour({ bridge, say }) {
         state.playing = false;
         bridge.cut();  // arrête le travelling en cours
         paint();
-        if (message) current.textContent = message;
+        if (message) {
+            heading.textContent = message;
+            body.textContent = '';
+        }
     }
 
     function resume() {
@@ -289,7 +339,7 @@ export function createTour({ bridge, say }) {
             stop();
             selectedNodes.slice().forEach(n => nodeUnselection(n));  // la pastille du node se retire
             document.dispatchEvent(new MouseEvent('mouseup'));
-            Object.assign(state, { trail: [], at: -1, seen: new Set(), known: new Set(), next: new Map(), info: new Map(), choices: [], playing: true });
+            Object.assign(state, { trail: [], at: -1, seen: new Set(), known: new Set(), next: new Map(), info: new Map(), meta: new Map(), choices: [], playing: true });
             bridge.setTempo(state.speed);
             card.hidden = false;
             go({ id: node.id, layer: layerNumber });

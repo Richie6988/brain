@@ -119,6 +119,23 @@ def search(request, body):
     return JsonResponse({'results': results})
 
 
+@api('GET')
+def node_meta(request, body):
+    """Traçabilité des nodes (visite) : création, dernière modification, origine (main de l'utilisateur, Gardien,
+    message au Gardien) et nom de l'auteur. Nodz ne garde pas l'auteur de chaque modification : seule la date."""
+    from .models import NodeMark
+
+    numbers = [int(r[2:]) for r in request.GET.get('ids', '').split(',')[:300] if r.startswith('N-') and r[2:].isdigit()]
+    marks = dict(NodeMark.objects.filter(owner=request.user, node_id__in=numbers).values_list('node_id', 'origin'))
+    me = request.user.username or request.user.email.split('@')[0]
+    by = {NodeMark.Origin.AI: ('ai', 'le Gardien'), NodeMark.Origin.MESSAGE: ('message', f'{me}, pour le Gardien')}
+    nodes = {}
+    for node_id, created, modified in Node.objects.filter(user=request.user, node_id__in=numbers).values_list('node_id', 'created_at', 'modified_at'):
+        origin, author = by.get(marks.get(node_id), ('human', me))
+        nodes[f'N-{node_id}'] = {'created': created.isoformat(), 'modified': modified.isoformat(), 'origin': origin, 'author': author}
+    return JsonResponse({'nodes': nodes})
+
+
 SIDE_NODES = 4000  # nodes au plus dans la vue de côté
 
 

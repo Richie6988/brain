@@ -19,6 +19,7 @@ urlpatterns = [
     path('dimensions', api.dimensions),
     path('search', api.search),
     path('side', api.side),
+    path('nodes/meta', api.node_meta),
     path('images/<str:name>', api.image),
     path('workspace/<path:path>', api.workspace_file),
     path('brain-map', api.brain_map),

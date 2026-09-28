@@ -1484,6 +1484,26 @@ class ApiModelTests(TestCase):
             engine.chat(model, [{'role': 'user', 'content': 'x'}])
 
 
+class NodeMetaTests(TestCase):
+    def test_created_modified_and_author(self):
+        from nodzapp.models import Layer, Node
+        from .models import NodeMark
+
+        user = NodzUser.objects.create_user(email='ada@nodz.local', password='pw-123456', username='Ada')
+        layer = Layer.objects.create(user=user, layer_name='Home')
+        for n in (1, 2, 3):
+            Node.objects.create(user=user, layer=layer, node_id=n)
+        NodeMark.objects.create(owner=user, node_id=2, origin=NodeMark.Origin.AI)
+        NodeMark.objects.create(owner=user, node_id=3, origin=NodeMark.Origin.MESSAGE)
+        other = NodzUser.objects.create_user(email='x@nodz.local', password='pw-123456')
+        Node.objects.create(user=other, layer=Layer.objects.create(user=other, layer_name='X'), node_id=4)
+        self.client.force_login(user)
+        nodes = self.client.get('/api/v1/toolbox/nodes/meta?ids=N-1,N-2,N-3,N-4,x').json()['nodes']
+        self.assertEqual({k: (v['origin'], v['author']) for k, v in nodes.items()},
+                         {'N-1': ('human', 'Ada'), 'N-2': ('ai', 'le Gardien'), 'N-3': ('message', 'Ada, pour le Gardien')})  # N-4 : pas à lui
+        self.assertIn('T', nodes['N-1']['created'])
+
+
 class SideViewTests(TestCase):
     def test_all_dimensions_links_and_portals(self):
         from nodzapp.models import Layer, Link, Node
