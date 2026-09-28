@@ -597,7 +597,7 @@
                     nodeCategoryChart.destroy();  // Free up the canvas
                 }
                 nodeCategoryChart = new Chart(pieCtx, {
-                    type: 'pie',  // Pie chart type
+                    type: 'doughnut',  // anneau : pas de trait du centre quand une seule catégorie
                     data: {
                         labels: ['Text', 'Image', 'Files', 'Sketch'],  // Node categories
                         datasets: [{
@@ -614,11 +614,12 @@
                                 'rgba(153, 102, 255, 1)', // Files - Purple Border
                                 'rgba(255, 99, 132, 1)'   
                             ],
-                            borderWidth: 2
+                            borderWidth: 0
                         }]
                     },
                     options: {
                         responsive: true,
+                        cutout: '62%',
                         animation: {
                             animateScale: true, // Animates scaling of pie chart on load
                             animateRotate: true // Animates rotation of pie chart on load

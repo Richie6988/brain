@@ -334,7 +334,17 @@ function generateInvite(nodeIds) {
                         }).catch(err => {
                             console.error('Failed to copy text: ', err);
                         });
-                    } 
+                    } else {  // page en http : pas d'API presse-papiers, copie par une zone de texte temporaire
+                        const area = document.createElement('textarea');
+                        area.value = inviteLink;
+                        area.style.cssText = 'position:fixed;opacity:0';
+                        document.body.appendChild(area);
+                        area.select();
+                        document.execCommand('copy');
+                        area.remove();
+                        message.textContent = "Link copied to clipboard!";
+                        setTimeout(closePopup, 1000);
+                    }
                 });
                 
                 svg.addEventListener('mousedown', function(event) {
