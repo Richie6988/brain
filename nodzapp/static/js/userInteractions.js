@@ -441,24 +441,24 @@ function nodeUnselection(node){
         node.children[2].style.strokeWidth = '4px';
         node.children[2].style.stroke = node.getAttribute('color'); 
     }
-    node.children[7].style.display = 'none';
+    node.tools.type.style.display = 'none';
 }
 
 let paramColor = 'rgba(39, 9, 39, 0.5)';
 let paramColorLight = 'rgba(232, 232, 232, 0.5)';
 
 function showParams(nodeGroup) {    
-    const typeGroup = nodeGroup.children[7];
-    const typeButtonfo = nodeGroup.children[7].children[0];
-    const typeButton = nodeGroup.children[7].children[1];
-    const colorButtonfo = nodeGroup.children[7].children[2];
-    const shapeButtonfo = nodeGroup.children[7].children[5];
-    const calendarButtonfo = nodeGroup.children[7].children[6];
-    const lockButtonfo = nodeGroup.children[7].children[7];
-    const layerButtonfo = nodeGroup.children[7].children[8];
+    const typeGroup = nodeGroup.tools.type;
+    const typeButtonfo = nodeGroup.tools.type.children[0];
+    const typeButton = nodeGroup.tools.type.children[1];
+    const colorButtonfo = nodeGroup.tools.type.children[2];
+    const shapeButtonfo = nodeGroup.tools.type.children[5];
+    const calendarButtonfo = nodeGroup.tools.type.children[6];
+    const lockButtonfo = nodeGroup.tools.type.children[7];
+    const layerButtonfo = nodeGroup.tools.type.children[8];
 
     typeButton.style.pointerEvents = 'auto';
-    const canvasStyleGroup = nodeGroup.children[6];
+    const canvasStyleGroup = nodeGroup.tools.canvas;
     canvasStyleGroup.setAttribute('visibility', 'hidden');
 
     typeGroup.style.display ='block';
@@ -490,13 +490,13 @@ function showParams(nodeGroup) {
 }
 
 function hideParams(nodeGroup) {
-    const typeButtonfo = nodeGroup.children[7].children[0];
-    const typeButton = nodeGroup.children[7].children[1];
-    const colorButtonfo = nodeGroup.children[7].children[2];
-    const shapeButtonfo = nodeGroup.children[7].children[5];
-    const calendarButtonfo = nodeGroup.children[7].children[6];
-    const lockButtonfo = nodeGroup.children[7].children[7];
-    const layerButtonfo = nodeGroup.children[7].children[8];
+    const typeButtonfo = nodeGroup.tools.type.children[0];
+    const typeButton = nodeGroup.tools.type.children[1];
+    const colorButtonfo = nodeGroup.tools.type.children[2];
+    const shapeButtonfo = nodeGroup.tools.type.children[5];
+    const calendarButtonfo = nodeGroup.tools.type.children[6];
+    const lockButtonfo = nodeGroup.tools.type.children[7];
+    const layerButtonfo = nodeGroup.tools.type.children[8];
 
     typeButtonfo.setAttribute('visibility', 'hidden');
     typeButton.setAttribute('visibility', 'hidden');
@@ -636,12 +636,12 @@ function nodeSizing(nodeGroup,w,h) {
          
     // TEXT INPUT 
     
-    let boldButtonfo = nodeGroup.children[4].children[0];
-    let italicButtonfo = nodeGroup.children[4].children[1];
-    let underlineButtonfo = nodeGroup.children[4].children[2];
-    let fontSizeButtonfo = nodeGroup.children[4].children[3];
-    let textColorButtonfo = nodeGroup.children[4].children[4];
-    let smileyButtonfo = nodeGroup.children[4].children[5];
+    let boldButtonfo = nodeGroup.tools.text.children[0];
+    let italicButtonfo = nodeGroup.tools.text.children[1];
+    let underlineButtonfo = nodeGroup.tools.text.children[2];
+    let fontSizeButtonfo = nodeGroup.tools.text.children[3];
+    let textColorButtonfo = nodeGroup.tools.text.children[4];
+    let smileyButtonfo = nodeGroup.tools.text.children[5];
 
     if(nodeGroup.getAttribute('shape') === 'square') { 
         const shift = (input.scrollHeight + 40)/2;       
@@ -686,9 +686,9 @@ function nodeSizing(nodeGroup,w,h) {
 
     // FILE
 
-    let fileButton1fo = nodeGroup.children[5].children[0];
-    let fileButton2fo = nodeGroup.children[5].children[1];
-    let fileButton3fo = nodeGroup.children[5].children[2];
+    let fileButton1fo = nodeGroup.tools.file.children[0];
+    let fileButton2fo = nodeGroup.tools.file.children[1];
+    let fileButton3fo = nodeGroup.tools.file.children[2];
     let filePreview = nodeGroup.children[0].children[2].children[0];
     let fileTypeImg = nodeGroup.children[0].children[2].children[2];
 
@@ -725,14 +725,14 @@ function nodeSizing(nodeGroup,w,h) {
   
     // CANVAS
 
-    let canvasEraserButtonfo = nodeGroup.children[6].children[0];
-    let canvasRedoButtonfo = nodeGroup.children[6].children[1];
-    let canvasUndoButtonfo = nodeGroup.children[6].children[2];
-    let canvasClearButtonfo = nodeGroup.children[6].children[3];
-    let canvasLineButtonfo = nodeGroup.children[6].children[4];
-    let canvasCircleButtonfo = nodeGroup.children[6].children[5];
-    let canvassliderfo = nodeGroup.children[6].children[6];
-    let canvasColorButtonfo = nodeGroup.children[6].children[7];
+    let canvasEraserButtonfo = nodeGroup.tools.canvas.children[0];
+    let canvasRedoButtonfo = nodeGroup.tools.canvas.children[1];
+    let canvasUndoButtonfo = nodeGroup.tools.canvas.children[2];
+    let canvasClearButtonfo = nodeGroup.tools.canvas.children[3];
+    let canvasLineButtonfo = nodeGroup.tools.canvas.children[4];
+    let canvasCircleButtonfo = nodeGroup.tools.canvas.children[5];
+    let canvassliderfo = nodeGroup.tools.canvas.children[6];
+    let canvasColorButtonfo = nodeGroup.tools.canvas.children[7];
 
     canvasEraserButtonfo.setAttribute('x', centerX - hitboxRadius - 20); 
     canvasEraserButtonfo.setAttribute('y', centerY + 0);
@@ -761,15 +761,15 @@ function nodeSizing(nodeGroup,w,h) {
 
 
     // NODE PARAMS 
-    let typeButtonfo = nodeGroup.children[7].children[0];
-    let typeButton = nodeGroup.children[7].children[1];
-    let colorButtonfo = nodeGroup.children[7].children[2];
-    let sizeButtonfo = nodeGroup.children[7].children[3];
-    let sizeButton = nodeGroup.children[7].children[4];
-    let shapeButtonfo = nodeGroup.children[7].children[5];
-    let calendarButtonfo = nodeGroup.children[7].children[6];
-    let lockButtonfo = nodeGroup.children[7].children[7];
-    let layerButtonfo = nodeGroup.children[7].children[8];
+    let typeButtonfo = nodeGroup.tools.type.children[0];
+    let typeButton = nodeGroup.tools.type.children[1];
+    let colorButtonfo = nodeGroup.tools.type.children[2];
+    let sizeButtonfo = nodeGroup.tools.type.children[3];
+    let sizeButton = nodeGroup.tools.type.children[4];
+    let shapeButtonfo = nodeGroup.tools.type.children[5];
+    let calendarButtonfo = nodeGroup.tools.type.children[6];
+    let lockButtonfo = nodeGroup.tools.type.children[7];
+    let layerButtonfo = nodeGroup.tools.type.children[8];
 
     if(nodeGroup.getAttribute('shape') === 'square') {
         const shift = (input.scrollHeight + 40)/2;

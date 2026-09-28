@@ -915,10 +915,10 @@ function createNode(x,y,id) {
     nodeGroup.appendChild(hitbox);
     nodeGroup.appendChild(square);
     nodeGroup.appendChild(quantumButtonfo);
-    nodeGroup.appendChild(styleGroup);
+    // Barres d'outils du node : gardées hors de la page (la barre HTML du Gardien les pilote), sauf le groupe
+    // fichier (nom du fichier affiché) ; une soixantaine d'éléments de moins par node. On y accède par node.tools.
+    nodeGroup.tools = { text: styleGroup, file: fileGroup, canvas: canvasStyleGroup, type: typeGroup };
     nodeGroup.appendChild(fileGroup);
-    nodeGroup.appendChild(canvasStyleGroup);
-    nodeGroup.appendChild(typeGroup);      
     square.style.display = 'none';   
     universe.appendChild(nodeGroup);
     
@@ -1222,8 +1222,8 @@ function createNode(x,y,id) {
         setTimeout(function() {            
             input.focus(); 
             restoreSelection(fontSavedSelection);
-            document.execCommand('fontSize', false, selectedOption); 
-            event.target.value = '';
+            document.execCommand('fontSize', false, selectedOption);
+            fontdropdown.value = '';
         }, 200); 
     });
 
@@ -1860,7 +1860,7 @@ function createNode(x,y,id) {
             if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/circle.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
                         nodeGroup.children[1].style.stroke = 'transparent'; 
                         nodeGroup.setAttribute('shape','square');
                         nodeGroup.children[2].style.display = 'block';  
@@ -1877,7 +1877,7 @@ function createNode(x,y,id) {
             } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/square.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
                         nodeGroup.setAttribute('shape','none');
                         nodeGroup.children[2].style.display = 'none';                           
                     }
@@ -1885,7 +1885,7 @@ function createNode(x,y,id) {
             } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/hide.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
                         nodeGroup.children[1].style.stroke = '#f3ee58'; 
                         nodeGroup.children[1].setAttribute('class', 'selectednode'); 
                         nodeGroup.setAttribute('shape','circle');
@@ -1896,7 +1896,7 @@ function createNode(x,y,id) {
             if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/circle-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
                         nodeGroup.children[1].style.stroke = 'transparent'; 
                         nodeGroup.setAttribute('shape','square');
                         nodeGroup.children[2].style.display = 'block';  
@@ -1913,7 +1913,7 @@ function createNode(x,y,id) {
             } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/square-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
                         nodeGroup.setAttribute('shape','none');
                         nodeGroup.children[2].style.display = 'none';                           
                     }
@@ -1921,7 +1921,7 @@ function createNode(x,y,id) {
             } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/hide-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
                         nodeGroup.children[1].style.stroke = nodeGroup.getAttribute('color'); 
                         nodeGroup.children[1].setAttribute('class', 'hitbox'); 
                         nodeGroup.setAttribute('shape','circle');
@@ -1960,13 +1960,13 @@ function createNode(x,y,id) {
         if(dark) {
             if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/lock.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+                    nodeGroup.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
                     nodeGroup.setAttribute('lock','0');
                     nodetypedropdown.disabled = false;
                 });
             } else if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/unlock.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+                    nodeGroup.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
                     nodeGroup.setAttribute('lock','1');
                     nodetypedropdown.disabled = true;
                 });
@@ -1974,13 +1974,13 @@ function createNode(x,y,id) {
         } else {
             if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/lock-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+                    nodeGroup.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
                     nodeGroup.setAttribute('lock','0');
                     nodetypedropdown.disabled = false;
                 });
             } else if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/unlock-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+                    nodeGroup.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
                     nodeGroup.setAttribute('lock','1');
                     nodetypedropdown.disabled = true;
                 });

@@ -505,6 +505,12 @@ document.getElementById('profileButton').addEventListener('mousedown', function(
 //////////////////// DARK ////////////////////
 
 let dark = true;
+// Les barres d'outils des nodes sont gardées hors de la page (node.tools) : leurs images et leurs listes changent
+// de thème avec le reste (Nodz lit la forme et le verrou d'un node dans le nom de ces images).
+function themed(selector) {
+    const tools = [...document.querySelectorAll('.node-group')].flatMap(n => Object.values(n.tools || {}).flatMap(g => [...g.querySelectorAll(selector)]));
+    return [...new Set([...document.querySelectorAll(selector), ...tools])];
+}
 document.getElementById('darkButton').addEventListener('mouseover', function() {
     if (dark) {
         createTooltip ('darkButton','Dark');
@@ -517,7 +523,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
     this.style.transform = this.style.transform === 'rotate(180deg)' ? 'rotate(0deg)' : 'rotate(180deg)';
     if (dark) {
         dark = false;
-        const dropdowns = document.querySelectorAll('.select-dropdown')
+        const dropdowns = themed('.select-dropdown')
         layer.classList.add('lightmode');
         for (let i = 0; i < dropdowns.length; i++) {
             dropdowns[i].className = 'selectlight';       
@@ -529,7 +535,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
             node.classList.add('raylight');
         });
 
-        const colorLogo = document.querySelectorAll('img');
+        const colorLogo = themed('img');
         colorLogo.forEach(color => {
             if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking.svg'){
                 color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking-light.svg');
@@ -602,7 +608,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
         }
     } else {
         dark = true;
-        const dropdowns = document.querySelectorAll('.selectlight')
+        const dropdowns = themed('.selectlight')
         layer.classList.remove('lightmode');
         for (let i = 0; i < dropdowns.length; i++) {
             dropdowns[i].className = 'select-dropdown';  
@@ -614,7 +620,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
             node.classList.add('raydark');
         });
 
-        const colorLogo = document.querySelectorAll('img');
+        const colorLogo = themed('img');
         colorLogo.forEach(color => {
             if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking-light.svg'){
                 color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking.svg');
@@ -1266,7 +1272,7 @@ notification.addEventListener('click', function () {
             focusNode(document.getElementById(notificationsDate[notificationIndex][2]),true)
             CurrentNode(document.getElementById(notificationsDate[notificationIndex][2]));
             currentNode.children[1].setAttribute('class', 'selectednode');
-            currentNode.children[7].children[6].children[0].click()
+            currentNode.tools.type.children[6].children[0].click()
         } else {
             layerNumber = notificationsDate[notificationIndex][1];
             seeNotification = true;

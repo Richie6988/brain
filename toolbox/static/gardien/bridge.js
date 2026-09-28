@@ -119,12 +119,12 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {} }
     }
 
     function setShape(node, shape) {
-        const button = node.children[7].children[5].children[0];
+        const button = node.tools.type.children[5].children[0];
         for (let i = 0; i < 3 && node.getAttribute('shape') !== shape; i++) withSelection(node, () => button.click());
     }
 
     function setLock(node, lock) {
-        if ((node.getAttribute('lock') === '1') !== lock) withSelection(node, () => node.children[7].children[7].children[0].click());
+        if ((node.getAttribute('lock') === '1') !== lock) withSelection(node, () => node.tools.type.children[7].children[0].click());
     }
 
     function linkBetween(a, b) {

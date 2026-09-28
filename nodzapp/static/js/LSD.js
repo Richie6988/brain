@@ -155,7 +155,7 @@ function load(layer,nodeID){
             if (seeNotification) {
                 currentNode = document.getElementById(nodeID);
                 currentNode.children[1].setAttribute('class', 'selectednode');
-                currentNode.children[7].children[6].children[0].click();
+                currentNode.tools.type.children[6].children[0].click();
                 seeNotification = false;
             }
         } else {
@@ -205,25 +205,25 @@ function displayNode(node) {
     if(node.shape === 'none'){
         newNode.style.stroke = 'transparent';
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
         }
     } else if(node.shape === 'circle') {
         newNode.style.stroke = node.color;
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
         }
     }  else if(node.shape === 'square') {
         newNode.children[1].style.stroke = 'transparent';
         newNode.children[2].style.display = 'block';  
         newNode.children[2].setAttribute('class','squareShape');  
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
         }
     } 
     newNode.setAttribute('layer', node.layer__layer_id);
@@ -236,7 +236,7 @@ function displayNode(node) {
     redrawCanvas(newNode.children[0].children[3].id,0, drawingData);
     newNode.setAttribute('filename', node.file_name);
     newNode.setAttribute('file', node.file);
-    newNode.children[5].children[2].children[0].textContent = node.file_name;        
+    newNode.tools.file.children[2].children[0].textContent = node.file_name;        
     const filePreview = newNode.children[0].children[2].children[0];
     const spinner = newNode.children[0].children[2].children[1];
     const fileContainer = newNode.children[0].children[2];
@@ -245,22 +245,22 @@ function displayNode(node) {
     }    
     newNode.setAttribute('notification', node.notification);
     if(newNode.getAttribute('notification') !== '') {
-        newNode.children[7].children[6].children[0].setAttribute('src', NODZ_BASE + '/static/img/notification.svg');
+        newNode.tools.type.children[6].children[0].setAttribute('src', NODZ_BASE + '/static/img/notification.svg');
     }
   
     if(node.lock){
         newNode.setAttribute('lock', 1);
         if (dark) {
-            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+            newNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
         } else {
-            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+            newNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
         }
     } else {
         newNode.setAttribute('lock', 0);
         if (dark) {
-            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+            newNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
         } else {
-            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+            newNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
         }
     }
     newNode.setAttribute('quantum', node.quantum);
@@ -269,9 +269,9 @@ function displayNode(node) {
     }
 
     newNode.children[0].children[0].innerHTML = node.text_content;
-    newNode.children[7].children[0].children[0].value = newNode.getAttribute('type');  
+    newNode.tools.type.children[0].children[0].value = newNode.getAttribute('type');  
 
-    newNode.children[7].style.display = 'none';
+    newNode.tools.type.style.display = 'none';
 
     var r = parseFloat(newNode.children[1].getAttribute('r'));
     r = Math.sqrt(2*r*r);
@@ -279,8 +279,8 @@ function displayNode(node) {
 
     var event = new Event('change');
     if(newNode.getAttribute('type') !== "text"){
-        newNode.children[7].children[0].children[0].dispatchEvent(event);        
-        const size = newNode.children[7].children[4];
+        newNode.tools.type.children[0].children[0].dispatchEvent(event);        
+        const size = newNode.tools.type.children[4];
         var event = new MouseEvent('mousedown');
         size.dispatchEvent(event);
         event = new MouseEvent('mouseup');

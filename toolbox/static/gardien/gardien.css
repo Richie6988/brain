@@ -538,10 +538,9 @@ body:has(.universe.lightmode) .gc-choices button { color: #440852; background: r
 @keyframes gp-pulse { 50% { box-shadow: 0 0 0 4px #b89af2, 0 0 22px rgba(30, 144, 255, 0.9); } }
 
 /* Barre d'outils du node (nodebar.js), au style de la pastille du Gardien : une pilule de verre au-dessus du node
-   actif, et la poignée de taille HTML. Elles remplacent les barres SVG que Nodz dessine dans chaque node et sa
-   double flèche : masquées ici, seul reste dans le node le nom du fichier (3e élément du groupe fichier). */
-.node-group > g:nth-child(5), .node-group > g:nth-child(7), .node-group > g:nth-child(8),
-.node-group > g:nth-child(6) > :nth-child(-n+2) { display: none !important; }
+   actif, et la poignée de taille HTML. Elles remplacent les barres SVG de Nodz, gardées hors de la page (node.tools) ;
+   seul le groupe fichier reste dans le node pour le nom du fichier : ses boutons importer et télécharger sont masqués. */
+.node-group > g:nth-child(5) > :nth-child(-n+2) { display: none !important; }
 #gardien-sizer {
     position: fixed; left: 0; top: 0; z-index: 30; width: 28px; height: 28px; padding: 0; display: grid; place-items: center;
     cursor: nwse-resize; border-radius: 50%; background: rgba(15, 23, 42, 0.92); border: 2px solid var(--c, #b89af2);

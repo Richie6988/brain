@@ -355,16 +355,16 @@ function pastenodes(tunnel) {
             if(element.getAttribute('shape') === 'none'){
                 pasteNode.children[1].style.stroke = 'transparent';
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
                 }
             } else if(element.getAttribute('shape') === 'circle'){
                 pasteNode.children[1].style.stroke = element.getAttribute('color');
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
                 }
             }  else if(element.getAttribute('shape') === 'square'){
                 pasteNode.children[1].style.stroke = 'transparent';
@@ -372,24 +372,24 @@ function pastenodes(tunnel) {
                 pasteNode.children[2].style.display = 'block';  
                 pasteNode.children[2].setAttribute('class','squareShape'); 
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
                 }
             }  
 
             pasteNode.setAttribute('lock', element.getAttribute('lock'));
             if(element.getAttribute('lock') === '1'){
                 if (dark) {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
                 } else {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
                 }
             } else {
                 if (dark) {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
                 } else {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
                 }
             }  
             
@@ -404,7 +404,7 @@ function pastenodes(tunnel) {
             const spinner = pasteNode.children[0].children[2].children[1];
             const fileContainer = pasteNode.children[0].children[2];
             const fileName = element.getAttribute('filename');
-            pasteNode.children[5].children[2].children[0].textContent = element.children[5].children[2].children[0].textContent;
+            pasteNode.tools.file.children[2].children[0].textContent = element.querySelector('.filename, .filename-light')?.textContent || '';  // copie : un clone, sans node.tools
             
             // Canvas
             pasteNode.setAttribute('canvascontent',element.getAttribute('canvascontent'));
@@ -415,7 +415,7 @@ function pastenodes(tunnel) {
 
             pasteNode.children[1].setAttribute('r', parseFloat(element.children[1].getAttribute('r')));
 
-            pasteNode.children[7].children[0].children[0].value = pasteNode.getAttribute('type'); 
+            pasteNode.tools.type.children[0].children[0].value = pasteNode.getAttribute('type'); 
             var event = new Event('change');
 
             if(pasteNode.getAttribute('type') === "file"){
@@ -459,7 +459,7 @@ function pastenodes(tunnel) {
             }
 
             if(pasteNode.getAttribute('type') !== "text"){
-                pasteNode.children[7].children[0].children[0].dispatchEvent(event);
+                pasteNode.tools.type.children[0].children[0].dispatchEvent(event);
             }
 
             quickSize(pasteNode); 

@@ -9,22 +9,22 @@ svg.addEventListener('mousedown', function(event) {
     search.blur();
     isTyping = false; 
 
-    if(currentNode && !currentNode.children[7].contains(event.target)) {        
+    if(currentNode && !currentNode.tools.type.contains(event.target)) {        
         if (selectionArea(event, currentNode, 'up')) {
             initialdragX = event.clientX;    
             initialdragY = event.clientY;
             if(!colorWheelfo.contains(event.target) && !isSizing){
                 isDragging = true;
-                if(!selectedNodes.includes(currentNode) && !currentNode.children[4].contains(event.target) && !currentNode.children[5].contains(event.target) && !currentNode.children[6].contains(event.target)){
+                if(!selectedNodes.includes(currentNode) && !currentNode.tools.text.contains(event.target) && !currentNode.tools.file.contains(event.target) && !currentNode.tools.canvas.contains(event.target)){
                     event.stopPropagation();
                     nodeSelection(currentNode); 
                     svg.style.cursor = 'grabbing';
                     showParams(currentNode);
                     document.activeElement.blur();
                     isTyping = false;
-                    currentNode.children[7].children[3].setAttribute('visibility','hidden'); 
-                    currentNode.children[7].children[3].children[0].setAttribute('visibility','hidden');  
-                } else if (!isCtrlPressed && selectedNodes.includes(currentNode) && !currentNode.children[7].contains(event.target) && !colorWheelfo.contains(event.target)){
+                    currentNode.tools.type.children[3].setAttribute('visibility','hidden'); 
+                    currentNode.tools.type.children[3].children[0].setAttribute('visibility','hidden');  
+                } else if (!isCtrlPressed && selectedNodes.includes(currentNode) && !currentNode.tools.type.contains(event.target) && !colorWheelfo.contains(event.target)){
                     setTimeout(() => {
                         if (!isDragging && currentNode){
                             nodeUnselection(currentNode);   
@@ -36,7 +36,7 @@ svg.addEventListener('mousedown', function(event) {
                 }  
             }         
         } else if(!isCtrlPressed) {           
-            if(svg !== event.target && !currentNode.children[7].contains(event.target) && !colorWheelfo.contains(event.target)){
+            if(svg !== event.target && !currentNode.tools.type.contains(event.target) && !colorWheelfo.contains(event.target)){
                 nodeUnselection(currentNode);
                 setTimeout(() => {
                     currentNode.children[0].children[0].focus();
@@ -44,7 +44,7 @@ svg.addEventListener('mousedown', function(event) {
             } else if(svg === event.target){      
                 (Array.from(document.querySelectorAll('.node-group'))).forEach(node => {
                     nodeUnselection(node);
-                    const canvasStyleGroup = node.children[6];
+                    const canvasStyleGroup = node.tools.canvas;
                     canvasStyleGroup.setAttribute('visibility', 'hidden');
                 }); 
                 colorWheelfo.setAttribute('visibility', 'hidden');
@@ -62,7 +62,7 @@ svg.addEventListener('mousedown', function(event) {
             nodeUnselection(node);
         });            
 
-    } else if (currentNode && currentNode.children[7].children[3].contains(event.target) && currentNode.getAttribute('lock') === '0'){       
+    } else if (currentNode && currentNode.tools.type.children[3].contains(event.target) && currentNode.getAttribute('lock') === '0'){       
         isSizing = true;
         svg.style.cursor = 'grabbing';
         initialdragX = event.clientX;  
@@ -78,11 +78,11 @@ svg.addEventListener('mousemove', function(event) {
         return; 
     }
     if(currentNode) {  
-        const sizeButtonfo = currentNode.children[7].children[3];      
+        const sizeButtonfo = currentNode.tools.type.children[3];      
         if (selectionArea(event, currentNode, 'up')) {          
             svg.style.cursor = 'grab'; 
             if (!selectedNodes.includes(currentNode) && currentNode.getAttribute('lock') === '0') {
-                currentNode.children[7].style.display = 'block';
+                currentNode.tools.type.style.display = 'block';
                 sizeButtonfo.setAttribute('visibility','visible'); 
                 sizeButtonfo.children[0].setAttribute('visibility','visible'); 
                 const pathElement = sizeButtonfo.children[0].querySelector('path');
@@ -301,7 +301,7 @@ function out(nodeGroup) {
             // nodeGroup.children[0].children[0].blur();
             // save(nodeGroup); 
             svg.style.cursor = 'crosshair';
-            const fileGroup = nodeGroup.children[5];         
+            const fileGroup = nodeGroup.tools.file;         
             fileGroup.setAttribute('visibility', 'hidden');  
             
         } 

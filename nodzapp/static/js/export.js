@@ -100,8 +100,8 @@ async function exportNodz(nodesSelection, linksSelection, templatesSelection) {
         if (node.getAttribute('type') === 'file'){
             const type = node.getAttribute('type');
             var event = new Event('change');
-            node.children[7].children[0].children[0].value = 'text';    
-            node.children[7].children[0].children[0].dispatchEvent(event); 
+            node.tools.type.children[0].children[0].value = 'text';    
+            node.tools.type.children[0].children[0].dispatchEvent(event); 
             node.children[0].children[0].innerHTML = '<span style="color: black; text-decoration: underline;font-size: smaller;">Get file:</span>\n' + '<span style="color: black; font-size: small;">' + node.getAttribute('filename') + '</span>';
             var inputEvent = new Event('input');
             node.children[0].children[0].dispatchEvent(inputEvent);
@@ -236,8 +236,8 @@ async function exportNodz(nodesSelection, linksSelection, templatesSelection) {
 
         if (node.getAttribute('type') === 'file'){
             node.children[0].children[0].innerHTML = node.getAttribute('textcontent');
-            node.children[7].children[0].children[0].value = 'file'; 
-            node.children[7].children[0].children[0].dispatchEvent(event); 
+            node.tools.type.children[0].children[0].value = 'file'; 
+            node.tools.type.children[0].children[0].dispatchEvent(event); 
             
             const imageElem = document.createElementNS("http://www.w3.org/2000/svg", "image");
             imageElem.setAttribute("x", x + width/2 - 20);

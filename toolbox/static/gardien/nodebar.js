@@ -10,7 +10,7 @@
 // reste tant que le pointeur est près du node). La tirer donne au node le rayon de la distance entre pointeur et
 // centre ; même redimensionnement (nodeSizing) et même sauvegarde que Nodz. Elle remplace la double flèche SVG.
 
-const TYPE = 7, TEXT = 4, FILE = 5, CANVAS = 6;  // groupes SVG du node (elementsCreation.js)
+const TYPE = 'type', TEXT = 'text', FILE = 'file', CANVAS = 'canvas';  // barres d'outils du node (node.tools, elementsCreation.js)
 
 const TOOLS = {
     params: [
@@ -153,7 +153,7 @@ export function createNodebar() {
         return [target, ['params', ...(extra ? [extra] : [])]];
     };
     const source = (node, tool) => {
-        const holder = node.children[tool.group]?.children[tool.index];
+        const holder = node.tools?.[tool.group]?.children[tool.index];
         return tool.pick === 'div' ? holder?.querySelector('div') : holder?.querySelector(tool.kind === 'size' ? 'input' : tool.kind ? 'select' : 'img');
     };
 
