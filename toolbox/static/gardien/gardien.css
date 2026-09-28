@@ -617,7 +617,8 @@ foreignObject.portal img:hover { animation-duration: 0.9s, 1.2s; filter: brightn
 .gt-crumbs .gt-portal { flex: none; color: #b89af2; font-size: 14px; text-shadow: 0 0 8px #1E90FF; }
 .gt-choices button.portal { border-style: dashed !important; }
 
-/* Galerie : arborescences de vrais nodes (trees.js), cartes sombres à l'aperçu dessiné, avant les fonds de réflexion. */
+/* Galerie : schémas faits de nodes et de liens (schemas.js), par famille, cartes sombres à l'aperçu dessiné. */
+#templates .templatesContent { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 #templates .gt-trees-title { grid-column: 1 / -1; justify-self: start; margin: 4px 0 -6px; font: 600 12px 'Cascadia Code', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #b89af2; }
 #templates .template-tree {
     display: flex; flex-direction: column; align-items: center; gap: 2px; width: 200px; height: 200px; padding: 8px 10px 10px; cursor: pointer;

@@ -78,9 +78,11 @@ TOOLS = [
      'doc': '{"op":"templates"} : liste les gabarits gardés (nom, forme, description).'},
     {'op': 'template_delete', 'category': 'Gabarits', 'source': NODZ, 'label': 'Oublier un gabarit',
      'doc': '{"op":"template_delete","name":"retro"} : oublie un gabarit gardé.'},
-    {'op': 'backdrop', 'category': 'Gabarits', 'source': NODZ, 'label': 'Fond dessiné de Nodz (SWOT, 3×3…)',
-     'doc': '{"op":"backdrop","type":"SWOT","near":"N-3"} : pose un gabarit dessiné de Nodz, comme la galerie Modèles '
-            '(SWOT, M3X3, PYRAMID, IKIGAI, CHRONO, TOWS, BM) ; tu peux ensuite placer des nodes dessus.'},
+    {'op': 'schema', 'category': 'Gabarits', 'source': NODZ, 'label': 'Modèle connu de la galerie (SWOT, Ishikawa…)',
+     'doc': '{"op":"schema","type":"swot","near":"N-3"} : pose un modèle de la galerie, fait de nodes et de liens à '
+            'remplir ensuite (update) : decision, family, organic, org, why (5 pourquoi), swot, eisenhower, bcg, ansoff, '
+            'tows, m3x3, bmc (Business Model Canvas), porter, pestel, ikigai, smart, pdca, process, timeline, kanban, '
+            'design (design thinking), aida, maslow, ishikawa.'},
     # --- Agents
     {'op': 'delegate', 'category': 'Agents', 'source': BOTH, 'iaqua': 'dispatch_to_agent, generate_image', 'label': 'Confier à un agent',
      'doc': '{"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou N-2","near":"N-1"} : confie la '
@@ -223,6 +225,7 @@ TOOLS = [
 BY_OP = {t['op']: t for t in TOOLS}
 
 # Outils décrits en entier dans le prompt ; les autres n'y ont qu'une ligne (mode d'emploi par tool_help).
+RENAMED = {'backdrop': 'schema'}  # ancien nom d'un outil coché → son remplaçant (fonds dessinés → modèles en nodes)
 CORE = {'ask', 'note', 'put', 'grow', 'create', 'update', 'link', 'archive', 'delegate', 'focus', 'overview', 'search_nodes', 'remember', 'inventory', 'tool_help', 'build', 'tour'}
 
 
@@ -235,7 +238,7 @@ def available(op, user):
 
 def enabled(agent, user):
     """Opérations permises au Gardien : celles cochées (tools_allowed), sinon celles actives par défaut."""
-    allowed = [op for op in agent.tools_allowed or [] if op in BY_OP]
+    allowed = [op for op in dict.fromkeys(RENAMED.get(op, op) for op in agent.tools_allowed or []) if op in BY_OP]
     ops = allowed or [t['op'] for t in TOOLS if t.get('default', not t.get('admin'))]
     # tool_help, ask et note (parler à l'humain) et put (écrire un node comme il le lit) restent toujours permis, même avec
     # une liste d'outils cochés d'avant.

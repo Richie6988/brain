@@ -17,10 +17,10 @@ import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
 import { createPresence } from './presence.js';
+import { createSchemas } from './schemas.js';
 import { createSide } from './side.js';
 import { LATER, createSuggestions } from './suggest.js';
 import { createTour } from './tour.js';
-import { createTrees } from './trees.js';
 
 const toast = document.getElementById('gardien-toast');
 
@@ -98,9 +98,10 @@ createDimensions();  // recherche, épinglées et nombre de nodes dans la liste 
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
-const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes) });
+const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes),
+    onSchema: (type, at) => schemas.build(type, at) });
 const tour = createTour({ bridge, say });
-createTrees({ bridge });  // arborescences de nodes dans la galerie de modèles
+const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
 createSide({ bridge, say });  // vue de côté : X = numéro de dimension, Y = Y
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur

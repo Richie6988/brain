@@ -819,7 +819,7 @@ class GuardianTests(TestCase):
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}), context={**context, 'attached': [], 'selection': []})
         self.assertIn('"plus": ', engine.calls[0]['messages'][1]['content'])  # demande suivante : texte ordinaire, le reste compté
 
-    def test_build_templates_backdrop_and_tour(self):
+    def test_build_templates_schema_and_tour(self):
         from .layouts import STEP
 
         matrix = {'op': 'build', 'layout': 'matrix', 'title': 'Eisenhower', 'rows': ['Urgent', 'Pas urgent'], 'cols': ['Important', 'Secondaire'],
@@ -828,7 +828,7 @@ class GuardianTests(TestCase):
             matrix, {'op': 'build', 'template': 'eisenhower', 'cells': [['a', 'b'], ['c', 'd']]},
             {'op': 'build', 'layout': 'tree', 'items': ['Recherche', '  Web', 'Écriture']},
             {'op': 'build', 'layout': 'matrix'}, {'op': 'build', 'template': 'inconnu'},
-            {'op': 'backdrop', 'type': 'SWOT', 'near': 'N-1'}, {'op': 'backdrop', 'type': 'XYZ'}, {'op': 'tour', 'ref': 'N-1'}]}))
+            {'op': 'schema', 'type': 'swot', 'near': 'N-1'}, {'op': 'schema', 'type': 'SWOT'}, {'op': 'tour', 'ref': 'N-1'}]}))
         creates = [a for a in self.actions() if a['op'] == 'create']
         first = [a for a in creates if a['ref'] == 'build1' or a['ref'].startswith('build1.')]
         self.assertEqual(len(first), 9)  # titre, 2 en-têtes de colonnes, 2 de lignes, 4 cases
@@ -842,9 +842,9 @@ class GuardianTests(TestCase):
         self.assertTrue(all(math.dist(p, q) >= 170 for i, p in enumerate(spots) for q in spots[i + 1:]))
         tree = [a for a in self.actions() if a['op'] == 'link' and a['source'].startswith('build3')]
         self.assertEqual([(a['source'], a['target']) for a in tree], [('build3.i1', 'build3.i2')])
-        self.assertEqual([a['type'] for a in self.actions() if a['op'] == 'backdrop'], ['SWOT'])
+        self.assertEqual([a['type'] for a in self.actions() if a['op'] == 'schema'], ['swot'])
         self.assertEqual([a['ref'] for a in self.actions() if a['op'] == 'tour'], ['N-1'])
-        self.assertEqual(len(self.errors()), 3)  # matrice sans lignes, gabarit inconnu, fond inconnu
+        self.assertEqual(len(self.errors()), 3)  # matrice sans lignes, gabarit inconnu, modèle inconnu
         guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
         self.assertEqual(guardian.brain['templates']['eisenhower']['layout'], 'matrix')
 
@@ -1660,6 +1660,14 @@ class IaquaToolsTests(TestCase):
             forge = self.run_guardian([{'op': 'forge_tool', 'action': 'create', 'name': 'double',
                                         'code': 'import json, sys\nprint(json.dumps(json.load(sys.stdin)["n"] * 2))', 'test_input': '{"n": 2}'}])
         self.assertIn('outil désactivé', self.errors()[0])  # forge_tool n'est pas coché
+
+    def test_backdrop_checked_before_now_allows_schema(self):
+        from . import tools
+
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        guardian.tools_allowed = ['create', 'backdrop', 'schema']
+        guardian.save()
+        self.assertEqual(tools.enabled(guardian, self.user), ['create', 'schema', 'tool_help', 'ask', 'put', 'note'])
 
     def test_delete_agent_needs_an_explicit_request(self):
         Agent.objects.create(owner=self.user, name='Traducteur')

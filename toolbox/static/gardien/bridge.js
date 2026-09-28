@@ -10,7 +10,7 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-export function createBridge({ caption, onTour = () => {}, onAttach = () => {} }) {
+export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onSchema = async () => {} }) {
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
     let take = 0;            // numéro de prise : un geste de l'utilisateur coupe le travelling
     const cut = () => { take += 1; };
@@ -252,10 +252,9 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {} }
         tour({ ref }) {
             onTour(nodeOf(ref));
         },
-        // Gabarit de Nodz (SWOT, matrice 3×3, pyramide, Ikigai, frise, TOWS, Business Model), comme la galerie.
-        backdrop({ type, x, y }) {
-            const template = createTemplate(x || 0.5, y || 0.5, type);  // (0, 0) voudrait dire « au centre de la vue »
-            saveTemplate(template);
+        // Modèle de la galerie (SWOT, Eisenhower, Ishikawa…), fait de nodes et de liens (schemas.js).
+        async schema({ type, x, y }) {
+            await onSchema(type, { x, y });
         },
     };
 

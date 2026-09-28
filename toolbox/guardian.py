@@ -81,9 +81,9 @@ PLAN_SCHEMA = {
                     'children': {'type': 'array', 'items': {'type': 'string'}},
                     'choices': {'type': 'array', 'items': {'type': 'string'}},  # ask : réponses proposées à l'humain
                     'links': {'type': 'array', 'items': {'type': 'string'}},  # put : voisins à relier
-                    # gabarits (build, template_save, backdrop)
+                    # gabarits (build, template_save, schema)
                     'layout': {'type': 'string', 'enum': layouts.LAYOUTS},
-                    'type': {'type': 'string', 'enum': layouts.BACKDROPS},
+                    'type': {'type': 'string', 'enum': layouts.SCHEMAS},
                     **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('rows', 'cols', 'items')},
                     'cells': {'type': 'array', 'items': {'type': 'array', 'items': {'type': 'string'}}},
                     'template': {'type': 'string'},
@@ -250,7 +250,7 @@ def intent(action, nodes):
         'template_save': lambda a: f"Je garde le gabarit « {short(a.get('name'))} »",
         'templates': lambda a: 'Je relis mes gabarits',
         'template_delete': lambda a: f"J'oublie le gabarit « {short(a.get('name'))} »",
-        'backdrop': lambda a: f"Je pose le fond {a.get('type')}",
+        'schema': lambda a: f"Je pose le modèle {a.get('type')}",
         'tour': lambda a: f"Je te fais visiter la branche de {name(a.get('ref'))}",
         'mindmap': lambda a: f"Je dessine une carte mentale autour de « {short(a.get('text') or nodes.get(a.get('ref'), {}).get('text'))} »",
         'delegate': lambda a: f"Je confie à {a.get('agent')} : {short(a.get('task'), 60)}",
@@ -668,13 +668,13 @@ class Guardian(IaquaOps):
         self.sync_brain()
         return None
 
-    def op_backdrop(self, action, agents):
-        if action.get('type') not in layouts.BACKDROPS:
-            raise PlanError(f"fond inconnu : {action.get('type')!r} ({', '.join(layouts.BACKDROPS)})")
+    def op_schema(self, action, agents):
+        if action.get('type') not in layouts.SCHEMAS:
+            raise PlanError(f"modèle inconnu : {action.get('type')!r} ({', '.join(layouts.SCHEMAS)})")
         target = self.nodes.get(action.get('near'))
-        x, y = free_spot((target['x'], target['y']) if target else self.anchor, self.occupied, 330)
-        self.occupied.append((x, y, 330))
-        return {'op': 'backdrop', 'type': action['type'], 'x': x, 'y': y}
+        x, y = free_spot((target['x'], target['y']) if target else self.anchor, self.occupied, layouts.SCHEMA_SPAN)
+        self.occupied.append((x, y, layouts.SCHEMA_SPAN))
+        return {'op': 'schema', 'type': action['type'], 'x': x, 'y': y}
 
     def op_tour(self, action, agents):
         return {'op': 'tour', 'ref': self.existing(action.get('ref'))}

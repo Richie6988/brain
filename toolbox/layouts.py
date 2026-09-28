@@ -3,8 +3,8 @@ structure organique d'un raisonnement (organic : un plan libre qui pousse en ét
 
 Un gabarit est une liste de nodes (clé, position relative, texte, rôle) et de liens entre clés, en
 coordonnées de Nodz (y vers le haut) ; le Gardien le pose dans un coin libre de la dimension. Aucun lien
-parfaitement horizontal ou vertical : le dégradé d'un lien de Nodz ne s'y affiche pas. Les gabarits
-dessinés de Nodz (SWOT, matrice 3×3…) s'ajoutent en fond avec BACKDROPS.
+parfaitement horizontal ou vertical : le dégradé d'un lien de Nodz ne s'y affiche pas. Les modèles connus de
+la galerie (SWOT, Eisenhower, Ishikawa…) se posent avec l'op schema : la page les construit (schemas.js).
 """
 
 import math
@@ -12,7 +12,10 @@ import re
 import zlib
 
 LAYOUTS = ['matrix', 'kanban', 'timeline', 'pyramid', 'tree', 'list']
-BACKDROPS = ['SWOT', 'M3X3', 'PYRAMID', 'IKIGAI', 'CHRONO', 'TOWS', 'BM']
+# Modèles de la galerie (clés de toolbox/static/gardien/schemas.js), faits de nodes et de liens.
+SCHEMAS = ['decision', 'family', 'organic', 'org', 'why', 'swot', 'eisenhower', 'bcg', 'ansoff', 'tows', 'm3x3', 'bmc',
+           'porter', 'pestel', 'ikigai', 'smart', 'pdca', 'process', 'timeline', 'kanban', 'design', 'aida', 'maslow', 'ishikawa']
+SCHEMA_SPAN = 700  # place réservée autour d'un modèle posé
 STEP = 240  # entre deux centres de nodes (rayon 85, marge comprise)
 MAX_NODES = 60
 MAX_ORGANIC = 80  # un raisonnement développé peut compter plus d'idées qu'un gabarit
