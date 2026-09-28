@@ -1002,8 +1002,11 @@ function updateLink(link) {
     link.setAttribute('x2', x2 - offset);
     link.setAttribute('y2', y2 - offset);
     link.style.strokeWidth = ''+3+'px'; 
-    universe.appendChild(link);
-    universe.insertBefore(link, universe.firstChild); 
+    // Le lien passe derrière les nodes : seulement s'il n'y est pas déjà (le retirer et le remettre à chaque pas d'un
+    // glissé forçait le navigateur à tout recalculer, et un glissé de plusieurs nodes ramait).
+    let before = link.previousElementSibling;
+    while (before && before.classList.contains('link')) before = before.previousElementSibling;
+    if (before) universe.insertBefore(link, universe.firstChild); 
 }
 
 function updateLinkColor(link) {

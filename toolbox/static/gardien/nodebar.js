@@ -10,6 +10,8 @@
 // reste tant que le pointeur est près du node). La tirer donne au node le rayon de la distance entre pointeur et
 // centre ; même redimensionnement (nodeSizing) et même sauvegarde que Nodz. Elle remplace la double flèche SVG.
 
+import { dragging as gesture } from './gesture.js';
+
 const TYPE = 'type', TEXT = 'text', FILE = 'file', CANVAS = 'canvas';  // barres d'outils du node (node.tools, elementsCreation.js)
 
 const TOOLS = {
@@ -87,7 +89,7 @@ function createSizer() {
     };
     function candidate() {
         if (dragging) return node;
-        if (typeof isDragging !== 'undefined' && isDragging) return null;
+        if ((typeof isDragging !== 'undefined' && isDragging) || gesture()) return null;
         const selected = typeof selectedNodes !== 'undefined' && selectedNodes.length === 1 ? selectedNodes[0] : null;
         const hovered = typeof currentNode !== 'undefined' ? currentNode : null;
         const target = [selected, hovered, node].find(n => n?.isConnected && n.getAttribute('lock') !== '1' && (n === selected || near(n)));
@@ -248,7 +250,7 @@ export function createNodebar() {
     }
 
     (function follow() {
-        const [node, modes] = typeof admin !== 'undefined' && admin ? [null, []] : active();
+        const [node, modes] = (typeof admin !== 'undefined' && admin) || gesture() ? [null, []] : active();
         if (!node) {
             bar.hidden = true;
             key = '';

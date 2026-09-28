@@ -5,6 +5,7 @@
 // Les variables et fonctions de Nodz sont des globales des scripts classiques de la page.
 
 import { endpoint } from './api.js';
+import { dragging } from './gesture.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -346,6 +347,8 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             let group = [];  // multisélection : ses nodes partent au chat comme contexte de la prochaine demande
             const place = () => {
                 if (!target || !target.isConnected) return hide();
+                pill.style.visibility = dragging() ? 'hidden' : '';  // pendant un glissé : ni mesure ni suivi
+                if (dragging()) return requestAnimationFrame(place);
                 const shape = target.getAttribute('shape') === 'square' ? target.children[2] : target.children[1];
                 const r = (shape || target).getBoundingClientRect();
                 pill.style.left = `${Math.min(window.innerWidth - pill.offsetWidth - 8, r.right + 8)}px`;
