@@ -6,6 +6,7 @@ Réglages par modèle (params.py : GPU, cache, contexte, threads, échantillonna
 d'usage et déchargement après inactivité, comme le ModelService de SquidMind.
 """
 
+import collections
 import threading
 import time
 from contextlib import contextmanager
@@ -32,6 +33,26 @@ def looping(text, tail=600):
             return True
     return False
 
+
+
+CHANCES = 5  # jetons envisagés gardés à chaque pas
+
+
+def chances_reader(llm, into):
+    """Lecteur des jetons envisagés, pour llama.cpp : appelé avant chaque tirage avec les logits du pas (sans garder
+    ceux de toute la fenêtre, qui pèseraient des Go), il note les plus probables et leur probabilité."""
+    import numpy as np
+    from llama_cpp import LogitsProcessorList
+
+    def read(input_ids, scores):
+        top = np.argpartition(scores, -CHANCES)[-CHANCES:]
+        shifted = scores - scores.max()
+        total = float(np.exp(shifted).sum())
+        into.append(sorted(((llm.detokenize([int(t)]).decode('utf-8', 'ignore'), float(np.exp(shifted[t])) / total) for t in top),
+                           key=lambda chance: -chance[1]))
+        return scores
+
+    return LogitsProcessorList([read])
 
 class EngineUnavailable(Exception):
     pass
@@ -215,10 +236,12 @@ class Engine:
         self.chat(model, messages, priority=priority, owner=owner, max_tokens=1, temperature=0)
         return True
 
-    def chat(self, model, messages, *, json_schema=None, on_text=None, priority=priorities.CHAT, owner='chat', **params):
+    def chat(self, model, messages, *, json_schema=None, on_text=None, on_token=None, priority=priorities.CHAT, owner='chat', **params):
         """Complétion de chat en flux. Renvoie le texte complet ; on_text reçoit chaque fragment. Une réponse JSON
         (plan) qui se met à boucler est arrêtée net (stats['last']['stopped']). Un modèle par API n'occupe ni le broker
-        ni la mémoire locale."""
+        ni la mémoire locale.
+        on_token(fragment, chances), à la place d'on_text : avec chaque fragment, les jetons que le modèle envisageait à
+        cet instant et leur probabilité, [(texte, p), ...] du plus probable au moins probable (ou None si inconnu)."""
         # Réglages du modèle, puis ceux de l'appel (agent, Gardien) qui priment.
         options = {'temperature': 0.7, 'max_tokens': 1024, **sampling_options(model.params), **sampling_options(params)}
         if model.params.get('random_seed') is False and 'seed' not in options:
@@ -230,19 +253,19 @@ class Engine:
             self.stats.setdefault(model.pk, {'loaded_at': self.clock(), 'last_used': self.clock(), 'requests': 0, 'tokens': 0})
             started = time.monotonic()
             try:
-                stream = remote.Stream(model, messages, options, json_schema)
+                stream = remote.Stream(model, messages, options, json_schema, chances=bool(on_token))
             except remote.RemoteError as e:
                 raise EngineUnavailable(str(e)) from None
-            return self._collect(model, stream, (piece for piece in stream), messages, json_schema, on_text, None, started)
+            return self._collect(model, stream, iter(stream), messages, json_schema, on_text, None, started, on_token)
         with self.broker.slot(priority, owner), self._lock:
             self._abort.clear()
             self._current = (getattr(_acting, 'user', None), priority)
             try:
-                return self._local(model, messages, json_schema, on_text, options)
+                return self._local(model, messages, json_schema, on_text, options, on_token)
             finally:
                 self._current = None
 
-    def _local(self, model, messages, json_schema, on_text, options):
+    def _local(self, model, messages, json_schema, on_text, options, on_token=None):
         llm = self._ensure(model)
         if json_schema:
             options['response_format'] = {'type': 'json_object', 'schema': json_schema}
@@ -259,18 +282,28 @@ class Engine:
                                         'augmente le contexte dans les réglages du modèle, ou réduis la conversation')
             wanted = options.get('max_tokens')
             options['max_tokens'] = room if not wanted or wanted < 0 else min(wanted, room)
+        chances = collections.deque()  # ce que le modèle envisageait, jeton après jeton (lu avant chaque tirage)
+        if on_token:
+            options['logits_processor'] = chances_reader(llm, chances)
         started = time.monotonic()
         stream = llm.create_chat_completion(messages=messages, stream=True, **options)
-        pieces = (chunk['choices'][0]['delta'].get('content') or '' for chunk in stream)
-        return self._collect(model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started)
 
-    def _collect(self, model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started):
-        """Lit le flux (local ou distant) : fragments vers on_text, arrêt d'une boucle, mesures de l'appel."""
+        def pieces():
+            for chunk in stream:
+                piece = chunk['choices'][0]['delta'].get('content') or ''
+                yield (piece, chances.popleft() if piece and chances else None) if on_token else piece
+
+        return self._collect(model, stream, pieces(), messages, json_schema, on_text, prompt_tokens, started, on_token)
+
+    def _collect(self, model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started, on_token=None):
+        """Lit le flux (local ou distant) : fragments vers on_text (ou on_token, avec les jetons envisagés), arrêt
+        d'une boucle, mesures de l'appel."""
         stats = self.stats[model.pk]
         stats['requests'] += 1
         text, first, count, stopped = [], None, 0, None
         try:
-            for piece in pieces:
+            for item in pieces:
+                piece, chances = item if isinstance(item, tuple) else (item, None)
                 if self._abort.is_set():
                     raise EngineUnavailable('arrêté')
                 if piece:
@@ -279,7 +312,9 @@ class Engine:
                     text.append(piece)
                     count += 1
                     stats['tokens'] += 1  # un fragment du flux = un jeton
-                    if on_text:
+                    if on_token:
+                        on_token(piece, chances)
+                    elif on_text:
                         on_text(piece)
                     if json_schema and count % 8 == 0 and looping(''.join(text[-200:])):
                         stopped = 'boucle'

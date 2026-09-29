@@ -11,10 +11,12 @@ import { h } from './library.js';
 
 const KEY = 'gardien-chat';
 const MODE_KEY = 'gardien-mode';
-const PLACEHOLDER = { think: 'Consigne optionnelle, puis Entrée…', auto: 'Écris au Gardien…' };
+const PLACEHOLDER = { think: 'Consigne optionnelle, puis Entrée…', deep: 'Consigne optionnelle, puis Entrée…', auto: 'Écris au Gardien…' };
 const HINT = {
     think: 'Sélectionne un node (ou joins-en avec Filtres), ajoute une consigne si tu veux, puis Entrée : la pensée du Gardien '
         + 'pousse en nodes autour du node, et ses résultats s\'y rattachent.',
+    deep: 'Mode Profond : le Gardien pense d\'abord librement (étincelles bleues), puis sa pensée pousse en nodes, avec '
+        + 'ses doutes, ses pistes écartées et les mots qu\'il a failli dire.',
     auto: 'Demande-lui de créer, relier, ranger, chercher sur le web, construire une matrice ou une frise, '
         + 'ou de te faire visiter une branche. Tu peux aussi lui envoyer un node avec sa pastille.',
 };
@@ -26,7 +28,7 @@ const IDEAS = ['Résume cette dimension', 'Relie les idées proches', 'Fais un S
 export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {}, onMode = () => {} }) {
     let mode = 'think';
     try {
-        mode = localStorage.getItem(MODE_KEY) === 'auto' ? 'auto' : 'think';
+        mode = ['auto', 'deep'].includes(localStorage.getItem(MODE_KEY)) ? localStorage.getItem(MODE_KEY) : 'think';
     } catch { /* stockage indisponible : mode Pensée */ }
     let history = [];
     try {
@@ -78,6 +80,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     const state = h('small', { class: 'gc-state' }, 'en ligne');
     const modes = h('div', { class: 'gc-mode', role: 'group', 'aria-label': 'Mode du Gardien' },
         h('button', { type: 'button', 'data-mode': 'think', title: 'Pensée : l\'IA pense à voix haute en nodes, autour du node source' }, 'Pensée'),
+        h('button', { type: 'button', 'data-mode': 'deep', title: 'Profond : réflexion libre d\'abord, puis la pensée (plus long)' }, 'Profond'),
         h('button', { type: 'button', 'data-mode': 'auto', title: 'Automatisation : web, fichiers, agents et missions' }, 'Auto'));
     modes.addEventListener('click', event => {
         const next = event.target.closest?.('button')?.dataset.mode;
@@ -127,7 +130,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         if (working) return onStop();  // pendant une réflexion, le bouton d'envoi est le stop
         const selected = typeof selectedNodes !== 'undefined' && selectedNodes.length > 0;
         // Pensée : la consigne est optionnelle, un node en contexte suffit.
-        const text = input.value.trim() || (mode === 'think' && (selected || attached.length) ? 'Pense à partir de ce node.' : '');
+        const text = input.value.trim() || (mode !== 'auto' && (selected || attached.length) ? 'Pense à partir de ce node.' : '');
         if (!text) return;
         input.value = '';
         grow();

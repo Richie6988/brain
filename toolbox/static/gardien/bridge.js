@@ -161,18 +161,27 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
     }
 
     const tools = {
-        create({ ref, x, y, text, color: tint, shape }) {
+        create({ ref, x, y, text, color: tint, shape, forming }) {
             color = tint || getRandomColor();  // couleur du prochain node, comme la barre Espace
             const s = toScreen(x, y);
             const node = createNode(s.x, s.y);
             refs.set(ref, node.id);
+            node.classList.toggle('gardien-forming', !!forming);  // une pensée qui s'écrit encore (mode Pensée)
             setText(node, text || '');
             if (shape && shape !== 'circle') setShape(node, shape);
             flipCoin(node);
             save(node);
         },
         update({ ref, text }) {
+            nodeOf(ref).classList.remove('gardien-forming');
             setText(nodeOf(ref), text);
+        },
+        // Mode Pensée : la pensée en train de s'écrire, mot à mot ; pas sauvegardée (update la fige et la sauve).
+        draft({ ref, text }) {
+            const node = nodeOf(ref);
+            if (!node) return;
+            node.children[0].children[0].innerHTML = text;
+            node.setAttribute('textcontent', text);
         },
         async image({ ref, url }) {
             await setImage(nodeOf(ref), url);

@@ -76,6 +76,9 @@
 .gc-panel header .gc-mode button.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 10px rgba(30, 144, 255, 0.4); }
 body:has(.universe.lightmode) .gc-mode { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.18); }
 .gc-more-wrap { position: relative; }
+/* Mode Pensée : la pensée qui s'écrit encore, un curseur lavande au bout du texte. */
+@keyframes gardien-caret { 50% { opacity: 0; } }
+.node-group.gardien-forming .node-text-input::after { content: '▍'; margin-left: 1px; color: #b89af2; animation: gardien-caret 0.8s steps(1) infinite; }
 .gc-more { font-size: 16px !important; line-height: 1; letter-spacing: 0.05em; }
 .gc-more.on { color: #fff !important; box-shadow: inset 0 0 0 1px rgba(30, 144, 255, 0.8); }
 .gc-menu {

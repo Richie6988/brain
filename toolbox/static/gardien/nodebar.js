@@ -114,7 +114,7 @@ function createSizer() {
     const knob = document.createElement('button');
     knob.type = 'button';
     knob.id = 'gardien-sizer';
-    knob.title = 'Taille du node (glisser)';
+    knob.setAttribute('aria-label', 'Taille du node');  // pas d'infobulle : le geste parle de lui-même
     knob.hidden = true;
     knob.innerHTML = ARROWS;
     document.body.append(knob);

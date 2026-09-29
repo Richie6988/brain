@@ -1155,14 +1155,16 @@ class GuardianTests(TestCase):
         engine = self.think(json.dumps({'thoughts': ['Un voyage : où, quand', 'Kyoto au printemps'], 'actions': [
             {'op': 'put', 'ref': 'new1', 'text': 'Kyoto', 'near': 't2', 'links': ['t2']}]}))
         ops = [(a['op'], a.get('ref') or a.get('source'), a.get('target')) for a in self.actions()]
-        self.assertEqual(ops, [('create', 't1', None), ('link', 'N-1', 't1'), ('create', 't2', None), ('link', 't1', 't2'),
-                               ('create', 'new1', None), ('link', 'new1', 't2'), ('frame', None, None)])
+        self.assertEqual(ops, [('create', 't1', None), ('link', 'N-1', 't1'), ('update', 't1', None), ('create', 't2', None),
+                               ('link', 't1', 't2'), ('update', 't2', None), ('create', 'new1', None), ('link', 'new1', 't2'),
+                               ('frame', None, None)])
         self.assertEqual(self.actions()[-1]['refs'], ['N-1', 't1', 't2', 'new1'])  # la caméra cadre la pensée entière
         thought = self.actions()[0]
         self.assertEqual((thought['shape'], thought['color']), ('none', '#8B7FC8'))
         self.assertIn('<i>Un voyage : où, quand</i>', thought['text'])
         call = engine.calls[0]
         self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'grow', 'build', 'schema', 'link', 'portal'])
+        self.assertIn('on_token', call)  # le moteur réel donne aussi les jetons envisagés
         self.assertIn('Node source : N-1', call['messages'][1]['content'])
         self.assertIn('on te voit penser', call['messages'][0]['content'])
         self.assertNotIn('web_search', call['messages'][0]['content'])  # l'automatisation reste dans son mode
@@ -1191,7 +1193,7 @@ class GuardianTests(TestCase):
     def test_think_mode_without_a_node_makes_the_request_a_node(self):
         self.think(json.dumps({'thoughts': ['Une question ouverte'], 'actions': []}),
                    context={**self.CONTEXT, 'selection': []}, request='Pourquoi le ciel est bleu ?')
-        first, thought, link = self.actions()[:3]
+        first, thought, link, _update = self.actions()[:4]
         self.assertEqual((first['op'], first['ref'], first['text']), ('create', 'ask1', 'Pourquoi le ciel est bleu ?'))
         self.assertEqual((thought['ref'], link['source'], link['target']), ('t1', 'ask1', 't1'))
 
@@ -1207,14 +1209,78 @@ class GuardianTests(TestCase):
             def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
                 self.calls.append({'messages': messages})
                 self.seen = []
-                pieces = ['{"thoughts": ["Premier', ' pas", "Sec', 'ond pas"], "actions": []}']
+                pieces = ['{"thoughts": ["Premier', ' pas qui', ' se forme", "Sec', 'ond pas"], "actions": []}']
                 for piece in pieces:
                     on_text(piece)
                     self.seen.append([d.get('ref') for k, d in events if k == 'action' and d['op'] == 'create'])
                 return ''.join(pieces)
 
         engine = self.think(engine=Streaming())
-        self.assertEqual(engine.seen, [[], ['t1'], ['t1', 't2']])
+        # La pensée est posée dès son premier mot, s'écrit en direct (brouillon non sauvegardé), puis se fige.
+        self.assertEqual(engine.seen, [['t1'], ['t1'], ['t1', 't2'], ['t1', 't2']])
+        first = self.actions()[0]
+        self.assertTrue(first['forming'])
+        drafts = [a for a in self.actions() if a['op'] == 'draft']
+        self.assertIn('Premier pas qui', drafts[0]['text'])
+        final = next(a for a in self.actions() if a['op'] == 'update' and a['ref'] == 't1')
+        self.assertIn('Premier pas qui se forme', final['text'])
+
+    def test_thoughts_branch_and_have_a_kind(self):
+        # Deux espaces : une branche du pas d'avant ; ? doute, ✗ piste écartée, ✓ décision ; la pensée principale
+        # reprend du dernier pas principal.
+        self.think(json.dumps({'thoughts': ['Trois pistes', '  jeu de mots', '  ✗ lieu : trop banal', '? court ou long',
+                                            '✓ Garder court'], 'actions': []}))
+        links = [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link']
+        self.assertEqual(links, [('N-1', 't1'), ('t1', 't2'), ('t1', 't3'), ('t1', 't4'), ('t4', 't5')])
+        final = {a['ref']: a['text'] for a in self.actions() if a['op'] == 'update'}
+        color = {a['ref']: a['color'] for a in self.actions() if a['op'] == 'create'}
+        self.assertIn('<s>lieu : trop banal</s>', final['t3'])
+        self.assertEqual(color['t3'], '#5A5575')
+        self.assertIn('<i>? court ou long</i>', final['t4'])
+        self.assertIn('<b>✓ Garder court</b>', final['t5'])
+
+    def test_thoughts_echo_the_nodes_they_recall(self):
+        context = {**self.CONTEXT, 'nodes': [*self.CONTEXT['nodes'], {'id': 'N-3', 'text': 'Budget 2026', 'x': 0, 'y': 300}]}
+        self.think(json.dumps({'thoughts': ['Ça rappelle N-2', 'Penser au budget 2026 avant tout'], 'actions': []}), context=context)
+        links = [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link']
+        self.assertIn(('t1', 'N-2'), links)
+        self.assertIn(('t2', 'N-3'), links)
+
+    def test_near_misses_become_dust_around_the_thought(self):
+        # Mots presque dits : quand le modèle hésitait, les mots qu'il a failli écrire se posent en poussière autour
+        # de la pensée, une fois celle-ci finie.
+        class Hesitant(ScriptedEngine):
+            def chat(self, model, messages, *, json_schema=None, on_text=None, on_token=None, **params):
+                self.calls.append({'messages': messages})
+                pieces = [('{"thoughts": ["Kyoto au', None), (' printemps', [(' printemps', 0.4), (' automne', 0.3), (' été', 0.05)]),
+                          ('"], "actions": []}', None)]
+                for piece, chances in pieces:
+                    on_token(piece, chances)
+                return ''.join(piece for piece, _ in pieces)
+
+        self.think(engine=Hesitant())
+        dust = [a for a in self.actions() if a['op'] == 'create' and a['ref'].startswith('t1w')]
+        self.assertEqual(len(dust), 1)
+        self.assertIn('automne…', dust[0]['text'])
+        self.assertEqual((dust[0]['shape'], dust[0]['color']), ('none', '#4E4870'))
+        self.assertIn({'op': 'link', 'source': 't1', 'target': 't1w1'}, self.actions())
+
+    def test_deep_mode_muses_freely_before_thinking(self):
+        # Mode Profond : réflexion libre d'abord (sans format), en étincelles depuis le source, puis la pensée en JSON
+        # qui relit cette réflexion.
+        from .guardian import Guardian
+
+        engine = ScriptedEngine('Une intuition sur le voyage.\nPeut-être trop cher ?\nok',
+                                json.dumps({'thoughts': ['Voyage raisonnable'], 'actions': []}))
+        Guardian(self.user, engine, lambda kind, data: self.events.append((kind, data))).handle(
+            'organise', {**self.CONTEXT, 'mode': 'deep'})
+        sparks = [a for a in self.actions() if a['op'] == 'create' and a['ref'].startswith('s')]
+        self.assertEqual([s['ref'] for s in sparks], ['s1', 's2'])  # « ok » : trop court pour une étincelle
+        self.assertIn('Peut-être trop cher ?', sparks[1]['text'])
+        self.assertIsNone(engine.calls[0]['schema'])
+        self.assertIn('pense librement', engine.calls[0]['messages'][1]['content'])
+        self.assertEqual(engine.calls[1]['messages'][2], {'role': 'assistant', 'content': 'Une intuition sur le voyage.\nPeut-être trop cher ?\nok'})
+        self.assertEqual(engine.calls[1]['messages'][0], engine.calls[0]['messages'][0])  # même début : relu du cache
 
     def test_warm_reads_the_think_system_prompt(self):
         from .guardian import Guardian

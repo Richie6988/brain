@@ -113,6 +113,13 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 - Création avec vue d'ensemble : ensuite viennent les résultats, avec les seuls outils de création (put, grow, build, schema, link : texte, style, couleurs, gabarits, sous-idées), chacun rattaché à la pensée qui l'a produit ; la caméra cadre la pensée entière à la fin.
 - Sans node en contexte, la demande elle-même devient le node source ; sans consigne, un node sélectionné suffit.
 - Prompt système réécrit pour ce mode (format, outils de création, exemples, consignes « penser avec l'utilisateur ») ; grammaire réduite aux champs de création (plus rapide sur CPU). Le stop coupe aussi entre deux pensées.
+- Pensées fugaces captées :
+  - Pensées qui se forment : chaque pensée est posée dès son premier mot et s'écrit en direct, mot à mot, avec un curseur lavande (brouillon non sauvegardé), puis se fige et se sauvegarde. Le lecteur du flux suit le JSON caractère par caractère.
+  - Pensées ramifiées et typées : deux espaces au début d'un pas en font une branche du pas d'avant (pistes comparées, sous-idées) ; une marque en donne le genre : « ? » doute ou question (ambre), « ✗ » piste écartée (barrée, pâle), « ✓ » décision (en gras) ; sans marque, une idée. Jusqu'à 10 pas.
+  - Échos de l'univers : une pensée qui cite un node (N-12) ou en nomme un en toutes lettres se relie à lui par un fil.
+  - Mots presque dits : quand le modèle hésitait (son choix sous 75 %), les mots qu'il a failli écrire (au moins 12 % de chances) se posent en poussière grise autour de la pensée. Le moteur local lit la distribution de chaque pas par un logits processor (sans `logits_all`, qui pèserait des Go) ; par API, `top_logprobs` quand le serveur le permet.
+  - Mode Profond (interrupteur Pensée / Profond / Auto) : le modèle pense d'abord librement, sans format (bloc de réflexion des modèles « thinking » compris) ; chaque fragment devient une étincelle bleu pâle qui dérive depuis le node source ; puis la pensée structurée, qui relit cette réflexion (même début de prompt, relu du cache).
+  - Tout reste : pensées, poussière et étincelles sont des nodes discrets sauvegardés.
 - Dimensions : l'IA sait que l'univers est fait de dimensions (plans séparés) reliées par des portails (le même node des deux côtés) ; chaque message liste les dimensions avec leur nombre de nodes et celle où elle est. Pour un sujet qui mérite son propre espace, elle ouvre un portail depuis un résultat vers une nouvelle dimension (en dernier) ; la page revient ensuite dans la dimension de la pensée, qui reste sous les yeux.
 - Mode Automatisation : l'ancien Gardien agentique (web, fichiers, agents, missions, réponse dans le chat), choisi par l'interrupteur Pensée / Auto de l'en-tête du chat (mémorisé) ; le préchauffage lit le prompt du mode choisi.
 
@@ -128,7 +135,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Retour à l'origine dans la bonne dimension** : le drapeau retient sa dimension (champ `Param.originLayer`, migration 0017) ; le bouton origine y retourne d'abord, puis aux coordonnées. Annuler une suppression ne déplace plus l'origine (seule la téléportation quantique la déplace, avec sa dimension).
 
-**Nettoyage** : gabarit `dimension_manager.html` inutilisé supprimé.
+**Nettoyage** : gabarit `dimension_manager.html` inutilisé supprimé. La poignée de taille n'affiche plus d'infobulle.
 
 **Image et fichier : changer ou retirer** : la barre d'un node image propose « Changer l'image » (le choix de fichier de Nodz, jusqu'ici au seul double-clic) et « Retirer l'image » ; celle d'un node fichier ajoute « Retirer le fichier ». Retirer ne détruit rien (le fichier reste sur le serveur) et Ctrl+Z remet l'élément. Une image choisie part en base aussitôt chargée (elle attendait une autre sauvegarde).
 

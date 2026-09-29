@@ -7,6 +7,7 @@ consignes. Seuls les administrateurs ajoutent ou modifient ces entrées.
 """
 
 import json
+import math
 
 import requests
 
@@ -33,21 +34,35 @@ def _post(model, payload, stream):
     return response
 
 
+def chances_of(choice):
+    """Jetons envisagés d'un fragment (top_logprobs du format OpenAI), du plus probable au moins probable ; None sinon."""
+    content = (choice.get('logprobs') or {}).get('content') or []
+    top = content[0].get('top_logprobs') if content else None
+    return [(t.get('token', ''), math.exp(t['logprob'])) for t in top if 'logprob' in t] if top else None
+
+
 class Stream:
     """Fragments de texte d'une réponse en flux ; `usage` (jetons du prompt) arrive à la fin si le serveur le donne."""
 
-    def __init__(self, model, messages, options, json_schema=None):
+    def __init__(self, model, messages, options, json_schema=None, chances=False):
         payload = {'model': model.filename, 'messages': messages, 'stream': True,
                    'stream_options': {'include_usage': True}, **options}
+        self.chances = chances  # jetons envisagés (top_logprobs), si le serveur les donne
+        if chances:
+            payload.update(logprobs=True, top_logprobs=5)
         if json_schema:
             payload['response_format'] = {'type': 'json_schema', 'json_schema': {'name': 'reponse', 'schema': json_schema}}
         try:
             self.response = _post(model, payload, True)
         except RemoteError as e:
-            if not json_schema or 'response_format' not in str(e) and 'json_schema' not in str(e):
+            if chances and 'logprobs' in str(e):  # serveur sans probabilités : le flux vient sans elles
+                payload.pop('logprobs'), payload.pop('top_logprobs')
+                self.response = _post(model, payload, True)
+            elif not json_schema or 'response_format' not in str(e) and 'json_schema' not in str(e):
                 raise
-            payload['response_format'] = {'type': 'json_object'}  # serveur sans schéma : JSON libre, le prompt le décrit
-            self.response = _post(model, payload, True)
+            else:
+                payload['response_format'] = {'type': 'json_object'}  # serveur sans schéma : JSON libre, le prompt le décrit
+                self.response = _post(model, payload, True)
         self.usage = None
 
     def __iter__(self):
@@ -66,7 +81,7 @@ class Stream:
             for choice in chunk.get('choices') or []:
                 piece = (choice.get('delta') or {}).get('content')
                 if piece:
-                    yield piece
+                    yield (piece, chances_of(choice)) if self.chances else piece
 
     def close(self):
         self.response.close()

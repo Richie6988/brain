@@ -216,7 +216,7 @@ def warm(request, body):
     def work():
         try:
             with acting_for(user.pk):
-                Guardian(user, engine, lambda kind, data: None).warm('think' if body.get('mode') == 'think' else 'auto')
+                Guardian(user, engine, lambda kind, data: None).warm(body.get('mode') if body.get('mode') in ('think', 'deep') else 'auto')
         except (EngineUnavailable, BrokerTimeout):
             pass  # pas de modèle, ou file trop longue : la première demande lira tout
         except Exception:

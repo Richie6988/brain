@@ -151,10 +151,24 @@ Agents équipés :
 # résultats avec les outils de création, chacun rattaché à la pensée qui l'a produit. Pas de chat, pas d'automatisation
 # (web, fichiers, agents, missions : mode Automatisation, la boucle de handle()).
 THINK_OPS = ['put', 'grow', 'build', 'schema', 'link', 'portal']
-MAX_THOUGHTS = 6
+MAX_THOUGHTS = 10
 THOUGHT_RADIUS = 60      # place d'une pensée (petit node sans cadre)
-THOUGHT_COLOR = '#8B7FC8'  # couleur de la pensée : ses liens
-THOUGHT_INK = '#C9BEF2'    # son texte, clair et discret
+DUST_RADIUS = 30         # place d'un grain de poussière (mot presque dit, étincelle de réflexion libre)
+# Genres de pensée : la marque qui l'ouvre, la couleur de son lien, l'encre de son texte et sa mise en forme.
+KINDS = {
+    'idea': ('', '#8B7FC8', '#C9BEF2', '*{}*'),
+    'doubt': ('?', '#C9A24A', '#F2D98B', '*? {}*'),
+    'dropped': ('✗', '#5A5575', '#8A85A8', '~~{}~~'),
+    'decision': ('✓', '#B89AF2', '#EFE9FF', '**✓ {}**'),
+}
+MARKS = {mark: kind for kind, (mark, *_rest) in KINDS.items() if mark}
+WHISPER_INK, WHISPER_COLOR = '#7F77A8', '#4E4870'  # mots presque dits : poussière grise autour de la pensée
+SPARK_INK, SPARK_COLOR = '#8FD3E8', '#3E6B7A'      # réflexion libre (mode Profond) : étincelles bleu pâle
+MAX_WHISPERS, MAX_SPARKS = 12, 10
+# Mot presque dit : le modèle hésitait (son choix sous 75 %) et ce mot avait au moins 12 % de chances.
+HESITATION, NEAR_MISS = 0.75, 0.12
+MUSE = ('Avant ta réponse, pense librement à voix haute, sans JSON : fragments courts, un par ligne (intuitions, '
+        'doutes, associations, pistes que tu écartes). 3 à 8 fragments.')
 # Champs des actions de création seulement : une grammaire plus petite s'échantillonne plus vite.
 THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'children', 'links', 'layout', 'type', 'fill',
                 'rows', 'cols', 'items', 'cells', 'title', 'name')
@@ -162,7 +176,7 @@ THINK_SCHEMA = {
     'type': 'object',
     'required': ['thoughts', 'actions'],  # les pensées d'abord : elles s'écrivent (et poussent) avant les résultats
     'properties': {
-        'thoughts': {'type': 'array', 'items': {'type': 'string', 'maxLength': 110}, 'maxItems': MAX_THOUGHTS},
+        'thoughts': {'type': 'array', 'items': {'type': 'string', 'maxLength': 120}, 'maxItems': MAX_THOUGHTS},
         'actions': {'type': 'array', 'items': {'type': 'object', 'required': ['op'], 'properties': {
             'op': {'type': 'string', 'enum': THINK_OPS},
             **{k: PLAN_SCHEMA['properties']['actions']['items']['properties'][k] for k in THINK_FIELDS}}}},
@@ -172,8 +186,11 @@ THINK_SCHEMA = {
 THINK_SYSTEM = """Nodz est ta façon de parler : tout ce que tu écris devient des nodes dans l'univers de l'utilisateur, autour du
 node source (indiqué à la fin du message). Il n'y a pas de chat : tu ne réponds qu'en nodes. Réponds uniquement en JSON :
 {"thoughts": ["pas 1", "pas 2", ...], "actions": [...]}.
-thoughts : ta chaîne de pensée, dans l'ordre, 2 à 6 pas de moins de 14 mots. Chacun devient aussitôt un petit node relié au
-précédent (t1, t2…) : on te voit penser.
+thoughts : ta pensée, dans l'ordre, 2 à 10 pas de moins de 14 mots ; chacun devient aussitôt un petit node (t1, t2…) :
+on te voit penser. Ne montre pas que le chemin retenu : aussi tes hésitations. Une marque au début donne le genre du pas :
+« ? » doute ou question, « ✗ » piste écartée, « ✓ » décision ; sans marque, une idée. Deux espaces au début : une
+branche du pas d'avant (pistes comparées, sous-idée) ; sans espace, la pensée principale continue. Cite N-12 quand un
+pas te rappelle un node de l'univers : un fil d'écho les relie.
 actions : ce que tu crées ensuite, avec une vue d'ensemble de tes pensées : chaque résultat se rattache à la pensée qui l'a
 produit (near et links vers t…) ou à un autre résultat (new…).
 - put : un node résultat {"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle|square","children":["sous-idée"]}
@@ -189,7 +206,7 @@ celle du node source et tu y crées. Un portail relie deux dimensions : le même
 Mise en forme : **gras**, *italique*, [#FF6B6B]couleur[/], ^^grand^^ ; emojis bienvenus.
 Exemples (imite leur forme) :
 « bonjour » → {"thoughts":["Un salut, pas encore de sujet"],"actions":[{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne : j'y penserai ici.","near":"t1","links":["t1"]}]}
-« des noms pour mon café » → {"thoughts":["Un café : chaleur, rencontre","Trois pistes : jeu de mots, lieu, émotion","Garder les plus courts"],"actions":[{"op":"put","ref":"new1","text":"☕ **Noms**","near":"t3","links":["t3"],"color":"#FFD93D","children":["Grain de Folie","Le Comptoir","Tasse & Toi"]}]}
+« des noms pour mon café » → {"thoughts":["Un café : chaleur, rencontre","Trois pistes","  jeu de mots","  ✗ lieu : trop banal","  émotion","? court ou évocateur","✓ Garder les plus courts"],"actions":[{"op":"put","ref":"new1","text":"☕ **Noms**","near":"t7","links":["t7"],"color":"#FFD93D","children":["Grain de Folie","Le Comptoir","Tasse & Toi"]}]}
 « SWOT de mon café » → {"thoughts":["Interne : emplacement, petite salle","Externe : loyers, concurrence"],"actions":[{"op":"schema","type":"swot","title":"**Mon café**","fill":{"Forces":["Emplacement"],"Faiblesses":["Petite salle"],"Menaces":["Loyer en hausse"]}}]}
 Tes consignes :
 {guidelines}
@@ -197,15 +214,17 @@ Tes consignes :
 
 
 class ThoughtStream:
-    """Pensées complètes au fil du flux JSON : chaque chaîne terminée du tableau "thoughts", dès qu'elle arrive."""
+    """Pensées au fil du flux JSON, caractère par caractère : chaque chaîne du tableau "thoughts" pendant qu'elle
+    s'écrit, puis terminée. `inside` : le modèle écrit en ce moment la pensée `index`."""
 
     START = re.compile(r'"thoughts"\s*:\s*\[')
-    ITEM = re.compile(r'\s*,?\s*("(?:[^"\\]|\\.)*")')
 
     def __init__(self):
         self.buffer, self.at, self.closed = '', None, False
+        self.index, self.inside, self.chars, self.escape = -1, False, [], ''
 
     def feed(self, piece):
+        """[(index, texte jusqu'ici, terminée)] : une entrée par pensée qui a avancé dans ce fragment."""
         self.buffer += piece
         if self.closed:
             return []
@@ -214,12 +233,54 @@ class ThoughtStream:
             if not start:
                 return []
             self.at = start.end()
-        found = []
-        while item := self.ITEM.match(self.buffer, self.at):
-            found.append(json.loads(item.group(1)))
-            self.at = item.end()
-        self.closed = self.buffer[self.at:].lstrip().startswith(']')
-        return found
+        moved = {}
+        while self.at < len(self.buffer) and not self.closed:
+            c = self.buffer[self.at]
+            self.at += 1
+            if not self.inside:
+                if c == '"':
+                    self.inside, self.chars, self.index = True, [], self.index + 1
+                    moved[self.index] = ('', False)
+                elif c == ']':
+                    self.closed = True
+                continue
+            if self.escape:
+                self.escape += c
+                if self.escape[1] != 'u' or len(self.escape) == 6:
+                    try:
+                        self.chars.append(json.loads(f'"{self.escape}"'))
+                    except json.JSONDecodeError:
+                        pass
+                    self.escape = ''
+            elif c == '\\':
+                self.escape = c
+            elif c == '"':
+                self.inside = False
+                moved[self.index] = (''.join(self.chars), True)
+                continue
+            else:
+                self.chars.append(c)
+            moved[self.index] = (''.join(self.chars), False)
+        return [(index, text, done) for index, (text, done) in moved.items()]
+
+
+def thought_shape(raw):
+    """Profondeur (deux espaces par niveau, deux au plus) et genre d'une pensée, et son texte nettoyé."""
+    body = raw.lstrip(' ')
+    depth = min((len(raw) - len(body)) // 2, 2)
+    kind = MARKS.get(body[:1], 'idea')
+    text = body[1:] if kind != 'idea' else body
+    return depth, kind, ' '.join(text.replace('*', '').replace('~', '').split())[:140]
+
+
+def near_misses(piece, chances):
+    """Mots que le modèle a failli écrire à la place de `piece` : seulement quand il hésitait vraiment."""
+    if not chances or chances[0][1] >= HESITATION:
+        return []
+    chosen = piece.strip().lower()
+    return [word for word, p in ((token.strip(), p) for token, p in chances)
+            if p >= NEAR_MISS and len(word) >= 3 and word.isalpha() and word.lower() != chosen]
+
 
 def plain(markup, length=120):
     """Texte lisible d'un contenu HTML de node (pour le prompt)."""
@@ -287,6 +348,7 @@ MARKUP = [
     (re.compile(r'\^\^\^(.+?)\^\^\^'), r'<font size="7">\1</font>'),
     (re.compile(r'\^\^(.+?)\^\^'), r'<font size="6">\1</font>'),
     (re.compile(r',,(.+?),,'), r'<font size="2">\1</font>'),
+    (re.compile(r'~~(.+?)~~'), r'<s>\1</s>'),
 ]
 
 
@@ -1112,7 +1174,7 @@ class Guardian(IaquaOps):
         return (SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
                 .replace('{guidelines}', guidelines or guardian.system_prompt or prompts.GUARDIAN))
 
-    def plan_call(self, guardian, messages, round_, request, schema=PLAN_SCHEMA, on_text=None, temperature=0.2):
+    def plan_call(self, guardian, messages, round_, request, schema=PLAN_SCHEMA, on_text=None, temperature=0.2, on_token=None):
         """Appel du modèle pour un plan. Un prompt plus long que le contexte du modèle (ValueError de llama-cpp-python)
         est raccourci, moins de nodes et de texte puis les plus anciens tours, avant d'abandonner clairement."""
         while True:
@@ -1120,6 +1182,7 @@ class Guardian(IaquaOps):
                 # Automatisation : le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
                 return self.engine.chat(guardian.model, messages, json_schema=schema, priority=priorities.CHAT, owner='gardien',
                                         on_text=on_text or (lambda piece: self.emit('thinking', {'round': round_, 'text': piece})),
+                                        **({'on_token': on_token} if on_token else {}),
                                         **{'temperature': temperature, **guardian.params})
             except ValueError as e:
                 if 'context window' not in str(e):
@@ -1137,7 +1200,7 @@ class Guardian(IaquaOps):
     def warm(self, mode='auto'):
         """Préchauffage : le modèle du Gardien lit son prompt système en arrière-plan (sur CPU, plusieurs minutes pour
         un 7B), pour que la première demande ne lise que le message. Faux s'il était déjà lu."""
-        system = self.think_system(self.agents()) if mode == 'think' else self.system(self.agents())
+        system = self.think_system(self.agents()) if mode in ('think', 'deep') else self.system(self.agents())
         return self.engine.prefill(self.guardian.model, [{'role': 'system', 'content': system}, {'role': 'user', 'content': '.'}],
                                    priority=priorities.BACKGROUND, owner='gardien:préchauffage')
 
@@ -1163,37 +1226,121 @@ class Guardian(IaquaOps):
         self.emit('action', self.op_create({'ref': 'ask1', 'text': request}, {}))
         return 'ask1'
 
-    def grow_spot(self, previous):
-        """Pousse organique : la pensée suivante s'écarte de la précédente dans la direction de la chaîne, qui ondule ;
-        une place prise fait tourner la pousse, puis on se rabat sur l'anneau libre le plus proche."""
+    def grow_spot(self, previous, turn=0.0, radius=THOUGHT_RADIUS, gap=40):
+        """Pousse organique : le node suivant s'écarte de `previous` dans la direction de la pousse, qui ondule (une
+        branche part de biais : `turn`) ; une place prise fait tourner la pousse, puis on se rabat sur l'anneau libre
+        le plus proche. Seule la pensée principale entraîne la direction."""
         base = self.nodes[previous]
-        self.heading = (math.pi / 3 if self.heading is None else self.heading) + random.uniform(-0.6, 0.6)
-        step = THOUGHT_RADIUS + base['r'] + 40
-        for turn in (0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.3, -2.3):
-            angle = self.heading + turn
+        if self.heading is None:
+            self.heading = math.pi / 3
+        heading = self.heading + turn + random.uniform(-0.6, 0.6)
+        step = radius + base['r'] + gap
+        for shift in (0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.3, -2.3):
+            angle = heading + shift
             x, y = base['x'] + step * math.cos(angle), base['y'] + step * math.sin(angle)
-            if all(math.dist((x, y), p[:2]) >= THOUGHT_RADIUS + (p[2] if len(p) > 2 else RADIUS) + 20 for p in self.occupied):
-                self.heading = angle
+            if all(math.dist((x, y), p[:2]) >= radius + (p[2] if len(p) > 2 else RADIUS) + 20 for p in self.occupied):
+                if not turn:
+                    self.heading = angle
                 return round(x), round(y)
-        return free_spot((base['x'], base['y']), self.occupied, THOUGHT_RADIUS)
+        return free_spot((base['x'], base['y']), self.occupied, radius)
 
-    def sprout(self, text, thoughts):
-        """Une pensée : un petit node sans cadre, texte clair en italique, relié à la pensée d'avant (ou au source)."""
-        text = ' '.join(str(text).replace('*', '').split())[:140]
-        if not text or len(thoughts) >= MAX_THOUGHTS:
-            return
-        ref, previous = f't{len(thoughts) + 1}', thoughts[-1] if thoughts else self.source
-        x, y = self.grow_spot(previous)
-        self.nodes[ref] = {'x': x, 'y': y, 'r': THOUGHT_RADIUS, 'text': text, 'new': True}
-        self.occupied.append((x, y, THOUGHT_RADIUS))
-        self.emit('action', {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(f'[{THOUGHT_INK}]*{text}*[/]'),
-                             'color': THOUGHT_COLOR, 'shape': 'none'})
-        self.emit('action', {'op': 'link', 'source': previous, 'target': ref})
-        thoughts.append(ref)
+    def speck(self, ref, near, text, ink, color, radius=DUST_RADIUS, turn=0.0):
+        """Un grain : tout petit node sans cadre, texte menu, relié à `near` (mots presque dits, étincelles)."""
+        x, y = self.grow_spot(near, turn=turn or random.uniform(-2.5, 2.5), radius=radius, gap=10)
+        self.nodes[ref] = {'x': x, 'y': y, 'r': radius, 'text': text, 'new': True}
+        self.occupied.append((x, y, radius))
+        self.emit('action', {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(f',,[{ink}]{text}[/],,'),
+                             'color': color, 'shape': 'none'})
+        self.emit('action', {'op': 'link', 'source': near, 'target': ref})
 
-    def think(self, request, context):
-        """Mode Pensée : un seul appel au modèle. Ses pensées poussent en nodes pendant qu'il les écrit, puis ses
-        résultats se posent, rattachés aux pensées qui les ont produits. Tout ce qu'il dit est dans l'univers."""
+    def thought_html(self, kind, text):
+        _mark, _color, ink, form = KINDS[kind]
+        return text_html(f'[{ink}]' + form.format(text) + '[/]')
+
+    def form(self, index, raw, done):
+        """Une pensée qui s'écrit : posée dès son premier mot (sa marque et son indentation disent où et comment),
+        écrite en direct (brouillon, non sauvegardé), puis figée et sauvegardée ; alors ses échos et ses mots presque
+        dits apparaissent."""
+        depth, kind, text = thought_shape(raw)
+        entry = self.formed.get(index)
+        if entry is None:
+            if not text or len(self.formed) >= MAX_THOUGHTS:
+                return
+            ref = f't{index + 1}'
+            parent = self.levels.get(depth - 1, self.source) if depth else self.levels.get(0, self.source)
+            branch = depth and (0.9 if len([e for e in self.formed.values() if e['depth'] == depth]) % 2 else -0.9)
+            x, y = self.grow_spot(parent, turn=branch * depth)
+            self.nodes[ref] = {'x': x, 'y': y, 'r': THOUGHT_RADIUS, 'text': text, 'new': True}
+            self.occupied.append((x, y, THOUGHT_RADIUS))
+            entry = self.formed[index] = {'ref': ref, 'depth': depth, 'kind': kind, 'text': ''}
+            self.emit('action', {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': self.thought_html(kind, text),
+                                 'color': KINDS[kind][1], 'shape': 'none', 'forming': not done})
+            self.emit('action', {'op': 'link', 'source': parent, 'target': ref})
+            self.levels = {**{d: r for d, r in self.levels.items() if d < depth}, depth: ref}
+        elif text != entry['text'] and not done:
+            self.emit('action', {'op': 'draft', 'ref': entry['ref'], 'text': self.thought_html(entry['kind'], text)})
+        entry['text'] = self.nodes[entry['ref']]['text'] = text
+        if done and not entry.get('done'):
+            entry['done'] = True
+            self.emit('action', {'op': 'update', 'ref': entry['ref'], 'text': self.thought_html(entry['kind'], text)})
+            self.echo(entry['ref'], text)
+            for n, word in enumerate(self.whispers.pop(index, [])):
+                if self.dust < MAX_WHISPERS:
+                    self.dust += 1
+                    self.speck(f"{entry['ref']}w{n + 1}", entry['ref'], f'{word}…', WHISPER_INK, WHISPER_COLOR)
+
+    def echo(self, ref, text):
+        """Fils d'écho : la pensée rappelle un node de l'univers (cité N-12, ou dont le titre court apparaît en toutes
+        lettres) ; deux au plus."""
+        lower = text.lower()
+        cited = [r for r in re.findall(r'N-\d+', text) if r in self.nodes and not self.nodes[r].get('new')]
+        named = [n['id'] for n in self.context if 4 <= len(self.nodes[n['id']]['text']) <= 40
+                 and self.nodes[n['id']]['text'].lower() in lower and n['id'] != self.source]
+        for target in list(dict.fromkeys(cited + named))[:2]:
+            self.emit('action', {'op': 'link', 'source': ref, 'target': target})
+
+    def overheard(self, stream, piece, chances):
+        """Mots presque dits pendant qu'une pensée s'écrit : gardés pour elle, posés quand elle est finie."""
+        if stream.inside or piece.endswith('"'):
+            words = self.whispers.setdefault(stream.index, [])
+            for word in near_misses(piece, chances):
+                if word not in words and len(words) < 3:
+                    words.append(word)
+
+    def muse(self, guardian, messages):
+        """Mode Profond : le modèle pense d'abord librement (sans format) ; chaque fragment devient une étincelle qui
+        dérive depuis le node source, de l'autre côté de la pensée. Rend sa réflexion, relue par l'appel suivant."""
+        sparks, line = [], []
+
+        def spark(fragment):
+            fragment = ' '.join(re.sub(r'</?think>|^[-*•\d.)\s]+', '', fragment).replace('*', '').split())[:120]
+            if len(fragment.split()) >= 2 and len(sparks) < MAX_SPARKS:
+                ref = f's{len(sparks) + 1}'
+                self.speck(ref, sparks[-1] if sparks else self.source, fragment, SPARK_INK, SPARK_COLOR, radius=45,
+                           turn=math.pi + random.uniform(-0.5, 0.5) if not sparks else random.uniform(-0.8, 0.8))
+                sparks.append(ref)
+
+        def heard(piece):
+            self.emit('tick', None)
+            for c in piece:
+                line.append(c)
+                if c in '\n.!?…':
+                    spark(''.join(line))
+                    line.clear()
+
+        self.emit('intent', {'text': 'Je pense librement…'})
+        free = self.engine.chat(guardian.model, messages, priority=priorities.CHAT, owner='gardien', on_text=heard,
+                                **{**guardian.params, 'temperature': 0.9, 'max_tokens': 220})
+        spark(''.join(line))
+        last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
+        if last:
+            self.timings.append(last)
+        return free
+
+    def think(self, request, context, deep=False):
+        """Mode Pensée : ses pensées poussent en nodes pendant qu'il les écrit (brouillon mot à mot, genre, branches,
+        échos, mots presque dits), puis ses résultats se posent, rattachés aux pensées qui les ont produits. Mode
+        Profond : d'abord sa réflexion libre, en étincelles. Tout ce qu'il dit est dans l'univers."""
         started = time.monotonic()
         self.request = request
         self.load(context)
@@ -1207,16 +1354,24 @@ class Guardian(IaquaOps):
         self.emit('start', {'run': str(self.run.id)})
         try:
             self.source = self.source_node(request)
-            thoughts, stream = [], ThoughtStream()
+            self.formed, self.levels, self.whispers, self.dust = {}, {}, {}, 0
+            stream = ThoughtStream()
 
-            def heard(piece):
+            def heard(piece, chances=None):
                 self.emit('tick', None)  # un arrêt demandé coupe le modèle au fragment suivant, même entre deux pensées
-                for text in stream.feed(piece):
-                    self.sprout(text, thoughts)
+                moved = stream.feed(piece)
+                self.overheard(stream, piece, chances)
+                for index, text, done in moved:
+                    self.form(index, text, done)
 
-            self.emit('intent', {'text': 'Je réfléchis…'})
             messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': self.prompt(request)}]
-            raw = self.plan_call(guardian, messages, 0, request, schema=THINK_SCHEMA, on_text=heard, temperature=0.6)
+            if deep:
+                muse = [*messages[:1], {'role': 'user', 'content': f'{messages[1]["content"]}\n{MUSE}'}]
+                free = self.muse(guardian, muse)
+                messages = [*muse, {'role': 'assistant', 'content': free},
+                            {'role': 'user', 'content': 'Maintenant ta pensée et tes résultats, en JSON.'}]
+            self.emit('intent', {'text': 'Je réfléchis…'})
+            raw = self.plan_call(guardian, messages, 0, request, schema=THINK_SCHEMA, on_text=heard, on_token=heard, temperature=0.6)
             last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
             if last:
                 self.timings.append(last)
@@ -1225,15 +1380,15 @@ class Guardian(IaquaOps):
             except json.JSONDecodeError:  # coupé en route : ses pensées sont déjà posées, ses résultats sont perdus
                 answer = {}
                 self.emit('notice', {'text': 'Mon modèle s\'est emballé : je garde ses pensées, sans ses résultats.'})
-            for text in answer.get('thoughts') or []:  # celles que le flux n'a pas vues passer (moteur sans flux)
-                if ' '.join(str(text).replace('*', '').split())[:140] not in [self.nodes[t]['text'] for t in thoughts]:
-                    self.sprout(text, thoughts)
+            for index, text in enumerate(answer.get('thoughts') or []):  # celles que le flux n'a pas vues finir
+                if not self.formed.get(index, {}).get('done'):
+                    self.form(index, str(text), True)
             # Les portails en dernier : tout le reste est posé dans la dimension du node source avant qu'on les ouvre.
             self.execute(sorted(answer.get('actions') or [], key=lambda a: a.get('op') == 'portal'), agents)
             made = [ref for ref, n in self.nodes.items() if n.get('new')]
             if made:  # la caméra cadre la pensée entière : le node source, ses pensées et ses résultats
                 self.emit('action', {'op': 'frame', 'refs': [self.source, *made]})
-            if not thoughts and not self.done:
+            if not self.formed and not self.done:
                 raise PlanError("mon modèle n'a rien pensé ni créé : reformule, ou prends un modèle plus grand")
             if self.timings:
                 self.emit('timing', {'calls': len(self.timings), 'total_s': round(time.monotonic() - started, 1),
@@ -1251,8 +1406,8 @@ class Guardian(IaquaOps):
     # --- mode Automatisation
 
     def handle(self, request, context):
-        if isinstance(context, dict) and context.get('mode') == 'think':
-            return self.think(request, context)
+        if isinstance(context, dict) and context.get('mode') in ('think', 'deep'):
+            return self.think(request, context, deep=context['mode'] == 'deep')
         started = time.monotonic()
         self.request = request
         self.load(context)
