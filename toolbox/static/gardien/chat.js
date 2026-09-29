@@ -52,7 +52,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
             h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: clear }, 'Effacer'),
             h('button', { type: 'button', class: 'gc-close', title: 'Réduire', onclick: () => toggle(false) }, '×')),
         log, status, tray, form);
-    const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Parler au Gardien', onclick: () => toggle() }, h('i', {}), h('b', { hidden: true }));
+    const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Gardien', onclick: () => toggle() }, h('i', {}), h('b', { hidden: true }));
     const root = h('div', { id: 'gardien-chat' }, panel, bubble);
     document.body.append(root);
 

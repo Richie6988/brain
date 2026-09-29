@@ -100,6 +100,10 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Clic en altitude** : vu de haut (zoom sous 0,45), un clic sans glisser sur un node y descend en travelling jusqu'au zoom 1. Les outils du node gardent leur clic.
 
+**Icônes au style HYPERSPACE** : les boutons du dock, de la barre du node et le bouton du Gardien deviennent des tuiles de verre comme le cube (faces violet → bleu, arêtes lumineuses, trait lumineux) ; au survol la tuile pivote en perspective et son libellé apparaît dessous en petites capitales monospace, en français. Les infobulles de Nodz (`createTooltip`) et les `title` des icônes passent par ce libellé.
+
+**Recherche toujours visible** : le champ de recherche du dock et ses flèches précédent / suivant restent affichés ; seuls les filtres avancés (panneau de contexte) s'ouvrent à la demande.
+
 **Raccourcis muets pendant la saisie** : Maj (liste des dimensions), Espace, Suppr, Tab, Ctrl+Z… ne réagissent plus quand le focus est dans un champ, où qu'il soit (chat, recherche, panneaux, IDE), plus seulement dans le texte d'un node.
 
 **Diagnostic du Gardien et test du vrai moteur** :

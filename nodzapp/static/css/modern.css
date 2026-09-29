@@ -47,20 +47,28 @@ body:has(.universe.lightmode) {
 }
 
 /* Son et Export perdent la classe menuBtn quand Nodz change leur état (className = 'soundon', 'save'…) :
-   ils sont aussi visés par leur id pour garder l'apparence des autres boutons et leur icône. */
+   ils sont aussi visés par leur id pour garder l'apparence des autres boutons et leur icône.
+   Style HYPERSPACE : tuile de verre (faces violet → bleu, arêtes lumineuses, comme le cube), trait lumineux ;
+   au survol la tuile pivote en perspective et son libellé apparaît dessous (labels.js). */
 .menuBtn, #soundButton, #exportButton {
-    position: relative; width: 34px; height: 34px; margin: 0 2px; padding: 0; flex: none; cursor: pointer;
-    border: none; border-radius: 50%; background: transparent;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    position: relative; width: 34px; height: 34px; margin: 0 3px; padding: 0; flex: none; cursor: pointer;
+    border: 1.5px solid rgba(184, 154, 242, 0.5); border-radius: 9px;
+    background: linear-gradient(135deg, rgba(104, 72, 166, 0.34), rgba(30, 144, 255, 0.16));
+    box-shadow: inset 0 0 10px rgba(30, 144, 255, 0.28), 0 0 8px rgba(104, 72, 166, 0.22);
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.35s cubic-bezier(0.65, 0, 0.35, 1);
 }
 .menuBtn::after, #soundButton::after, #exportButton::after {
     content: ''; position: absolute; top: 20%; left: 20%; width: 60%; height: 60%;
-    filter: brightness(0) invert(0.92); transition: filter 0.2s;
+    filter: brightness(0) invert(1) drop-shadow(0 0 3px rgba(184, 154, 242, 0.85)); transition: filter 0.2s;
 }
 #soundButton:not(.soundon)::after { background: url('../img/nosound.svg') no-repeat center / 100%; }
 #exportButton:not(.save)::after { background: url('../img/export.svg') no-repeat center / 80%; }
-.menuBtn:hover, #soundButton:hover, #exportButton:hover { background: rgba(104, 72, 166, 0.55); box-shadow: var(--nz-glow); transform: translateY(-2px); }
-.menuBtn:active, #soundButton:active, #exportButton:active { background: var(--nz-violet); transform: translateY(0) scale(0.95); }
+.menuBtn:hover, #soundButton:hover, #exportButton:hover {
+    border-color: #1E90FF; background: linear-gradient(135deg, rgba(104, 72, 166, 0.55), rgba(30, 144, 255, 0.3));
+    box-shadow: inset 0 0 14px rgba(30, 144, 255, 0.6), 0 0 14px rgba(30, 144, 255, 0.5);
+    transform: perspective(160px) rotateX(16deg) rotateY(-20deg) translateY(-2px);
+}
+.menuBtn:active, #soundButton:active, #exportButton:active { background: var(--nz-violet); transform: perspective(160px) scale(0.94); }
 .menuBtn:focus-visible, #soundButton:focus-visible, #exportButton:focus-visible { outline: 2px solid var(--nz-blue); outline-offset: 2px; }
 /* Boutons du compte administrateur (Console IA, Utilisateurs) : fond jaune de Nodz remplacé par un liseré. */
 #statsButton, #usersButton { background-color: transparent; box-shadow: inset 0 0 0 1px rgba(243, 238, 88, 0.55); }
@@ -287,6 +295,10 @@ body:has(.universe.lightmode) #smileys .smileyContent { background: rgba(255, 25
 /* --- Mode clair (bouton Dark/Light de Nodz) */
 
 body:has(.universe.lightmode) #button-container { background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }
+body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton) {
+    border-color: rgba(104, 72, 166, 0.4); background: linear-gradient(135deg, rgba(104, 72, 166, 0.12), rgba(30, 144, 255, 0.08));
+    box-shadow: inset 0 0 8px rgba(30, 144, 255, 0.15);
+}
 body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton)::after { filter: none; }
 body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton):is(:hover, :active)::after { filter: brightness(0) invert(1); }
 body:has(.universe.lightmode) #layerButton.dropdown-button { color: var(--nz-plum); background: rgba(104, 72, 166, 0.1); }
