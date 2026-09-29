@@ -1335,6 +1335,29 @@ class GuardianTests(TestCase):
         self.assertTrue({'t1.x1', 't1.x2'} <= created)
         self.assertEqual(self.errors(), [])
 
+    def test_a_model_by_api_sees_the_universe_in_full(self):
+        # Modèle par API : pas les limites d'un petit modèle sur CPU ; il voit tous les nodes, leurs textes longs, toute
+        # la conversation, et sa réponse n'est pas coupée à 1024 jetons.
+        long = 'mot ' * 150
+        context = {**self.CONTEXT, 'nodes': [{'id': f'N-{i}', 'text': f'Node {i} {long}', 'x': i * 10, 'y': 0} for i in range(1, 81)],
+                   'links': [], 'history': [{'role': 'user', 'text': f'échange {i} ' + 'détail ' * 60} for i in range(12)]}
+        engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Vu'}]}), context=context)
+        small = engine.calls[0]['messages'][1]['content']
+        self.assertNotIn('N-80', small)  # petit modèle local : 40 nodes, 200 caractères
+        self.model.endpoint = 'https://api.example/v1'
+        self.model.save()
+        self.events = []
+        engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Vu'}]}), context=context)
+        call = engine.calls[0]
+        prompt = call['messages'][1]['content']
+        self.assertIn('"N-80"', prompt)
+        self.assertIn(long.strip()[:500], prompt)  # texte entier d'un node non sélectionné
+        self.assertIn('échange 0', prompt)  # les 12 échanges
+        self.assertGreater(len(prompt), 6 * len(small))
+        self.assertEqual(call['max_tokens'], 4096)
+        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
+        self.assertEqual(engine.calls[0]['max_tokens'], 4096)  # mode Automatisation aussi
+
     def test_think_mode_builds_saved_templates_from_a_thought(self):
         # Gabarits favorisés : ceux qu'il a gardés sont listés dans son prompt ; un gabarit posé depuis une pensée pend
         # à son arbre (lien depuis la pensée).

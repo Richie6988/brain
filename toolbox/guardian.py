@@ -43,6 +43,10 @@ MAX_ATTACHED_AWAY = 30  # nodes joints d'autres dimensions (lus en base)
 LAYOUT_ALIASES = {'liste': 'list', 'frise': 'timeline', 'chronologie': 'timeline', 'arbre': 'tree', 'pyramide': 'pyramid',
                   'matrice': 'matrix', 'tableau': 'matrix', 'table': 'matrix', 'grid': 'matrix', 'board': 'kanban'}
 HISTORY, HISTORY_TEXT = 6, 200  # derniers échanges du chat rappelés au Gardien (il suit la conversation)
+# Modèle par API (grand contexte, lecture rapide) : il voit l'univers en grand ; les limites ci-dessus sont celles d'un
+# petit modèle local sur CPU, où chaque jeton du prompt se paie.
+RICH_SCALE, RICH_NODES, RICH_ATTACHED, RICH_HISTORY = 20, 400, (20000, 80000), (20, 2000)
+API_TOKENS = 4096  # réponse d'un modèle par API sans longueur réglée (1024 par défaut coupait les plans)
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas', 'code']  # types de node de Nodz
 SHAPES = ['circle', 'square', 'none']
@@ -496,6 +500,8 @@ class Guardian(IaquaOps):
         self.seen = set()  # actions déjà exécutées pendant cette demande : un tour suivant ne les refait pas
         self.asked = False  # une question posée à l'humain : on attend sa réponse
         self.scale = 1.0  # part du contexte montrée au modèle (réduite si son contexte déborde)
+        self.max_nodes, (self.attached_text, self.attached_total) = MAX_CONTEXT_NODES, (ATTACHED_TEXT, ATTACHED_TOTAL)
+        self.history_turns, self.history_text = HISTORY, HISTORY_TEXT
         self.letters = []  # réponses de l'humain à ses notes (correspondance)
         self.attached_away = []  # nodes joints d'autres dimensions (sélecteur de contexte)
         self.allowed = []  # outils permis (lus avec le prompt système)
@@ -519,12 +525,12 @@ class Guardian(IaquaOps):
         # Nodes joints à cette demande seulement (multisélection envoyée au Gardien) : en tête, en texte complet.
         attached = [str(i) for i in context.get('attached') or []]
         by_id = {n['id']: n for n in nodes}
-        self.attached, budget = [], ATTACHED_TOTAL
+        self.attached, budget = [], self.attached_total
         # joints depuis d'autres dimensions (sélecteur de contexte) : lus en base, texte complet et dimension
         self.attached_away = [i for i in dict.fromkeys(attached) if i not in by_id and node_id(i)][:MAX_ATTACHED_AWAY]
         for i in dict.fromkeys(attached):
             if i in by_id and budget > 0:
-                text = multiline(by_id[i].get('text', ''))[:min(ATTACHED_TEXT, budget)]
+                text = multiline(by_id[i].get('text', ''))[:min(self.attached_text, budget)]
                 self.attached.append((i, text))
                 budget -= len(text)
         selection = [i for i, _ in self.attached] + [i for i in selection if i not in dict(self.attached)]
@@ -533,10 +539,10 @@ class Guardian(IaquaOps):
                         key=lambda n: math.dist((_number(n.get('x')), _number(n.get('y'))), center))
         # Les plus proches de la vue, listés dans l'ordre des identifiants : d'une demande à l'autre la liste change
         # peu et llama.cpp réutilise sa lecture (sinon, un léger déplacement réordonne tout et tout est relu).
-        self.nearest = (selected + others)[:MAX_CONTEXT_NODES]  # du plus proche au plus loin (raccourci si trop long)
+        self.nearest = (selected + others)[:self.max_nodes]  # du plus proche au plus loin (raccourci si trop long)
         self.context = sorted(self.nearest, key=lambda n: node_id(n['id']) or 0)
-        self.history = [(h['role'], ' '.join(multiline(str(h.get('text') or '')).split())[:HISTORY_TEXT])
-                        for h in (context.get('history') or [])[-HISTORY:]
+        self.history = [(h['role'], ' '.join(multiline(str(h.get('text') or '')).split())[:self.history_text])
+                        for h in (context.get('history') or [])[-self.history_turns:]
                         if isinstance(h, dict) and h.get('role') in ('user', 'guardian') and h.get('text')]
         for n in nodes:
             self.nodes[n['id']] = {'x': _number(n.get('x')), 'y': _number(n.get('y')), 'r': _number(n.get('r'), RADIUS),
@@ -553,7 +559,12 @@ class Guardian(IaquaOps):
         self.layers = [l for l in context.get('layers') or [] if isinstance(l, dict)]
 
     def agents(self):
-        return {a.name: a for a in Agent.objects.filter(owner=self.user, enabled=True).select_related('model')}
+        agents = {a.name: a for a in Agent.objects.filter(owner=self.user, enabled=True).select_related('model')}
+        guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
+        if guardian and guardian.model and guardian.model.endpoint:  # modèle par API : l'univers en grand (avant load)
+            self.scale, self.max_nodes = RICH_SCALE, RICH_NODES
+            (self.attached_text, self.attached_total), (self.history_turns, self.history_text) = RICH_ATTACHED, RICH_HISTORY
+        return agents
 
     def prompt(self, request):
         """Message du modèle : la dimension, puis chaque node en un objet (perception.py), la conversation et la demande.
@@ -1256,6 +1267,8 @@ class Guardian(IaquaOps):
                   max_tokens=None):
         """Appel du modèle pour un plan. Un prompt plus long que le contexte du modèle (ValueError de llama-cpp-python)
         est raccourci, moins de nodes et de texte puis les plus anciens tours, avant d'abandonner clairement."""
+        if not max_tokens and guardian.model.endpoint and not guardian.model.params.get('max_tokens'):
+            max_tokens = API_TOKENS
         while True:
             try:
                 # Automatisation : le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
@@ -1594,8 +1607,8 @@ class Guardian(IaquaOps):
         Profond : d'abord sa réflexion libre, en étincelles. Tout ce qu'il dit est dans l'univers."""
         started = time.monotonic()
         self.request = request
-        self.load(context)
         agents = self.agents()
+        self.load(context)
         system = self.think_system(agents)
         guardian = self.guardian
         self.run = AIRun.objects.create(
@@ -1639,8 +1652,8 @@ class Guardian(IaquaOps):
             return self.think(request, context, deep=context['mode'] == 'deep')
         started = time.monotonic()
         self.request = request
-        self.load(context)
         agents = self.agents()
+        self.load(context)
         system = self.system(agents)
         guardian = self.guardian
         self.letters = self.correspondence()
