@@ -408,8 +408,28 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             pill.hidden = true;
             pill.innerHTML = '<button type="button" class="send" title="Envoyer ce node au Gardien (Ctrl+Entrée)"><i></i><span>Gardien</span><kbd>Ctrl ↵</kbd></button>'
                 + '<button type="button" class="visit" title="Visiter la branche à partir de ce node">▶ Visite</button>'
-                + '<button type="button" class="arrange" title="Ordonner ces nodes : ils se repoussent et se posent">Ordonner</button>';
-            const [sendButton, visitButton, arrangeButton] = pill.children;
+                + '<button type="button" class="arrange" title="Ordonner ces nodes : ils se repoussent et se posent">Ordonner</button>'
+                + '<button type="button" class="up" title="Sélectionner aussi tous ses parents, de lien en lien">▲ Amont</button>'
+                + '<button type="button" class="down" title="Sélectionner aussi tous ses enfants, de lien en lien">▼ Aval</button>';
+            const [sendButton, visitButton, arrangeButton, upButton, downButton] = pill.children;
+            // Les nodes reliés à `node` en remontant (parents : Node1 → Node2 = node) ou en descendant, de proche en proche.
+            const kin = (node, up) => {
+                const [from, to] = up ? ['Node2', 'Node1'] : ['Node1', 'Node2'];
+                const found = new Set([node.id]), queue = [node.id];
+                const links = [...document.querySelectorAll('.link')];
+                while (queue.length) {
+                    const id = queue.shift();
+                    links.forEach(link => {
+                        const next = link.getAttribute(to);
+                        if (link.getAttribute(from) === id && !found.has(next) && document.getElementById(next)) {
+                            found.add(next);
+                            queue.push(next);
+                        }
+                    });
+                }
+                found.delete(node.id);
+                return [...found].map(id => document.getElementById(id));
+            };
             const label = sendButton.querySelector('span');
             document.body.append(pill);
             let target = null;
@@ -431,6 +451,8 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 pill.classList.toggle('multi', nodes.length > 1);
                 label.textContent = nodes.length > 1 ? `Gardien · ${nodes.length} nodes` : 'Gardien';
                 sendButton.title = nodes.length > 1 ? 'Joindre ces nodes à ta prochaine demande au Gardien (chat)' : 'Envoyer ce node au Gardien (Ctrl+Entrée)';
+                upButton.hidden = nodes.length > 1 || !kin(node, true).length;  // seulement s'il y a quelqu'un à ajouter
+                downButton.hidden = nodes.length > 1 || !kin(node, false).length;
                 if (target === node) return;
                 const idle = !target;
                 target = node;
@@ -476,6 +498,17 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 hide();
                 onArrange(nodes);
             });
+            // Étendre la sélection au node et à tous ses parents (ou enfants) : la pastille passe en multisélection.
+            const extend = up => {
+                if (!target) return;
+                const node = target;
+                if (document.activeElement?.isContentEditable) document.activeElement.blur();
+                if (!selectedNodes.includes(node)) nodeSelection(node);
+                kin(node, up).forEach(n => { if (!selectedNodes.includes(n)) nodeSelection(n); });
+                refresh();
+            };
+            upButton.addEventListener('click', () => extend(true));
+            downButton.addEventListener('click', () => extend(false));
             visitButton.addEventListener('click', () => {
                 const node = target;
                 if (!node) return;

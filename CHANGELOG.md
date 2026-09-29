@@ -160,6 +160,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Ordonner une zone** : après une sélection de plusieurs nodes (zone), la pastille propose « Ordonner » : la physique de répulsion range ces nodes : ils partent d'abord en éclats dans des directions tirées au hasard, ce qui défait les liens croisés, puis leurs liens les ramènent vers leurs voisins, un rappel doux les regroupe et ils se posent, les autres restent en place ; un seul Ctrl+Z annule.
 
+**Sélection amont / aval** : quand un seul node est sélectionné, la pastille propose « ▲ Amont » et « ▼ Aval » : la sélection s'étend au node et à tous ses parents (ou tous ses enfants), de lien en lien ; chaque bouton n'apparaît que s'il y a quelqu'un à ajouter, et la pastille passe en multisélection (Ordonner, Gardien · N nodes).
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
