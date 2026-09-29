@@ -106,7 +106,9 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Drapeau d'origine en 3D** : le bouton drapeau plante au centre de l'écran un drapeau de verre qui tourne en ondulant, comme le cube HYPERSPACE, avec le libellé ORIGINE, puis s'efface (l'image `pin.svg` n'est plus utilisée).
 
-**Recherche toujours visible** : le champ de recherche du dock et ses flèches précédent / suivant restent affichés ; seuls les filtres avancés (panneau de contexte) s'ouvrent à la demande.
+**Recherche du dock** : toujours visible, avec ses flèches. Entrée cherche dans toutes les dimensions (route `toolbox/search`) ; ‹ › (ou Entrée / Maj+Entrée) parcourent les résultats en carrousel, avec le compteur « x / y » (et la dimension du résultat tant qu'on n'y est pas). Le résultat courant pulse et la caméra y voyage, dimension comprise ; Échap éteint la recherche. Elle remplace la recherche de Nodz, qui ajoutait de nouveaux écouteurs aux flèches à chaque recherche. Le bouton du panneau de contexte s'appelle « Filtres » et se place à côté de la recherche ; il ne s'ouvre qu'à la demande.
+
+**Image et fichier : changer ou retirer** : la barre d'un node image propose « Changer l'image » (le choix de fichier de Nodz, jusqu'ici au seul double-clic) et « Retirer l'image » ; celle d'un node fichier ajoute « Retirer le fichier ». Retirer ne détruit rien (le fichier reste sur le serveur) et Ctrl+Z remet l'élément. Une image choisie part en base aussitôt chargée (elle attendait une autre sauvegarde).
 
 **Raccourcis muets pendant la saisie** : Maj (liste des dimensions), Espace, Suppr, Tab, Ctrl+Z… ne réagissent plus quand le focus est dans un champ, où qu'il soit (chat, recherche, panneaux, IDE), plus seulement dans le texte d'un node.
 

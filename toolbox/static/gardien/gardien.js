@@ -21,6 +21,7 @@ import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
 import { createPresence } from './presence.js';
 import { createSchemas } from './schemas.js';
+import { createSearch } from './search.js';
 import { createSide } from './side.js';
 import { createTour } from './tour.js';
 
@@ -105,6 +106,7 @@ createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utili
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title) });
 const tour = createTour({ bridge, say });
+createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
 const ide = createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur
 createSide({ bridge, say, filters });  // vue de côté : X = numéro de dimension, Y = Y

@@ -249,6 +249,7 @@ function createNode(x,y,id) {
         
                             img.onload = function() { 
                                 nodeSizing(nodeGroup,250,250);
+                                save(nodeGroup);  // l'image choisie part en base (sinon elle attendait une autre sauvegarde)
                             };
                             // Set the image source to the data URL of the selected file
                             img.src = e.target.result;

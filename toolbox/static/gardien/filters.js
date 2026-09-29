@@ -89,11 +89,11 @@ export function createFilters({ onAttach = () => {} } = {}) {
         if (!period.contains(event.target) && event.target !== when) period.hidden = true;
     }, true);
 
-    // Bouton du dock
-    const button = make('button', { type: 'button', id: 'gardien-context-button', className: 'menuBtn', title: 'Contexte' });
+    // Bouton « Filtres » du dock, à côté de la recherche
+    const button = make('button', { type: 'button', id: 'gardien-context-button', className: 'menuBtn', title: 'Filtres' });
     button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg>';  // entonnoir
     button.addEventListener('click', () => toggle());
-    document.getElementById('button-container')?.append(button);
+    document.getElementById('nextsearch')?.after(button);
 
     function toggle(on = !open) {
         open = on;

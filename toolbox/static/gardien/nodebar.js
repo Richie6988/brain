@@ -16,6 +16,37 @@ import { dragging as gesture } from './gesture.js';
 
 const TYPE = 'type', TEXT = 'text', FILE = 'file', CANVAS = 'canvas';  // barres d'outils du node (node.tools, elementsCreation.js)
 
+const TRASH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>';
+
+// Image : le choix de fichier de Nodz (le même que son double-clic sur l'image).
+function pickImage(node) {
+    loadimage = true;
+    const select = node.tools.type.children[0].children[0];
+    select.value = 'image';
+    select.dispatchEvent(new Event('change'));
+}
+
+// Retirer ne détruit rien : le node revient à son image d'attente, Ctrl+Z la remet.
+function removeImage(node) {
+    node.setAttribute('imagecontent', '');
+    node.children[0].children[1].src = `${NODZ_BASE}/static/img/newimg${typeof dark !== 'undefined' && !dark ? '-light' : ''}.svg`;
+    save(node);
+}
+
+// Le fichier reste sur le serveur (Ctrl+Z le remet) : le node oublie son nom et son aperçu.
+function removeFile(node) {
+    const container = node.children[0].children[2];
+    container.querySelectorAll('.filetypeimg, [id^="stlContainer-"]').forEach(element => element.remove());
+    const preview = container.children[0];
+    preview.removeAttribute('src');
+    preview.style.display = 'none';
+    node.setAttribute('filename', '');
+    node.setAttribute('file', '');
+    const name = node.tools.file.children[2]?.querySelector('div');
+    if (name) name.textContent = '';
+    save(node);
+}
+
 const TOOLS = {
     params: [
         { kind: 'type', group: TYPE, index: 0, title: 'Type du node' },
@@ -49,9 +80,14 @@ const TOOLS = {
         { kind: 'action', action: 'ide', label: '</> IDE', title: "Ouvrir l'IDE" },
         { kind: 'action', action: 'run', label: '▶', title: 'Ouvrir et exécuter' },
     ],
+    image: [  // changer ou retirer l'image déjà chargée (Nodz ne le permettait que par double-clic)
+        { kind: 'do', icon: 'newimg', title: "Changer l'image", run: pickImage },
+        { kind: 'do', svg: TRASH, title: "Retirer l'image", run: removeImage },
+    ],
     file: [
-        { icon: 'upload', title: 'Importer un fichier', group: FILE, index: 0, on: 'mousedown', pick: 'div' },
+        { icon: 'upload', title: 'Importer ou changer le fichier', group: FILE, index: 0, on: 'mousedown', pick: 'div' },
         { icon: 'download', title: 'Télécharger', group: FILE, index: 1, on: 'mousedown', pick: 'div' },
+        { kind: 'do', svg: TRASH, title: 'Retirer le fichier', run: removeFile },
     ],
 };
 
@@ -177,7 +213,7 @@ export function createNodebar() {
         const selected = typeof selectedNodes !== 'undefined' && selectedNodes.length ? selectedNodes[selectedNodes.length - 1] : null;
         const target = selected?.isConnected ? selected : drawn?.isConnected ? drawn : null;
         if (!target) return [null, []];
-        const extra = { canvas: 'canvas', file: 'file', code: 'code' }[target.getAttribute('type')];
+        const extra = { canvas: 'canvas', file: 'file', code: 'code', image: 'image' }[target.getAttribute('type')];
         return [target, ['params', ...(extra ? [extra] : [])]];
     };
     const source = (node, tool) => {
@@ -229,6 +265,13 @@ export function createNodebar() {
 
     function control(node, tool) {
         if (tool.kind === 'family') return family();
+        if (tool.kind === 'do') {
+            const b = Object.assign(document.createElement('button'), { type: 'button', title: tool.title });
+            if (tool.svg) b.innerHTML = tool.svg;
+            else b.style.backgroundImage = `url("${img(tool.icon)}")`;
+            b.addEventListener('click', () => { tool.run(node); key = ''; });
+            return b;
+        }
         if (tool.kind === 'action') {
             const b = Object.assign(document.createElement('button'), { type: 'button', title: tool.title, textContent: tool.label, className: 'gn-action' });
             b.addEventListener('click', () => document.dispatchEvent(new CustomEvent('gardien-code', { detail: { node, action: tool.action } })));
@@ -267,7 +310,7 @@ export function createNodebar() {
         key = next;
         bar.replaceChildren(...modes.flatMap((mode, i) => [
             ...(i ? [Object.assign(document.createElement('span'), { className: 'sep' })] : []),
-            ...TOOLS[mode].filter(tool => ['family', 'action'].includes(tool.kind) || source(node, tool)).map(tool => control(node, tool)),
+            ...TOOLS[mode].filter(tool => ['family', 'action', 'do'].includes(tool.kind) || source(node, tool)).map(tool => control(node, tool)),
         ]));
     }
 
