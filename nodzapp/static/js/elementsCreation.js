@@ -983,6 +983,7 @@ function createNode(x,y,id) {
         handleInput();
         clearTimeout(nodeGroup.typingSave);
         nodeGroup.typingSave = setTimeout(() => {
+            if (!nodeGroup.isConnected) return;  // dimension quittée entre-temps : le node n'est plus dans la page
             nodeGroup.setAttribute('textcontent', input.innerHTML);
             save(nodeGroup);
         }, 800);
