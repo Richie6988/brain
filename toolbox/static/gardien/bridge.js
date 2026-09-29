@@ -215,6 +215,14 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             saveLayerName();
             await waitLoaded();
         },
+        // Mode Pensée : un résultat devient un portail vers une nouvelle dimension (la touche Entrée de Nodz), puis retour
+        // dans la dimension de la pensée, qui reste sous les yeux.
+        async gate({ ref, name }) {
+            const back = layerNumber;
+            await tools.portal({ ref, name });
+            load(back);
+            await waitLoaded();
+        },
         // Projet d'iAqua : une nouvelle dimension du même nom (bouton « New dimension » de Nodz), puis retour.
         async dimension({ name }) {
             if (layers.some(l => l.name.toLowerCase() === name.toLowerCase())) return;

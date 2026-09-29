@@ -1162,12 +1162,31 @@ class GuardianTests(TestCase):
         self.assertEqual((thought['shape'], thought['color']), ('none', '#8B7FC8'))
         self.assertIn('<i>Un voyage : où, quand</i>', thought['text'])
         call = engine.calls[0]
-        self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'grow', 'build', 'schema', 'link'])
+        self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'grow', 'build', 'schema', 'link', 'portal'])
         self.assertIn('Node source : N-1', call['messages'][1]['content'])
         self.assertIn('on te voit penser', call['messages'][0]['content'])
         self.assertNotIn('web_search', call['messages'][0]['content'])  # l'automatisation reste dans son mode
         self.assertNotIn('text', [kind for kind, _ in self.events])
         self.assertEqual(self.errors(), [])
+
+    def test_think_mode_knows_the_dimensions_and_opens_portals_last(self):
+        # L'IA sait que l'univers a des dimensions (liste avec leurs nodes, portails expliqués) ; un portail demandé
+        # s'ouvre après tout le reste, et la page revient ensuite dans la dimension de la pensée (gate).
+        from nodzapp.models import Layer, Node
+
+        home = Layer.objects.create(user=self.user, layer_id=1, layer_name='Home')
+        budget = Layer.objects.create(user=self.user, layer_id=2, layer_name='Budget')
+        for i, layer in ((1, home), (2, home), (3, budget)):
+            Node.objects.create(user=self.user, node_id=i, layer=layer, text_content='x')
+        engine = self.think(json.dumps({'thoughts': ['Un grand sujet'], 'actions': [
+            {'op': 'portal', 'ref': 'new1', 'name': 'Japon'},
+            {'op': 'put', 'ref': 'new1', 'text': 'Japon', 'near': 't1', 'links': ['t1']}]}))
+        system, message = (m['content'] for m in engine.calls[0]['messages'])
+        self.assertIn("L'univers est fait de dimensions", system)
+        self.assertIn("Dimensions de l'univers : Home (ici, 2 nodes), Budget (1 nodes)", message)
+        ops = [a['op'] for a in self.actions()]
+        self.assertEqual(ops[-2:], ['gate', 'frame'])
+        self.assertEqual(self.actions()[-2]['name'], 'Japon')
 
     def test_think_mode_without_a_node_makes_the_request_a_node(self):
         self.think(json.dumps({'thoughts': ['Une question ouverte'], 'actions': []}),

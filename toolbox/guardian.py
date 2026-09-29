@@ -16,7 +16,7 @@ import random
 import re
 import time
 
-from django.db.models import Q
+from django.db.models import Count, Q
 
 from graph.models import AIRun
 from nodzapp.models import Link, Node
@@ -150,14 +150,14 @@ Agents équipés :
 # pensée devient aussitôt un node discret, relié à la précédente, qui pousse depuis le node source ; puis elle crée ses
 # résultats avec les outils de création, chacun rattaché à la pensée qui l'a produit. Pas de chat, pas d'automatisation
 # (web, fichiers, agents, missions : mode Automatisation, la boucle de handle()).
-THINK_OPS = ['put', 'grow', 'build', 'schema', 'link']
+THINK_OPS = ['put', 'grow', 'build', 'schema', 'link', 'portal']
 MAX_THOUGHTS = 6
 THOUGHT_RADIUS = 60      # place d'une pensée (petit node sans cadre)
 THOUGHT_COLOR = '#8B7FC8'  # couleur de la pensée : ses liens
 THOUGHT_INK = '#C9BEF2'    # son texte, clair et discret
 # Champs des actions de création seulement : une grammaire plus petite s'échantillonne plus vite.
 THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'children', 'links', 'layout', 'type', 'fill',
-                'rows', 'cols', 'items', 'cells', 'title')
+                'rows', 'cols', 'items', 'cells', 'title', 'name')
 THINK_SCHEMA = {
     'type': 'object',
     'required': ['thoughts', 'actions'],  # les pensées d'abord : elles s'écrivent (et poussent) avant les résultats
@@ -181,6 +181,11 @@ produit (near et links vers t…) ou à un autre résultat (new…).
 - build : un gabarit {"op":"build","layout":"tree|list|kanban|timeline|matrix|pyramid","title":"…","items":["…"]} (kanban : cols et items ; matrix : rows, cols, cells)
 - schema : un modèle rempli {"op":"schema","type":"swot","title":"…","fill":{"Forces":["idée"]}} ; modèles : {schemas}
 - link : relier deux nodes (N-…, t…, new…)
+- portal : un sujet qui mérite son propre espace ; le résultat devient un portail vers une nouvelle dimension qui porte ce nom
+  {"op":"portal","ref":"new1","name":"Voyage au Japon"} (en dernier ; on pensera ce sujet là-bas)
+L'univers est fait de dimensions : des plans séparés, chacun avec ses nodes (la liste est dans le message). Tu es dans
+celle du node source et tu y crées. Un portail relie deux dimensions : le même node existe des deux côtés (champ
+"portail" d'un node) ; un node joint d'une autre dimension indique la sienne.
 Mise en forme : **gras**, *italique*, [#FF6B6B]couleur[/], ^^grand^^ ; emojis bienvenus.
 Exemples (imite leur forme) :
 « bonjour » → {"thoughts":["Un salut, pas encore de sujet"],"actions":[{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne : j'y penserai ici.","near":"t1","links":["t1"]}]}
@@ -457,12 +462,22 @@ class Guardian(IaquaOps):
             *talk,  # après les nodes, qui changent peu : seule la fin du message est relue
             *(['Correspondance (dimension Échanges) :', *self.letters] if self.letters else []),
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
+            *([self.dimensions()] if self.layers else []),
             *(['Nodes cités hors de cette dimension :', *perception.lines(away)] if away else []),
             *(['Nodes joints d\'autres dimensions (contexte choisi par l\'humain) :', *perception.lines(joined)] if joined else []),
             *(['Outils pour cette demande :', guide] if guide else []),  # aiguillage : ceux que ses mots appellent
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
             *([f'Node source : {self.source}'] if self.source else []),
         ])
+
+    def dimensions(self):
+        """Les dimensions de l'univers, avec leur nombre de nodes : l'IA sait où elle est et ce qui existe ailleurs."""
+        counts = dict(Node.objects.filter(user=self.user, archive=False).values('layer__layer_id')
+                      .annotate(n=Count('id')).values_list('layer__layer_id', 'n'))
+        here = self.layer.get('id')
+        return 'Dimensions de l\'univers : ' + ', '.join(
+            f"{l.get('name') or 'sans nom'} ({'ici, ' if l.get('id') == here else ''}{counts.get(l.get('id'), 0)} nodes)"
+            for l in self.layers[:30] if l.get('id') is not None)
 
     # --- validation des actions
 
@@ -593,7 +608,8 @@ class Guardian(IaquaOps):
     def op_portal(self, action, agents):
         name = (action.get('name') or '').strip()[:60]
         self.layers.append({'id': None, 'name': name})
-        return {'op': 'portal', 'ref': self.existing(action.get('ref')), 'name': name}
+        # Mode Pensée : la page ouvre le portail puis revient, la pensée reste sous les yeux (gate) ; sinon on y entre.
+        return {'op': 'gate' if self.source else 'portal', 'ref': self.existing(action.get('ref')), 'name': name}
 
     def op_archive(self, action, agents):
         return {'op': 'archive', 'ref': self.existing(action.get('ref'))}
@@ -1212,7 +1228,8 @@ class Guardian(IaquaOps):
             for text in answer.get('thoughts') or []:  # celles que le flux n'a pas vues passer (moteur sans flux)
                 if ' '.join(str(text).replace('*', '').split())[:140] not in [self.nodes[t]['text'] for t in thoughts]:
                     self.sprout(text, thoughts)
-            self.execute(answer.get('actions') or [], agents)
+            # Les portails en dernier : tout le reste est posé dans la dimension du node source avant qu'on les ouvre.
+            self.execute(sorted(answer.get('actions') or [], key=lambda a: a.get('op') == 'portal'), agents)
             made = [ref for ref, n in self.nodes.items() if n.get('new')]
             if made:  # la caméra cadre la pensée entière : le node source, ses pensées et ses résultats
                 self.emit('action', {'op': 'frame', 'refs': [self.source, *made]})
