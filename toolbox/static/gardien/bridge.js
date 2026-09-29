@@ -232,8 +232,9 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         cleanup({ refs: ids }) {
             deleteNode(ids.map(nodeOf).filter(Boolean));
         },
-        // Téléportation : la touche Entrée de Nodz sur le node sélectionné, puis le nom de la dimension.
-        async portal({ ref, name }) {
+        // Téléportation : la touche Entrée de Nodz sur le node sélectionné, puis le nom de la dimension. items : le
+        // détail, posé en cercle autour du portail dans la nouvelle dimension (la copie du node y est seule).
+        async portal({ ref, name, items }) {
             selectedNodes.forEach(n => nodeUnselection(n));
             nodeSelection(nodeOf(ref));
             isTyping = false;
@@ -242,12 +243,24 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             if (name) layerNameInput.value = name;
             saveLayerName();
             await waitLoaded();
+            const copy = document.querySelector('.node-group');
+            if (!items?.length || !copy) return;
+            const c = at(copy), reach = ((parseFloat(copy.children[1].getAttribute('r')) || 60) + 170) * currentZoom;
+            items.forEach((text, i) => {
+                const angle = (2 * Math.PI * i) / items.length - Math.PI / 2;
+                color = copy.getAttribute('color') || getRandomColor();  // couleur du prochain node, comme la barre Espace
+                const node = createNode(c.x + Math.cos(angle) * reach, c.y + Math.sin(angle) * reach);
+                setText(node, text);
+                checkExistingLinks(copy, node);
+                save(node);
+            });
+            save(copy);
         },
         // Mode Pensée : un résultat devient un portail vers une nouvelle dimension (la touche Entrée de Nodz), puis retour
         // dans la dimension de la pensée, qui reste sous les yeux.
-        async gate({ ref, name }) {
+        async gate({ ref, name, items }) {
             const back = layerNumber;
-            await tools.portal({ ref, name });
+            await tools.portal({ ref, name, items });
             load(back);
             await waitLoaded();
         },

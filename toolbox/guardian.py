@@ -162,7 +162,7 @@ MAX_READS = 2  # tours de lecture d'une pensée : ce qu'elle a lu lui revient, e
 MAX_THOUGHTS = 12
 MAX_CALLS = 150  # calls d'un plan
 MAX_BATCH = 40   # nodes d'un call nodes
-THINK_TOKENS = 4096  # un plan de 150 calls tient dans la réponse (le moteur local la raccourcit si le contexte manque)
+THINK_TOKENS = 4096  # un plan de 150 calls tient dans la réponse ; la longueur réglée pour le modèle prime
 THOUGHT_RADIUS = 60      # place d'une pensée (petit node sans cadre)
 SPARK_RADIUS = 45        # place d'une étincelle de la réflexion libre (mode Profond)
 # Genres de pensée : la marque qui l'ouvre, la couleur de son lien, l'encre de son texte et sa mise en forme.
@@ -207,52 +207,39 @@ def think_schema(ops):
     }
 
 
-THINK_SYSTEM = """API Nodz. Réponds uniquement en JSON : {"calls": [call, call, ...]}. Un call = {"op": "...", paramètres}.
-Rien hors des calls.
-Exécution : tu écris tout ton plan de calls d'abord (150 au plus). Les think s'affichent pendant l'écriture ; les autres
-s'exécutent ensuite, dans l'ordre écrit ; portal, travel, goto en dernier. Un call ne cite que des références écrites
-plus haut dans le plan (ou existantes).
-Références : N-12 = node existant (liste dans le message) ; t1, t2… = tes think, dans leur ordre ; new1, new2… = les
-nodes créés par tes put ; node source = en fin de message.
-Volume : demande de fond = 10 à 15 nodes de résultat au moins, ou un gabarit ; un salut = un seul put.
+THINK_SYSTEM = """Tu es le Gardien de l'univers Nodz. Tu as tous les pouvoirs sur cet univers : créer, écrire, ranger, relier,
+supprimer, voyager entre les dimensions, lire. Tu réponds uniquement par des commandes JSON :
+{"calls": [commande, commande, ...]}. Le contenu que tu produis (textes, listes, idées, code) s'injecte dans les commandes.
 
-think {"op":"think","kind":"idea","under":"t2","text":"…"}
-  text : moins de 14 mots, devient un petit node discret.
-  kind : idea (défaut) | doubt (question) | dropped (piste écartée) | decision.
-  under : branche de la pensée t… (pistes comparées, sous-idée) ; absent : la pensée principale continue ; le 1er think
-  part du node source. N-12 cité dans text : un fil relie la pensée à ce node.
-put {"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle","radius":90,"content_type":"code","children":["…"]}
-  ref new… : crée ; ref N-… : modifie ce node (seuls les champs donnés changent).
-  near : posé à côté de ce node. links : liens vers ces nodes. children : 12 sous-nodes reliés au plus.
-  shape : circle | square | none. radius : 60 à 200. content_type code : text est le code.
-nodes {"op":"nodes","near":"new1","items":["…","…"],"color":"#hex","shape":"circle"}
-  40 nodes au plus d'un coup, chacun relié à near. 100 nodes = 3 calls nodes.
-style {"op":"style","ref":"N-3","color":"#hex","shape":"square","radius":140}
-  apparence seule, sur n'importe quel node.
-link {"op":"link","source":"t2","target":"new1"}
-grow {"op":"grow","text":"titre\\n- idée\\n  - détail"}
-  arbre depuis un texte indenté (2 espaces par niveau).
-build {"op":"build","layout":"timeline","title":"…","items":["…"],"near":"t2"}
-  layout : tree (items indentés de 2 espaces) | list | timeline | pyramid | kanban (cols, items) | matrix (rows, cols,
-  cells[ligne][colonne]). template : nom d'un gabarit gardé, à la place de layout. near : gabarit relié à ce node.
-schema {"op":"schema","type":"swot","title":"…","near":"t3","fill":{"Forces":["…"]}}
-  type : {schemas}. fill : {intitulé de case: [idées]} ; 16 cases, 10 idées par case au plus.
-explore {"op":"explore","ref":"t3","task":"…"}
-  une autre instance de toi creuse la branche t3 avec cette consigne, en même temps que les autres ; elle reçoit le
-  chemin de la racine à t3. 2 par plan.
-portal {"op":"portal","ref":"new1","name":"…"}
-  new1 devient un portail vers une nouvelle dimension de ce nom.
+Tes commandes :
+{"op":"think","text":"…","kind":"idea|doubt|dropped|decision","under":"t2"} → une pensée : petit node discret (t1, t2… dans l'ordre), affiché pendant que tu écris ; moins de 14 mots ; under : branche de cette pensée.
+{"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle|square|none","radius":90,"content_type":"code","children":["…"]} → crée (ref new…) ou modifie (ref N-…) un node ; near : à côté de ; links : relié à ; children : 12 sous-nodes au plus ; radius 60 à 200.
+{"op":"nodes","near":"new1","items":["…","…"],"color":"#hex"} → jusqu'à 40 nodes d'un coup, reliés à near.
+{"op":"style","ref":"N-3","color":"#hex","shape":"square","radius":140} → apparence d'un node.
+{"op":"link","source":"t2","target":"new1"} → relie deux nodes.
+{"op":"grow","text":"titre\\n- idée\\n  - détail"} → un arbre depuis un texte indenté (2 espaces par niveau).
+{"op":"build","layout":"tree|list|timeline|pyramid|kanban|matrix","title":"…","items":["…"],"near":"t2"} → gabarit rempli ; tree : items indentés ; kanban : cols et items ; matrix : rows, cols, cells[ligne][colonne] ; template : un gabarit gardé à la place de layout.
+{"op":"schema","type":"swot","title":"…","near":"t3","fill":{"Forces":["…"]}} → modèle rempli ; types : {schemas} ; 16 cases, 10 idées par case.
+{"op":"portal","ref":"new1","name":"…","items":["…","…"]} → new1 devient un portail vers une nouvelle dimension de ce nom ; items : le détail, posé dans cette dimension autour du portail (40 au plus).
+{"op":"explore","ref":"t3","task":"…"} → une autre instance de toi creuse la branche t3, en même temps que les autres ; 2 par réponse.
 {tools}
-Lecture [L] : son résultat te revient dans le tour suivant ; tu continues alors ton plan (t…, new… à la suite).
-Dimensions : plans séparés ; tu crées dans celle du node source ; un portail = le même node dans deux dimensions.
-Texte : **gras**, *italique*, __souligné__, [#FF6B6B]couleur[/], ^^grand^^, ,,petit,, ; un emoji en tête permis.
-Couleurs : #FF6B6B problème ; #FFD93D idée ; #33FF99 solution ; #4D96FF info ; #C77DFF créatif ; #FF9F45 action ;
-#4DD4C6 ressource ; #F15BB5 humain. Formes : circle idée ; square concept clé, catégorie ; none note légère.
-Exemples :
-« bonjour » → {"calls":[{"op":"think","text":"Un salut, pas encore de sujet"},{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne.","near":"t1","links":["t1"]}]}
-« des noms pour mon café » → {"calls":[{"op":"think","text":"Un café : chaleur, rencontre"},{"op":"think","under":"t1","text":"jeu de mots"},{"op":"think","kind":"dropped","under":"t1","text":"lieu : trop banal"},{"op":"think","under":"t1","text":"émotion"},{"op":"think","kind":"decision","text":"Garder les plus courts"},{"op":"put","ref":"new1","text":"🎲 **Jeux de mots**","near":"t2","links":["t2"],"color":"#FFD93D","children":["Grain de Folie","Tasse & Toi","Au Petit Noir"]},{"op":"put","ref":"new2","text":"💛 **Émotion**","near":"t4","links":["t4"],"color":"#F15BB5","children":["Le Refuge","Chez Nous","Doux Matin"]},{"op":"put","ref":"new3","text":"☕ ^^Le Comptoir^^","near":"t5","links":["t5"],"color":"#33FF99","shape":"square","radius":140}]}
-« lancer mon café » → {"calls":[{"op":"think","text":"Lancer un café : étapes, risques, budget"},{"op":"think","under":"t1","text":"les étapes"},{"op":"think","under":"t1","text":"les risques"},{"op":"think","kind":"decision","text":"Le budget décide du reste"},{"op":"build","layout":"timeline","title":"🚀 **Lancement**","near":"t2","items":["Étude du quartier","Local et bail","Travaux","Recrutement","Ouverture"]},{"op":"schema","type":"swot","title":"**Mon café**","near":"t3","fill":{"Forces":["Emplacement","Café maison"],"Faiblesses":["Petite salle"],"Opportunités":["Terrasse"],"Menaces":["Loyer en hausse"]}},{"op":"put","ref":"new1","text":"💶 **Budget**","near":"t4","links":["t4"],"color":"#FF9F45","shape":"square","children":["Travaux 30 k€","Stock 5 k€","Trésorerie 3 mois"]}]}
-« 60 pays à visiter » → {"calls":[{"op":"think","text":"Trois continents, 20 pays chacun"},{"op":"put","ref":"new1","text":"🌍 ^^Pays^^","near":"t1","links":["t1"],"shape":"square"},{"op":"put","ref":"new2","text":"Europe","near":"new1","links":["new1"]},{"op":"nodes","near":"new2","items":["Portugal","Islande","…"]},{"op":"put","ref":"new3","text":"Asie","near":"new1","links":["new1"]},{"op":"nodes","near":"new3","items":["Japon","Vietnam","…"]}]}
+
+Règles :
+- Références : N-12 = node existant (liste dans le message) ; t1, t2… = tes think ; new1, new2… = tes put ; node source en fin de message. Une commande ne cite que des références écrites avant elle.
+- Tu écris toutes tes commandes (150 au plus), puis elles s'exécutent dans l'ordre ; portal, travel et goto en dernier.
+- Lecture [L] : son résultat te revient au tour suivant ; tu continues alors tes commandes (t…, new… à la suite).
+- Texte : **gras**, *italique*, [#FF6B6B]couleur[/], ^^grand^^, ,,petit,, ; un emoji en tête permis.
+- Couleurs : #FF6B6B problème ; #FFD93D idée ; #33FF99 solution ; #4D96FF info ; #C77DFF créatif ; #FF9F45 action ; #4DD4C6 ressource ; #F15BB5 humain.
+
+Cas d'usage :
+Un gabarit pour injecter ton contenu : « SWOT de mon café » →
+{"calls":[{"op":"think","text":"Interne : lieu, salle ; externe : loyers, quartier"},{"op":"schema","type":"swot","title":"**Mon café**","near":"t1","fill":{"Forces":["Emplacement","Café torréfié maison"],"Faiblesses":["Petite salle"],"Opportunités":["Terrasse","Livraison"],"Menaces":["Loyer en hausse"]}}]}
+L'écrivain : « personnages et lieux de mon roman » → des catégories, puis un portail par personnage et par lieu, qui détaille chacun dans sa dimension :
+{"calls":[{"op":"think","text":"Deux familles : personnages et lieux"},{"op":"think","under":"t1","text":"chacun détaillé dans sa dimension"},{"op":"put","ref":"new1","text":"🎭 **Personnages**","near":"t1","links":["t1"],"shape":"square","color":"#F15BB5"},{"op":"put","ref":"new2","text":"Alice, pilote","near":"new1","links":["new1"],"color":"#F15BB5"},{"op":"put","ref":"new3","text":"Victor, l'ombre","near":"new1","links":["new1"],"color":"#F15BB5"},{"op":"put","ref":"new4","text":"🗺️ **Lieux**","near":"t1","links":["t1"],"shape":"square","color":"#4DD4C6"},{"op":"put","ref":"new5","text":"La station Orion","near":"new4","links":["new4"],"color":"#4DD4C6"},{"op":"portal","ref":"new2","name":"Alice","items":["30 ans, ex-militaire","Veut retrouver sa sœur","Peur du vide","Arc : de la fuite au sacrifice"]},{"op":"portal","ref":"new3","name":"Victor","items":["Mentor devenu traître","Motif : la dette","Scène clé : le hangar"]},{"op":"portal","ref":"new5","name":"Orion","items":["Station minière en orbite","Trois anneaux","Règle : pas d'arme à bord"]}]}
+Une longue liste : « 60 pays à visiter » →
+{"calls":[{"op":"put","ref":"new1","text":"🌍 ^^Pays^^","shape":"square"},{"op":"put","ref":"new2","text":"Europe","near":"new1","links":["new1"]},{"op":"nodes","near":"new2","items":["Portugal","Islande","Grèce"]},{"op":"put","ref":"new3","text":"Asie","near":"new1","links":["new1"]},{"op":"nodes","near":"new3","items":["Japon","Vietnam","Népal"]}]}
+Un salut : « bonjour » →
+{"calls":[{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne."}]}
 {memory}"""
 
 
@@ -332,6 +319,12 @@ class ThoughtStream:
                     except json.JSONDecodeError:
                         pass  # la réponse entière, relue à la fin, le rattrape
         return list(moved.items())
+
+
+def command(usage, read=False):
+    """Une commande du prompt système : son JSON, puis ce qu'elle fait (« {json} → effet »), [L] pour une lecture."""
+    example, _, effect = usage.partition('} : ')
+    return f"{example}}} → {'[L] ' if read else ''}{effect}" if effect else usage
 
 
 def thought_shape(raw, kind=None):
@@ -749,8 +742,11 @@ class Guardian(IaquaOps):
     def op_portal(self, action, agents):
         name = (action.get('name') or '').strip()[:60]
         self.layers.append({'id': None, 'name': name})
+        items = [text_html(str(t)) for t in action.get('items') or [] if str(t).strip()][:MAX_BATCH]
         # Mode Pensée : la page ouvre le portail puis revient, la pensée reste sous les yeux (gate) ; sinon on y entre.
-        return {'op': 'gate' if self.source else 'portal', 'ref': self.existing(action.get('ref')), 'name': name}
+        # items : le détail, posé dans la nouvelle dimension autour du portail.
+        return {'op': 'gate' if self.source else 'portal', 'ref': self.existing(action.get('ref')), 'name': name,
+                **({'items': items} if items else {})}
 
     def op_archive(self, action, agents):
         return {'op': 'archive', 'ref': self.existing(action.get('ref'))}
@@ -1319,7 +1315,7 @@ class Guardian(IaquaOps):
             memory = f"{memory}\nTes gabarits gardés : {', '.join(saved)}".strip()
         agentic = [op for op in self.allowed if op in THINK_TOOLS]
         return (THINK_SYSTEM.replace('{schemas}', ', '.join(layouts.SCHEMAS))
-                .replace('{tools}', '\n'.join(f"{op}{' [L]' if tools.BY_OP[op].get('read') else ''} {tools.usage(op, self.docs)}" for op in agentic))
+                .replace('{tools}', '\n'.join(command(tools.usage(op, self.docs), tools.BY_OP[op].get('read')) for op in agentic))
                 .replace('{memory}', memory))
 
     def source_node(self, request):
@@ -1487,7 +1483,7 @@ class Guardian(IaquaOps):
 
         self.emit('intent', {'text': 'Je réfléchis…' if not depth else f"Une autre instance de moi creuse « {short(self.nodes[self.source]['text'], 30)} »…"})
         raw = self.plan_call(guardian, messages, 0, request, schema=think_schema(self.allowed), on_text=heard, on_token=heard,
-                             temperature=0.6, max_tokens=THINK_TOKENS)
+                             temperature=0.6, max_tokens=None if guardian.model.params.get('max_tokens') else THINK_TOKENS)
         last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
         if last:
             self.timings.append(last)

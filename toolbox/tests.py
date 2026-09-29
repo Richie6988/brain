@@ -1168,8 +1168,10 @@ class GuardianTests(TestCase):
         self.assertTrue({'update', 'archive', 'travel', 'search_nodes', 'web_search'} <= set(ops))  # agentique minimal
         self.assertIn('on_token', call)  # le moteur réel donne aussi les jetons envisagés
         self.assertIn('Node source : N-1', call['messages'][1]['content'])
-        self.assertIn('Réponds uniquement en JSON : {"calls"', call['messages'][0]['content'])
-        self.assertNotIn('Tu es le Gardien', call['messages'][0]['content'])  # un mode d'emploi des calls, pas un personnage
+        system = call['messages'][0]['content']
+        self.assertTrue(system.startswith("Tu es le Gardien de l'univers Nodz. Tu as tous les pouvoirs"))
+        self.assertIn('Tes commandes :\n{"op":"think"', system)  # la liste des commandes JSON, puis les cas d'usage
+        self.assertIn('L\'écrivain : « personnages et lieux de mon roman »', system)
         self.assertNotIn('send_email', call['messages'][0]['content'])  # l'automatisation reste dans son mode
         self.assertNotIn('text', [kind for kind, _ in self.events])
         self.assertEqual(self.errors(), [])
@@ -1185,11 +1187,18 @@ class GuardianTests(TestCase):
             Node.objects.create(user=self.user, node_id=i, layer=layer, text_content='x')
         engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Un grand sujet'}, {'op': 'portal', 'ref': 'new1', 'name': 'Japon'}, {'op': 'put', 'ref': 'new1', 'text': 'Japon', 'near': 't1', 'links': ['t1']}]}))
         system, message = (m['content'] for m in engine.calls[0]['messages'])
-        self.assertIn('Dimensions : plans séparés', system)
+        self.assertIn('voyager entre les dimensions', system)
         self.assertIn("Dimensions de l'univers : Home (ici, 2 nodes), Budget (1 nodes)", message)
         ops = [a['op'] for a in self.actions()]
         self.assertEqual(ops[-2:], ['gate', 'frame'])
         self.assertEqual(self.actions()[-2]['name'], 'Japon')
+        self.assertNotIn('items', self.actions()[-2])
+        # L'écrivain : le détail d'un portail est posé dans la nouvelle dimension, autour du portail.
+        self.events = []
+        self.think(json.dumps({'calls': [{'op': 'put', 'ref': 'new1', 'text': 'Alice'},
+                                         {'op': 'portal', 'ref': 'new1', 'name': 'Alice', 'items': ['**30 ans**', 'Pilote', ' ']}]}))
+        gate = next(a for a in self.actions() if a['op'] == 'gate')
+        self.assertEqual((gate['name'], gate['items']), ('Alice', ['<b>30 ans</b>', 'Pilote']))
 
     def test_think_mode_calls_another_instance_from_where_it_stands_in_the_tree(self):
         # explore : une autre instance reçoit la branche et le chemin de la racine jusqu'à elle ; sa pensée pousse
@@ -1336,7 +1345,7 @@ class GuardianTests(TestCase):
         self.assertIn(('create', 't2'), ops)
         self.assertIn(('archive', 'N-2'), ops)
         self.assertEqual(ops[-1], ('goto', 'N-7'))  # en dernier, sans cadrage après
-        self.assertIn('search_nodes [L] {"op":"search_nodes"', engine.calls[0]['messages'][0]['content'])  # chaque call, mécaniquement
+        self.assertIn('{"op":"search_nodes","query":"mots"} → [L] cherche', engine.calls[0]['messages'][0]['content'])  # une commande de plus
         self.assertEqual(self.errors(), [])
 
     def test_thoughts_branch_and_have_a_kind(self):
