@@ -970,3 +970,14 @@ body:has(.universe.lightmode) .node-group[type=code] .node-text-input pre.code-o
     background: #fff; transform: rotate(-40deg); box-shadow: 0 0 3px rgba(184, 154, 242, 0.85); }
 body.gardien-thoughts-dim .gardien-thought, body.gardien-thoughts-dim .gardien-thought-link { opacity: 0.15; transition: opacity 0.3s; }
 body.gardien-thoughts-off .gardien-thought, body.gardien-thoughts-off .gardien-thought-link { display: none !important; }  /* Nodz pose display en ligne */
+
+/* Le logo Nodz dans la pastille des jauges (en tête) : il flotte et respire, comme les anneaux qui bougent. */
+.gm-pill #brand-container { position: static !important; width: auto; transition: none; }
+.gm-pill #logo { width: 104px !important; margin: -17px -22px -17px -26px; animation: gm-logo 7s ease-in-out infinite; transform-origin: 50% 55%; }
+@keyframes gm-logo {
+    0%, 100% { transform: translateY(0) rotate(0deg); filter: drop-shadow(0 0 2px rgba(184, 154, 242, 0.5)); }
+    25% { transform: translateY(-1.5px) rotate(-3deg); filter: drop-shadow(0 0 6px rgba(30, 144, 255, 0.8)); }
+    50% { transform: translateY(0) rotate(0deg) scale(1.04); filter: drop-shadow(0 0 3px rgba(184, 154, 242, 0.6)); }
+    75% { transform: translateY(1.5px) rotate(3deg); filter: drop-shadow(0 0 6px rgba(104, 72, 166, 0.9)); }
+}
+@media (prefers-reduced-motion: reduce) { .gm-pill #logo { animation: none; } }

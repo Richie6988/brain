@@ -135,6 +135,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Documents** : un document (PDF, Word, PowerPoint) garde son aperçu quand on quitte sa dimension puis qu'on y revient (le chargement de Nodz demandait l'aperçu avec un identifiant vide). En vue hyperspace, un document montre sa page au lieu d'une simple carte, dans la dimension ouverte comme dans les autres (aperçus lus au serveur, douze au plus). La visite nomme les images, dessins et fichiers (« Fichier · rapport.pdf », « Image ») au lieu de « (node vide) », et peut partir d'eux : la pastille s'affiche aussi pour ces nodes, bouton Gardien désactivé tant qu'ils n'ont pas de texte.
 
+**Logo dans la pastille des jauges** : le logo Nodz quitte le coin haut droit et ouvre la pastille CPU, RAM, disque ; il flotte et respire en continu (animation coupée si le système demande moins de mouvement).
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.

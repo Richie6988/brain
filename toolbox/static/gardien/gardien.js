@@ -266,6 +266,7 @@ button.addEventListener('mouseover', () => createTooltip('agentsButton', 'Agents
 const tower = monitor.panel('gm-hud');
 tower.head.addEventListener('click', () => library.open('library'));
 document.getElementById('button-container').after(tower.root);  // sous les popups de Nodz, comme la barre
+tower.root.querySelector('.gm-pill').prepend(document.getElementById('brand-container'));  // le logo Nodz, animé, en tête des jauges
 
 async function loadGuardian() {
     const { agents } = await api.request('GET', 'toolbox/agents');
