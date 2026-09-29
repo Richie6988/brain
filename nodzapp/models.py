@@ -73,6 +73,7 @@ class Param(models.Model):
     layer = models.IntegerField(default=1)
     originX = models.FloatField(default=0)
     originY = models.FloatField(default=0)
+    originLayer = models.IntegerField(null=True, blank=True)  # dimension du drapeau : le retour à l'origine y ramène
     nodecounter = models.IntegerField(default=0)
     linkcounter = models.IntegerField(default=0)
     layercounter = models.IntegerField(default=1)

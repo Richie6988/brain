@@ -481,6 +481,7 @@ def save_node(request):
                 param.update(
                     originX=group_data['originX'],
                     originY=group_data['originY'],
+                    originLayer=group_data.get('originLayer'),
                     nodecounter=nodecounter,
                     linkcounter=linkcounter,
                     layercounter=layercounter,
@@ -646,9 +647,9 @@ def loading(request):
                 layer = Param.objects.filter(user=user).values('layer').first()['layer']          
             elif json_data['layer'] == -1: #Register
                 Param.objects.create(user=user)
-                params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+                params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
                 formatted_params = []
-                for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter', 'layercounter']:
+                for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter', 'layercounter']:
                     if param_name in params[0]:  # Assuming there's at least one result
                         formatted_params.append({'name': param_name, 'value': params[0][param_name]})
                 layer = Layer.objects.get(user=user)  
@@ -691,10 +692,10 @@ def loading(request):
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
         templates = Template.objects.filter(user=user,archive=False,layer=layer_instance).values('template_id', 'x_coordinate', 'y_coordinate','type','lock','size')
-        params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+        params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
         formatted_params = []
 
-        for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
+        for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
             if param_name in params[0]:  # Assuming there's at least one result
                 formatted_params.append({'name': param_name, 'value': params[0][param_name]})
         
@@ -1678,10 +1679,10 @@ def admin_loading(request):
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
         templates = Template.objects.filter(user=user,archive=False,layer=layer_instance).values('template_id', 'x_coordinate', 'y_coordinate','type','lock','size')
-        params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+        params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
         formatted_params = []
 
-        for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
+        for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
             if param_name in params[0]:  # Assuming there's at least one result
                 formatted_params.append({'name': param_name, 'value': params[0][param_name]})
         

@@ -108,6 +108,14 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Recherche du dock** : toujours visible, avec ses flèches. Entrée cherche dans toutes les dimensions (route `toolbox/search`) ; ‹ › (ou Entrée / Maj+Entrée) parcourent les résultats en carrousel, avec le compteur « x / y » (et la dimension du résultat tant qu'on n'y est pas). Le résultat courant pulse et la caméra y voyage, dimension comprise ; Échap éteint la recherche. Elle remplace la recherche de Nodz, qui ajoutait de nouveaux écouteurs aux flèches à chaque recherche. Le bouton du panneau de contexte s'appelle « Filtres » et se place à côté de la recherche ; il ne s'ouvre qu'à la demande.
 
+**Texte des nodes centré et plus lisible** : le curseur de saisie faisait défiler la boîte du node en fin de ligne longue, et le texte restait décalé et rogné jusqu'au survol ; la boîte ne défile plus (`overflow: clip`). Le centrage vertical passe en CSS (plus de mesure au chargement, juste même si la police arrive tard ; les rectangles de texte sont recalculés quand elle arrive). Texte en blanc pur, trait épaissi d'un quart de pixel (sans changer la chasse ni la taille des nodes), liseré plus net.
+
+**Mode clair en blanc cassé** : fond `#f4efe6`, ton papier, à la place du gris froid `#f0f0f0`.
+
+**Retour à l'origine dans la bonne dimension** : le drapeau retient sa dimension (champ `Param.originLayer`, migration 0017) ; le bouton origine y retourne d'abord, puis aux coordonnées. Annuler une suppression ne déplace plus l'origine (seule la téléportation quantique la déplace, avec sa dimension).
+
+**Nettoyage** : gabarit `dimension_manager.html` inutilisé supprimé.
+
 **Image et fichier : changer ou retirer** : la barre d'un node image propose « Changer l'image » (le choix de fichier de Nodz, jusqu'ici au seul double-clic) et « Retirer l'image » ; celle d'un node fichier ajoute « Retirer le fichier ». Retirer ne détruit rien (le fichier reste sur le serveur) et Ctrl+Z remet l'élément. Une image choisie part en base aussitôt chargée (elle attendait une autre sauvegarde).
 
 **Raccourcis muets pendant la saisie** : Maj (liste des dimensions), Espace, Suppr, Tab, Ctrl+Z… ne réagissent plus quand le focus est dans un champ, où qu'il soit (chat, recherche, panneaux, IDE), plus seulement dans le texte d'un node.

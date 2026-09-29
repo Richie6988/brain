@@ -384,6 +384,8 @@ function loadParams(param) {
         originX = param.value;    
     } else if (param.name === "originY") {
         originY = - param.value;
+    } else if (param.name === "originLayer") {
+        originLayer = param.value;
     } else if (param.name === "dark") {
         dark = !param.value;
         document.getElementById('darkButton').dispatchEvent(event);
@@ -511,6 +513,7 @@ function save(nodeGroup,tunnel){
         data.push({zoom: currentZoom,
             originX: Math.round(parseFloat(originX)),
             originY: Math.round(parseFloat(originY)),
+            originLayer: originLayer,
             dark: dark,
             sound: sound,
             layer: layerNumber,

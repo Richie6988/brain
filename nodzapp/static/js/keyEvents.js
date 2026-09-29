@@ -509,7 +509,15 @@ function cancel()   {
     if (cancelIndex > cancelList.length){
         return;
     }
-    restoreNodes(cancelList[cancelList.length - cancelIndex][1]);
+    const nodes = cancelList[cancelList.length - cancelIndex][1];
+    restoreNodes(nodes);
+    // L'origine suit les nodes téléportés, dans leur nouvelle dimension (l'annulation, elle, n'y touche pas).
+    const last = nodes[nodes.length - 1];
+    if (last) {
+        originX = parseFloat(last.getAttribute('x'))/currentZoom;
+        originY = - parseFloat(last.getAttribute('y'))/currentZoom;
+        originLayer = layerNumber;
+    }
     document.activeElement.blur();
 }
 
@@ -564,8 +572,6 @@ function restoreNodes(nodes) {
                     createLink(document.getElementById(node.getAttribute('id')),connectedNode,linksArray[index]); 
                 }
             });
-            originX = parseFloat(node.getAttribute('x'))/currentZoom;
-            originY = - parseFloat(node.getAttribute('y'))/currentZoom;
         });
 }
 

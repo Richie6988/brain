@@ -177,8 +177,19 @@ document.getElementById('linksButton').addEventListener('mouseover', function(ev
 });
 
 
+// Retour à l'origine : dans la dimension du drapeau d'abord (elle se charge), puis à ses coordonnées.
 document.getElementById('originButton').addEventListener('click', function() {
-    dragUniverse(parseFloat(root.getAttribute('x'))-originX*currentZoom,-originY*currentZoom - parseFloat(root.getAttribute('y')));
+    const home = () => dragUniverse(parseFloat(root.getAttribute('x'))-originX*currentZoom,-originY*currentZoom - parseFloat(root.getAttribute('y')));
+    if (originLayer === null || Number(originLayer) === Number(layerNumber) || !layers.some(l => Number(l.id) === Number(originLayer))) {
+        home();
+        return;
+    }
+    load(Number(originLayer));
+    const arrived = setInterval(() => {
+        if (isLoading) return;
+        clearInterval(arrived);
+        home();
+    }, 50);
 });
 document.getElementById('originButton').addEventListener('mouseover', function(event) {
     createTooltip ('originButton','Back to origin');
@@ -196,6 +207,7 @@ document.getElementById('layerButton').addEventListener('mouseover', function(ev
 document.getElementById('flagButton').addEventListener('click', function() {
     originX = parseFloat(root.getAttribute('x'))/currentZoom;
     originY = - parseFloat(root.getAttribute('y'))/currentZoom;
+    originLayer = layerNumber;
 
     placeFlag();
 

@@ -433,21 +433,15 @@ function noCurrentNode() {
 //     }
 // });
 
-// Centrage vertical du texte des nodes redimensionnés, groupé par image : toutes les hauteurs sont lues, puis
-// toutes écrites. Lire scrollHeight juste après avoir changé la taille d'un node forçait un calcul de mise en page
-// de tout l'univers à chaque node (charger une dimension coûtait n²).
-const textToCenter = new Map();
-function centerText(nodeGroup, height) {
-    if (!textToCenter.size) {
-        requestAnimationFrame(() => {
-            const nodes = [...textToCenter].filter(([node]) => node.isConnected);
-            textToCenter.clear();
-            const heights = nodes.map(([node]) => node.children[0].children[0].scrollHeight);
-            nodes.forEach(([node, box], i) => { node.children[0].children[0].style.bottom = (box - heights[i]) / 2 + 'px'; });
-        });
-    }
-    textToCenter.set(nodeGroup, height);
-}
+// Texte des nodes centré verticalement en CSS (modern.css, top 50 % et translateY) : plus de mesure en JavaScript,
+// donc plus de texte décalé quand la police arrive après le calcul. Seuls les rectangles de texte dépendent encore de
+// la hauteur mesurée du texte : ils sont recalculés quand une police finit de charger.
+document.fonts?.addEventListener('loadingdone', () => {
+    document.querySelectorAll('.node-group[shape="square"]:is([type="text"], [type="code"])').forEach(node => {
+        const box = node.children[0];
+        nodeSizing(node, parseFloat(box.getAttribute('width')), parseFloat(box.getAttribute('height')));
+    });
+});
 
 function nodeSizing(nodeGroup,w,h) {  
     // Rectangle étiré (attribut ratio = largeur / hauteur) : à surface égale, ses proportions sont gardées quel que
@@ -473,7 +467,6 @@ function nodeSizing(nodeGroup,w,h) {
 
     let input = nodeGroup.children[0].children[0];
   
-    centerText(nodeGroup, foreignObject.getAttribute('height'));
     input.style.width = '100%';
 
     if (nodeGroup.getAttribute('type') === 'canvas') {

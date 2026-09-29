@@ -69,6 +69,7 @@ let zoomX = 0;
 let zoomY = 0;
 let originX = 0;
 let originY = 0;
+let originLayer = null;  // dimension du drapeau : le retour à l'origine y ramène
 let isDragging = false;
 let isTyping = false;
 let isSizing = false;
