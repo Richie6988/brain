@@ -10,6 +10,10 @@
 //   un Web Worker (copie locale dans static/vendor/pyodide si elle existe, sinon le CDN jsdelivr) ;
 // - sur le serveur (route toolbox/run) : dans l'espace de travail confiné de l'utilisateur, réservé à
 //   l'administrateur avec GUARDIAN_SHELL=1, comme le shell du Gardien.
+// Chaîne de code : des nodes de code reliés (Node1 → Node2) forment un programme. Un node s'exécute après le code de
+// ses nodes en amont (même langage), dans le même espace : variables et fonctions passent d'un node à l'autre. Un node
+// non-code relié en aval d'un node de code est une sortie : il affiche le résultat de la chaîne et se recalcule seul
+// quand un code en amont est enregistré, exécuté ou relié.
 
 import { api } from './api.js';
 
@@ -163,7 +167,17 @@ export function createIde({ say }) {
         out.scrollTop = out.scrollHeight;
         if (output && kind !== 'info') output.push(`${text}`.replace(/\n$/, ''));
     };
-    const codeOf = target => target.children[0].children[0].querySelector('code');
+    const codeOf = target => target?.children[0]?.children[0]?.querySelector('code');
+    const links = () => [...document.querySelectorAll('.link')];
+    const ends = (link, side) => document.getElementById(link.getAttribute(side));
+    // Les nodes de code en amont de `target` (même langage), du plus lointain au plus proche, chacun une fois.
+    function upstream(target, lang, seen = new Set([target.id])) {
+        return links().filter(l => l.getAttribute('Node2') === target.id).map(l => ends(l, 'Node1'))
+            .filter(n => n && !seen.has(n.id) && codeOf(n)?.dataset.lang === lang)
+            .flatMap(n => (seen.add(n.id), [...upstream(n, lang, seen), n]));
+    }
+    // Le programme d'un node : le code de la chaîne en amont, puis le sien.
+    const program = (target, lang, own) => [...upstream(target, lang).map(n => codeOf(n).textContent), own].join('\n');
     const html = () => language.value === 'html';
     const showLanguage = () => {
         editor?.setOption('mode', MODES[language.value]);
@@ -243,19 +257,55 @@ export function createIde({ say }) {
     }
 
     function close() {
-        if (editor) write(node, language.value, editor.getValue());
+        const target = node;
+        if (editor) write(target, language.value, editor.getValue());
         box.hidden = true;
         node = null;
+        if (target) refresh(target);
     }
 
-    // Bouton ▶ de la barre du node : le code du node tourne sans ouvrir l'IDE, son résultat s'écrit dans le node.
+    // Bouton ▶ de la barre du node : le code du node (après sa chaîne en amont) tourne sans ouvrir l'IDE, son résultat
+    // s'écrit dans le node, puis ses sorties en aval se recalculent.
     async function runNode(target) {
         const code = codeOf(target);
         if (!code?.textContent.trim()) return;
         const lang = code.dataset.lang || 'python';
         const lines = [];
-        if (lang !== 'html') await runCode(lang, code.textContent, 'browser', text => lines.push(`${text}`.replace(/\n$/, '')));
+        if (lang !== 'html') await runCode(lang, program(target, lang, code.textContent), 'browser', text => lines.push(`${text}`.replace(/\n$/, '')));
         write(target, lang, code.textContent, rendered(lang, code.textContent, lines));
+        await refresh(target);
+    }
+
+    // Les sorties en aval de `start` (lui compris et les nodes de code qui le suivent) : chaque node non-code relié à un
+    // node de code reçoit le résultat de la chaîne qui y mène, exécutée dans le navigateur.
+    let refreshing = Promise.resolve();
+    function refresh(start) {
+        refreshing = refreshing.then(async () => {
+            const lang = codeOf(start)?.dataset.lang;
+            if (!lang || lang === 'html' || lang === 'bash') return;
+            const code = [start], outputs = new Map();  // sortie → nodes de code qui l'alimentent
+            for (let i = 0; i < code.length; i++) {
+                links().filter(l => l.getAttribute('Node1') === code[i].id).map(l => ends(l, 'Node2')).filter(Boolean).forEach(next => {
+                    if (codeOf(next)) {
+                        if (codeOf(next).dataset.lang === lang && !code.includes(next)) code.push(next);
+                    } else if (next.getAttribute('type') === 'text') {
+                        outputs.set(next, [...(outputs.get(next) || []), code[i]]);
+                    }
+                });
+            }
+            for (const [target, sources] of outputs) {
+                const lines = [];
+                for (const source of sources) {
+                    await runCode(lang, program(source, lang, codeOf(source).textContent), 'browser', text => lines.push(`${text}`.replace(/\n$/, '')));
+                }
+                const pre = rendered(lang, '', lines);
+                const input = target.children[0].children[0];
+                input.replaceChildren(pre);
+                target.setAttribute('textcontent', input.innerHTML);
+                save(target);
+            }
+        }).catch(error => say(`Sortie de code : ${error.message}`, 'error'));
+        return refreshing;
     }
 
     async function execute_() {
@@ -269,12 +319,13 @@ export function createIde({ say }) {
         output = [];
         let result = 'ok';
         if (html()) preview.srcdoc = code;
-        else result = await runCode(language.value, code, where.value, print);
+        else result = await runCode(language.value, program(node, language.value, code), where.value, print);
         status.textContent = `${result === 'ok' ? 'terminé' : result} en ${Math.round(performance.now() - started)} ms`;
         status.className = `gi-status ${result === 'ok' ? 'ok' : 'bad'}`;
         run.disabled = false;
         write(node, language.value, code, rendered(language.value, code, output));
         output = null;
+        refresh(node);
         editor.focus();  // write resélectionne le node pour le mettre en rectangle : on rend la main à l'éditeur
     }
 
@@ -285,6 +336,13 @@ export function createIde({ say }) {
     box.addEventListener('keydown', event => event.stopPropagation());  // la saisie ne déclenche pas les raccourcis de Nodz
     // Un clic hors de la fenêtre l'enregistre et la ferme.
     document.addEventListener('pointerdown', event => { if (!box.hidden && !box.contains(event.target)) close(); }, true);
+    // Un lien créé à la main depuis un node de code (pas au chargement : Nodz passe alors son id) : ses sorties se calculent.
+    const nodzLink = window.createLink;
+    window.createLink = function (a, b, id) {
+        const link = nodzLink(a, b, id);
+        if (!id && codeOf(a)) refresh(a);
+        return link;
+    };
     document.addEventListener('gardien-code', ({ detail }) => {
         const task = detail.action === 'run' ? runNode(detail.node) : open(detail.node);
         task.catch(error => say(`${detail.action === 'run' ? 'Exécution' : 'IDE'} : ${error.message}`, 'error'));

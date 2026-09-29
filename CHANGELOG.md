@@ -154,6 +154,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Relier en glissant** : un node glissé contre un autre et tenu au contact une demi-seconde fait briller l'autre ; au relâcher, les deux sont reliés (annulable par Ctrl+Z). Un glissé qui ne fait que passer, ou de plusieurs nodes, ne relie rien.
 
+**Chaînes de code** : des nodes de code reliés forment un programme ; un node s'exécute après le code de ses nodes en amont (même langage, dans l'ordre des liens), dans le même espace (variables et fonctions partagées). Un node texte relié en aval d'un node de code est une sortie : il affiche le résultat de la chaîne et se recalcule seul quand un code en amont est enregistré, exécuté ou relié (JavaScript et Python, dans le navigateur).
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
