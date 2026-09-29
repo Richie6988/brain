@@ -1162,11 +1162,13 @@ class GuardianTests(TestCase):
         self.assertEqual((thought['shape'], thought['color']), ('none', '#8B7FC8'))
         self.assertIn('<i>Un voyage : où, quand</i>', thought['text'])
         call = engine.calls[0]
-        self.assertEqual(call['schema']['properties']['flow']['items']['anyOf'][1]['properties']['op']['enum'], ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal', 'explore'])
+        ops = call['schema']['properties']['flow']['items']['anyOf'][1]['properties']['op']['enum']
+        self.assertEqual(ops[:8], ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal', 'explore'])
+        self.assertTrue({'update', 'archive', 'travel', 'search_nodes', 'web_search'} <= set(ops))  # agentique minimal
         self.assertIn('on_token', call)  # le moteur réel donne aussi les jetons envisagés
         self.assertIn('Node source : N-1', call['messages'][1]['content'])
         self.assertIn('on te voit penser', call['messages'][0]['content'])
-        self.assertNotIn('web_search', call['messages'][0]['content'])  # l'automatisation reste dans son mode
+        self.assertNotIn('send_email', call['messages'][0]['content'])  # l'automatisation reste dans son mode
         self.assertNotIn('text', [kind for kind, _ in self.events])
         self.assertEqual(self.errors(), [])
 
@@ -1219,8 +1221,8 @@ class GuardianTests(TestCase):
         self.assertEqual((thought['ref'], link['source'], link['target']), ('t1', 'ask1', 't1'))
 
     def test_think_mode_refuses_automation_tools(self):
-        self.think(json.dumps({'flow': ['Chercher en ligne', {'op': 'web_search', 'query': 'kyoto'}]}))
-        self.assertEqual(self.errors(), ['web_search : outil désactivé dans Agents & modèles : web_search'])
+        self.think(json.dumps({'flow': ['Envoyer un mail', {'op': 'send_email', 'to': 'a@b.c'}]}))
+        self.assertEqual(self.errors(), ['send_email : outil désactivé dans Agents & modèles : send_email'])
 
     def test_thoughts_appear_while_the_model_writes(self):
         # Les pensées poussent pendant l'écriture : la première est posée avant que la seconde soit écrite.
@@ -1305,6 +1307,29 @@ class GuardianTests(TestCase):
         engine = self.think(json.dumps({'flow': ['Trier les tâches', {'op': 'build', 'template': 'eisenhower', 'title': 'Priorités', 'near': 't1'}]}))
         self.assertIn('Tes gabarits gardés : eisenhower', engine.calls[0]['messages'][0]['content'])
         self.assertIn(('t1', 'build1'), [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link'])
+        self.assertEqual(self.errors(), [])
+
+    def test_think_mode_reads_then_goes_on_thinking(self):
+        # Agentique minimal : une lecture [L] dans le flux ; ce qu'elle a lu revient au tour suivant, la pensée continue
+        # sa numérotation ; archive supprime ; un voyage part à la fin, et la caméra y reste (pas de cadrage).
+        from nodzapp.models import Layer, Node
+
+        budget = Layer.objects.create(user=self.user, layer_id=2, layer_name='Budget')
+        Node.objects.create(user=self.user, node_id=7, layer=budget, text_content='Budget Japon 2026')
+        engine = self.think(
+            json.dumps({'flow': ['Chercher le budget', {'op': 'search_nodes', 'query': 'budget'}]}),
+            json.dumps({'flow': ['Trouvé : N-7', {'op': 'archive', 'ref': 'N-2'}, {'op': 'goto', 'ref': 'N-7'},
+                                 {'op': 'put', 'ref': 'new1', 'text': 'Suite', 'near': 't2', 'links': ['t2']}]}))
+        self.assertEqual(len(engine.calls), 2)
+        follow = engine.calls[1]['messages'][-1]['content']
+        self.assertIn('Ce que tu as lu :', follow)
+        self.assertIn('N-7 (dimension Budget)', follow)
+        self.assertIn('tes pas suivants sont t2', follow)
+        ops = [(a['op'], a.get('ref')) for a in self.actions()]
+        self.assertIn(('create', 't2'), ops)
+        self.assertIn(('archive', 'N-2'), ops)
+        self.assertEqual(ops[-1], ('goto', 'N-7'))  # en dernier, sans cadrage après
+        self.assertIn('outils/lecture/', engine.calls[0]['messages'][0]['content'])  # le catalogue d'outils
         self.assertEqual(self.errors(), [])
 
     def test_thoughts_branch_and_have_a_kind(self):
