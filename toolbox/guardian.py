@@ -12,6 +12,7 @@ import html
 import json
 import logging
 import math
+import random
 import re
 import time
 
@@ -144,6 +145,76 @@ Tes consignes :
 Agents équipés :
 {agents}
 {memory}"""
+
+# --- Mode Pensée (par défaut dans l'univers) : Nodz est la façon de parler de l'IA. Elle pense à voix haute, et chaque
+# pensée devient aussitôt un node discret, relié à la précédente, qui pousse depuis le node source ; puis elle crée ses
+# résultats avec les outils de création, chacun rattaché à la pensée qui l'a produit. Pas de chat, pas d'automatisation
+# (web, fichiers, agents, missions : mode Automatisation, la boucle de handle()).
+THINK_OPS = ['put', 'grow', 'build', 'schema', 'link']
+MAX_THOUGHTS = 6
+THOUGHT_RADIUS = 60      # place d'une pensée (petit node sans cadre)
+THOUGHT_COLOR = '#8B7FC8'  # couleur de la pensée : ses liens
+THOUGHT_INK = '#C9BEF2'    # son texte, clair et discret
+# Champs des actions de création seulement : une grammaire plus petite s'échantillonne plus vite.
+THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'children', 'links', 'layout', 'type', 'fill',
+                'rows', 'cols', 'items', 'cells', 'title')
+THINK_SCHEMA = {
+    'type': 'object',
+    'required': ['thoughts', 'actions'],  # les pensées d'abord : elles s'écrivent (et poussent) avant les résultats
+    'properties': {
+        'thoughts': {'type': 'array', 'items': {'type': 'string', 'maxLength': 110}, 'maxItems': MAX_THOUGHTS},
+        'actions': {'type': 'array', 'items': {'type': 'object', 'required': ['op'], 'properties': {
+            'op': {'type': 'string', 'enum': THINK_OPS},
+            **{k: PLAN_SCHEMA['properties']['actions']['items']['properties'][k] for k in THINK_FIELDS}}}},
+    },
+}
+
+THINK_SYSTEM = """Nodz est ta façon de parler : tout ce que tu écris devient des nodes dans l'univers de l'utilisateur, autour du
+node source (indiqué à la fin du message). Il n'y a pas de chat : tu ne réponds qu'en nodes. Réponds uniquement en JSON :
+{"thoughts": ["pas 1", "pas 2", ...], "actions": [...]}.
+thoughts : ta chaîne de pensée, dans l'ordre, 2 à 6 pas de moins de 14 mots. Chacun devient aussitôt un petit node relié au
+précédent (t1, t2…) : on te voit penser.
+actions : ce que tu crées ensuite, avec une vue d'ensemble de tes pensées : chaque résultat se rattache à la pensée qui l'a
+produit (near et links vers t…) ou à un autre résultat (new…).
+- put : un node résultat {"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle|square","children":["sous-idée"]}
+- grow : une explication en arbre {"op":"grow","text":"titre\n- idée\n  - détail"}
+- build : un gabarit {"op":"build","layout":"tree|list|kanban|timeline|matrix|pyramid","title":"…","items":["…"]} (kanban : cols et items ; matrix : rows, cols, cells)
+- schema : un modèle rempli {"op":"schema","type":"swot","title":"…","fill":{"Forces":["idée"]}} ; modèles : {schemas}
+- link : relier deux nodes (N-…, t…, new…)
+Mise en forme : **gras**, *italique*, [#FF6B6B]couleur[/], ^^grand^^ ; emojis bienvenus.
+Exemples (imite leur forme) :
+« bonjour » → {"thoughts":["Un salut, pas encore de sujet"],"actions":[{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne : j'y penserai ici.","near":"t1","links":["t1"]}]}
+« des noms pour mon café » → {"thoughts":["Un café : chaleur, rencontre","Trois pistes : jeu de mots, lieu, émotion","Garder les plus courts"],"actions":[{"op":"put","ref":"new1","text":"☕ **Noms**","near":"t3","links":["t3"],"color":"#FFD93D","children":["Grain de Folie","Le Comptoir","Tasse & Toi"]}]}
+« SWOT de mon café » → {"thoughts":["Interne : emplacement, petite salle","Externe : loyers, concurrence"],"actions":[{"op":"schema","type":"swot","title":"**Mon café**","fill":{"Forces":["Emplacement"],"Faiblesses":["Petite salle"],"Menaces":["Loyer en hausse"]}}]}
+Tes consignes :
+{guidelines}
+{memory}"""
+
+
+class ThoughtStream:
+    """Pensées complètes au fil du flux JSON : chaque chaîne terminée du tableau "thoughts", dès qu'elle arrive."""
+
+    START = re.compile(r'"thoughts"\s*:\s*\[')
+    ITEM = re.compile(r'\s*,?\s*("(?:[^"\\]|\\.)*")')
+
+    def __init__(self):
+        self.buffer, self.at, self.closed = '', None, False
+
+    def feed(self, piece):
+        self.buffer += piece
+        if self.closed:
+            return []
+        if self.at is None:
+            start = self.START.search(self.buffer)
+            if not start:
+                return []
+            self.at = start.end()
+        found = []
+        while item := self.ITEM.match(self.buffer, self.at):
+            found.append(json.loads(item.group(1)))
+            self.at = item.end()
+        self.closed = self.buffer[self.at:].lstrip().startswith(']')
+        return found
 
 def plain(markup, length=120):
     """Texte lisible d'un contenu HTML de node (pour le prompt)."""
@@ -313,6 +384,8 @@ class Guardian(IaquaOps):
         self.letters = []  # réponses de l'humain à ses notes (correspondance)
         self.attached_away = []  # nodes joints d'autres dimensions (sélecteur de contexte)
         self.allowed = []  # outils permis (lus avec le prompt système)
+        self.source = None  # mode Pensée : le node d'où la pensée pousse
+        self.heading = None  # mode Pensée : direction de la pousse, qui ondule d'une pensée à l'autre
 
     # --- contexte envoyé par la page
 
@@ -388,6 +461,7 @@ class Guardian(IaquaOps):
             *(['Nodes joints d\'autres dimensions (contexte choisi par l\'humain) :', *perception.lines(joined)] if joined else []),
             *(['Outils pour cette demande :', guide] if guide else []),  # aiguillage : ceux que ses mots appellent
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
+            *([f'Node source : {self.source}'] if self.source else []),
         ])
 
     # --- validation des actions
@@ -1022,15 +1096,15 @@ class Guardian(IaquaOps):
         return (SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
                 .replace('{guidelines}', guidelines or guardian.system_prompt or prompts.GUARDIAN))
 
-    def plan_call(self, guardian, messages, round_, request):
+    def plan_call(self, guardian, messages, round_, request, schema=PLAN_SCHEMA, on_text=None, temperature=0.2):
         """Appel du modèle pour un plan. Un prompt plus long que le contexte du modèle (ValueError de llama-cpp-python)
         est raccourci, moins de nodes et de texte puis les plus anciens tours, avant d'abandonner clairement."""
         while True:
             try:
-                # Le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
-                return self.engine.chat(guardian.model, messages, json_schema=PLAN_SCHEMA, priority=priorities.CHAT, owner='gardien',
-                                        on_text=lambda piece: self.emit('thinking', {'round': round_, 'text': piece}),
-                                        **{'temperature': 0.2, **guardian.params})  # plan : peu créatif par défaut
+                # Automatisation : le plan s'écrit en direct dans le chat (réflexion repliable, comme Poséidon).
+                return self.engine.chat(guardian.model, messages, json_schema=schema, priority=priorities.CHAT, owner='gardien',
+                                        on_text=on_text or (lambda piece: self.emit('thinking', {'round': round_, 'text': piece})),
+                                        **{'temperature': temperature, **guardian.params})
             except ValueError as e:
                 if 'context window' not in str(e):
                     raise
@@ -1044,14 +1118,124 @@ class Guardian(IaquaOps):
                                     'dans Agents & modèles, ou prends moins de nodes') from None
                 self.emit('intent', {'text': 'Mon contexte est plein : je regarde moins de nodes…'})
 
-    def warm(self):
+    def warm(self, mode='auto'):
         """Préchauffage : le modèle du Gardien lit son prompt système en arrière-plan (sur CPU, plusieurs minutes pour
         un 7B), pour que la première demande ne lise que le message. Faux s'il était déjà lu."""
-        system = self.system(self.agents())
+        system = self.think_system(self.agents()) if mode == 'think' else self.system(self.agents())
         return self.engine.prefill(self.guardian.model, [{'role': 'system', 'content': system}, {'role': 'user', 'content': '.'}],
                                    priority=priorities.BACKGROUND, owner='gardien:préchauffage')
 
+    # --- mode Pensée
+
+    def think_system(self, agents):
+        """Prompt système du mode Pensée : format, outils de création et consignes, fixes (lus une fois par llama.cpp),
+        puis la mémoire."""
+        guardian = self.guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
+        if guardian is None or guardian.model is None:
+            raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
+        self.allowed = THINK_OPS
+        memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
+        return (THINK_SYSTEM.replace('{schemas}', ', '.join(layouts.SCHEMAS)).replace('{guidelines}', prompts.THINKER)
+                .replace('{memory}', memory))
+
+    def source_node(self, request):
+        """Le node d'où la pensée pousse : le node message, sinon le premier sélectionné ou joint. Sans node en contexte,
+        la demande elle-même devient un node, au centre de la vue."""
+        ref = self.origin or (self.selection[0] if self.selection else None)
+        if ref:
+            return ref
+        self.emit('action', self.op_create({'ref': 'ask1', 'text': request}, {}))
+        return 'ask1'
+
+    def grow_spot(self, previous):
+        """Pousse organique : la pensée suivante s'écarte de la précédente dans la direction de la chaîne, qui ondule ;
+        une place prise fait tourner la pousse, puis on se rabat sur l'anneau libre le plus proche."""
+        base = self.nodes[previous]
+        self.heading = (math.pi / 3 if self.heading is None else self.heading) + random.uniform(-0.6, 0.6)
+        step = THOUGHT_RADIUS + base['r'] + 40
+        for turn in (0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.3, -2.3):
+            angle = self.heading + turn
+            x, y = base['x'] + step * math.cos(angle), base['y'] + step * math.sin(angle)
+            if all(math.dist((x, y), p[:2]) >= THOUGHT_RADIUS + (p[2] if len(p) > 2 else RADIUS) + 20 for p in self.occupied):
+                self.heading = angle
+                return round(x), round(y)
+        return free_spot((base['x'], base['y']), self.occupied, THOUGHT_RADIUS)
+
+    def sprout(self, text, thoughts):
+        """Une pensée : un petit node sans cadre, texte clair en italique, relié à la pensée d'avant (ou au source)."""
+        text = ' '.join(str(text).replace('*', '').split())[:140]
+        if not text or len(thoughts) >= MAX_THOUGHTS:
+            return
+        ref, previous = f't{len(thoughts) + 1}', thoughts[-1] if thoughts else self.source
+        x, y = self.grow_spot(previous)
+        self.nodes[ref] = {'x': x, 'y': y, 'r': THOUGHT_RADIUS, 'text': text, 'new': True}
+        self.occupied.append((x, y, THOUGHT_RADIUS))
+        self.emit('action', {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(f'[{THOUGHT_INK}]*{text}*[/]'),
+                             'color': THOUGHT_COLOR, 'shape': 'none'})
+        self.emit('action', {'op': 'link', 'source': previous, 'target': ref})
+        thoughts.append(ref)
+
+    def think(self, request, context):
+        """Mode Pensée : un seul appel au modèle. Ses pensées poussent en nodes pendant qu'il les écrit, puis ses
+        résultats se posent, rattachés aux pensées qui les ont produits. Tout ce qu'il dit est dans l'univers."""
+        started = time.monotonic()
+        self.request = request
+        self.load(context)
+        agents = self.agents()
+        system = self.think_system(agents)
+        guardian = self.guardian
+        self.run = AIRun.objects.create(
+            owner=self.user, model_id=str(guardian.model), mode=AIRun.Mode.COMMAND, prompt=request,
+            context_node_ids=[n['id'] for n in self.context], status=AIRun.Status.RUNNING,
+        )
+        self.emit('start', {'run': str(self.run.id)})
+        try:
+            self.source = self.source_node(request)
+            thoughts, stream = [], ThoughtStream()
+
+            def heard(piece):
+                self.emit('tick', None)  # un arrêt demandé coupe le modèle au fragment suivant, même entre deux pensées
+                for text in stream.feed(piece):
+                    self.sprout(text, thoughts)
+
+            self.emit('intent', {'text': 'Je réfléchis…'})
+            messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': self.prompt(request)}]
+            raw = self.plan_call(guardian, messages, 0, request, schema=THINK_SCHEMA, on_text=heard, temperature=0.6)
+            last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
+            if last:
+                self.timings.append(last)
+            try:
+                answer = json.loads(raw)
+            except json.JSONDecodeError:  # coupé en route : ses pensées sont déjà posées, ses résultats sont perdus
+                answer = {}
+                self.emit('notice', {'text': 'Mon modèle s\'est emballé : je garde ses pensées, sans ses résultats.'})
+            for text in answer.get('thoughts') or []:  # celles que le flux n'a pas vues passer (moteur sans flux)
+                if ' '.join(str(text).replace('*', '').split())[:140] not in [self.nodes[t]['text'] for t in thoughts]:
+                    self.sprout(text, thoughts)
+            self.execute(answer.get('actions') or [], agents)
+            made = [ref for ref, n in self.nodes.items() if n.get('new')]
+            if made:  # la caméra cadre la pensée entière : le node source, ses pensées et ses résultats
+                self.emit('action', {'op': 'frame', 'refs': [self.source, *made]})
+            if not thoughts and not self.done:
+                raise PlanError("mon modèle n'a rien pensé ni créé : reformule, ou prends un modèle plus grand")
+            if self.timings:
+                self.emit('timing', {'calls': len(self.timings), 'total_s': round(time.monotonic() - started, 1),
+                                     'wait_s': round(sum(t['wait_s'] for t in self.timings), 1),
+                                     'prompt_tokens': self.timings[0]['prompt_tokens'],
+                                     'speed': self.timings[-1]['speed'], 'memory': self.memory_hint(guardian)})
+            self.run.status = AIRun.Status.DONE
+        except Exception as e:
+            self.run.status, self.run.error = AIRun.Status.ERROR, str(e)
+            raise
+        finally:
+            self.run.duration_ms = int((time.monotonic() - started) * 1000)
+            self.run.save(update_fields=['status', 'error', 'duration_ms'])
+
+    # --- mode Automatisation
+
     def handle(self, request, context):
+        if isinstance(context, dict) and context.get('mode') == 'think':
+            return self.think(request, context)
         started = time.monotonic()
         self.request = request
         self.load(context)

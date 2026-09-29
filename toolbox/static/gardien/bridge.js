@@ -73,8 +73,9 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         return zoomTo(zoom, r.x, r.y, id);
     }
 
-    async function overview(id) {
-        const nodes = [...document.querySelectorAll('.node-group')];
+    // Recul jusqu'à voir tous les nodes de la dimension, ou seulement ceux donnés (une pensée du Gardien et ses résultats).
+    async function overview(id, only) {
+        const nodes = only?.length ? only : [...document.querySelectorAll('.node-group')];
         if (!nodes.length) return true;
         const pts = nodes.map(n => ({ x: parseFloat(n.getAttribute('x')), y: parseFloat(n.getAttribute('y')), r: parseFloat(n.children[1].getAttribute('r')) }));
         const [x0, x1] = [Math.min(...pts.map(p => p.x - p.r)), Math.max(...pts.map(p => p.x + p.r))];
@@ -247,6 +248,10 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         },
         async overview() {
             await overview(take);
+        },
+        // Mode Pensée : la caméra cadre ce que le Gardien vient de penser et de créer.
+        async frame({ refs: ids }) {
+            await overview(take, (ids || []).map(nodeOf).filter(Boolean));
         },
         // Visite interactive d'une branche, pilotée par l'utilisateur (tour.js).
         tour({ ref }) {

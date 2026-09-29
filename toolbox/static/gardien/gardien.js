@@ -92,7 +92,7 @@ const signedIn = setInterval(() => {
     document.body.classList.add('gardien-ready');
     clearInterval(signedIn);
     // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
-    api.request('POST', 'toolbox/warm', {}).catch(() => {});
+    api.request('POST', 'toolbox/warm', { mode: chat.mode() }).catch(() => {});
     refreshLetters();  // notes du Gardien en attente dans Échanges
 }, 400);
 
@@ -318,7 +318,7 @@ async function ask(node, text, attached = []) {
         };
         const context = bridge.context();
         let doing = '';  // dernière intention annoncée : l'étiquette de l'avatar du Gardien
-        await api.command({ prompt: text, context: { ...context, ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
+        await api.command({ prompt: text, context: { ...context, mode: chat.mode(), ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
             ...(history.length ? { history } : {}) } }, (type, data) => {
             if (type === 'thinking') thought(data);
             else if (type === 'stopped') stopped = true;
@@ -384,6 +384,8 @@ async function ask(node, text, attached = []) {
 }
 
 const chat = createChat({
+    // Changer de mode : le modèle lit en arrière-plan le prompt système de ce mode.
+    onMode: mode => api.request('POST', 'toolbox/warm', { mode }).catch(() => {}),
     onSend: (text, attached) => {
         if (text === 'Plus tard') return chat.add('notice', 'D\'accord, je n\'y touche pas.');  // une note écartée : rien à demander au modèle
         queue = queue.then(() => ask(null, text, attached));

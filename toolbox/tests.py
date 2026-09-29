@@ -1141,6 +1141,71 @@ class GuardianTests(TestCase):
         self.assertIn('Correspondance (dimension Échanges) :', prompt)
         self.assertIn("Ta note N-11 (« J'ai vu trois nodes vides : je les range ? ») → l'humain a répondu : Oui, range-les", prompt)
 
+    def think(self, *replies, context=None, request='organise', engine=None):
+        from .guardian import Guardian
+
+        engine = engine or ScriptedEngine(*replies)
+        Guardian(self.user, engine, lambda kind, data: self.events.append((kind, data))).handle(
+            request, {**(context or self.CONTEXT), 'mode': 'think'})
+        return engine
+
+    def test_think_mode_grows_thoughts_then_results_from_the_source(self):
+        # Mode Pensée : chaque pensée devient un petit node sans cadre, relié à la précédente depuis le node source ;
+        # les résultats se rattachent à la pensée qui les a produits. Aucune réponse en chat.
+        engine = self.think(json.dumps({'thoughts': ['Un voyage : où, quand', 'Kyoto au printemps'], 'actions': [
+            {'op': 'put', 'ref': 'new1', 'text': 'Kyoto', 'near': 't2', 'links': ['t2']}]}))
+        ops = [(a['op'], a.get('ref') or a.get('source'), a.get('target')) for a in self.actions()]
+        self.assertEqual(ops, [('create', 't1', None), ('link', 'N-1', 't1'), ('create', 't2', None), ('link', 't1', 't2'),
+                               ('create', 'new1', None), ('link', 'new1', 't2'), ('frame', None, None)])
+        self.assertEqual(self.actions()[-1]['refs'], ['N-1', 't1', 't2', 'new1'])  # la caméra cadre la pensée entière
+        thought = self.actions()[0]
+        self.assertEqual((thought['shape'], thought['color']), ('none', '#8B7FC8'))
+        self.assertIn('<i>Un voyage : où, quand</i>', thought['text'])
+        call = engine.calls[0]
+        self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'grow', 'build', 'schema', 'link'])
+        self.assertIn('Node source : N-1', call['messages'][1]['content'])
+        self.assertIn('on te voit penser', call['messages'][0]['content'])
+        self.assertNotIn('web_search', call['messages'][0]['content'])  # l'automatisation reste dans son mode
+        self.assertNotIn('text', [kind for kind, _ in self.events])
+        self.assertEqual(self.errors(), [])
+
+    def test_think_mode_without_a_node_makes_the_request_a_node(self):
+        self.think(json.dumps({'thoughts': ['Une question ouverte'], 'actions': []}),
+                   context={**self.CONTEXT, 'selection': []}, request='Pourquoi le ciel est bleu ?')
+        first, thought, link = self.actions()[:3]
+        self.assertEqual((first['op'], first['ref'], first['text']), ('create', 'ask1', 'Pourquoi le ciel est bleu ?'))
+        self.assertEqual((thought['ref'], link['source'], link['target']), ('t1', 'ask1', 't1'))
+
+    def test_think_mode_refuses_automation_tools(self):
+        self.think(json.dumps({'thoughts': ['Chercher en ligne'], 'actions': [{'op': 'web_search', 'query': 'kyoto'}]}))
+        self.assertEqual(self.errors(), ['web_search : outil désactivé dans Agents & modèles : web_search'])
+
+    def test_thoughts_appear_while_the_model_writes(self):
+        # Les pensées poussent pendant l'écriture : la première est posée avant que la seconde soit écrite.
+        events = self.events
+
+        class Streaming(ScriptedEngine):
+            def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
+                self.calls.append({'messages': messages})
+                self.seen = []
+                pieces = ['{"thoughts": ["Premier', ' pas", "Sec', 'ond pas"], "actions": []}']
+                for piece in pieces:
+                    on_text(piece)
+                    self.seen.append([d.get('ref') for k, d in events if k == 'action' and d['op'] == 'create'])
+                return ''.join(pieces)
+
+        engine = self.think(engine=Streaming())
+        self.assertEqual(engine.seen, [[], ['t1'], ['t1', 't2']])
+
+    def test_warm_reads_the_think_system_prompt(self):
+        from .guardian import Guardian
+
+        engine = ScriptedEngine(json.dumps({'thoughts': ['Salut'], 'actions': []}))
+        engine.prefill = lambda model, messages, **kw: engine.calls.append({'prefill': messages})
+        Guardian(self.user, engine, lambda kind, data: None).warm('think')
+        self.think(engine=engine)
+        self.assertEqual(engine.calls[0]['prefill'][0], engine.calls[1]['messages'][0])
+
     def test_put_writes_a_node_as_it_is_read(self):
         # put : le même objet qu'en lecture ; nouveau node avec liens et enfants, node existant restylé et relié.
         self.run_guardian(json.dumps({'plan': [], 'say': 'Fait.', 'actions': [

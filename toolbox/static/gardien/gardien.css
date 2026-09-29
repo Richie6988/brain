@@ -71,6 +71,10 @@
 #gardien-chat.busy .gc-state::before { background: #1E90FF; box-shadow: 0 0 6px #1E90FF; animation: gardien-blink 1s ease-in-out infinite; }
 .gc-panel header button { font: inherit; color: #94a3b8; background: transparent; border: 0; cursor: pointer; border-radius: 8px; padding: 3px 8px; }
 .gc-panel header button:hover { color: #fff; background: rgba(104, 72, 166, 0.45); }
+.gc-mode { display: flex; padding: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(184, 154, 242, 0.25); }
+.gc-panel header .gc-mode button { font-size: 10px; padding: 3px 9px; border-radius: 999px; }
+.gc-panel header .gc-mode button.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 10px rgba(30, 144, 255, 0.4); }
+body:has(.universe.lightmode) .gc-mode { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.18); }
 .gc-more-wrap { position: relative; }
 .gc-more { font-size: 16px !important; line-height: 1; letter-spacing: 0.05em; }
 .gc-more.on { color: #fff !important; box-shadow: inset 0 0 0 1px rgba(30, 144, 255, 0.8); }

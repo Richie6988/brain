@@ -216,7 +216,7 @@ def warm(request, body):
     def work():
         try:
             with acting_for(user.pk):
-                Guardian(user, engine, lambda kind, data: None).warm()
+                Guardian(user, engine, lambda kind, data: None).warm('think' if body.get('mode') == 'think' else 'auto')
         except (EngineUnavailable, BrokerTimeout):
             pass  # pas de modèle, ou file trop longue : la première demande lira tout
         except Exception:
@@ -615,6 +615,8 @@ async def command(request):
         def emit(kind, data):
             if ticket.cancelled and kind != 'error':  # arrêt demandé : coupe le modèle au prochain jeton (le flux se ferme), puis le tour
                 raise Stopped
+            if kind == 'tick':  # pouls du modèle qui écrit : seulement pour s'arrêter à temps, rien n'est envoyé
+                return
             if kind == 'action':
                 outcome['actions'] += 1
             elif kind == 'timing':

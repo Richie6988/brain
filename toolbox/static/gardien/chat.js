@@ -4,16 +4,30 @@
 // joints au prochain message (multisélection) : le Gardien lit leur texte complet pour cette demande
 // seulement. La réflexion du Gardien s'écrit en direct dans un bloc repliable ; chaque message se copie.
 // L'historique récent est gardé dans ce navigateur.
+// Deux modes : Pensée (par défaut) : le chat est une barre de contexte, l'IA pense à voix haute en nodes autour du node
+// source et ne répond que dans l'univers ; Automatisation : l'ancien Gardien agentique (web, fichiers, agents, missions).
 
 import { h } from './library.js';
 
 const KEY = 'gardien-chat';
+const MODE_KEY = 'gardien-mode';
+const PLACEHOLDER = { think: 'Consigne optionnelle, puis Entrée…', auto: 'Écris au Gardien…' };
+const HINT = {
+    think: 'Sélectionne un node (ou joins-en avec Filtres), ajoute une consigne si tu veux, puis Entrée : la pensée du Gardien '
+        + 'pousse en nodes autour du node, et ses résultats s\'y rattachent.',
+    auto: 'Demande-lui de créer, relier, ranger, chercher sur le web, construire une matrice ou une frise, '
+        + 'ou de te faire visiter une branche. Tu peux aussi lui envoyer un node avec sa pastille.',
+};
 const KEEP = 60;
 const THINK_KEEP = 6000;  // caractères de réflexion gardés par message
 // Suggestions en pastilles au-dessus de la saisie : un clic pose la demande dans le champ, à compléter ou envoyer.
 const IDEAS = ['Résume cette dimension', 'Relie les idées proches', 'Fais un SWOT de ', 'Range en kanban'];
 
-export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {} }) {
+export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {}, onMode = () => {} }) {
+    let mode = 'think';
+    try {
+        mode = localStorage.getItem(MODE_KEY) === 'auto' ? 'auto' : 'think';
+    } catch { /* stockage indisponible : mode Pensée */ }
     let history = [];
     try {
         history = JSON.parse(localStorage.getItem(KEY) || '[]');
@@ -34,7 +48,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         input.setSelectionRange(idea.length, idea.length);
         ideas.hidden = true;
     } }, idea.trim())));
-    const input = h('textarea', { rows: 1, placeholder: 'Écris au Gardien…', 'aria-label': 'Message au Gardien' });
+    const input = h('textarea', { rows: 1, placeholder: PLACEHOLDER[mode], 'aria-label': 'Message au Gardien' });
     const send = h('button', { type: 'submit', class: 'gc-send', title: 'Envoyer (Entrée)' }, '↑');
     const form = h('form', { class: 'gc-form' }, input, send);
     let attached = [];  // nodes joints au prochain message
@@ -62,8 +76,26 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: () => { menu.hidden = true; clear(); } }, 'Effacer'));
     const more = h('button', { type: 'button', class: 'gc-more', title: 'Plus', onclick: () => { menu.hidden = !menu.hidden; } }, '⋯');
     const state = h('small', { class: 'gc-state' }, 'en ligne');
+    const modes = h('div', { class: 'gc-mode', role: 'group', 'aria-label': 'Mode du Gardien' },
+        h('button', { type: 'button', 'data-mode': 'think', title: 'Pensée : l\'IA pense à voix haute en nodes, autour du node source' }, 'Pensée'),
+        h('button', { type: 'button', 'data-mode': 'auto', title: 'Automatisation : web, fichiers, agents et missions' }, 'Auto'));
+    modes.addEventListener('click', event => {
+        const next = event.target.closest?.('button')?.dataset.mode;
+        if (!next || next === mode) return;
+        mode = next;
+        try {
+            localStorage.setItem(MODE_KEY, mode);
+        } catch { /* stockage indisponible */ }
+        showMode();
+        onMode(mode);
+    });
+    function showMode() {
+        modes.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+        input.placeholder = PLACEHOLDER[mode];
+        log.querySelector('.gc-hint p')?.replaceChildren(HINT[mode]);
+    }
     const panel = h('section', { class: 'gc-panel', hidden: true, role: 'dialog', 'aria-label': 'Chat du Gardien' },
-        h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), state),
+        h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), state), modes,
             h('span', { class: 'gc-more-wrap' }, more, menu),
             h('button', { type: 'button', class: 'gc-close', title: 'Réduire', onclick: () => toggle(false) }, '×')),
         log, status, tray, ideas, form);
@@ -93,7 +125,9 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     form.addEventListener('submit', event => {
         event.preventDefault();
         if (working) return onStop();  // pendant une réflexion, le bouton d'envoi est le stop
-        const text = input.value.trim();
+        const selected = typeof selectedNodes !== 'undefined' && selectedNodes.length > 0;
+        // Pensée : la consigne est optionnelle, un node en contexte suffit.
+        const text = input.value.trim() || (mode === 'think' && (selected || attached.length) ? 'Pense à partir de ce node.' : '');
         if (!text) return;
         input.value = '';
         grow();
@@ -188,8 +222,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     }
     function render() {
         log.replaceChildren(...(history.length ? history.map(line)
-            : [h('li', { class: 'gc-hint' }, h('p', {}, 'Demande-lui de créer, relier, ranger, chercher sur le web, construire une matrice ou une frise, '
-                + 'ou de te faire visiter une branche. Tu peux aussi lui envoyer un node avec sa pastille.'))]));
+            : [h('li', { class: 'gc-hint' }, h('p', {}, HINT[mode]))]));
         log.scrollTop = log.scrollHeight;
     }
     function clear() {
@@ -199,7 +232,9 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     }
 
     render();
+    showMode();
     return {
+        mode: () => mode,
         // role : user, guardian, notice, error ; from : d'où vient le message (node N-12…) ; choices : question
         add(role, text, from, choices) {
             if (!text) return;
