@@ -590,11 +590,13 @@ class IaquaOps:
 
     def op_generate_pptx(self, action, agents):
         path = self.workspace_call(workspace.pptx, action.get('filename'), action.get('title', ''), action.get('slides') or [])
+        self.files.append((path, self.link_to(path)))
         self.read('Présentation créée', f'{path} : {self.link_to(path)} (donne ce lien à l\'utilisateur)')
         return None
 
     def op_generate_docx(self, action, agents):
         path = self.workspace_call(workspace.docx, action.get('filename'), action.get('title', ''), action.get('markdown') or action.get('content', ''))
+        self.files.append((path, self.link_to(path)))
         self.read('Document créé', f'{path} : {self.link_to(path)} (donne ce lien à l\'utilisateur)')
         return None
 

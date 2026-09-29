@@ -1377,6 +1377,33 @@ class GuardianTests(TestCase):
         self.assertIn('Le message', direct)
         self.assertIn('{"op":"delete"', engine.calls[0]['messages'][0]['content'])  # ses outils, dans le prompt système
 
+    def test_think_mode_delegates_and_makes_files(self):
+        # Mode Pensée, comme sur une machine locale complète : un agent rédige dans son node une fois le plan exécuté ;
+        # une présentation générée devient un node avec son lien (pas un tour de lecture).
+        with self.settings(WORKSPACE_DIR=tempfile.mkdtemp()):
+            engine = self.think(
+                json.dumps({'calls': [{'op': 'think', 'text': 'Un pitch et un texte'},
+                                      {'op': 'generate_pptx', 'filename': 'pitch', 'title': 'Mon café', 'near': 't1',
+                                       'slides': [{'title': 'Concept', 'bullets': ['Terrasse']}]},
+                                      {'op': 'delegate', 'agent': 'Rédacteur', 'task': 'Un slogan', 'ref': 'new1', 'near': 't1'}]}),
+                'Le café qui torréfie')
+        self.assertEqual(len(engine.calls), 2)  # le plan, puis le Rédacteur (aucun tour de lecture en plus)
+        file = next(a for a in self.actions() if a['op'] == 'create' and a['ref'].startswith('file'))
+        self.assertIn('pitch.pptx</a>', file['text'])
+        self.assertIn('/api/v1/toolbox/workspace/', file['text'])
+        self.assertIn(('t1', file['ref']), [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link'])
+        self.assertIn('Le café qui torréfie', next(a['text'] for a in self.actions() if a['op'] == 'update' and a['ref'] == 'new1'))
+        self.assertEqual(self.errors(), [])
+
+    def test_a_local_model_with_a_large_window_sees_more(self):
+        # Modèle local à grande fenêtre (un 9B en 32k) : quatre fois le contexte d'un petit modèle.
+        self.model.params = {'n_ctx': 32768}
+        self.model.save()
+        context = {**self.CONTEXT, 'nodes': [{'id': f'N-{i}', 'text': f'Node {i}', 'x': i * 10, 'y': 0} for i in range(1, 161)], 'links': []}
+        engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Vu'}]}), context=context)
+        prompt = engine.calls[0]['messages'][1]['content']
+        self.assertIn('"N-160"', prompt)
+
     def test_think_mode_builds_saved_templates_from_a_thought(self):
         # Gabarits favorisés : ceux qu'il a gardés sont listés dans son prompt ; un gabarit posé depuis une pensée pend
         # à son arbre (lien depuis la pensée).

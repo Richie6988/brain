@@ -46,6 +46,7 @@ HISTORY, HISTORY_TEXT = 6, 200  # derniers échanges du chat rappelés au Gardie
 # Modèle par API (grand contexte, lecture rapide) : il voit l'univers en grand ; les limites ci-dessus sont celles d'un
 # petit modèle local sur CPU, où chaque jeton du prompt se paie.
 RICH_SCALE, RICH_NODES, RICH_ATTACHED, RICH_HISTORY = 20, 400, (20000, 80000), (20, 2000)
+LOCAL_WINDOW = 8192  # fenêtre locale de base : au-delà, le contexte montré grandit d'autant (9B en 32k : x4)
 API_TOKENS = 4096  # réponse d'un modèle par API sans longueur réglée (1024 par défaut coupait les plans)
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
 TYPES = ['text', 'image', 'file', 'canvas', 'code']  # types de node de Nodz
@@ -161,7 +162,9 @@ THINK_OPS = ['think', 'put', 'nodes', 'style', 'link', 'grow', 'build', 'schema'
 # L'agentique minimal du mode Pensée, par le catalogue d'outils (ceux cochés dans Agents & modèles) : modifier,
 # supprimer, aller dans les dimensions, lire (l'univers, un document, le web) avant de continuer sa pensée.
 THINK_TOOLS = ['update', 'archive', 'unlink', 'travel', 'goto', 'search_nodes', 'inventory', 'read_file',
-               'templates', 'template_save', 'web_search', 'web_fetch']
+               'templates', 'template_save', 'web_search', 'web_fetch',
+               'delegate', 'generate_image', 'edit_image', 'generate_pptx', 'generate_docx']
+FILE_OPS = ('generate_pptx', 'generate_docx')  # le fichier devient un node avec son lien (pas un tour de lecture)
 MAX_READS = 2  # tours de lecture d'une pensée : ce qu'elle a lu lui revient, elle continue
 # Noms des commandes pour le modèle : les mots qu'on emploie (« delete », « edit »), pas ceux du catalogue.
 THINK_NAMES = {'archive': 'delete', 'update': 'edit'}
@@ -189,7 +192,7 @@ MUSE = ('Avant ta réponse, pense librement à voix haute, sans JSON : fragments
 # text : le genre et la place d'une pensée sont connus dès son premier mot.
 THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'radius', 'content_type', 'children', 'links',
                 'layout', 'type', 'fill', 'rows', 'cols', 'items', 'cells', 'title', 'name', 'task', 'template',
-                'query', 'url', 'path', 'save_as', 'description')
+                'query', 'url', 'path', 'save_as', 'description', 'agent', 'prompt', 'strength', 'filename', 'slides', 'markdown')
 # L'IA appelle l'IA : une branche confiée à une autre instance, qui la creuse depuis sa place dans l'arbre.
 MAX_EXPLORE, MAX_DEPTH, MAX_EXPLORATIONS = 2, 2, 4  # par réponse, profondeur, par demande
 LINEAGE = 8  # nodes du chemin dans l'arbre montrés au modèle
@@ -503,6 +506,7 @@ class Guardian(IaquaOps):
         self.max_nodes, (self.attached_text, self.attached_total) = MAX_CONTEXT_NODES, (ATTACHED_TEXT, ATTACHED_TOTAL)
         self.history_turns, self.history_text = HISTORY, HISTORY_TEXT
         self.direct = False  # demande directe depuis un node : seuls ses nodes dans le prompt (load)
+        self.files = []  # fichiers produits (présentation, document) : (chemin, lien)
         self.letters = []  # réponses de l'humain à ses notes (correspondance)
         self.attached_away = []  # nodes joints d'autres dimensions (sélecteur de contexte)
         self.allowed = []  # outils permis (lus avec le prompt système)
@@ -570,6 +574,14 @@ class Guardian(IaquaOps):
         if guardian and guardian.model and guardian.model.endpoint:  # modèle par API : l'univers en grand (avant load)
             self.scale, self.max_nodes = RICH_SCALE, RICH_NODES
             (self.attached_text, self.attached_total), (self.history_turns, self.history_text) = RICH_ATTACHED, RICH_HISTORY
+        elif guardian and guardian.model:  # modèle local : un budget à la mesure de sa fenêtre (8k de base)
+            window = guardian.model.params.get('n_ctx')  # réglé, sinon celui retenu au dernier chargement (« auto »)
+            if not isinstance(window, int):
+                window = (getattr(self.engine, 'placement', {}).get(guardian.model.pk) or {}).get('n_ctx') or LOCAL_WINDOW
+            grow = min(RICH_SCALE, max(1, window // LOCAL_WINDOW))
+            self.scale, self.max_nodes = grow, MAX_CONTEXT_NODES * grow
+            self.attached_text, self.attached_total = ATTACHED_TEXT * grow, ATTACHED_TOTAL * grow
+            self.history_turns, self.history_text = min(HISTORY * grow, RICH_HISTORY[0]), HISTORY_TEXT * grow
         return agents
 
     def prompt(self, request):
@@ -1517,15 +1529,38 @@ class Guardian(IaquaOps):
             self.emit('intent', {'text': f'Plan : {len(self.planned)} call{"s" if len(self.planned) > 1 else ""} en file'})
 
     def carry_out(self, agents):
-        """Le plan écrit s'exécute, call après call, dans l'ordre ; l'avancement s'affiche par dizaines."""
-        self.gathered, total = [], len(self.planned)
+        """Le plan écrit s'exécute, call après call, dans l'ordre ; l'avancement s'affiche par dizaines. Un fichier
+        produit (présentation, document) devient un node avec son lien ; les agents (rédaction, code, images) travaillent
+        ensuite, chacun dans son node."""
+        self.gathered, jobs, total = [], [], len(self.planned)
         if total:
             self.emit('intent', {'text': f"J'exécute mon plan : {total} call{'s' if total > 1 else ''}"})
         for done, call in enumerate(self.planned, 1):
+            made = len(self.files)
             self.execute([call], agents)
-            self.gathered += self.reads
+            jobs += self.jobs
+            if call.get('op') in FILE_OPS:
+                for path, link in self.files[made:]:
+                    self.attach_file(path, link, call.get('near'))
+            else:
+                self.gathered += self.reads
             if total >= 10 and not done % 10:
                 self.emit('intent', {'text': f'Plan : {done} / {total}'})
+        for job in jobs:  # (agent, consigne, node) ou, pour une retouche d'image, plus l'image source
+            self.delegate(*job)
+
+    def attach_file(self, path, link, near):
+        """Un fichier produit, posé en node : son nom, cliquable pour le télécharger."""
+        name = path.rsplit('/', 1)[-1]
+        ref = f'file{len(self.files)}{self.suffix}'
+        near = near if near in self.nodes else self.source
+        x, y = self.place(ref, near)
+        self.nodes[ref]['text'] = name
+        mark = '📊' if name.endswith('.pptx') else '📄'
+        self.emit('action', {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'color': '#4D96FF', 'shape': 'square', 'free': True,
+                             'text': f'{mark} <a href="{html.escape(link)}" target="_blank" rel="noopener">{html.escape(name)}</a>'})
+        if near:
+            self.emit('action', {'op': 'link', 'source': near, 'target': ref})
 
     def resume(self):
         """Le tour suivant d'une pensée qui a lu : ce qu'elle a lu, et où reprendre sa numérotation."""
