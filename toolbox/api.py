@@ -28,7 +28,7 @@ from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_par
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable, acting_for
-from .guardian import Guardian, PlanError
+from .guardian import Guardian, PlanError, guardian_prompt
 from .models import Agent, LocalModel, Mission, NodeMark, Preference
 from .runtime import broker, dispatcher, engine
 
@@ -86,7 +86,10 @@ def model_to_dict(m, user):
 
 def agent_to_dict(a):
     return {'id': str(a.id), 'name': a.name, 'role': a.role, 'description': a.description,
-            'model': str(a.model_id) if a.model_id else None, 'system_prompt': a.system_prompt, 'default_prompt': prompts.default(a.role),
+            'model': str(a.model_id) if a.model_id else None, 'system_prompt': a.system_prompt,
+            # le Gardien : son prompt système en entier (commandes, cas d'usage, ses outils) ; un agent : son rôle
+            'default_prompt': guardian_prompt(a, default=True) if a.role == Agent.Role.ORCHESTRATOR else prompts.default(a.role),
+            **({'prompt': guardian_prompt(a)} if a.role == Agent.Role.ORCHESTRATOR else {}),  # ce qu'il reçoit, tel quel
             'tools_allowed': a.tools_allowed, 'params': a.params, 'enabled': a.enabled}
 
 
@@ -326,7 +329,7 @@ def brain_map(request, body):
         guardian.save(update_fields=['brain'])
         return JsonResponse({'saved': len(mapping['tools']), 'universe': mapping})
     ops = tools.enabled(guardian, request.user)
-    return JsonResponse({'guidelines': guardian.system_prompt or prompts.GUARDIAN, 'installed': bool(mapping), 'universe': mapping,
+    return JsonResponse({'guidelines': guardian_prompt(guardian), 'installed': bool(mapping), 'universe': mapping,
                          'memory': guardian.memory, 'brain': brain_text(guardian),
                          'tools': [{'op': t['op'], 'label': t['label'], 'category': t['category'], 'usage': t['doc']}
                                    for t in tools.TOOLS if t['op'] in ops]})

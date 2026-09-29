@@ -515,9 +515,10 @@ class IaquaOps:
 
     def op_read_my_brain(self, action, agents):
         path = str(action.get('section_path') or '').strip()
-        from . import prompts, tools
+        from . import tools
+        from .guardian import guardian_prompt  # guardian importe ce module
         sections = {
-            'guidelines': self.guardian.system_prompt or prompts.GUARDIAN,
+            'guidelines': guardian_prompt(self.guardian),
             'memory': self.guardian.memory,
             'tools_catalog': [f"{t['op']} : {t['label']}" for t in tools.TOOLS if t['op'] in self.allowed],
             'skills': {s.key: s.steps for s in Skill.objects.filter(owner=self.user)},

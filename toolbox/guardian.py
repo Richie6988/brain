@@ -122,8 +122,8 @@ PLAN_SCHEMA = {
     },
 }
 
-# Partie technique du Gardien (format et outils) : fixe. Ses consignes (prompts.GUARDIAN ou celles de
-# l'utilisateur) s'y ajoutent.
+# Mode Automatisation : partie technique (format et outils), fixe ; ses règles (prompts.AUTOMATION, ou celles écrites
+# dans l'univers) s'y ajoutent. Les consignes du Gardien réglées dans Agents & modèles sont son prompt du mode Pensée.
 SYSTEM = """Nodz : une carte de nodes (idées) reliés, sur des dimensions (plans) reliées par des portails ; tes travellings
 de caméra guident l'utilisateur. Il t'écrit dans un node (le node message) ; tu réponds uniquement en JSON :
 {"plan": ["étape", ...], "say": ce que tu as fait, "actions": [...]}.
@@ -159,6 +159,8 @@ THINK_OPS = ['think', 'put', 'nodes', 'style', 'link', 'grow', 'build', 'schema'
 THINK_TOOLS = ['update', 'archive', 'unlink', 'travel', 'goto', 'search_nodes', 'inventory', 'read_file',
                'templates', 'template_save', 'web_search', 'web_fetch']
 MAX_READS = 2  # tours de lecture d'une pensée : ce qu'elle a lu lui revient, elle continue
+# Noms des commandes pour le modèle : les mots qu'on emploie (« delete », « edit »), pas ceux du catalogue.
+THINK_NAMES = {'archive': 'delete', 'update': 'edit'}
 MAX_THOUGHTS = 12
 MAX_CALLS = 150  # calls d'un plan
 MAX_BATCH = 40   # nodes d'un call nodes
@@ -206,41 +208,6 @@ def think_schema(ops):
         },
     }
 
-
-THINK_SYSTEM = """Tu es le Gardien de l'univers Nodz. Tu as tous les pouvoirs sur cet univers : créer, écrire, ranger, relier,
-supprimer, voyager entre les dimensions, lire. Tu réponds uniquement par des commandes JSON :
-{"calls": [commande, commande, ...]}. Le contenu que tu produis (textes, listes, idées, code) s'injecte dans les commandes.
-
-Tes commandes :
-{"op":"think","text":"…","kind":"idea|doubt|dropped|decision","under":"t2"} → une pensée : petit node discret (t1, t2… dans l'ordre), affiché pendant que tu écris ; moins de 14 mots ; under : branche de cette pensée.
-{"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle|square|none","radius":90,"content_type":"code","children":["…"]} → crée (ref new…) ou modifie (ref N-…) un node ; near : à côté de ; links : relié à ; children : 12 sous-nodes au plus ; radius 60 à 200.
-{"op":"nodes","near":"new1","items":["…","…"],"color":"#hex"} → jusqu'à 40 nodes d'un coup, reliés à near.
-{"op":"style","ref":"N-3","color":"#hex","shape":"square","radius":140} → apparence d'un node.
-{"op":"link","source":"t2","target":"new1"} → relie deux nodes.
-{"op":"grow","text":"titre\\n- idée\\n  - détail"} → un arbre depuis un texte indenté (2 espaces par niveau).
-{"op":"build","layout":"tree|list|timeline|pyramid|kanban|matrix","title":"…","items":["…"],"near":"t2"} → gabarit rempli ; tree : items indentés ; kanban : cols et items ; matrix : rows, cols, cells[ligne][colonne] ; template : un gabarit gardé à la place de layout.
-{"op":"schema","type":"swot","title":"…","near":"t3","fill":{"Forces":["…"]}} → modèle rempli ; types : {schemas} ; 16 cases, 10 idées par case.
-{"op":"portal","ref":"new1","name":"…","items":["…","…"]} → new1 devient un portail vers une nouvelle dimension de ce nom ; items : le détail, posé dans cette dimension autour du portail (40 au plus).
-{"op":"explore","ref":"t3","task":"…"} → une autre instance de toi creuse la branche t3, en même temps que les autres ; 2 par réponse.
-{tools}
-
-Règles :
-- Références : N-12 = node existant (liste dans le message) ; t1, t2… = tes think ; new1, new2… = tes put ; node source en fin de message. Une commande ne cite que des références écrites avant elle.
-- Tu écris toutes tes commandes (150 au plus), puis elles s'exécutent dans l'ordre ; portal, travel et goto en dernier.
-- Lecture [L] : son résultat te revient au tour suivant ; tu continues alors tes commandes (t…, new… à la suite).
-- Texte : **gras**, *italique*, [#FF6B6B]couleur[/], ^^grand^^, ,,petit,, ; un emoji en tête permis.
-- Couleurs : #FF6B6B problème ; #FFD93D idée ; #33FF99 solution ; #4D96FF info ; #C77DFF créatif ; #FF9F45 action ; #4DD4C6 ressource ; #F15BB5 humain.
-
-Cas d'usage :
-Un gabarit pour injecter ton contenu : « SWOT de mon café » →
-{"calls":[{"op":"think","text":"Interne : lieu, salle ; externe : loyers, quartier"},{"op":"schema","type":"swot","title":"**Mon café**","near":"t1","fill":{"Forces":["Emplacement","Café torréfié maison"],"Faiblesses":["Petite salle"],"Opportunités":["Terrasse","Livraison"],"Menaces":["Loyer en hausse"]}}]}
-L'écrivain : « personnages et lieux de mon roman » → des catégories, puis un portail par personnage et par lieu, qui détaille chacun dans sa dimension :
-{"calls":[{"op":"think","text":"Deux familles : personnages et lieux"},{"op":"think","under":"t1","text":"chacun détaillé dans sa dimension"},{"op":"put","ref":"new1","text":"🎭 **Personnages**","near":"t1","links":["t1"],"shape":"square","color":"#F15BB5"},{"op":"put","ref":"new2","text":"Alice, pilote","near":"new1","links":["new1"],"color":"#F15BB5"},{"op":"put","ref":"new3","text":"Victor, l'ombre","near":"new1","links":["new1"],"color":"#F15BB5"},{"op":"put","ref":"new4","text":"🗺️ **Lieux**","near":"t1","links":["t1"],"shape":"square","color":"#4DD4C6"},{"op":"put","ref":"new5","text":"La station Orion","near":"new4","links":["new4"],"color":"#4DD4C6"},{"op":"portal","ref":"new2","name":"Alice","items":["30 ans, ex-militaire","Veut retrouver sa sœur","Peur du vide","Arc : de la fuite au sacrifice"]},{"op":"portal","ref":"new3","name":"Victor","items":["Mentor devenu traître","Motif : la dette","Scène clé : le hangar"]},{"op":"portal","ref":"new5","name":"Orion","items":["Station minière en orbite","Trois anneaux","Règle : pas d'arme à bord"]}]}
-Une longue liste : « 60 pays à visiter » →
-{"calls":[{"op":"put","ref":"new1","text":"🌍 ^^Pays^^","shape":"square"},{"op":"put","ref":"new2","text":"Europe","near":"new1","links":["new1"]},{"op":"nodes","near":"new2","items":["Portugal","Islande","Grèce"]},{"op":"put","ref":"new3","text":"Asie","near":"new1","links":["new1"]},{"op":"nodes","near":"new3","items":["Japon","Vietnam","Népal"]}]}
-Un salut : « bonjour » →
-{"calls":[{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne."}]}
-{memory}"""
 
 
 class ThoughtStream:
@@ -319,6 +286,24 @@ class ThoughtStream:
                     except json.JSONDecodeError:
                         pass  # la réponse entière, relue à la fin, le rattrape
         return list(moved.items())
+
+
+def think_ops(agent):
+    """Commandes du mode Pensée pour ce Gardien : celles de création, plus les outils agentiques qu'il a cochés."""
+    enabled = tools.enabled(agent, agent.owner)
+    return THINK_OPS + [THINK_NAMES.get(op, op) for op in THINK_TOOLS if op in enabled]
+
+
+def guardian_prompt(agent, ops=None, docs=None, default=False):
+    """Le prompt système du Gardien tel qu'il le reçoit (sa mémoire en plus) et tel que l'écran « Consignes » le montre :
+    ses consignes si elles sont un prompt complet (des commandes {"calls"}), sinon le prompt par défaut (prompts.GUARDIAN)
+    et, à la fin, ces consignes plus anciennes ; la liste des modèles et ses outils cochés y sont écrits en entier."""
+    ops = ops or think_ops(agent)
+    custom = '' if default else (agent.system_prompt or '').strip()
+    template = custom if '"calls"' in custom else prompts.GUARDIAN + (f'\n\nConsignes :\n{custom}' if custom else '')
+    return (template.replace('{schemas}', ', '.join(layouts.SCHEMAS))
+            .replace('{tools}', '\n'.join(command(tools.usage(op, docs).replace(f'"op":"{op}"', f'"op":"{THINK_NAMES.get(op, op)}"'),
+                                                  tools.BY_OP[op].get('read')) for op in THINK_TOOLS if THINK_NAMES.get(op, op) in ops)))
 
 
 def command(usage, read=False):
@@ -1265,7 +1250,7 @@ class Guardian(IaquaOps):
                            if a.role != Agent.Role.ORCHESTRATOR and a.model_id) or '(aucun agent équipé)'
         memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
         return (SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
-                .replace('{guidelines}', guidelines or guardian.system_prompt or prompts.GUARDIAN))
+                .replace('{guidelines}', guidelines or prompts.AUTOMATION))
 
     def plan_call(self, guardian, messages, round_, request, schema=PLAN_SCHEMA, on_text=None, temperature=0.2, on_token=None,
                   max_tokens=None):
@@ -1307,16 +1292,13 @@ class Guardian(IaquaOps):
         guardian = self.guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
         if guardian is None or guardian.model is None:
             raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
-        enabled = tools.enabled(guardian, self.user)
-        self.allowed = THINK_OPS + [op for op in THINK_TOOLS if op in enabled]
+        self.allowed = think_ops(guardian)
+        self.allowed += [op for op, name in THINK_NAMES.items() if name in self.allowed]  # delete s'exécute en archive
         memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
         saved = self.templates()
         if saved:
             memory = f"{memory}\nTes gabarits gardés : {', '.join(saved)}".strip()
-        agentic = [op for op in self.allowed if op in THINK_TOOLS]
-        return (THINK_SYSTEM.replace('{schemas}', ', '.join(layouts.SCHEMAS))
-                .replace('{tools}', '\n'.join(command(tools.usage(op, self.docs), tools.BY_OP[op].get('read')) for op in agentic))
-                .replace('{memory}', memory))
+        return '\n'.join(filter(None, [guardian_prompt(guardian, self.allowed, self.docs), memory]))
 
     def source_node(self, request):
         """Le node d'où la pensée pousse : le node message, sinon le premier sélectionné ou joint. Sans node en contexte,
@@ -1482,7 +1464,7 @@ class Guardian(IaquaOps):
                     self.plan(index, value, stream.thinks)
 
         self.emit('intent', {'text': 'Je réfléchis…' if not depth else f"Une autre instance de moi creuse « {short(self.nodes[self.source]['text'], 30)} »…"})
-        raw = self.plan_call(guardian, messages, 0, request, schema=think_schema(self.allowed), on_text=heard, on_token=heard,
+        raw = self.plan_call(guardian, messages, 0, request, schema=think_schema([op for op in self.allowed if op not in THINK_NAMES]), on_text=heard, on_token=heard,
                              temperature=0.6, max_tokens=None if guardian.model.params.get('max_tokens') else THINK_TOKENS)
         last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
         if last:
@@ -1507,7 +1489,8 @@ class Guardian(IaquaOps):
             if item not in thinks:
                 self.form(len(self.formed), str(call.get('text') or ''), True, call)
             return
-        call = self.remap(self.painted(call))
+        internal = {name: op for op, name in THINK_NAMES.items()}
+        call = self.remap(self.painted({**call, 'op': internal.get(call.get('op'), call.get('op'))}))
         if call.get('op') == 'put' and str(call.get('ref', '')).startswith('new') and call.get('near'):
             self.parents.setdefault(call['ref'], call['near'])
         (self.gates if call.get('op') in ('portal', 'travel', 'goto') else self.planned).append(call)

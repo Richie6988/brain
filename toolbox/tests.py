@@ -852,21 +852,42 @@ class GuardianTests(TestCase):
         self.assertIn('désactivé', self.errors()[0])
         self.assertNotIn('archive', [a['op'] for a in self.actions()])
 
-    def test_guidelines_are_editable_but_tools_stay(self):
+    def test_guidelines_are_the_guardian_system_prompt(self):
+        # Les consignes du Gardien sont son prompt système : l'écran les montre en entier (commandes, cas d'usage, ses
+        # outils cochés) ; réécrites en prompt complet, elles le remplacent ; des consignes anciennes (sans commandes)
+        # s'ajoutent à la fin du prompt par défaut. Le mode Automatisation garde ses règles.
         from . import prompts
+
+        agents = {a['name']: a for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
+        shown = agents['Gardien']['default_prompt']
+        self.assertTrue(shown.startswith("Tu es le Gardien de l'univers Nodz. Tu as tous les pouvoirs"))
+        self.assertIn('{"op":"search_nodes","query":"mots"} → [L] cherche', shown)  # ses outils, écrits en entier
+        self.assertIn('types : decision, family', shown)
+        self.assertNotIn('{tools}', shown)
+        self.assertEqual(agents['Rédacteur']['default_prompt'], prompts.ROLES[Agent.Role.TEXT])
+        engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Une idée'}]}))
+        self.assertEqual(engine.calls[0]['messages'][0]['content'], shown)  # ce que l'écran montre, c'est ce qu'il reçoit
+        self.assertEqual(agents['Gardien']['prompt'], shown)
+
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        guardian.system_prompt = 'Tu es un pirate. Réponds {"calls": [...]} ; commandes : {tools}'
+        guardian.save()
+        engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Arr'}]}))
+        system = engine.calls[0]['messages'][0]['content']
+        self.assertTrue(system.startswith('Tu es un pirate.'))
+        self.assertIn('{"op":"delete","ref":"N-4"} → supprime', system)
+        guardian.system_prompt = 'Tutoie toujours.'
+        guardian.save()
+        engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Salut'}]}))
+        system = engine.calls[0]['messages'][0]['content']
+        self.assertTrue(system.startswith("Tu es le Gardien de l'univers Nodz."))
+        self.assertTrue(system.endswith('Consignes :\nTutoie toujours.'))
 
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         system = engine.calls[0]['messages'][0]['content']
-        self.assertIn(prompts.GUARDIAN, system)
+        self.assertIn(prompts.AUTOMATION, system)
+        self.assertNotIn('Tutoie toujours.', system)
         self.assertIn('outils/web/ : web_search [L], web_fetch [L]', system)
-        Agent.objects.filter(owner=self.user, role=Agent.Role.ORCHESTRATOR).update(system_prompt='Tu parles comme un pirate.')
-        engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
-        system = engine.calls[0]['messages'][0]['content']
-        self.assertIn('Tu parles comme un pirate.', system)
-        self.assertNotIn(prompts.GUARDIAN, system)
-        self.assertIn('outils/nodes/ : put, create, update, style, set_type, archive, cleanup, mindmap', system)  # une consigne réécrite ne retire pas les outils
-        agents = {a['name']: a for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
-        self.assertEqual(agents['Rédacteur']['default_prompt'], prompts.ROLES[Agent.Role.TEXT])
 
     def test_follow_up_plan_and_intents(self):
         self.run_guardian(json.dumps({'plan': ['Relier les idées', 'Montrer le résultat'], 'say': 'Voilà.', 'actions': [
@@ -1165,7 +1186,8 @@ class GuardianTests(TestCase):
         ops = call['schema']['properties']['calls']['items']['properties']['op']['enum']
         self.assertEqual(ops[:10], ['think', 'put', 'nodes', 'style', 'link', 'grow', 'build', 'schema', 'explore', 'portal'])
         self.assertEqual(call['max_tokens'], 4096)  # un plan de 150 calls
-        self.assertTrue({'update', 'archive', 'travel', 'search_nodes', 'web_search'} <= set(ops))  # agentique minimal
+        self.assertTrue({'edit', 'delete', 'travel', 'search_nodes', 'web_search'} <= set(ops))  # agentique minimal, aux mots courants
+        self.assertFalse({'update', 'archive'} & set(ops))
         self.assertIn('on_token', call)  # le moteur réel donne aussi les jetons envisagés
         self.assertIn('Node source : N-1', call['messages'][1]['content'])
         system = call['messages'][0]['content']
@@ -1335,7 +1357,7 @@ class GuardianTests(TestCase):
         Node.objects.create(user=self.user, node_id=7, layer=budget, text_content='Budget Japon 2026')
         engine = self.think(
             json.dumps({'calls': [{'op': 'think', 'text': 'Chercher le budget'}, {'op': 'search_nodes', 'query': 'budget'}]}),
-            json.dumps({'calls': [{'op': 'think', 'text': 'Trouvé : N-7'}, {'op': 'archive', 'ref': 'N-2'}, {'op': 'goto', 'ref': 'N-7'}, {'op': 'put', 'ref': 'new1', 'text': 'Suite', 'near': 't2', 'links': ['t2']}]}))
+            json.dumps({'calls': [{'op': 'think', 'text': 'Trouvé : N-7'}, {'op': 'delete', 'ref': 'N-2'}, {'op': 'goto', 'ref': 'N-7'}, {'op': 'put', 'ref': 'new1', 'text': 'Suite', 'near': 't2', 'links': ['t2']}]}))
         self.assertEqual(len(engine.calls), 2)
         follow = engine.calls[1]['messages'][-1]['content']
         self.assertIn('Ce que tu as lu :', follow)

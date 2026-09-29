@@ -179,8 +179,10 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
             select.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { model: select.value || null }), `${agent.name} : modèle changé`));
             const enabled = h('input', { type: 'checkbox', checked: agent.enabled });
             enabled.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { enabled: enabled.checked })));
-            // Les consignes par défaut s'affichent telles quelles ; les garder inchangées n'enregistre rien.
-            const prompt = h('textarea', { rows: 12, 'aria-label': `Consignes de ${agent.name}` }, agent.system_prompt || agent.default_prompt);
+            // Les consignes par défaut s'affichent telles quelles ; les garder inchangées n'enregistre rien. Le Gardien : son
+            // prompt système entier, exactement celui qu'il reçoit (agent.prompt).
+            const prompt = h('textarea', { rows: agent.prompt ? 26 : 12, 'aria-label': `Consignes de ${agent.name}` },
+                agent.prompt || agent.system_prompt || agent.default_prompt);
             const custom = () => (prompt.value.trim() === agent.default_prompt.trim() ? '' : prompt.value);
             prompt.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { system_prompt: custom() }), 'Consignes enregistrées'));
             const reset = h('button', { type: 'button', disabled: !agent.system_prompt }, 'Rétablir les consignes par défaut');
