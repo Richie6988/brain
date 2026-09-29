@@ -40,7 +40,8 @@ function say(text, kind = '') {
     return line;
 }
 
-// Fil de suivi : plan annoncé, étape en cours, étapes faites ; s'efface après la réponse.
+// Fil de suivi : plan annoncé, étape en cours, étapes faites ; s'efface après la réponse. Il vit dans la bande
+// déroulante de la pastille des jauges (on le voit en la dépliant).
 const follow = (() => {
     const card = document.createElement('aside');
     card.id = 'gardien-follow';
@@ -272,6 +273,7 @@ const tower = monitor.panel('gm-hud');
 tower.head.addEventListener('click', () => library.open('library'));
 document.getElementById('button-container').after(tower.root);  // sous les popups de Nodz, comme la barre
 tower.root.querySelector('.gm-pill').prepend(document.getElementById('brand-container'));  // le logo Nodz, animé, en tête des jauges
+tower.head.after(document.getElementById('gardien-follow'));  // le fil du Gardien dans la bande déroulante, sous le modèle chargé
 
 async function loadGuardian() {
     const { agents } = await api.request('GET', 'toolbox/agents');
