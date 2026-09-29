@@ -13,7 +13,7 @@ const NS = 'http://www.w3.org/2000/svg';
 const DURATION = 1300;
 const GAP = 40;          // entre deux nodes d'une colonne
 const COLUMN_GAP = 280;  // entre deux colonnes
-const RICH = 600;        // au-delà, nodes sans texte (la vue reste fluide)
+const RICH = 1500;       // au-delà, contenu en version légère (étiquette SVG, image) : la vue reste fluide
 const DOCS = 12;         // aperçus de documents lus dans les autres dimensions
 const PREVIEWED = /\.(pdf|docx?|pptx?)$/i;  // documents dont le serveur garde un aperçu PDF
 const KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Shift', 'Control', 'Alt', 'Meta']);
@@ -131,6 +131,18 @@ export function createSide({ bridge, say, filters }) {
             box.append(text);
             fo.append(box);
             g.append(fo);
+        } else if (!rich) {  // beaucoup de nodes : son image, sinon une étiquette (texte, ou type et nom du fichier)
+            if (n.image) {
+                g.append(make('image', { href: n.image, x: -r, y: -r, width: 2 * r, height: 2 * r, preserveAspectRatio: 'xMidYMid slice',
+                    'clip-path': n.shape === 'square' ? '' : `circle(${r}px at ${r}px ${r}px)` }));
+            } else {
+                const words = (n.file || n.plain || '').trim().replace(/\s+/g, ' ');
+                if (words) {
+                    const label = make('text', { class: 'gs-label', 'text-anchor': 'middle', dy: '0.35em', 'font-size': Math.max(12, r / 3.2) });
+                    label.textContent = words.length > 28 ? `${words.slice(0, 27)}…` : words;
+                    g.append(label);
+                }
+            }
         }
         let press = null;
         g.addEventListener('pointerdown', event => { press = [event.clientX, event.clientY]; });

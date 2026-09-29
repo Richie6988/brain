@@ -981,3 +981,7 @@ body.gardien-thoughts-off .gardien-thought, body.gardien-thoughts-off .gardien-t
     75% { transform: translateY(1.5px) rotate(3deg); filter: drop-shadow(0 0 6px rgba(104, 72, 166, 0.9)); }
 }
 @media (prefers-reduced-motion: reduce) { .gm-pill #logo { animation: none; } }
+
+/* Vue hyperspace chargée (plus de 1 500 nodes) : le contenu en étiquette légère plutôt qu'en vignette. */
+.gardien-side-layer .gs-label { fill: #e2e8f0; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: rgba(5, 12, 23, 0.8); stroke-width: 3px; }
+body:has(.universe.lightmode) .gardien-side-layer .gs-label { fill: #440852; stroke: rgba(255, 255, 255, 0.8); }

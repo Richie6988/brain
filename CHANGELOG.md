@@ -147,6 +147,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Contexte selon l'origine de la demande** : rechargé à chaque demande ; depuis le chat, la page et la conversation ; directe (un node, ou la pastille sur une sélection), seulement le node message et les nodes sélectionnés, texte entier et ID, sans voisins ni conversation ; les outils disponibles sont dans le prompt système.
 
+**Hyperspace chargé** : au-delà de 600 nodes au total, la vue de côté ne montrait plus que des formes vides (ni texte, ni image, ni code, ni fichier). Les vignettes riches vont maintenant jusqu'à 1 500 nodes ; au-delà, chaque node garde son contenu en version légère : son image, sinon une étiquette (texte, ou nom du fichier).
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
