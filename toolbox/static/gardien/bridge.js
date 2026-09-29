@@ -195,7 +195,6 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         unlink({ source, target }) {
             const link = linkBetween(nodeOf(source), nodeOf(target));
             if (!link) return;
-            cancelList.push(['linkdeletion', link.cloneNode(true)]);  // Ctrl+Z la rétablit, comme Suppr
             deleteLink(link);
         },
         archive({ ref }) {

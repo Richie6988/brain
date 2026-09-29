@@ -73,33 +73,13 @@ if(!isCtrlPressed) {
                 }
             }); 
         }
-        // Cancel
-        if (event.ctrlKey && (event.key === 'z' || event.key === 'Z') && !isTyping) {
-            event.preventDefault();
-            isCtrlPressed = false;
-            cancel();
-        } 
         // Delete
         if (!isTyping && (event.key === 'Delete' || event.key === 'Backspace')) {
-            if (cancelIndex > 0){
-                cancelList.length = 0;
-                cancelIndex = 0;
-            }
-            if (selectedNodes.length !== 0 && selectedTemplates.length !== 0) {
-                doubleCancel.push([cancelList.length,cancelList.length+1]);
-            }
             if (selectedNodes.length !== 0) {
                 deleteNode(selectedNodes);
             } 
             if (selectedTemplates.length !== 0) {
-                cancelList.push(['templatedeletion', Array.from(selectedTemplates).map(template => template.cloneNode(true))]);
-                var data = [];
-                selectedTemplates.forEach(template => {
-                    data.push({templateid: parseInt(template.getAttribute('id').match(/\d+/)[0], 10)});
-                    template.remove();
-                });
-                deleteFetch(data);
-                selectedTemplates.length = 0; 
+                deleteTemplates(selectedTemplates);
             }                 
         }
         // Refresh view
@@ -523,21 +503,24 @@ function pastenodes(tunnel) {
 
 //////////////////// CANCEL ////////////////////
 
+// Téléportation quantique : les nodes supprimés de la dimension de départ renaissent dans celle d'arrivée.
 function cancel()   {   
     cancelIndex ++;
     if (cancelIndex > cancelList.length){
         return;
     }
-    const undo = (cancelList[cancelList.length - cancelIndex]);
-    var action = undo[0];
-    var object = undo[1];
+    restoreNodes(cancelList[cancelList.length - cancelIndex][1]);
+    document.activeElement.blur();
+}
 
-    if (action === 'deletion') {
-        object.forEach(node =>{
+// Fait renaître des nodes supprimés (clones pris avant la suppression) avec leurs liens.
+function restoreNodes(nodes) {
+        nodes.forEach(node =>{
             node.node_id = parseInt(node.getAttribute('id').match(/\d+/)[0], 10);
             node.x_coordinate = parseInt(node.getAttribute('x'));
             node.y_coordinate = parseInt(node.getAttribute('y'));
             node.radius = node.children[1].getAttribute('r')
+            node.ratio = node.getAttribute('ratio');
             node.type = node.getAttribute('type');
             node.color = node.getAttribute('color');
             if(quantum){
@@ -584,15 +567,11 @@ function cancel()   {
             originX = parseFloat(node.getAttribute('x'))/currentZoom;
             originY = - parseFloat(node.getAttribute('y'))/currentZoom;
         });
-    } if (action === 'linkdeletion') {   
-        const node1 = document.getElementById(object.getAttribute('Node1'));
-        const node2 = document.getElementById(object.getAttribute('Node2'));
-        const linkID = object.id; 
-        console.log(linkID)                 
-        createLink(node1,node2,linkID); 
+}
 
-    } if (action === 'templatedeletion') {   
-        object.forEach(template =>{
+// Fait renaître des gabarits supprimés.
+function restoreTemplates(templates) {
+        templates.forEach(template =>{
             const redoTemplate = createTemplate(parseFloat(template.getAttribute('x')),parseFloat(template.getAttribute('y')),template.getAttribute('type'),template.getAttribute('id'));
             redoTemplate.setAttribute('layer', template.getAttribute('layer'));
             redoTemplate.setAttribute('size', template.getAttribute('size'));
@@ -601,17 +580,16 @@ function cancel()   {
             redoTemplate.setAttribute('lock', template.getAttribute('lock'));
             saveTemplate(redoTemplate);
         });
-    }
+}
 
-    // var event = new MouseEvent('mousedown');
-    // svg.dispatchEvent(event);    
-    // event = new MouseEvent('mouseup');
-    // svg.dispatchEvent(event);
-    document.activeElement.blur();
-
-    if(doubleCancel.some(sublist => sublist.includes(cancelList.length - cancelIndex))) {
-        cancel();
-    } 
+function deleteTemplates(templates) {
+    var data = [];
+    templates.forEach(template => {
+        data.push({templateid: parseInt(template.getAttribute('id').match(/\d+/)[0], 10)});
+        template.remove();
+    });
+    deleteFetch(data);
+    templates.length = 0; 
 }
 
 
@@ -917,11 +895,6 @@ function createLink(nodeGroup1, nodeGroup2,id) {
 
     function keydownHandler(event) {
         if (!isTyping && (event.key === 'Delete' || event.key === 'Backspace')) {
-            if (cancelIndex > 0){
-                cancelList.length = 0;
-                cancelIndex = 0;
-            }    
-            cancelList.push(['linkdeletion', link.cloneNode(true)]);
             deleteLink(link);
             document.removeEventListener('keydown', keydownHandler);
         }

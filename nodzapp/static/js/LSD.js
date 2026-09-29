@@ -518,6 +518,7 @@ function save(nodeGroup,tunnel){
         })
 
         const csrfToken = getCookie('nodz_csrftoken');
+        const body = JSON.stringify(data);
 
         fetch('/save-node/', {
             method: 'POST',
@@ -525,7 +526,8 @@ function save(nodeGroup,tunnel){
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken,
             },
-            body: JSON.stringify(data),
+            body: body,
+            keepalive: body.length < 60000,  // survit à la fermeture de la page (limite du navigateur : 64 Ko)
         }).then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -541,6 +543,9 @@ function save(nodeGroup,tunnel){
         });
     }
 }
+
+// Page fermée ou rechargée : le node en cours de frappe perd le focus, donc se sauvegarde.
+window.addEventListener('pagehide', () => document.activeElement.blur());
 
 // SAVE QUANTUM
 

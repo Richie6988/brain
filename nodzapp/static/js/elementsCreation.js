@@ -77,7 +77,6 @@ let internalLink = false;
 let preview = false;
 let loadimage = false;
 let cancelList = [];
-let doubleCancel = [];
 let cancelIndex = 0;
 let colorContext = '';
 let color = "#33FF99";
@@ -976,8 +975,14 @@ function createNode(x,y,id) {
         isTyping = true;
     }
 
+    // Sauvegarde pendant la frappe : une pause de 800 ms suffit, sans attendre de quitter le node.
     input.addEventListener('input', function() { 
         handleInput();
+        clearTimeout(nodeGroup.typingSave);
+        nodeGroup.typingSave = setTimeout(() => {
+            nodeGroup.setAttribute('textcontent', input.innerHTML);
+            save(nodeGroup);
+        }, 800);
     });
     input.addEventListener('blur', function() { 
         nodeGroup.setAttribute('textcontent', input.innerHTML);      

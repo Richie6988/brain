@@ -13,6 +13,7 @@ import { createCorners } from './corners.js';
 import { createIde } from './ide.js';
 import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
+import { createHistory } from './history.js';
 import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
@@ -108,6 +109,32 @@ createSide({ bridge, say, filters });  // vue de côté : X = numéro de dimensi
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 const presence = createPresence();  // l'avatar du Gardien là où il travaille
+const timeline = createHistory();  // Ctrl+Z / Ctrl+Y sur tout geste, du clavier, de la souris ou du Gardien
+
+// Maj, Espace, Suppr, Tab, Ctrl+Z… sont des raccourcis de Nodz tant qu'on n'écrit pas. Écrire, c'est avoir le focus
+// dans un champ, où qu'il soit (chat, recherche, panneaux, IDE), pas seulement dans le texte d'un node.
+const EDITABLE = 'textarea, select, [contenteditable=""], [contenteditable="true"], .cm-editor, '
+    + 'input:not([type=checkbox], [type=radio], [type=range], [type=button], [type=submit], [type=color], [type=file])';
+const editable = element => !!element?.closest?.(EDITABLE);
+document.addEventListener('focusin', event => { if (editable(event.target)) isTyping = true; });
+document.addEventListener('focusout', event => { if (editable(event.target) && !editable(event.relatedTarget)) isTyping = false; });
+
+// Vu de haut, un clic (sans glisser) sur un node y descend : travelling jusqu'à lui. Les outils du node gardent
+// leur clic (poignée de taille, couleur, type…).
+const ALTITUDE = 0.45;  // zoom sous lequel on est « en altitude »
+let press = null;
+svg.addEventListener('pointerdown', event => {
+    const node = event.target.closest?.('.node-group');
+    const tool = node && Object.values(node.tools || {}).some(t => t?.contains?.(event.target));
+    press = event.button === 0 && node && !tool && !event.ctrlKey && !event.shiftKey && Number(currentZoom) < ALTITUDE
+        ? { node, x: event.clientX, y: event.clientY, at: performance.now() } : null;
+}, true);
+svg.addEventListener('pointerup', event => {
+    const target = press;
+    press = null;
+    if (!target || Math.hypot(event.clientX - target.x, event.clientY - target.y) > 5 || performance.now() - target.at > 400) return;
+    bridge.perform({ op: 'focus', ref: target.node.id, zoom: 1 }).catch(() => {});
+}, true);
 
 // Le Gardien dans l'univers : dimension « Gardien » avec le node Prompt système, le node Outils, un node par
 // famille puis un node par outil (nom, rôle, comment l'appeler). Le Gardien relit ces nodes à chaque demande.
@@ -247,6 +274,7 @@ async function ask(node, text, attached = []) {
         if (node) say(message, kind);
     };
     chat.busy(true);
+    timeline.begin();
     // Réflexion en direct : le plan que le modèle écrit, fragment par fragment (un fragment ≈ un jeton).
     let think = null, round = 0, pieces = 0, thinkStart = 0;
     try {
@@ -341,6 +369,7 @@ async function ask(node, text, attached = []) {
     } finally {
         node?.classList.remove('gardien-thinking');
         presence.leave();
+        timeline.end();
         chat.busy(false);
     }
 }

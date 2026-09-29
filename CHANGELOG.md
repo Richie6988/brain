@@ -94,6 +94,14 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Cube HYPERSPACE** : le bouton de la vue de côté s'appelle HYPERSPACE ; plus d'infobulle, ni sur le cube ni au survol des nodes.
 
+**Annuler / rétablir partout** : Ctrl+Z annule et Ctrl+Y (ou Ctrl+Maj+Z) rétablit tout geste sur l'univers, plus seulement les suppressions : création, déplacement, taille, texte, couleur, forme, verrou, type, lien créé ou supprimé, gabarit supprimé, et tout ce que pose le Gardien (une demande entière s'annule d'un seul Ctrl+Z). Un historique enveloppe `save`, `createNode`, `deleteNode`, `createLink`, `deleteLink` et `deleteTemplates` de Nodz et note, par node, l'état d'avant et d'après ; les notes d'un même geste (300 ms) forment une transaction, la frappe continue dans un node aussi. Dans un texte en cours d'écriture, Ctrl+Z reste celui du navigateur. Changer de dimension repart d'un historique vide, comme avant. La pile d'annulation de Nodz ne sert plus qu'à la téléportation quantique ; un rectangle restauré garde ses proportions.
+
+**Texte sauvegardé pendant la frappe** : une pause de 800 ms dans un node suffit, sans le quitter ; fermer ou recharger la page sauvegarde le node en cours (requête `keepalive`).
+
+**Clic en altitude** : vu de haut (zoom sous 0,45), un clic sans glisser sur un node y descend en travelling jusqu'au zoom 1. Les outils du node gardent leur clic.
+
+**Raccourcis muets pendant la saisie** : Maj (liste des dimensions), Espace, Suppr, Tab, Ctrl+Z… ne réagissent plus quand le focus est dans un champ, où qu'il soit (chat, recherche, panneaux, IDE), plus seulement dans le texte d'un node.
+
 **Diagnostic du Gardien et test du vrai moteur** :
 - *Diagnostic* (bouton dans la fiche du Gardien, route `toolbox/doctor`) : Gardien actif, modèle choisi, fichier présent, moteur installé, mémoire (besoin et libre, couches GPU), contexte comparé à son vrai prompt, essai réel de génération (lecture des consignes, jetons/s). Chaque ligne en vert ou en rouge, avec quoi faire ; il s'arrête à la première panne.
 - *Chargement qui se rattrape* : si llama.cpp refuse le contexte (cache quantifié incompatible avec le modèle, flash attention absente du build), le moteur réessaie sans ces options au lieu de laisser le Gardien sans modèle.
