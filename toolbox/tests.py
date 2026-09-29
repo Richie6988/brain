@@ -1152,8 +1152,7 @@ class GuardianTests(TestCase):
     def test_think_mode_grows_thoughts_then_results_from_the_source(self):
         # Mode Pensée : chaque pensée devient un petit node sans cadre, relié à la précédente depuis le node source ;
         # les résultats se rattachent à la pensée qui les a produits. Aucune réponse en chat.
-        engine = self.think(json.dumps({'thoughts': ['Un voyage : où, quand', 'Kyoto au printemps'], 'actions': [
-            {'op': 'put', 'ref': 'new1', 'text': 'Kyoto', 'near': 't2', 'links': ['t2']}]}))
+        engine = self.think(json.dumps({'flow': ['Un voyage : où, quand', 'Kyoto au printemps', {'op': 'put', 'ref': 'new1', 'text': 'Kyoto', 'near': 't2', 'links': ['t2']}]}))
         ops = [(a['op'], a.get('ref') or a.get('source'), a.get('target')) for a in self.actions()]
         self.assertEqual(ops, [('create', 't1', None), ('link', 'N-1', 't1'), ('update', 't1', None), ('create', 't2', None),
                                ('link', 't1', 't2'), ('update', 't2', None), ('create', 'new1', None), ('link', 'new1', 't2'),
@@ -1163,7 +1162,7 @@ class GuardianTests(TestCase):
         self.assertEqual((thought['shape'], thought['color']), ('none', '#8B7FC8'))
         self.assertIn('<i>Un voyage : où, quand</i>', thought['text'])
         call = engine.calls[0]
-        self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal', 'explore'])
+        self.assertEqual(call['schema']['properties']['flow']['items']['anyOf'][1]['properties']['op']['enum'], ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal', 'explore'])
         self.assertIn('on_token', call)  # le moteur réel donne aussi les jetons envisagés
         self.assertIn('Node source : N-1', call['messages'][1]['content'])
         self.assertIn('on te voit penser', call['messages'][0]['content'])
@@ -1180,8 +1179,7 @@ class GuardianTests(TestCase):
         budget = Layer.objects.create(user=self.user, layer_id=2, layer_name='Budget')
         for i, layer in ((1, home), (2, home), (3, budget)):
             Node.objects.create(user=self.user, node_id=i, layer=layer, text_content='x')
-        engine = self.think(json.dumps({'thoughts': ['Un grand sujet'], 'actions': [
-            {'op': 'portal', 'ref': 'new1', 'name': 'Japon'},
+        engine = self.think(json.dumps({'flow': ['Un grand sujet', {'op': 'portal', 'ref': 'new1', 'name': 'Japon'},
             {'op': 'put', 'ref': 'new1', 'text': 'Japon', 'near': 't1', 'links': ['t1']}]}))
         system, message = (m['content'] for m in engine.calls[0]['messages'])
         self.assertIn("L'univers est fait de dimensions", system)
@@ -1194,8 +1192,8 @@ class GuardianTests(TestCase):
         # explore : une autre instance reçoit la branche et le chemin de la racine jusqu'à elle ; sa pensée pousse
         # depuis ce node, avec ses propres références (t1.x1), et elle ne rappelle pas au-delà de la profondeur permise.
         engine = self.think(
-            json.dumps({'thoughts': ['Un voyage', '  Le budget'], 'actions': [{'op': 'explore', 'ref': 't2', 'task': 'creuser le budget'}]}),
-            json.dumps({'thoughts': ['Vols : 900 €'], 'actions': [{'op': 'put', 'ref': 'new1', 'text': 'Total', 'near': 't1', 'links': ['t1']}]}))
+            json.dumps({'flow': ['Un voyage', '  Le budget', {'op': 'explore', 'ref': 't2', 'task': 'creuser le budget'}]}),
+            json.dumps({'flow': ['Vols : 900 €', {'op': 'put', 'ref': 'new1', 'text': 'Total', 'near': 't1', 'links': ['t1']}]}))
         self.assertEqual(len(engine.calls), 2)
         called = engine.calls[1]['messages'][1]['content']
         self.assertIn("Où tu en es dans l'arbre : Voyage au Japon → Un voyage → Le budget (ici)", called)
@@ -1208,20 +1206,20 @@ class GuardianTests(TestCase):
 
     def test_the_lineage_follows_the_links_of_the_page(self):
         # Une pensée partie d'un node enfant voit le chemin depuis la racine de la page (sens Node1 → Node2).
-        engine = self.think(json.dumps({'thoughts': ['Une idée'], 'actions': []}),
+        engine = self.think(json.dumps({'flow': ['Une idée']}),
                             context={**self.CONTEXT, 'nodes': [*self.CONTEXT['nodes'][:1], {**self.CONTEXT['nodes'][1], 'text': 'Kyoto'}],
                                      'selection': ['N-2']})
         self.assertIn("Où tu en es dans l'arbre : Voyage au Japon → Kyoto (ici)", engine.calls[0]['messages'][1]['content'])
 
     def test_think_mode_without_a_node_makes_the_request_a_node(self):
-        self.think(json.dumps({'thoughts': ['Une question ouverte'], 'actions': []}),
+        self.think(json.dumps({'flow': ['Une question ouverte']}),
                    context={**self.CONTEXT, 'selection': []}, request='Pourquoi le ciel est bleu ?')
         first, thought, link, _update = self.actions()[:4]
         self.assertEqual((first['op'], first['ref'], first['text']), ('create', 'ask1', 'Pourquoi le ciel est bleu ?'))
         self.assertEqual((thought['ref'], link['source'], link['target']), ('t1', 'ask1', 't1'))
 
     def test_think_mode_refuses_automation_tools(self):
-        self.think(json.dumps({'thoughts': ['Chercher en ligne'], 'actions': [{'op': 'web_search', 'query': 'kyoto'}]}))
+        self.think(json.dumps({'flow': ['Chercher en ligne', {'op': 'web_search', 'query': 'kyoto'}]}))
         self.assertEqual(self.errors(), ['web_search : outil désactivé dans Agents & modèles : web_search'])
 
     def test_thoughts_appear_while_the_model_writes(self):
@@ -1232,7 +1230,7 @@ class GuardianTests(TestCase):
             def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
                 self.calls.append({'messages': messages})
                 self.seen = []
-                pieces = ['{"thoughts": ["Premier', ' pas qui', ' se forme", "Sec', 'ond pas"], "actions": []}']
+                pieces = ['{"flow": ["Premier', ' pas qui', ' se forme", "Sec', 'ond pas"]}']
                 for piece in pieces:
                     on_text(piece)
                     self.seen.append([d.get('ref') for k, d in events if k == 'action' and d['op'] == 'create'])
@@ -1248,11 +1246,72 @@ class GuardianTests(TestCase):
         final = next(a for a in self.actions() if a['op'] == 'update' and a['ref'] == 't1')
         self.assertIn('Premier pas qui se forme', final['text'])
 
+    def test_actions_land_while_the_thought_goes_on(self):
+        # Pensées et actions entremêlées : une action se pose dès qu'elle est écrite, avant la pensée suivante.
+        events = self.events
+
+        class Streaming(ScriptedEngine):
+            def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
+                self.calls.append({'messages': messages})
+                self.seen = []
+                pieces = ['{"flow": ["Kyoto", {"op": "put", "ref": "new1", "text": "Temples {zen}", "near": "t1", "links": ["t1"]}',
+                          ', "Tok', 'yo"]}']
+                for piece in pieces:
+                    on_text(piece)
+                    self.seen.append([d.get('ref') for k, d in events if k == 'action' and d['op'] == 'create'])
+                return ''.join(pieces)
+
+        engine = self.think(engine=Streaming())
+        self.assertEqual(engine.seen, [['t1', 'new1'], ['t1', 'new1', 't2'], ['t1', 'new1', 't2']])
+        self.assertIn('Temples {zen}', next(a['text'] for a in self.actions() if a.get('ref') == 'new1' and a['op'] == 'create'))
+        self.assertEqual(self.errors(), [])
+
+    def test_branches_grow_together_with_a_model_by_api(self):
+        # Deux branches confiées : par API elles poussent en même temps (deux appels ouverts à la fois).
+        import threading
+
+        from .guardian import Guardian
+
+        self.model.endpoint = 'https://api.example/v1'
+        self.model.save()
+        both = threading.Barrier(2, timeout=5)
+
+        class Parallel(ScriptedEngine):
+            def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
+                self.calls.append({'messages': messages})
+                if len(self.calls) == 1:
+                    reply = {'flow': ['Deux pistes', '  A', '  B', {'op': 'explore', 'ref': 't2', 'task': 'creuser A'},
+                                      {'op': 'explore', 'ref': 't3', 'task': 'creuser B'}]}
+                else:
+                    both.wait()  # l'autre branche est ouverte en même temps, sinon BrokenBarrierError
+                    reply = {'flow': ['Une idée']}
+                on_text(json.dumps(reply))
+                return json.dumps(reply)
+
+        Guardian(self.user, Parallel(), lambda kind, data: self.events.append((kind, data))).handle(
+            'organise', {**self.CONTEXT, 'mode': 'think'})
+        created = {a['ref'] for a in self.actions() if a['op'] == 'create'}
+        self.assertTrue({'t1.x1', 't1.x2'} <= created)
+        self.assertEqual(self.errors(), [])
+
+    def test_think_mode_builds_saved_templates_from_a_thought(self):
+        # Gabarits favorisés : ceux qu'il a gardés sont listés dans son prompt ; un gabarit posé depuis une pensée pend
+        # à son arbre (lien depuis la pensée).
+        from .models import Agent
+
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        guardian.brain = {'templates': {'eisenhower': {'layout': 'matrix', 'rows': ['Urgent', 'Pas urgent'], 'cols': ['Important', 'Secondaire']}}}
+        guardian.save()
+        engine = self.think(json.dumps({'flow': ['Trier les tâches', {'op': 'build', 'template': 'eisenhower', 'title': 'Priorités', 'near': 't1'}]}))
+        self.assertIn('Tes gabarits gardés : eisenhower', engine.calls[0]['messages'][0]['content'])
+        self.assertIn(('t1', 'build1'), [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link'])
+        self.assertEqual(self.errors(), [])
+
     def test_thoughts_branch_and_have_a_kind(self):
         # Deux espaces : une branche du pas d'avant ; ? doute, ✗ piste écartée, ✓ décision ; la pensée principale
         # reprend du dernier pas principal.
-        self.think(json.dumps({'thoughts': ['Trois pistes', '  jeu de mots', '  ✗ lieu : trop banal', '? court ou long',
-                                            '✓ Garder court'], 'actions': []}))
+        self.think(json.dumps({'flow': ['Trois pistes', '  jeu de mots', '  ✗ lieu : trop banal', '? court ou long',
+                                            '✓ Garder court']}))
         links = [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link']
         self.assertEqual(links, [('N-1', 't1'), ('t1', 't2'), ('t1', 't3'), ('t1', 't4'), ('t4', 't5')])
         final = {a['ref']: a['text'] for a in self.actions() if a['op'] == 'update'}
@@ -1264,7 +1323,7 @@ class GuardianTests(TestCase):
 
     def test_thoughts_echo_the_nodes_they_recall(self):
         context = {**self.CONTEXT, 'nodes': [*self.CONTEXT['nodes'], {'id': 'N-3', 'text': 'Budget 2026', 'x': 0, 'y': 300}]}
-        self.think(json.dumps({'thoughts': ['Ça rappelle N-2', 'Penser au budget 2026 avant tout'], 'actions': []}), context=context)
+        self.think(json.dumps({'flow': ['Ça rappelle N-2', 'Penser au budget 2026 avant tout']}), context=context)
         links = [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link']
         self.assertIn(('t1', 'N-2'), links)
         self.assertIn(('t2', 'N-3'), links)
@@ -1275,8 +1334,8 @@ class GuardianTests(TestCase):
         class Hesitant(ScriptedEngine):
             def chat(self, model, messages, *, json_schema=None, on_text=None, on_token=None, **params):
                 self.calls.append({'messages': messages})
-                pieces = [('{"thoughts": ["Kyoto au', None), (' printemps', [(' printemps', 0.4), (' automne', 0.3), (' été', 0.05)]),
-                          ('"], "actions": []}', None)]
+                pieces = [('{"flow": ["Kyoto au', None), (' printemps', [(' printemps', 0.4), (' automne', 0.3), (' été', 0.05)]),
+                          ('"]}', None)]
                 for piece, chances in pieces:
                     on_token(piece, chances)
                 return ''.join(piece for piece, _ in pieces)
@@ -1288,8 +1347,7 @@ class GuardianTests(TestCase):
     def test_results_use_the_style_catalogue(self):
         # Catalogue de style : sans couleur, un résultat prend celle de la famille de sa pensée d'attache ; type code,
         # taille et forme passent ; style restyle un node existant.
-        self.think(json.dumps({'thoughts': ['Deux familles', 'Un code'], 'actions': [
-            {'op': 'put', 'ref': 'new1', 'text': 'A', 'near': 't1', 'links': ['t1'], 'shape': 'square', 'radius': 150},
+        self.think(json.dumps({'flow': ['Deux familles', 'Un code', {'op': 'put', 'ref': 'new1', 'text': 'A', 'near': 't1', 'links': ['t1'], 'shape': 'square', 'radius': 150},
             {'op': 'put', 'ref': 'new2', 'text': 'B', 'near': 't1', 'links': ['t1']},
             {'op': 'put', 'ref': 'new3', 'text': 'print(1)', 'near': 't2', 'links': ['t2'], 'content_type': 'code', 'color': '#33FF99'},
             {'op': 'style', 'ref': 'N-1', 'color': '#FFD93D', 'radius': 160}]}))
@@ -1309,7 +1367,7 @@ class GuardianTests(TestCase):
         from .guardian import Guardian
 
         engine = ScriptedEngine('Une intuition sur le voyage.\nPeut-être trop cher ?\nok',
-                                json.dumps({'thoughts': ['Voyage raisonnable'], 'actions': []}))
+                                json.dumps({'flow': ['Voyage raisonnable']}))
         Guardian(self.user, engine, lambda kind, data: self.events.append((kind, data))).handle(
             'organise', {**self.CONTEXT, 'mode': 'deep'})
         sparks = [a for a in self.actions() if a['op'] == 'create' and a['ref'].startswith('s')]
@@ -1323,7 +1381,7 @@ class GuardianTests(TestCase):
     def test_warm_reads_the_think_system_prompt(self):
         from .guardian import Guardian
 
-        engine = ScriptedEngine(json.dumps({'thoughts': ['Salut'], 'actions': []}))
+        engine = ScriptedEngine(json.dumps({'flow': ['Salut']}))
         engine.prefill = lambda model, messages, **kw: engine.calls.append({'prefill': messages})
         Guardian(self.user, engine, lambda kind, data: None).warm('think')
         self.think(engine=engine)
