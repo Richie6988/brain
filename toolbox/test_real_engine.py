@@ -114,6 +114,23 @@ class RealEngineTests(TransactionTestCase):
         self.assertLessEqual(last['prompt_tokens'] + last['tokens'], placement['n_ctx'])
         self.assertGreater(last['tokens'], 0)  # le modèle a bien écrit (grammaire JSON comprise)
 
+    def test_think_mode_grammar_runs_on_the_real_engine(self):
+        # Mode Pensée : llama.cpp accepte la grammaire de son schéma, le flux passe par la lecture des pensées.
+        from .errors import PlanError
+        from .guardian import Guardian
+
+        self.model.params = {'max_tokens': 120}
+        self.model.save()
+        events = []
+        try:
+            Guardian(self.user, self.engine, lambda kind, data: events.append((kind, data))).handle(
+                'pense au voyage', {'mode': 'think', 'layer': {'id': 1, 'name': 'Home'}, 'links': [], 'layers': [{'id': 1, 'name': 'Home'}],
+                                    'nodes': [{'id': 'N-1', 'text': 'Voyage au Japon', 'x': 0, 'y': 0}], 'selection': ['N-1']})
+        except PlanError:
+            pass  # poids aléatoires : pensées et résultats peuvent être du charabia refusé proprement
+        self.assertGreater(sum(1 for kind, _ in events if kind == 'tick'), 0)  # le modèle a écrit, sous la grammaire
+        self.assertGreater(self.engine.stats[self.model.pk]['last']['tokens'], 0)
+
     def test_hard_stop_cuts_the_prompt_reading(self):
         from .broker import BACKGROUND
         from .engine import EngineUnavailable, acting_for
