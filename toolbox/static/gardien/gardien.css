@@ -795,6 +795,7 @@ body.gardien-side-on :is(.node-group, .link, .triangle-container, #gardien-nodeb
     font: 12px 'Cascadia Code', monospace; color: #e2e8f0; text-align: center; overflow: hidden; }
 .gardien-side-layer .gs-file b { padding: 10px 8px 14px; border-radius: 4px 14px 4px 4px; background: linear-gradient(135deg, #6848A6, #1E90FF); color: #fff; font-size: 11px; letter-spacing: 0.06em; }
 .gardien-side-layer .gs-file span { max-width: 100%; overflow-wrap: anywhere; line-height: 1.3; }
+.gardien-side-layer .gs-doc { width: 100%; height: 100%; border: 0; border-radius: 6px; background: #fff; pointer-events: none; }
 body:has(.universe.lightmode) .gardien-side-layer .gs-file { color: #440852; }
 /* filtres du haut appliqués aux répliques : l'opacité posée par l'animation cède */
 .gardien-side-layer .gs-out { opacity: 0.08 !important; pointer-events: none; }

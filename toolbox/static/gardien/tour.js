@@ -21,6 +21,15 @@ function textOf(node) {
     box.innerHTML = html.replace(/<br\s*\/?>|<\/(div|p|li)>/gi, '\n');
     return box.textContent.split('\n').map(line => line.trim()).filter(Boolean).join('\n');
 }
+// Ce que la visite dit d'un node : son texte ; pour une image, un fichier ou un dessin, son genre (et le nom du
+// fichier), pas « (node vide) ».
+function labelOf(node) {
+    const text = textOf(node), type = node.getAttribute('type');
+    const name = node.getAttribute('filename');
+    const kind = type === 'file' ? (name && name !== 'null' ? `Fichier · ${name}` : 'Fichier')
+        : type === 'image' ? 'Image' : type === 'canvas' ? 'Dessin' : '';
+    return [kind, text].filter(Boolean).join('\n') || '(node vide)';
+}
 const ORIGIN = { human: 'écrit par', ai: 'créé par', message: 'message de' };
 const when = iso => {
     const date = new Date(iso), minutes = Math.round((Date.now() - date) / 60000);
@@ -128,7 +137,7 @@ export function createTour({ bridge, say }) {
             const n = queue.shift();
             if (state.next.has(n.id)) continue;
             state.known.add(n.id);
-            state.info.set(n.id, { text: textOf(n) || '(node vide)', color: n.getAttribute('color'), layer: layerNumber });
+            state.info.set(n.id, { text: labelOf(n), color: n.getAttribute('color'), layer: layerNumber });
             const steps = neighbours(n);
             state.next.set(n.id, steps);
             steps.forEach(s => {

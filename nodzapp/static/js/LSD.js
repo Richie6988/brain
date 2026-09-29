@@ -242,7 +242,7 @@ function displayNode(node) {
     const spinner = newNode.children[0].children[2].children[1];
     const fileContainer = newNode.children[0].children[2];
     if (node.file_name !== '') {
-        loadFile(node.node, node.file_name, spinner, filePreview, fileContainer);
+        loadFile(id, node.file_name, spinner, filePreview, fileContainer);
     }    
     newNode.setAttribute('notification', node.notification);
     if(newNode.getAttribute('notification') !== '') {
@@ -405,7 +405,7 @@ function loadFile(nodeID, fileName, spinner, filePreview, fileContainer) {
         headers: {
             'X-CSRFToken': csrfToken,
         },
-        body: JSON.stringify({ nodeID: nodeID, fileName: fileName}), 
+        body: JSON.stringify({ nodeID: parseInt(String(nodeID).match(/\d+/)[0], 10), fileName: fileName}),  // numéro du node, comme à l'envoi
     }).then(response => {
         if (!response.ok) {
             throw new Error('Network response was not ok');

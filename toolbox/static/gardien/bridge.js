@@ -388,6 +388,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         // La pastille porte aussi « Visite » : le parcours interactif de la branche à partir de ce node.
         watchMessages(send) {
             const textOf = node => node.children[0]?.children[0]?.innerText?.trim() || '';
+            const media = node => ['file', 'image', 'canvas'].includes(node.getAttribute('type'));  // la visite part aussi d'eux
             const pill = document.createElement('div');
             pill.id = 'gardien-send';
             pill.hidden = true;
@@ -406,7 +407,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 const r = (shape || target).getBoundingClientRect();
                 pill.style.left = `${Math.min(window.innerWidth - pill.offsetWidth - 8, r.right + 8)}px`;
                 pill.style.top = `${Math.max(8, r.top + r.height / 2 - pill.offsetHeight / 2)}px`;
-                sendButton.disabled = target.classList.contains('gardien-thinking');
+                sendButton.disabled = target.classList.contains('gardien-thinking') || (!group.length && !textOf(target));
                 requestAnimationFrame(place);  // suit le node pendant les zooms et glissés
             };
             const show = (node, nodes = []) => {
@@ -433,12 +434,12 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 const input = document.activeElement;
                 return input?.isContentEditable ? input.closest?.('.node-group') : null;
             };
-            // Pendant l'écriture, dès qu'il y a du texte ; sinon le seul node sélectionné qui contient du texte ;
-            // plusieurs nodes sélectionnés : la pastille les joint au chat.
+            // Pendant l'écriture, dès qu'il y a du texte ; sinon le seul node sélectionné qui contient du texte (ou une
+            // image, un fichier, un dessin : Visite seulement) ; plusieurs nodes sélectionnés : la pastille les joint au chat.
             const refresh = () => {
                 const node = editing() || (selectedNodes.length === 1 ? selectedNodes[0] : null);
                 if (!editing() && selectedNodes.length > 1) show(selectedNodes[selectedNodes.length - 1], [...selectedNodes]);
-                else if (node && textOf(node)) show(node);
+                else if (node && (textOf(node) || media(node))) show(node);
                 else hide();
             };
             document.addEventListener('input', event => { if (event.target.isContentEditable) refresh(); }, true);

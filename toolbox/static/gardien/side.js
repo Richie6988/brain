@@ -14,6 +14,8 @@ const DURATION = 1300;
 const GAP = 40;          // entre deux nodes d'une colonne
 const COLUMN_GAP = 280;  // entre deux colonnes
 const RICH = 600;        // au-delà, nodes sans texte (la vue reste fluide)
+const DOCS = 12;         // aperçus de documents lus dans les autres dimensions
+const PREVIEWED = /\.(pdf|docx?|pptx?)$/i;  // documents dont le serveur garde un aperçu PDF
 const KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Shift', 'Control', 'Alt', 'Meta']);
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 const make = (tag, attrs = {}) => {
@@ -109,7 +111,7 @@ export function createSide({ bridge, say, filters }) {
             const fo = make('foreignObject', { x: -r, y: -r, width: 2 * r, height: 2 * r });
             fo.append(Object.assign(document.createElement('img'), { className: `gs-image${n.shape === 'square' ? '' : ' round'}`, src: n.image, alt: '', loading: 'lazy' }));
             g.append(fo);
-        } else if (rich && n.file) {  // document : sa carte (type et nom)
+        } else if (rich && n.file) {  // document : sa carte (type et nom), que son aperçu remplace dès qu'il est lu
             const fo = make('foreignObject', { x: -r * 0.78, y: -r * 0.78, width: r * 1.56, height: r * 1.56 });
             const card = Object.assign(document.createElement('div'), { className: 'gs-file' });
             const dot = n.file.lastIndexOf('.');
@@ -117,6 +119,8 @@ export function createSide({ bridge, say, filters }) {
                 Object.assign(document.createElement('span'), { textContent: n.file }));
             fo.append(card);
             g.append(fo);
+            n.doc = fo;
+            if (n.preview) preview(n, n.preview);
         } else if (rich && n.html) {
             const fo = make('foreignObject', { x: -r * 0.78, y: -r * 0.78, width: r * 1.56, height: r * 1.56 });
             const box = document.createElement('div');
@@ -137,6 +141,33 @@ export function createSide({ bridge, say, filters }) {
         return g;
     }
 
+    // L'aperçu d'un document dans sa réplique, comme dans le node : la page du PDF, sans barre ni clic (la molette
+    // et le glissé restent à la vue).
+    function preview(n, src) {
+        const r = n.r * 0.72;
+        const fo = make('foreignObject', { x: -r, y: -r, width: 2 * r, height: 2 * r });
+        fo.append(Object.assign(document.createElement('iframe'), { className: 'gs-doc', title: n.file, tabIndex: -1,
+            src: `${src.split('#')[0]}#view=FitH&toolbar=0&navpanes=0&statusbar=0` }));
+        n.doc.replaceWith(fo);
+        n.doc = fo;
+    }
+
+    // Documents des autres dimensions : leur aperçu est lu au serveur (route de Nodz), quelques-uns au plus.
+    function fetchDocs(current) {
+        current.nodes.filter(n => !n.here && n.doc && PREVIEWED.test(n.file)).slice(0, DOCS).forEach(n => {
+            fetch('/load-file/', { method: 'POST', headers: { 'X-CSRFToken': getCookie('nodz_csrftoken') },
+                body: JSON.stringify({ nodeID: parseInt(n.id.match(/\d+/)[0], 10), fileName: n.file }) })
+                .then(response => (response.ok ? response.blob() : null))
+                .then(blob => {
+                    if (!blob || scene !== current) return;
+                    const url = URL.createObjectURL(blob);
+                    current.urls.push(url);
+                    preview(n, url);
+                })
+                .catch(() => {});  // la carte reste
+        });
+    }
+
     function build({ layers: known, nodes: stored, links: pairs, portals: bridges }) {
         const current = layerNumber;
         const names = new Map(known.map(l => [l.id, l.name]));
@@ -150,7 +181,8 @@ export function createSide({ bridge, say, filters }) {
             return { id: g.id, layer: current, x: Number(g.getAttribute('x')), y: Number(g.getAttribute('y')), r: r || 60,
                 color: g.getAttribute('color'), shape: g.getAttribute('shape'), html: g.children[0].children[0].innerHTML,
                 plain: g.children[0].children[0].innerText, image: image && image !== 'null' ? image : '',
-                file: type === 'file' && g.getAttribute('filename') !== 'null' ? g.getAttribute('filename') : '' };
+                file: type === 'file' && g.getAttribute('filename') !== 'null' ? g.getAttribute('filename') : '',
+                preview: type === 'file' && g.querySelector('iframe.filepreview')?.style.display === 'block' ? g.querySelector('iframe.filepreview').src : '' };
         });
         const seen = new Set(live.map(n => n.id));
         const nodes = [...live, ...stored.filter(n => n.layer !== current && !seen.has(n.id))
@@ -205,7 +237,7 @@ export function createSide({ bridge, say, filters }) {
             return { x, line, label };
         });
         const xs = nodes.map(n => n.fx).concat(columns.map(c => c.x));
-        scene = { nodes, links, portals, columns, group, pivot: center.x,
+        scene = { nodes, links, portals, columns, group, pivot: center.x, urls: [],
             bounds: { x0: Math.min(...xs) - 200, x1: Math.max(...xs) + 200, y0: bottom, y1: top } };
         sift();
     }
@@ -230,6 +262,7 @@ export function createSide({ bridge, say, filters }) {
             build(data);
             scene.back = back;
             universe.append(scene.group);
+            fetchDocs(scene);
             document.body.classList.add('gardien-side-on');
             cube.classList.add('on');
             frame(0);
@@ -243,6 +276,7 @@ export function createSide({ bridge, say, filters }) {
     }
 
     function teardown() {
+        scene?.urls.forEach(url => URL.revokeObjectURL(url));
         scene?.group.remove();
         scene = null;
         document.body.classList.remove('gardien-side-on');
