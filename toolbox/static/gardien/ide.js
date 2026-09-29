@@ -1,5 +1,6 @@
 // IDE des nodes de code : une fenêtre CodeMirror (Python, JavaScript, Bash, HTML) au-dessus de l'univers, ouverte d'un
-// clic sur le node de code (ou depuis sa barre, « IDE », « Exécuter ») et refermée d'un clic en dehors. Le code vit dans
+// clic sur le node de code (ou par « IDE » dans sa barre) et refermée d'un clic en dehors ; le ▶ de la barre exécute le
+// code sans ouvrir l'IDE. Le code vit dans
 // le texte du node (<code data-lang>), donc il se sauvegarde, se recharge et se copie comme un texte ; l'enregistrer
 // étire le node en rectangle à sa taille. Le résultat de la dernière exécution s'affiche dans le node, sous le code
 // (sortie de la console, ou page rendue pour le HTML, dans une iframe isolée).
@@ -116,6 +117,24 @@ onmessage = async ({ data }) => {
     });
 }
 
+// Exécute du code (hors HTML, rendu par la visionneuse) : navigateur pour JavaScript et Python, serveur sinon ou sur
+// demande (Bash ne tourne que là). Rend 'ok' ou la raison de l'échec ; la sortie passe par print.
+async function runCode(lang, code, place, print) {
+    try {
+        if (place === 'server' || lang === 'bash') {
+            const r = await api.request('POST', 'toolbox/run', { language: lang, code });
+            if (r.stdout) print(r.stdout, 'out');
+            if (r.stderr) print(r.stderr, 'err');
+            return r.code === 0 ? 'ok' : `code ${r.code ?? '?'}`;
+        }
+        if (lang === 'javascript') return await runJavaScript(code, print);
+        return await runPython(code, print);
+    } catch (error) {
+        print(error.message, 'err');
+        return 'erreur';
+    }
+}
+
 export function createIde({ say }) {
     const h = (tag, props = {}, ...children) => {
         const el = Object.assign(document.createElement(tag), props);
@@ -154,7 +173,7 @@ export function createIde({ say }) {
     // Le clic qui sélectionne un node déjà sélectionné met son texte en édition 300 ms plus tard (Nodz) : l'IDE garde la main.
     const guarded = new WeakSet();
 
-    async function open(target, { execute = false } = {}) {
+    async function open(target) {
         node = target;
         await loadEditor();
         const code = codeOf(node);
@@ -178,16 +197,15 @@ export function createIde({ say }) {
             guarded.add(input);
             input.addEventListener('focus', () => { if (!box.hidden && node?.children[0].children[0] === input) editor.focus(); });
         }
-        if (execute) execute_();
     }
 
     // Le résultat montré dans le node : la page rendue (HTML) ou les dernières lignes de la console.
-    function rendered(lines) {
-        if (html()) {
+    function rendered(lang, source, lines) {
+        if (lang === 'html') {
             const frame = document.createElement('iframe');
             frame.className = 'code-output';
             frame.setAttribute('sandbox', 'allow-scripts');
-            frame.setAttribute('srcdoc', editor.getValue());
+            frame.setAttribute('srcdoc', source);
             return frame;
         }
         const pre = document.createElement('pre');
@@ -198,16 +216,16 @@ export function createIde({ say }) {
 
     // Le code retourne dans le node (texte échappé sous <code>), suivi du résultat de la dernière exécution (celui
     // d'avant s'il n'y en a pas eu), et le node devient un rectangle à sa taille, puis Nodz sauve.
-    function write(shown) {
-        if (!node?.isConnected || !editor) return;
+    function write(node, lang, source, shown) {
+        if (!node?.isConnected) return;
         const code = document.createElement('code');
-        code.dataset.lang = language.value;
-        code.textContent = editor.getValue();
+        code.dataset.lang = lang;
+        code.textContent = source;
         const input = node.children[0].children[0];
         const kept = shown || input.querySelector('.code-output');
         input.replaceChildren(code, ...(kept ? [kept] : []));
         node.setAttribute('textcontent', input.innerHTML);
-        const lines = editor.getValue().split('\n');
+        const lines = source.split('\n');
         const below = !kept ? 0 : kept.tagName === 'IFRAME' ? 210 : kept.textContent.split('\n').length * 15.5 + 14;
         const w = Math.min(640, Math.max(kept?.tagName === 'IFRAME' ? 340 : 180, Math.max(...lines.map(l => l.length)) * 7.4 + 24));
         const hgt = Math.min(720, Math.max(60, lines.length * 15.5 + 16 + below));
@@ -225,9 +243,19 @@ export function createIde({ say }) {
     }
 
     function close() {
-        write();
+        if (editor) write(node, language.value, editor.getValue());
         box.hidden = true;
         node = null;
+    }
+
+    // Bouton ▶ de la barre du node : le code du node tourne sans ouvrir l'IDE, son résultat s'écrit dans le node.
+    async function runNode(target) {
+        const code = codeOf(target);
+        if (!code?.textContent.trim()) return;
+        const lang = code.dataset.lang || 'python';
+        const lines = [];
+        if (lang !== 'html') await runCode(lang, code.textContent, 'browser', text => lines.push(`${text}`.replace(/\n$/, '')));
+        write(target, lang, code.textContent, rendered(lang, code.textContent, lines));
     }
 
     async function execute_() {
@@ -240,30 +268,12 @@ export function createIde({ say }) {
         print(`▶ ${LANGUAGES.find(([v]) => v === language.value)[1]} · ${place}`, 'info');
         output = [];
         let result = 'ok';
-        try {
-            if (html()) {
-                preview.srcdoc = code;
-            } else if (where.value === 'server') {
-                const r = await api.request('POST', 'toolbox/run', { language: language.value, code });
-                if (r.stdout) print(r.stdout, 'out');
-                if (r.stderr) print(r.stderr, 'err');
-                result = r.code === 0 ? 'ok' : `code ${r.code ?? '?'}`;
-            } else if (language.value === 'javascript') {
-                result = await runJavaScript(code, print);
-            } else if (language.value === 'python') {
-                result = await runPython(code, print);
-            } else {
-                print('Bash ne tourne pas dans le navigateur : choisis « Serveur ».', 'err');
-                result = 'refusé';
-            }
-        } catch (error) {
-            print(error.message, 'err');
-            result = 'erreur';
-        }
+        if (html()) preview.srcdoc = code;
+        else result = await runCode(language.value, code, where.value, print);
         status.textContent = `${result === 'ok' ? 'terminé' : result} en ${Math.round(performance.now() - started)} ms`;
         status.className = `gi-status ${result === 'ok' ? 'ok' : 'bad'}`;
         run.disabled = false;
-        write(rendered(output));
+        write(node, language.value, code, rendered(language.value, code, output));
         output = null;
         editor.focus();  // write resélectionne le node pour le mettre en rectangle : on rend la main à l'éditeur
     }
@@ -276,7 +286,8 @@ export function createIde({ say }) {
     // Un clic hors de la fenêtre l'enregistre et la ferme.
     document.addEventListener('pointerdown', event => { if (!box.hidden && !box.contains(event.target)) close(); }, true);
     document.addEventListener('gardien-code', ({ detail }) => {
-        open(detail.node, { execute: detail.action === 'run' }).catch(error => say(`IDE : ${error.message}`, 'error'));
+        const task = detail.action === 'run' ? runNode(detail.node) : open(detail.node);
+        task.catch(error => say(`${detail.action === 'run' ? 'Exécution' : 'IDE'} : ${error.message}`, 'error'));
     });
     return { open, close };
 }

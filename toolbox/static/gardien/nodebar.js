@@ -78,7 +78,7 @@ const TOOLS = {
     ],
     code: [  // nodes de code : l'IDE (ide.js) s'ouvre par un événement
         { kind: 'action', action: 'ide', label: '</> IDE', title: "Ouvrir l'IDE" },
-        { kind: 'action', action: 'run', label: '▶', title: 'Ouvrir et exécuter' },
+        { kind: 'action', action: 'run', label: '▶', title: 'Exécuter (résultat dans le node)' },
     ],
     image: [  // changer ou retirer l'image déjà chargée (Nodz ne le permettait que par double-clic)
         { kind: 'do', icon: 'newimg', title: "Changer l'image", run: pickImage },
