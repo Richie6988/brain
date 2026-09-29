@@ -126,9 +126,11 @@ const EDITABLE = 'textarea, select, [contenteditable=""], [contenteditable="true
 const editable = element => !!element?.closest?.(EDITABLE);
 document.addEventListener('focusin', event => { if (editable(event.target)) isTyping = true; });
 document.addEventListener('focusout', event => { if (editable(event.target) && !editable(event.relatedTarget)) isTyping = false; });
-// Un clic dans le texte déjà en cours d'écriture remet isTyping à faux (Nodz) sans changer le focus : avant chaque
-// touche (capture sur window, avant les écouteurs de Nodz), le focus réel fait foi.
-window.addEventListener('keydown', () => { if (editable(document.activeElement)) isTyping = true; }, true);
+// Un clic dans le texte déjà en cours d'écriture remet isTyping à faux (Nodz) sans changer le focus : Maj ouvrait
+// alors la liste des dimensions. Un clic dans le texte d'un node, c'est écrire (après les écouteurs de Nodz).
+document.addEventListener('mouseup', event => {
+    if (event.target.closest?.('.node-group [contenteditable="true"]')) setTimeout(() => { if (editable(document.activeElement)) isTyping = true; });
+}, true);
 
 // Un clic (sans glisser) sur un node : vu de haut, on y descend en travelling ; de près, un node de code ouvre son
 // IDE. Vu de haut, un clic sur sa poignée de taille descend aussi. Les autres outils gardent leur clic (couleur, type…).

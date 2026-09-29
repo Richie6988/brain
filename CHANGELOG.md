@@ -141,7 +141,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Logo dans la pastille des jauges** : le logo Nodz quitte le coin haut droit et ouvre la pastille CPU, RAM, disque ; il flotte et respire en continu (animation coupée si le système demande moins de mouvement).
 
-**Maj pendant la frappe** : un clic dans le texte d'un node déjà en cours d'écriture remettait Nodz en mode « pas d'écriture » sans changer le focus ; Maj ouvrait alors la liste des dimensions. Avant chaque touche, le focus réel fait foi.
+**Maj pendant la frappe** : un clic dans le texte d'un node déjà en cours d'écriture remettait Nodz en mode « pas d'écriture » sans changer le focus ; Maj ouvrait alors la liste des dimensions. Un clic dans le texte d'un node compte désormais comme écrire (la sélection puis Entrée téléporte toujours).
 
 **Modèle par API vu en grand** : un Gardien branché sur un modèle par API ne reçoit plus les limites d'un petit modèle sur CPU (40 nodes, 200 caractères par node, 3 000 au total, 6 échanges du chat) : 400 nodes, textes entiers jusqu'à 60 000 caractères, nodes joints jusqu'à 80 000, 20 échanges ; sa réponse n'est plus coupée à 1 024 jetons (4 096 sans longueur réglée), en mode Pensée comme en Automatisation.
 
