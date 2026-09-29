@@ -106,7 +106,7 @@ const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node 
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title) });
 const tour = createTour({ bridge, say });
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
-createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur
+const ide = createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur
 createSide({ bridge, say, filters });  // vue de côté : X = numéro de dimension, Y = Y
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
@@ -121,21 +121,22 @@ const editable = element => !!element?.closest?.(EDITABLE);
 document.addEventListener('focusin', event => { if (editable(event.target)) isTyping = true; });
 document.addEventListener('focusout', event => { if (editable(event.target) && !editable(event.relatedTarget)) isTyping = false; });
 
-// Vu de haut, un clic (sans glisser) sur un node y descend : travelling jusqu'à lui. Les outils du node gardent
-// leur clic (poignée de taille, couleur, type…).
+// Un clic (sans glisser) sur un node : vu de haut, on y descend en travelling ; de près, un node de code ouvre son
+// IDE. Les outils du node gardent leur clic (poignée de taille, couleur, type…).
 const ALTITUDE = 0.45;  // zoom sous lequel on est « en altitude »
 let press = null;
 svg.addEventListener('pointerdown', event => {
     const node = event.target.closest?.('.node-group');
     const tool = node && Object.values(node.tools || {}).some(t => t?.contains?.(event.target));
-    press = event.button === 0 && node && !tool && !event.ctrlKey && !event.shiftKey && Number(currentZoom) < ALTITUDE
-        ? { node, x: event.clientX, y: event.clientY, at: performance.now() } : null;
+    press = event.button === 0 && node && !tool && !event.ctrlKey && !event.shiftKey
+        ? { node, x: event.clientX, y: event.clientY, at: performance.now(), high: Number(currentZoom) < ALTITUDE } : null;
 }, true);
 svg.addEventListener('pointerup', event => {
     const target = press;
     press = null;
     if (!target || Math.hypot(event.clientX - target.x, event.clientY - target.y) > 5 || performance.now() - target.at > 400) return;
-    bridge.perform({ op: 'focus', ref: target.node.id, zoom: 1 }).catch(() => {});
+    if (target.high) bridge.perform({ op: 'focus', ref: target.node.id, zoom: 1 }).catch(() => {});
+    else if (target.node.getAttribute('type') === 'code') ide.open(target.node).catch(error => say(`IDE : ${error.message}`, 'error'));
 }, true);
 
 // Le Gardien dans l'univers : dimension « Gardien » avec le node Prompt système, le node Outils, un node par

@@ -1,6 +1,9 @@
-// IDE des nodes de code : une fenêtre CodeMirror (Python, JavaScript, Bash) au-dessus de l'univers, ouverte depuis la
-// barre du node (« IDE », « Exécuter »). Le code vit dans le texte du node (<code data-lang>), donc il se sauvegarde,
-// se recharge et se copie comme un texte ; l'enregistrer étire le node en rectangle à sa taille.
+// IDE des nodes de code : une fenêtre CodeMirror (Python, JavaScript, Bash, HTML) au-dessus de l'univers, ouverte d'un
+// clic sur le node de code (ou depuis sa barre, « IDE », « Exécuter ») et refermée d'un clic en dehors. Le code vit dans
+// le texte du node (<code data-lang>), donc il se sauvegarde, se recharge et se copie comme un texte ; l'enregistrer
+// étire le node en rectangle à sa taille. Le résultat de la dernière exécution s'affiche dans le node, sous le code
+// (sortie de la console, ou page rendue pour le HTML, dans une iframe isolée).
+// HTML : visionneuse à côté de l'éditeur, mise à jour pendant la frappe.
 // Exécution au choix :
 // - dans le navigateur : JavaScript dans une iframe isolée (sandbox, sans accès à la page), Python avec Pyodide dans
 //   un Web Worker (copie locale dans static/vendor/pyodide si elle existe, sinon le CDN jsdelivr) ;
@@ -11,8 +14,10 @@ import { api } from './api.js';
 
 const CM = `${NODZ_BASE}/static/vendor/codemirror-5.65.18`;
 const PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
-const LANGUAGES = [['python', 'Python'], ['javascript', 'JavaScript'], ['bash', 'Bash']];
-const MODES = { python: 'python', javascript: 'javascript', bash: 'shell' };
+const LANGUAGES = [['python', 'Python'], ['javascript', 'JavaScript'], ['bash', 'Bash'], ['html', 'HTML']];
+const MODES = { python: 'python', javascript: 'javascript', bash: 'shell', html: 'htmlmixed' };
+const PREVIEW_DELAY = 400;  // ms de pause dans la frappe avant de rafraîchir la visionneuse HTML
+const OUTPUT_LINES = 12;    // lignes de sortie montrées dans le node
 const BROWSER_TIMEOUT = 30_000;
 
 let loading = null;
@@ -24,7 +29,7 @@ function loadEditor() {
     loading ??= (async () => {
         document.head.append(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: `${CM}/codemirror.css` }));
         await script(`${CM}/codemirror.js`);
-        for (const extra of ['mode/python', 'mode/javascript', 'mode/shell', 'addon/matchbrackets', 'addon/closebrackets', 'addon/comment', 'addon/active-line']) {
+        for (const extra of ['mode/python', 'mode/javascript', 'mode/shell', 'mode/xml', 'mode/css', 'mode/htmlmixed', 'addon/matchbrackets', 'addon/closebrackets', 'addon/comment', 'addon/active-line']) {
             await script(`${CM}/${extra}.js`);
         }
     })();
@@ -124,19 +129,30 @@ export function createIde({ say }) {
     const done = h('button', { type: 'button', className: 'gi-save', title: 'Enregistrer dans le node et fermer (Échap)' }, 'Enregistrer');
     const title = h('strong');
     const host = h('div', { className: 'gi-editor' });
+    const preview = h('iframe', { className: 'gi-preview', title: 'Visionneuse HTML' });
+    preview.setAttribute('sandbox', 'allow-scripts');  // origine opaque : la page ne touche ni Nodz ni ses cookies
     const out = h('pre', { className: 'gi-console' });
     const status = h('span', { className: 'gi-status' });
     const box = h('section', { id: 'gardien-ide', hidden: true, role: 'dialog', ariaLabel: 'IDE' },
         h('header', {}, h('span', { className: 'gi-logo' }, '</>'), title, language, where, run, clear, done),
-        host, h('footer', {}, h('span', {}, 'Console'), status), out);
+        h('div', { className: 'gi-main' }, host, preview), h('footer', {}, h('span', {}, 'Console'), status), out);
     document.body.append(box);
 
-    let editor = null, node = null;
+    let editor = null, node = null, output = null, previewTimer = 0;
     const print = (text, kind = 'out') => {
         out.append(h('span', { className: kind }, `${text}`.replace(/\n?$/, '\n')));
         out.scrollTop = out.scrollHeight;
+        if (output && kind !== 'info') output.push(`${text}`.replace(/\n$/, ''));
     };
     const codeOf = target => target.children[0].children[0].querySelector('code');
+    const html = () => language.value === 'html';
+    const showLanguage = () => {
+        editor?.setOption('mode', MODES[language.value]);
+        box.classList.toggle('html', html());
+        if (html()) preview.srcdoc = editor?.getValue() || '';
+    };
+    // Le clic qui sélectionne un node déjà sélectionné met son texte en édition 300 ms plus tard (Nodz) : l'IDE garde la main.
+    const guarded = new WeakSet();
 
     async function open(target, { execute = false } = {}) {
         node = target;
@@ -148,26 +164,53 @@ export function createIde({ say }) {
         if (!editor) {
             editor = window.CodeMirror(host, { theme: 'nodz', lineNumbers: true, indentUnit: 4, tabSize: 4, matchBrackets: true,
                 autoCloseBrackets: true, styleActiveLine: true, extraKeys: { 'Ctrl-Enter': execute_, 'Cmd-Enter': execute_, 'Ctrl-/': 'toggleComment', Esc: close } });
+            editor.on('change', () => {
+                clearTimeout(previewTimer);
+                if (html()) previewTimer = setTimeout(() => { preview.srcdoc = editor.getValue(); }, PREVIEW_DELAY);
+            });
         }
-        editor.setOption('mode', MODES[language.value]);
         editor.setValue(code ? code.textContent : '');
+        showLanguage();
         editor.refresh();
         editor.focus();
+        const input = node.children[0].children[0];
+        if (!guarded.has(input)) {
+            guarded.add(input);
+            input.addEventListener('focus', () => { if (!box.hidden && node?.children[0].children[0] === input) editor.focus(); });
+        }
         if (execute) execute_();
     }
 
-    // Le code retourne dans le node (texte échappé sous <code>), qui devient un rectangle à sa taille, puis Nodz sauve.
-    function write() {
+    // Le résultat montré dans le node : la page rendue (HTML) ou les dernières lignes de la console.
+    function rendered(lines) {
+        if (html()) {
+            const frame = document.createElement('iframe');
+            frame.className = 'code-output';
+            frame.setAttribute('sandbox', 'allow-scripts');
+            frame.setAttribute('srcdoc', editor.getValue());
+            return frame;
+        }
+        const pre = document.createElement('pre');
+        pre.className = 'code-output';
+        pre.textContent = lines.length ? lines.join('\n').split('\n').slice(-OUTPUT_LINES).join('\n') : '(aucune sortie)';
+        return pre;
+    }
+
+    // Le code retourne dans le node (texte échappé sous <code>), suivi du résultat de la dernière exécution (celui
+    // d'avant s'il n'y en a pas eu), et le node devient un rectangle à sa taille, puis Nodz sauve.
+    function write(shown) {
         if (!node?.isConnected || !editor) return;
         const code = document.createElement('code');
         code.dataset.lang = language.value;
         code.textContent = editor.getValue();
         const input = node.children[0].children[0];
-        input.replaceChildren(code);
+        const kept = shown || input.querySelector('.code-output');
+        input.replaceChildren(code, ...(kept ? [kept] : []));
         node.setAttribute('textcontent', input.innerHTML);
         const lines = editor.getValue().split('\n');
-        const w = Math.min(640, Math.max(180, Math.max(...lines.map(l => l.length)) * 7.4 + 24));
-        const hgt = Math.min(520, Math.max(60, lines.length * 15.5 + 16));
+        const below = !kept ? 0 : kept.tagName === 'IFRAME' ? 210 : kept.textContent.split('\n').length * 15.5 + 14;
+        const w = Math.min(640, Math.max(kept?.tagName === 'IFRAME' ? 340 : 180, Math.max(...lines.map(l => l.length)) * 7.4 + 24));
+        const hgt = Math.min(720, Math.max(60, lines.length * 15.5 + 16 + below));
         for (let i = 0; i < 3 && node.getAttribute('shape') !== 'square'; i++) {  // un rectangle, comme un bloc de code
             const previous = [...selectedNodes];
             previous.forEach(n => nodeUnselection(n));
@@ -193,11 +236,14 @@ export function createIde({ say }) {
         if (!code.trim()) return;
         run.disabled = true;
         const started = performance.now();
-        const place = where.value === 'server' ? 'serveur' : 'navigateur';
+        const place = html() ? 'visionneuse' : where.value === 'server' ? 'serveur' : 'navigateur';
         print(`▶ ${LANGUAGES.find(([v]) => v === language.value)[1]} · ${place}`, 'info');
+        output = [];
         let result = 'ok';
         try {
-            if (where.value === 'server') {
+            if (html()) {
+                preview.srcdoc = code;
+            } else if (where.value === 'server') {
                 const r = await api.request('POST', 'toolbox/run', { language: language.value, code });
                 if (r.stdout) print(r.stdout, 'out');
                 if (r.stderr) print(r.stderr, 'err');
@@ -217,13 +263,18 @@ export function createIde({ say }) {
         status.textContent = `${result === 'ok' ? 'terminé' : result} en ${Math.round(performance.now() - started)} ms`;
         status.className = `gi-status ${result === 'ok' ? 'ok' : 'bad'}`;
         run.disabled = false;
+        write(rendered(output));
+        output = null;
+        editor.focus();  // write resélectionne le node pour le mettre en rectangle : on rend la main à l'éditeur
     }
 
-    language.addEventListener('change', () => editor?.setOption('mode', MODES[language.value]));
+    language.addEventListener('change', showLanguage);
     run.addEventListener('click', execute_);
     clear.addEventListener('click', () => { out.replaceChildren(); status.textContent = ''; });
     done.addEventListener('click', close);
     box.addEventListener('keydown', event => event.stopPropagation());  // la saisie ne déclenche pas les raccourcis de Nodz
+    // Un clic hors de la fenêtre l'enregistre et la ferme.
+    document.addEventListener('pointerdown', event => { if (!box.hidden && !box.contains(event.target)) close(); }, true);
     document.addEventListener('gardien-code', ({ detail }) => {
         open(detail.node, { execute: detail.action === 'run' }).catch(error => say(`IDE : ${error.message}`, 'error'));
     });

@@ -199,28 +199,13 @@ document.getElementById('flagButton').addEventListener('click', function() {
 
     placeFlag();
 
+    // Drapeau de verre en 3D (comme le cube HYPERSPACE) planté au centre de l'écran, qui tourne puis s'efface.
     function placeFlag() {
-        // Create a flag element
-        const flagImage = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-
-        // Set the href attribute to point to the image source (e.g., flag icon)
-        flagImage.setAttributeNS(null, 'href', NODZ_BASE + '/static/img/pin.svg');
-        
-        // Set the width and height of the image
-        flagImage.setAttribute('width', '30px');
-        flagImage.setAttribute('height', '30px');
-
-        // Set the x and y coordinates for positioning
-        flagImage.setAttribute('x', window.innerWidth/2 - parseFloat(flagImage.getAttribute('width'))/2);
-        flagImage.setAttribute('y', window.innerHeight/2 - parseFloat(flagImage.getAttribute('height'))/2);
-       
-        // Append the flag to the map
-        svg.appendChild(flagImage);
-  
-        // Optional: Remove the flag after a few seconds
-        setTimeout(() => {
-            flagImage.remove();
-        }, 3000); 
+        const flag = document.createElement('div');
+        flag.className = 'origin-flag';
+        flag.innerHTML = '<span class="of3"><i class="pole"></i><i class="pole"></i><b class="sail"><i></i><i></i></b></span><small>origine</small>';
+        document.body.appendChild(flag);
+        flag.addEventListener('animationend', event => { if (event.target === flag) flag.remove(); });
     }
 
 });

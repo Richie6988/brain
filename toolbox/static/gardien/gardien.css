@@ -784,6 +784,13 @@ body:has(.universe.lightmode) .gt-meta span { color: #440852; }
     display: block; white-space: pre; overflow: hidden; font: 11px/1.4 'Cascadia Code', ui-monospace, monospace; color: #c4b5fd; tab-size: 4;
 }
 body:has(.universe.lightmode) .node-group[type=code] .node-text-input code { color: #440852; }
+/* Résultat de la dernière exécution, sous le code (ide.js) : il se regarde, le node se glisse toujours. */
+.node-group[type=code] .node-text-input .code-output {
+    display: block; margin: 6px 0 0; padding: 6px 8px; border-radius: 6px; border-left: 2px solid #33FF99; text-align: left; white-space: pre-wrap;
+    font: 11px/1.4 'Cascadia Code', ui-monospace, monospace; color: #cbd5e1; background: rgba(3, 7, 15, 0.7); pointer-events: none; user-select: none;
+}
+.node-group[type=code] .node-text-input iframe.code-output { width: 100%; height: 200px; box-sizing: border-box; padding: 0; border: 0; border-left: 2px solid #33FF99; background: #fff; }
+body:has(.universe.lightmode) .node-group[type=code] .node-text-input pre.code-output { color: #440852; background: rgba(68, 8, 82, 0.06); }
 #gardien-nodebar .gn-action { width: auto; padding: 0 10px; border-radius: 999px; font-weight: 600; }
 #gardien-ide {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 45; width: min(960px, calc(100vw - 40px)); height: min(680px, calc(100vh - 80px));
@@ -803,6 +810,10 @@ body:has(.universe.lightmode) .node-group[type=code] .node-text-input code { col
 #gardien-ide button:disabled { opacity: 0.5; cursor: progress; }
 #gardien-ide .gi-run { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); border: 0; font-weight: 700; box-shadow: 0 0 14px rgba(104, 72, 166, 0.5); }
 #gardien-ide .gi-save { border-color: rgba(51, 255, 153, 0.5); }
+#gardien-ide .gi-main { display: grid; grid-template-columns: 1fr; min-height: 0; }
+#gardien-ide.html .gi-main { grid-template-columns: 1fr 1fr; }
+#gardien-ide .gi-preview { display: none; width: 100%; height: 100%; border: 0; border-left: 1px solid rgba(148, 163, 184, 0.15); background: #fff; }
+#gardien-ide.html .gi-preview { display: block; }
 #gardien-ide .gi-editor { min-height: 0; }
 #gardien-ide .gi-editor .CodeMirror { height: 100%; font: 13px/1.55 'Cascadia Code', ui-monospace, monospace; }
 #gardien-ide footer { display: flex; justify-content: space-between; padding: 6px 14px; color: #94a3b8; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;

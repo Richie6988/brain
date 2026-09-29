@@ -102,6 +102,10 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Icônes au style HYPERSPACE** : les boutons du dock, de la barre du node et le bouton du Gardien deviennent des tuiles de verre comme le cube (faces violet → bleu, arêtes lumineuses, trait lumineux) ; au survol la tuile pivote en perspective et son libellé apparaît dessous en petites capitales monospace, en français. Les infobulles de Nodz (`createTooltip`) et les `title` des icônes passent par ce libellé.
 
+**IDE en un clic, HTML et résultat dans le node** : un clic sur un node de code ouvre son IDE (vu de haut, le clic reste un travelling), un clic en dehors l'enregistre et le ferme. Nouveau langage HTML, avec une visionneuse à côté de l'éditeur, rafraîchie pendant la frappe (modes CodeMirror xml, css, htmlmixed ajoutés). Exécuter écrit le résultat dans le node, sous le code : les dernières lignes de la console, ou la page rendue pour le HTML ; il se sauvegarde avec le node et reste isolé (iframe `sandbox`, sans accès à Nodz). Le clic qui met le texte du node en édition ne vole plus le focus à l'éditeur.
+
+**Drapeau d'origine en 3D** : le bouton drapeau plante au centre de l'écran un drapeau de verre qui tourne en ondulant, comme le cube HYPERSPACE, avec le libellé ORIGINE, puis s'efface (l'image `pin.svg` n'est plus utilisée).
+
 **Recherche toujours visible** : le champ de recherche du dock et ses flèches précédent / suivant restent affichés ; seuls les filtres avancés (panneau de contexte) s'ouvrent à la demande.
 
 **Raccourcis muets pendant la saisie** : Maj (liste des dimensions), Espace, Suppr, Tab, Ctrl+Z… ne réagissent plus quand le focus est dans un champ, où qu'il soit (chat, recherche, panneaux, IDE), plus seulement dans le texte d'un node.
