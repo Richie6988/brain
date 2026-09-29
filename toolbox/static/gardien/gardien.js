@@ -282,8 +282,10 @@ async function loadGuardian() {
 let queue = Promise.resolve();
 
 // Une demande au Gardien, depuis un node (node = le message) ou depuis le chat (node = null). Les deux
-// s'affichent dans le chat ; depuis un node, les réponses courtes passent aussi en toast.
-async function ask(node, text, attached = []) {
+// s'affichent dans le chat ; depuis un node, les réponses courtes passent aussi en toast. Contexte rechargé à chaque
+// demande : depuis le chat, avec la conversation ; directe (un node, la pastille sur une sélection), sans elle, et le
+// serveur ne montre que ces nodes-là.
+async function ask(node, text, attached = [], direct = !!node) {
     let actions = Promise.resolve();
     const history = chat.recent();  // la conversation jusqu'ici : le Gardien la suit
     chat.add('user', text, node ? `node ${node.id}` : attached.length ? `${attached.length} nodes joints` : '');
@@ -329,7 +331,7 @@ async function ask(node, text, attached = []) {
         const context = bridge.context();
         let doing = '';  // dernière intention annoncée : l'étiquette de l'avatar du Gardien
         await api.command({ prompt: text, context: { ...context, mode: chat.mode(), ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
-            ...(history.length ? { history } : {}) } }, (type, data) => {
+            source: direct ? 'node' : 'chat', ...(history.length && !direct ? { history } : {}) } }, (type, data) => {
             if (type === 'thinking') thought(data);
             else if (type === 'stopped') stopped = true;
             else if (type === 'text' || type === 'notice') reply(type, data.text);
@@ -396,9 +398,9 @@ async function ask(node, text, attached = []) {
 const chat = createChat({
     // Changer de mode : le modèle lit en arrière-plan le prompt système de ce mode.
     onMode: mode => api.request('POST', 'toolbox/warm', { mode }).catch(() => {}),
-    onSend: (text, attached) => {
+    onSend: (text, attached, direct = false) => {
         if (text === 'Plus tard') return chat.add('notice', 'D\'accord, je n\'y touche pas.');  // une note écartée : rien à demander au modèle
-        queue = queue.then(() => ask(null, text, attached));
+        queue = queue.then(() => ask(null, text, attached, direct));
     },
     // Stop : le serveur coupe le modèle à son prochain jeton ; la lecture du prompt, elle, va à son terme avant.
     onStop: () => {

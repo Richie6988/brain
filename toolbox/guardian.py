@@ -502,6 +502,7 @@ class Guardian(IaquaOps):
         self.scale = 1.0  # part du contexte montrée au modèle (réduite si son contexte déborde)
         self.max_nodes, (self.attached_text, self.attached_total) = MAX_CONTEXT_NODES, (ATTACHED_TEXT, ATTACHED_TOTAL)
         self.history_turns, self.history_text = HISTORY, HISTORY_TEXT
+        self.direct = False  # demande directe depuis un node : seuls ses nodes dans le prompt (load)
         self.letters = []  # réponses de l'humain à ses notes (correspondance)
         self.attached_away = []  # nodes joints d'autres dimensions (sélecteur de contexte)
         self.allowed = []  # outils permis (lus avec le prompt système)
@@ -535,14 +536,19 @@ class Guardian(IaquaOps):
                 budget -= len(text)
         selection = [i for i, _ in self.attached] + [i for i in selection if i not in dict(self.attached)]
         selected = [by_id[i] for i in selection if i in by_id]
-        others = sorted((n for n in nodes if n['id'] not in selection),
-                        key=lambda n: math.dist((_number(n.get('x')), _number(n.get('y'))), center))
+        # Demande directe (depuis un node, ou la pastille sur une sélection) : le prompt ne montre que ces nodes, leur
+        # contenu entier et leur ID, sans les voisins ni la conversation du chat. Depuis le chat : la page et le chat.
+        direct = self.direct = context.get('source') == 'node'
+        if direct and context.get('origin') in by_id and context['origin'] not in selection:
+            selected.append(by_id[context['origin']])
+        others = [] if direct else sorted((n for n in nodes if n['id'] not in selection),
+                                          key=lambda n: math.dist((_number(n.get('x')), _number(n.get('y'))), center))
         # Les plus proches de la vue, listés dans l'ordre des identifiants : d'une demande à l'autre la liste change
         # peu et llama.cpp réutilise sa lecture (sinon, un léger déplacement réordonne tout et tout est relu).
         self.nearest = (selected + others)[:self.max_nodes]  # du plus proche au plus loin (raccourci si trop long)
         self.context = sorted(self.nearest, key=lambda n: node_id(n['id']) or 0)
         self.history = [(h['role'], ' '.join(multiline(str(h.get('text') or '')).split())[:self.history_text])
-                        for h in (context.get('history') or [])[-self.history_turns:]
+                        for h in ([] if direct else context.get('history') or [])[-self.history_turns:]
                         if isinstance(h, dict) and h.get('role') in ('user', 'guardian') and h.get('text')]
         for n in nodes:
             self.nodes[n['id']] = {'x': _number(n.get('x')), 'y': _number(n.get('y')), 'r': _number(n.get('r'), RADIUS),
@@ -572,7 +578,7 @@ class Guardian(IaquaOps):
         page (autre dimension) sont lus en base : aucun tour de lecture pour eux."""
         cited = list(dict.fromkeys(re.findall(r'N-\d+', request)))[:4]
         limits = dict((i, len(text) or 1) for i, text in self.attached)  # nodes joints : dans le budget de load()
-        full = {*limits, *self.selection[:3], *([self.origin] if self.origin else []), *cited}
+        full = {*limits, *(self.selection if self.direct else self.selection[:3]), *([self.origin] if self.origin else []), *cited}
         shown = self.context if self.scale >= 1 else sorted(self.nearest[:max(6, int(len(self.nearest) * self.scale))],
                                                             key=lambda n: node_id(n['id']) or 0)
         view = self.perception.objects(shown, self.links, full=full, limits=limits, scale=self.scale)

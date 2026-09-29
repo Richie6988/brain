@@ -105,7 +105,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     // Deux nodes ou plus sélectionnés (Pensée, Profond) : la pastille envoie aussitôt, la sélection est le contexte.
     const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Gardien', onclick: () => {
         const selection = (typeof selectedNodes !== 'undefined' ? selectedNodes : []).filter(n => n.isConnected);
-        if (mode !== 'auto' && !working && selection.length > 1) onSend('Pense à partir de ces nodes.', []);
+        if (mode !== 'auto' && !working && selection.length > 1) onSend('Pense à partir de ces nodes.', [], true);
         else toggle();
     } }, h('i', {}), h('b', { hidden: true }));
     const root = h('div', { id: 'gardien-chat' }, panel, bubble);

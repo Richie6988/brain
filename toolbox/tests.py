@@ -1358,6 +1358,25 @@ class GuardianTests(TestCase):
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         self.assertEqual(engine.calls[0]['max_tokens'], 4096)  # mode Automatisation aussi
 
+    def test_context_depends_on_where_the_request_comes_from(self):
+        # Contexte rechargé à chaque demande : depuis le chat, la page et la conversation ; directe (un node), seulement
+        # le node message et la sélection, texte entier et ID, sans voisins ni conversation.
+        context = {**self.CONTEXT, 'nodes': [*self.CONTEXT['nodes'], {'id': 'N-3', 'text': 'Voisin lointain', 'x': 900, 'y': 0},
+                                             {'id': 'N-4', 'text': 'Le message', 'x': 50, 'y': 0}],
+                   'selection': ['N-1'], 'history': [{'role': 'user', 'text': 'échange précédent'}]}
+        engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Vu'}]}), context={**context, 'source': 'chat'})
+        chat = engine.calls[0]['messages'][1]['content']
+        self.assertIn('Voisin lointain', chat)
+        self.assertIn('échange précédent', chat)
+        self.events = []
+        engine = self.think(json.dumps({'calls': [{'op': 'think', 'text': 'Vu'}]}), context={**context, 'source': 'node', 'origin': 'N-4'})
+        direct = engine.calls[0]['messages'][1]['content']
+        self.assertNotIn('Voisin lointain', direct)
+        self.assertNotIn('échange précédent', direct)
+        self.assertIn('"N-1"', direct)
+        self.assertIn('Le message', direct)
+        self.assertIn('{"op":"delete"', engine.calls[0]['messages'][0]['content'])  # ses outils, dans le prompt système
+
     def test_think_mode_builds_saved_templates_from_a_thought(self):
         # Gabarits favorisés : ceux qu'il a gardés sont listés dans son prompt ; un gabarit posé depuis une pensée pend
         # à son arbre (lien depuis la pensée).
