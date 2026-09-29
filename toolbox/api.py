@@ -389,9 +389,13 @@ def system(request, body):
         SCHEDULES['checked'] = now
         iaqua.fire_due_schedules(engine)
     loaded = LocalModel.objects.filter(id=engine.loaded).first() if engine.loaded else None
+    # Un Gardien branché sur un modèle par API : c'est lui qu'on montre (il n'occupe pas la mémoire locale).
+    guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).select_related('model').first()
+    remote = guardian.model if guardian and guardian.model and guardian.model.endpoint else None
+    shown = remote or loaded
     return JsonResponse({**monitor.snapshot(), 'broker': broker.state(), 'dispatch': dispatcher.state(), 'engine': engine.available(),
-                         'model': {'id': str(loaded.id), 'name': loaded.label or loaded.filename,
-                                   'stats': engine.stats.get(loaded.id)} if loaded else None})
+                         'model': {'id': str(shown.id), 'name': shown.label or shown.filename, 'api': bool(remote),
+                                   'stats': engine.stats.get(shown.id)} if shown else None})
 
 
 @api('GET')

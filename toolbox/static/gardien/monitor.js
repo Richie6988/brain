@@ -92,7 +92,7 @@ export function createMonitor({ onSignedOut = () => {} } = {}) {
         view.dot.className = view.pillDot.className = `gm-dot ${model ? (broker.busy ? 'busy' : 'on') : ''}`;
         view.stop.hidden = view.pillStop.hidden = !broker.busy;
         const queue = dispatch.waiting ? ` · ${dispatch.waiting} en file` : '';  // demandes au Gardien en attente
-        view.name.textContent = model ? `${model.name}${broker.busy ? ' · au travail' : ''}${queue}`
+        view.name.textContent = model ? `${model.name}${model.api ? ' · par API' : ''}${broker.busy ? ' · au travail' : ''}${queue}`
             : engine ? 'aucun modèle en mémoire' : 'moteur local absent';
         view.pillDot.title = view.name.textContent;
         view.head.title = `${model?.stats ? `${model.stats.requests} requêtes depuis le chargement · ` : ''}Ouvrir Agents & modèles`;

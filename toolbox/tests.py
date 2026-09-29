@@ -572,6 +572,14 @@ class ToolboxApiTests(TestCase):
         self.assertIsNone(data['model'])
         self.assertFalse(data['broker']['busy'])
         self.assertEqual(data['dispatch'], {'running': 0, 'waiting': 0, 'workers': 1})
+        # Un Gardien branché sur un modèle par API : c'est lui que la pastille montre.
+        self.client.get('/api/v1/toolbox/agents')  # agents de départ
+        api_model = LocalModel.objects.create(repo='api', filename='gpt-large', label='Grand modèle', endpoint='https://api.example/v1',
+                                              status=LocalModel.Status.READY)
+        Agent.objects.filter(role=Agent.Role.ORCHESTRATOR).update(model=api_model)
+        with mock.patch.object(monitor, 'gpu', return_value=None):
+            data = self.client.get('/api/v1/toolbox/system').json()
+        self.assertEqual((data['model']['name'], data['model']['api']), ('Grand modèle', True))
 
     def test_hub_errors_are_reported(self):
         with mock.patch.object(hub, 'api', side_effect=RuntimeError('hors ligne')):

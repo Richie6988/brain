@@ -305,7 +305,7 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
 .gm-hud.open { width: 230px; }
-.gm-hud:not(.open) :is(.gm-head, .gm-row) { display: none; }
+.gm-hud:not(.open) .gm-head, .gm-hud .gm-row { display: none; }  /* les anneaux disent déjà CPU, RAM, VRAM… (détail au survol) */
 .gm-hud .gm-pill { display: flex; align-items: center; gap: 8px; pointer-events: auto; cursor: pointer; }
 .gm-hud.open .gm-pill .gm-stop { display: none; }
 .gm-rings { display: flex; gap: 7px; }
