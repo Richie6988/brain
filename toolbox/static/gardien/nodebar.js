@@ -118,7 +118,7 @@ function createSizer() {
     knob.hidden = true;
     knob.innerHTML = ARROWS;
     document.body.append(knob);
-    let node = null, dragging = false, pointer = [0, 0];
+    let node = null, dragging = false, pointer = [0, 0], press = null;
     document.addEventListener('pointermove', event => { pointer = [event.clientX, event.clientY]; }, true);
 
     const center = target => {
@@ -144,6 +144,7 @@ function createSizer() {
         event.preventDefault();
         event.stopPropagation();
         dragging = true;
+        press = { x: event.clientX, y: event.clientY, at: performance.now() };
         knob.setPointerCapture(event.pointerId);
         document.body.classList.add('gardien-sizing');
     });
@@ -160,11 +161,15 @@ function createSizer() {
         const radius = Math.max(20, Math.hypot(event.clientX - cx, event.clientY - cy) / currentZoom);  // rayon en unités de Nodz
         nodeSizing(node, radius * Math.SQRT2, radius * Math.SQRT2);
     });
-    const release = () => {
+    // Un clic sans glisser sur la poignée est signalé à gardien.js (vu de haut, il descend en travelling jusqu'au node).
+    const release = event => {
         if (!dragging) return;
         dragging = false;
         document.body.classList.remove('gardien-sizing');
         save(node);
+        if (event.type === 'pointerup' && Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 4 && performance.now() - press.at <= 400) {
+            document.dispatchEvent(new CustomEvent('gardien-node-click', { detail: { node } }));
+        }
     };
     knob.addEventListener('pointerup', release);
     knob.addEventListener('pointercancel', release);

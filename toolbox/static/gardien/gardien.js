@@ -124,7 +124,7 @@ document.addEventListener('focusin', event => { if (editable(event.target)) isTy
 document.addEventListener('focusout', event => { if (editable(event.target) && !editable(event.relatedTarget)) isTyping = false; });
 
 // Un clic (sans glisser) sur un node : vu de haut, on y descend en travelling ; de près, un node de code ouvre son
-// IDE. Les outils du node gardent leur clic (poignée de taille, couleur, type…).
+// IDE. Vu de haut, un clic sur sa poignée de taille descend aussi. Les autres outils gardent leur clic (couleur, type…).
 const ALTITUDE = 0.45;  // zoom sous lequel on est « en altitude »
 let press = null;
 svg.addEventListener('pointerdown', event => {
@@ -137,9 +137,13 @@ svg.addEventListener('pointerup', event => {
     const target = press;
     press = null;
     if (!target || Math.hypot(event.clientX - target.x, event.clientY - target.y) > 5 || performance.now() - target.at > 400) return;
-    if (target.high) bridge.perform({ op: 'focus', ref: target.node.id, zoom: 1 }).catch(() => {});
-    else if (target.node.getAttribute('type') === 'code') ide.open(target.node).catch(error => say(`IDE : ${error.message}`, 'error'));
+    clickNode(target.node, target.high);
 }, true);
+document.addEventListener('gardien-node-click', ({ detail }) => { if (Number(currentZoom) < ALTITUDE) clickNode(detail.node, true); });
+function clickNode(node, high) {
+    if (high) bridge.perform({ op: 'focus', ref: node.id, zoom: 1 }).catch(() => {});
+    else if (node.getAttribute('type') === 'code') ide.open(node).catch(error => say(`IDE : ${error.message}`, 'error'));
+}
 
 // Le Gardien dans l'univers : dimension « Gardien » avec le node Prompt système, le node Outils, un node par
 // famille puis un node par outil (nom, rôle, comment l'appeler). Le Gardien relit ces nodes à chaque demande.

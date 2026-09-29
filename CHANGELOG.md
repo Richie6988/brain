@@ -98,7 +98,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Texte sauvegardé pendant la frappe** : une pause de 800 ms dans un node suffit, sans le quitter ; fermer ou recharger la page sauvegarde le node en cours (requête `keepalive`).
 
-**Clic en altitude** : vu de haut (zoom sous 0,45), un clic sans glisser sur un node y descend en travelling jusqu'au zoom 1. Les outils du node gardent leur clic.
+**Clic en altitude** : vu de haut (zoom sous 0,45), un clic sans glisser sur un node, ou sur sa poignée de taille, y descend en travelling jusqu'au zoom 1. Les autres outils du node gardent leur clic ; glisser la poignée la redimensionne toujours.
 
 **Icônes au style HYPERSPACE** : les boutons du dock, de la barre du node et le bouton du Gardien deviennent des tuiles de verre comme le cube (faces violet → bleu, arêtes lumineuses, trait lumineux) ; au survol la tuile pivote en perspective et son libellé apparaît dessous en petites capitales monospace, en français. Les infobulles de Nodz (`createTooltip`) et les `title` des icônes passent par ce libellé.
 
