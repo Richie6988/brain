@@ -16,6 +16,7 @@ import { createFilters } from './filters.js';
 import { createHistory } from './history.js';
 import { createLabels } from './labels.js';
 import { createLibrary } from './library.js';
+import { createLinkDrop } from './linkdrop.js';
 import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
@@ -106,6 +107,7 @@ createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createLabels();  // libellés d'icônes au style HYPERSPACE, à la place des infobulles
 createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estompées, masquées
+createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au relâcher
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node) });

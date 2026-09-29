@@ -990,3 +990,7 @@ body:has(.universe.lightmode) .gardien-side-layer .gs-label { fill: #440852; str
 .gm-hud #gardien-follow { position: static; width: auto; margin: 6px -2px 2px; padding: 7px 8px; border-radius: 10px;
     background: rgba(104, 72, 166, 0.14); border-color: rgba(104, 72, 166, 0.35); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .gm-hud:not(.open) #gardien-follow { display: none; }
+
+/* Relier en glissant (linkdrop.js) : le node touché depuis une demi-seconde s'allume, le lien se fera au relâcher. */
+.node-group.gardien-link-armed { filter: drop-shadow(0 0 6px #1E90FF) drop-shadow(0 0 14px rgba(184, 154, 242, 0.9)); animation: gardien-link-armed 0.8s ease-in-out infinite alternate; }
+@keyframes gardien-link-armed { to { filter: drop-shadow(0 0 10px #1E90FF) drop-shadow(0 0 22px rgba(184, 154, 242, 1)); } }
