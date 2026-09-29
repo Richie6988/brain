@@ -10,6 +10,8 @@ import { h } from './library.js';
 const KEY = 'gardien-chat';
 const KEEP = 60;
 const THINK_KEEP = 6000;  // caractères de réflexion gardés par message
+// Suggestions en pastilles au-dessus de la saisie : un clic pose la demande dans le champ, à compléter ou envoyer.
+const IDEAS = ['Résume cette dimension', 'Relie les idées proches', 'Fais un SWOT de ', 'Range en kanban'];
 
 export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {} }) {
     let history = [];
@@ -23,7 +25,15 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     };
 
     const log = h('ol', { class: 'gc-log', 'aria-live': 'polite' });
-    const status = h('p', { class: 'gc-status' });
+    const statusText = h('span');
+    const status = h('div', { class: 'gc-status' }, h('i', { class: 'gc-dots' }, h('i'), h('i'), h('i')), statusText);
+    const ideas = h('div', { class: 'gc-ideas' }, IDEAS.map(idea => h('button', { type: 'button', onclick: () => {
+        input.value = idea;
+        grow();
+        input.focus();
+        input.setSelectionRange(idea.length, idea.length);
+        ideas.hidden = true;
+    } }, idea.trim())));
     const input = h('textarea', { rows: 1, placeholder: 'Écris au Gardien…', 'aria-label': 'Message au Gardien' });
     const send = h('button', { type: 'submit', class: 'gc-send', title: 'Envoyer (Entrée)' }, '↑');
     const form = h('form', { class: 'gc-form' }, input, send);
@@ -45,13 +55,18 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     // Correspondance : les notes que le Gardien a laissées, posées dans la dimension « Échanges » à l'ouverture.
     const exchanges = h('button', { type: 'button', class: 'gc-exchanges', title: 'Notes du Gardien (dimension Échanges) : réponds dans un node relié',
         onclick: () => { toggle(false); onExchanges(); } }, 'Échanges');
+    // Mémoire, Échanges, Effacer : dans le menu ⋯ de l'en-tête (il s'allume quand des notes attendent).
+    const menu = h('div', { class: 'gc-menu', hidden: true },
+        h('button', { type: 'button', title: 'Voir la mémoire du Gardien dans l\'univers (dimension Gardien)', onclick: () => { toggle(false); onMemory(); } }, 'Mémoire'),
+        exchanges,
+        h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: () => { menu.hidden = true; clear(); } }, 'Effacer'));
+    const more = h('button', { type: 'button', class: 'gc-more', title: 'Plus', onclick: () => { menu.hidden = !menu.hidden; } }, '⋯');
+    const state = h('small', { class: 'gc-state' }, 'en ligne');
     const panel = h('section', { class: 'gc-panel', hidden: true, role: 'dialog', 'aria-label': 'Chat du Gardien' },
-        h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), h('small', {}, 'Il agit dans ton univers')),
-            h('button', { type: 'button', title: 'Voir la mémoire du Gardien dans l\'univers (dimension Gardien)', onclick: () => { toggle(false); onMemory(); } }, 'Mémoire'),
-            exchanges,
-            h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: clear }, 'Effacer'),
+        h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), state),
+            h('span', { class: 'gc-more-wrap' }, more, menu),
             h('button', { type: 'button', class: 'gc-close', title: 'Réduire', onclick: () => toggle(false) }, '×')),
-        log, status, tray, form);
+        log, status, tray, ideas, form);
     const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Gardien', onclick: () => toggle() }, h('i', {}), h('b', { hidden: true }));
     const root = h('div', { id: 'gardien-chat' }, panel, bubble);
     document.body.append(root);
@@ -60,6 +75,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     // nodes, la rouvre aussitôt.
     document.addEventListener('mousedown', event => {
         if (!panel.hidden && !root.contains(event.target) && !event.target.closest?.('#gardien-send')) toggle(false);
+        if (!more.parentNode.contains(event.target)) menu.hidden = true;
     }, true);
     // La saisie ne déclenche pas les raccourcis de Nodz (Espace crée un node, Suppr efface…).
     ['keydown', 'keyup', 'keypress'].forEach(type => panel.addEventListener(type, event => event.stopPropagation()));
@@ -70,7 +86,10 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         }
         if (event.key === 'Escape') toggle(false);
     });
-    input.addEventListener('input', grow);
+    input.addEventListener('input', () => {
+        grow();
+        ideas.hidden = working || !!input.value.trim();
+    });
     form.addEventListener('submit', event => {
         event.preventDefault();
         if (working) return onStop();  // pendant une réflexion, le bouton d'envoi est le stop
@@ -246,15 +265,19 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         unread(count) {
             exchanges.textContent = count ? `Échanges · ${count}` : 'Échanges';
             exchanges.classList.toggle('on', !!count);
+            more.classList.toggle('on', !!count);
         },
-        status(text) { status.textContent = text || ''; },
+        status(text) { statusText.textContent = text || 'le Gardien écrit'; },
         busy(on) {
             working = on;
             send.textContent = on ? '■' : '↑';
             send.title = on ? 'Arrêter le Gardien' : 'Envoyer (Entrée)';
             send.classList.toggle('stop', on);
             root.classList.toggle('busy', on);
-            if (!on) status.textContent = '';
+            status.classList.toggle('on', on);
+            state.textContent = on ? 'réfléchit…' : 'en ligne';
+            ideas.hidden = on || !!input.value.trim();
+            statusText.textContent = on ? 'le Gardien écrit' : '';
         },
         open: () => toggle(true),
         // Nodes joints (pastille, sélecteur de contexte) : [{ id, text }], de toutes les dimensions.

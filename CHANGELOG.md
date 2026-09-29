@@ -108,6 +108,12 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Recherche du dock** : toujours visible, avec ses flèches. Entrée cherche dans toutes les dimensions (route `toolbox/search`) ; ‹ › (ou Entrée / Maj+Entrée) parcourent les résultats en carrousel, avec le compteur « x / y » (et la dimension du résultat tant qu'on n'y est pas). Le résultat courant pulse et la caméra y voyage, dimension comprise ; Échap éteint la recherche. Elle remplace la recherche de Nodz, qui ajoutait de nouveaux écouteurs aux flèches à chaque recherche. Le bouton du panneau de contexte s'appelle « Filtres » et se place à côté de la recherche ; il ne s'ouvre qu'à la demande.
 
+**Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
+
+**Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
+
+**Chat du Gardien modernisé** : panneau de verre à liseré dégradé qui s'ouvre en douceur, avatar en tuile de verre qui respire pendant la réflexion, état « en ligne » / « réfléchit… », Mémoire, Échanges et Effacer rangés dans un menu ⋯ (qui s'allume quand des notes attendent), bulles qui apparaissent en fondu, indicateur « le Gardien écrit » à trois points, suggestions en pastilles (un clic pose la demande dans le champ), saisie flottante dans une capsule.
+
 **Texte des nodes centré et plus lisible** : le curseur de saisie faisait défiler la boîte du node en fin de ligne longue, et le texte restait décalé et rogné jusqu'au survol ; la boîte ne défile plus (`overflow: clip`). Le centrage vertical passe en CSS (plus de mesure au chargement, juste même si la police arrive tard ; les rectangles de texte sont recalculés quand elle arrive). Texte en blanc pur, trait épaissi d'un quart de pixel (sans changer la chasse ni la taille des nodes), liseré plus net.
 
 **Mode clair en blanc cassé** : fond `#f4efe6`, ton papier, à la place du gris froid `#f0f0f0`.

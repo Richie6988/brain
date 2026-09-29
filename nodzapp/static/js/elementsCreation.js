@@ -909,8 +909,9 @@ function createNode(x,y,id) {
 
     var quantumButtonfo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     quantumButtonfo.setAttribute('class', 'stylebutton'); 
-    const quantumButtonimg = document.createElement('img');
-    quantumButtonimg.setAttribute('src', NODZ_BASE + '/static/img/portal-vortex.svg');  // nouveau nom : aucune ancienne copie en cache
+    const quantumButtonimg = document.createElement('div');  // porte de verre en 3D (gardien.css), comme le cube HYPERSPACE
+    quantumButtonimg.className = 'portal-door';
+    quantumButtonimg.innerHTML = '<span class="pd3"><i></i><i></i><b></b></span>';
     quantumButtonimg.style.width = '100%';
     quantumButtonimg.style.height = '100%';
     quantumButtonfo.classList.add("portal");
