@@ -150,17 +150,19 @@ Agents équipés :
 {agents}
 {memory}"""
 
-# --- Mode Pensée (par défaut dans l'univers) : Nodz est la façon de parler de l'IA. Elle pense à voix haute, et chaque
-# pensée devient aussitôt un node discret, relié à la précédente, qui pousse depuis le node source ; puis elle crée ses
-# résultats avec les outils de création, chacun rattaché à la pensée qui l'a produit. Pas de chat, pas d'automatisation
-# (web, fichiers, agents, missions : mode Automatisation, la boucle de handle()).
-THINK_OPS = ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal', 'explore']
+# --- Mode Pensée (par défaut dans l'univers) : Nodz est l'API de l'IA. Elle ne répond que par des calls : ses think
+# deviennent aussitôt des nodes discrets pendant qu'elle écrit ; ses autres calls forment un plan, exécuté une fois écrit.
+# Pas de chat ; l'automatisation lourde (fichiers, agents, missions) reste au mode Automatisation (boucle de handle()).
+THINK_OPS = ['think', 'put', 'nodes', 'style', 'link', 'grow', 'build', 'schema', 'explore', 'portal']
 # L'agentique minimal du mode Pensée, par le catalogue d'outils (ceux cochés dans Agents & modèles) : modifier,
 # supprimer, aller dans les dimensions, lire (l'univers, un document, le web) avant de continuer sa pensée.
-THINK_TOOLS = ['update', 'archive', 'unlink', 'travel', 'goto', 'search_nodes', 'inventory', 'read_file', 'open',
+THINK_TOOLS = ['update', 'archive', 'unlink', 'travel', 'goto', 'search_nodes', 'inventory', 'read_file',
                'templates', 'template_save', 'web_search', 'web_fetch']
 MAX_READS = 2  # tours de lecture d'une pensée : ce qu'elle a lu lui revient, elle continue
-MAX_THOUGHTS = 10
+MAX_THOUGHTS = 12
+MAX_CALLS = 150  # calls d'un plan
+MAX_BATCH = 40   # nodes d'un call nodes
+THINK_TOKENS = 4096  # un plan de 150 calls tient dans la réponse (le moteur local la raccourcit si le contexte manque)
 THOUGHT_RADIUS = 60      # place d'une pensée (petit node sans cadre)
 SPARK_RADIUS = 45        # place d'une étincelle de la réflexion libre (mode Profond)
 # Genres de pensée : la marque qui l'ouvre, la couleur de son lien, l'encre de son texte et sa mise en forme.
@@ -177,7 +179,8 @@ MAX_WHISPERS, MAX_SPARKS = 12, 10
 HESITATION, NEAR_MISS = 0.75, 0.12
 MUSE = ('Avant ta réponse, pense librement à voix haute, sans JSON : fragments courts, un par ligne (intuitions, '
         'doutes, associations, pistes que tu écartes). 3 à 8 fragments.')
-# Champs des actions de création seulement : une grammaire plus petite s'échantillonne plus vite.
+# Champs des calls du mode Pensée seulement : une grammaire plus petite s'échantillonne plus vite. kind et under avant
+# text : le genre et la place d'une pensée sont connus dès son premier mot.
 THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'radius', 'content_type', 'children', 'links',
                 'layout', 'type', 'fill', 'rows', 'cols', 'items', 'cells', 'title', 'name', 'task', 'template',
                 'query', 'url', 'path', 'save_as', 'description')
@@ -186,91 +189,90 @@ MAX_EXPLORE, MAX_DEPTH, MAX_EXPLORATIONS = 2, 2, 4  # par réponse, profondeur, 
 LINEAGE = 8  # nodes du chemin dans l'arbre montrés au modèle
 # Couleurs par défaut des résultats sans couleur : une par pensée d'attache, pour que les familles se lisent.
 RESULT_COLORS = ['#4D96FF', '#33FF99', '#FFD93D', '#FF6B6B', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5']
-MAX_FLOW = 32  # pas de pensée et actions d'une réponse
 
 
 def think_schema(ops):
-    """Un seul flux : une chaîne est un pas de pensée, un objet une action (parmi `ops`) ; chacun se pose dès qu'il
-    est écrit."""
+    """La réponse du mode Pensée : uniquement des calls (parmi `ops`), un plan de MAX_CALLS au plus."""
+    fields = PLAN_SCHEMA['properties']['actions']['items']['properties']
     return {
         'type': 'object',
-        'required': ['flow'],
+        'required': ['calls'],
         'properties': {
-            'flow': {'type': 'array', 'maxItems': MAX_FLOW, 'items': {'anyOf': [
-                {'type': 'string', 'maxLength': 120},
-                {'type': 'object', 'required': ['op'], 'properties': {
-                    'op': {'type': 'string', 'enum': ops},
-                    **{k: PLAN_SCHEMA['properties']['actions']['items']['properties'][k] for k in THINK_FIELDS}}}]}},
+            'calls': {'type': 'array', 'maxItems': MAX_CALLS, 'items': {'type': 'object', 'required': ['op'], 'properties': {
+                'op': {'type': 'string', 'enum': ops},
+                'kind': {'type': 'string', 'enum': list(KINDS)},
+                'under': {'type': 'string'},
+                **{k: fields[k] for k in THINK_FIELDS}}}},
         },
     }
 
 
-THINK_SYSTEM = """Nodz est ta façon de parler : tout ce que tu écris devient des nodes dans l'univers de l'utilisateur, autour du
-node source (indiqué à la fin du message). Il n'y a pas de chat : tu ne réponds qu'en nodes. Réponds uniquement en JSON :
-{"flow": ["pensée", {action}, "pensée", {action}, ...]}.
-flow : ta pensée et tes actions entremêlées, dans l'ordre où elles te viennent. Une chaîne est un pas de pensée de moins
-de 14 mots : il devient aussitôt un petit node (t1, t2… dans l'ordre des chaînes) ; on te voit penser. Un objet est une
-action : elle se pose dès que tu l'as écrite, pendant que tu continues ; mets-la juste après la pensée qui l'a produite
-(near et links vers ce t…) ou rattache-la à un autre résultat (new…). Pense en branches parallèles, chacune avec ses
-résultats, plutôt qu'une ligne puis un tas. Montre aussi tes hésitations. Une marque au début donne le genre du pas :
-« ? » doute ou question, « ✗ » piste écartée, « ✓ » décision ; sans marque, une idée. Deux espaces au début : une
-branche du pas d'avant (pistes comparées, sous-idée) ; sans espace, la pensée principale continue. Cite N-12 quand un
-pas te rappelle un node de l'univers : un fil d'écho les relie.
-Développe : 3 à 10 pas de pensée et 10 à 15 résultats (les children et les cases d'un gabarit comptent), sauf pour un
-simple salut. Dès qu'une structure s'y prête (étapes, comparaison, plan, priorités, analyse), pose un gabarit (build)
-ou un modèle rempli (schema) plutôt que des nodes épars.
-- put : un node résultat {"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle|square|none","radius":90,"content_type":"code","children":["sous-idée"]}
-- style : changer l'apparence d'un node (source, pensée, résultat) {"op":"style","ref":"N-3","color":"#hex","shape":"square","radius":140}
-- grow : une explication en arbre {"op":"grow","text":"titre\\n- idée\\n  - détail"}
-- build : un gabarit {"op":"build","layout":"tree|list|kanban|timeline|matrix|pyramid","title":"…","items":["…"],"near":"t2"} (kanban : cols et items ; matrix : rows, cols, cells) ; ou un de tes gabarits gardés {"op":"build","template":"<nom>","title":"…","near":"t2"}
-- schema : un modèle rempli {"op":"schema","type":"swot","title":"…","fill":{"Forces":["idée"]}} ; modèles : {schemas}
-- link : relier deux nodes (N-…, t…, new…)
-- explore : confier une branche à une autre instance de toi, qui la creuse en partant de là où elle est dans l'arbre
-  (elle voit le chemin de la racine jusqu'à ce node), en même temps que les autres branches confiées
-  {"op":"explore","ref":"t3","task":"creuser le budget"} ; 2 au plus
-- portal : un sujet qui mérite son propre espace ; le résultat devient un portail vers une nouvelle dimension qui porte ce nom
-  {"op":"portal","ref":"new1","name":"Voyage au Japon"} (en dernier ; on pensera ce sujet là-bas)
-Tu agis aussi sur l'univers, comme un agent, avec les outils du catalogue ci-dessous : réécrire un node (update, ou put
-sur N-12), supprimer un node devenu inutile ou en double (archive ; l'humain peut annuler), défaire un lien (unlink),
-aller dans une autre dimension (travel) ou jusqu'à un node trouvé (goto) une fois ta pensée posée, lire avant d'agir.
-Un outil s'écrit dans le flux comme une action ; une lecture [L] aussi : son résultat t'arrive au tour suivant et tu
-continues ta pensée avec.
+THINK_SYSTEM = """API Nodz. Réponds uniquement en JSON : {"calls": [call, call, ...]}. Un call = {"op": "...", paramètres}.
+Rien hors des calls.
+Exécution : tu écris tout ton plan de calls d'abord (150 au plus). Les think s'affichent pendant l'écriture ; les autres
+s'exécutent ensuite, dans l'ordre écrit ; portal, travel, goto en dernier. Un call ne cite que des références écrites
+plus haut dans le plan (ou existantes).
+Références : N-12 = node existant (liste dans le message) ; t1, t2… = tes think, dans leur ordre ; new1, new2… = les
+nodes créés par tes put ; node source = en fin de message.
+Volume : demande de fond = 10 à 15 nodes de résultat au moins, ou un gabarit ; un salut = un seul put.
+
+think {"op":"think","kind":"idea","under":"t2","text":"…"}
+  text : moins de 14 mots, devient un petit node discret.
+  kind : idea (défaut) | doubt (question) | dropped (piste écartée) | decision.
+  under : branche de la pensée t… (pistes comparées, sous-idée) ; absent : la pensée principale continue ; le 1er think
+  part du node source. N-12 cité dans text : un fil relie la pensée à ce node.
+put {"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle","radius":90,"content_type":"code","children":["…"]}
+  ref new… : crée ; ref N-… : modifie ce node (seuls les champs donnés changent).
+  near : posé à côté de ce node. links : liens vers ces nodes. children : 12 sous-nodes reliés au plus.
+  shape : circle | square | none. radius : 60 à 200. content_type code : text est le code.
+nodes {"op":"nodes","near":"new1","items":["…","…"],"color":"#hex","shape":"circle"}
+  40 nodes au plus d'un coup, chacun relié à near. 100 nodes = 3 calls nodes.
+style {"op":"style","ref":"N-3","color":"#hex","shape":"square","radius":140}
+  apparence seule, sur n'importe quel node.
+link {"op":"link","source":"t2","target":"new1"}
+grow {"op":"grow","text":"titre\\n- idée\\n  - détail"}
+  arbre depuis un texte indenté (2 espaces par niveau).
+build {"op":"build","layout":"timeline","title":"…","items":["…"],"near":"t2"}
+  layout : tree (items indentés de 2 espaces) | list | timeline | pyramid | kanban (cols, items) | matrix (rows, cols,
+  cells[ligne][colonne]). template : nom d'un gabarit gardé, à la place de layout. near : gabarit relié à ce node.
+schema {"op":"schema","type":"swot","title":"…","near":"t3","fill":{"Forces":["…"]}}
+  type : {schemas}. fill : {intitulé de case: [idées]} ; 16 cases, 10 idées par case au plus.
+explore {"op":"explore","ref":"t3","task":"…"}
+  une autre instance de toi creuse la branche t3 avec cette consigne, en même temps que les autres ; elle reçoit le
+  chemin de la racine à t3. 2 par plan.
+portal {"op":"portal","ref":"new1","name":"…"}
+  new1 devient un portail vers une nouvelle dimension de ce nom.
 {tools}
-L'univers est fait de dimensions : des plans séparés, chacun avec ses nodes (la liste est dans le message). Tu es dans
-celle du node source et tu y crées. Un portail relie deux dimensions : le même node existe des deux côtés (champ
-"portail" d'un node) ; un node joint d'une autre dimension indique la sienne.
-Catalogue de style : sers-t'en à chaque résultat, l'univers se lit d'un coup d'œil.
-- Couleur = sens : #FF6B6B problème, risque ; #FFD93D idée, énergie ; #33FF99 solution, positif ; #4D96FF info,
-  structure ; #C77DFF créatif, rêve ; #FF9F45 action, à faire ; #4DD4C6 ressource ; #F15BB5 émotion, humain.
-- Forme : circle une idée ; square un concept clé, une catégorie, un conteneur ; none une note légère, une citation.
-- Taille (radius 60 à 200) : l'importance ; le résultat principal plus grand que ses détails.
-- Type : content_type "code" pour du code (le texte est le code).
-- Texte : **gras**, *italique*, __souligné__, [#FF6B6B]couleur[/], ^^grand^^ pour un titre, ,,petit,, ; un emoji en tête
-  d'un node le rend reconnaissable.
-Exemples (imite leur forme) :
-« bonjour » → {"flow":["Un salut, pas encore de sujet",{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne : j'y penserai ici.","near":"t1","links":["t1"]}]}
-« des noms pour mon café » → {"flow":["Un café : chaleur, rencontre","Trois pistes en parallèle","  jeu de mots",{"op":"put","ref":"new1","text":"🎲 **Jeux de mots**","near":"t3","links":["t3"],"color":"#FFD93D","children":["Grain de Folie","Tasse & Toi","Au Petit Noir"]},"  ✗ lieu : trop banal","  émotion",{"op":"put","ref":"new2","text":"💛 **Émotion**","near":"t5","links":["t5"],"color":"#F15BB5","children":["Le Refuge","Chez Nous","Doux Matin"]},"? court ou évocateur","✓ Garder les plus courts",{"op":"put","ref":"new3","text":"☕ ^^Le Comptoir^^","near":"t7","links":["t7"],"color":"#33FF99","shape":"square","radius":140}]}
-« lancer mon café » → {"flow":["Lancer un café : étapes, risques, budget","  les étapes d'abord",{"op":"build","layout":"timeline","title":"🚀 **Lancement**","near":"t2","items":["Étude du quartier","Local et bail","Travaux","Recrutement","Ouverture"]},"  puis ce qui peut coincer",{"op":"schema","type":"swot","title":"**Mon café**","near":"t3","fill":{"Forces":["Emplacement","Café maison"],"Faiblesses":["Petite salle"],"Opportunités":["Terrasse"],"Menaces":["Loyer en hausse"]}},"✓ Le budget décide du reste",{"op":"put","ref":"new1","text":"💶 **Budget**","near":"t4","links":["t4"],"color":"#FF9F45","shape":"square","children":["Travaux 30 k€","Stock 5 k€","Trésorerie 3 mois"]}]}
-« une fonction pour trier » → {"flow":["Tri simple : sorted suffit","  ✗ tri à bulles : trop lent","✓ sorted avec une clé",{"op":"put","ref":"new1","text":"🧩 ^^Trier^^","near":"t3","links":["t3"],"color":"#4D96FF","shape":"square","radius":110},{"op":"put","ref":"new2","text":"def trier(xs, cle=None):\\n    return sorted(xs, key=cle)","near":"new1","links":["new1"],"content_type":"code","color":"#33FF99"}]}
-Tes consignes :
-{guidelines}
+Lecture [L] : son résultat te revient dans le tour suivant ; tu continues alors ton plan (t…, new… à la suite).
+Dimensions : plans séparés ; tu crées dans celle du node source ; un portail = le même node dans deux dimensions.
+Texte : **gras**, *italique*, __souligné__, [#FF6B6B]couleur[/], ^^grand^^, ,,petit,, ; un emoji en tête permis.
+Couleurs : #FF6B6B problème ; #FFD93D idée ; #33FF99 solution ; #4D96FF info ; #C77DFF créatif ; #FF9F45 action ;
+#4DD4C6 ressource ; #F15BB5 humain. Formes : circle idée ; square concept clé, catégorie ; none note légère.
+Exemples :
+« bonjour » → {"calls":[{"op":"think","text":"Un salut, pas encore de sujet"},{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne.","near":"t1","links":["t1"]}]}
+« des noms pour mon café » → {"calls":[{"op":"think","text":"Un café : chaleur, rencontre"},{"op":"think","under":"t1","text":"jeu de mots"},{"op":"think","kind":"dropped","under":"t1","text":"lieu : trop banal"},{"op":"think","under":"t1","text":"émotion"},{"op":"think","kind":"decision","text":"Garder les plus courts"},{"op":"put","ref":"new1","text":"🎲 **Jeux de mots**","near":"t2","links":["t2"],"color":"#FFD93D","children":["Grain de Folie","Tasse & Toi","Au Petit Noir"]},{"op":"put","ref":"new2","text":"💛 **Émotion**","near":"t4","links":["t4"],"color":"#F15BB5","children":["Le Refuge","Chez Nous","Doux Matin"]},{"op":"put","ref":"new3","text":"☕ ^^Le Comptoir^^","near":"t5","links":["t5"],"color":"#33FF99","shape":"square","radius":140}]}
+« lancer mon café » → {"calls":[{"op":"think","text":"Lancer un café : étapes, risques, budget"},{"op":"think","under":"t1","text":"les étapes"},{"op":"think","under":"t1","text":"les risques"},{"op":"think","kind":"decision","text":"Le budget décide du reste"},{"op":"build","layout":"timeline","title":"🚀 **Lancement**","near":"t2","items":["Étude du quartier","Local et bail","Travaux","Recrutement","Ouverture"]},{"op":"schema","type":"swot","title":"**Mon café**","near":"t3","fill":{"Forces":["Emplacement","Café maison"],"Faiblesses":["Petite salle"],"Opportunités":["Terrasse"],"Menaces":["Loyer en hausse"]}},{"op":"put","ref":"new1","text":"💶 **Budget**","near":"t4","links":["t4"],"color":"#FF9F45","shape":"square","children":["Travaux 30 k€","Stock 5 k€","Trésorerie 3 mois"]}]}
+« 60 pays à visiter » → {"calls":[{"op":"think","text":"Trois continents, 20 pays chacun"},{"op":"put","ref":"new1","text":"🌍 ^^Pays^^","near":"t1","links":["t1"],"shape":"square"},{"op":"put","ref":"new2","text":"Europe","near":"new1","links":["new1"]},{"op":"nodes","near":"new2","items":["Portugal","Islande","…"]},{"op":"put","ref":"new3","text":"Asie","near":"new1","links":["new1"]},{"op":"nodes","near":"new3","items":["Japon","Vietnam","…"]}]}
 {memory}"""
 
 
 class ThoughtStream:
-    """Le flux JSON "flow", caractère par caractère : chaque pensée (chaîne) pendant qu'elle s'écrit puis terminée,
-    chaque action (objet) dès qu'elle est fermée. `inside` : le modèle écrit en ce moment la pensée `index`."""
+    """Le flux JSON "calls", caractère par caractère : chaque call dès qu'il est fermé ; le texte d'un call think pendant
+    qu'il s'écrit (sa pensée pousse en direct). `inside` : le modèle écrit en ce moment le texte de la pensée `index`."""
 
-    START = re.compile(r'"flow"\s*:\s*\[')
+    START = re.compile(r'"calls"\s*:\s*\[')
+    THINK = re.compile(r'^\{\s*"op"\s*:\s*"think"\s*,(.*)"text"\s*:\s*"$', re.S)  # le texte d'une pensée commence
+    META = re.compile(r'"(kind|under)"\s*:\s*"([^"]*)"')
 
     def __init__(self, base=0):
         self.buffer, self.at, self.closed = '', None, False
         self.index, self.inside, self.chars, self.escape = base - 1, False, [], ''  # base : pensées des tours d'avant
-        self.item, self.action, self.depth, self.quoted, self.escaped = -1, [], 0, False, False  # action en cours
+        self.item, self.call, self.depth, self.quoted, self.escaped = -1, [], 0, False, False  # call en cours
+        self.meta, self.thinks = {}, {}  # genre et place de la pensée en cours ; rang du call → pensée
 
     def feed(self, piece):
-        """[(('t', index), (texte jusqu'ici, terminée)) ou (('a', rang dans le flux), action)] : dans l'ordre du flux,
-        une entrée par pensée qui a avancé dans ce fragment et par action terminée."""
+        """[(('t', index), (texte jusqu'ici, terminée, {kind, under})) ou (('c', rang du call), call)] : dans l'ordre du
+        flux, une entrée par pensée qui a avancé dans ce fragment et par call terminé."""
         self.buffer += piece
         if self.closed:
             return []
@@ -283,58 +285,61 @@ class ThoughtStream:
         while self.at < len(self.buffer) and not self.closed:
             c = self.buffer[self.at]
             self.at += 1
-            if self.depth:  # dans une action : jusqu'à son accolade fermante, chaînes comprises
-                self.action.append(c)
-                if self.escaped:
-                    self.escaped = False
-                elif self.quoted:
-                    self.escaped, self.quoted = c == '\\', c != '"'
-                elif c == '"':
-                    self.quoted = True
-                elif c in '{}':
-                    self.depth += 1 if c == '{' else -1
-                    if not self.depth:
-                        try:
-                            moved[('a', self.item)] = json.loads(''.join(self.action))
-                        except json.JSONDecodeError:
-                            pass  # la réponse entière, relue à la fin, la rattrape
-                continue
-            if not self.inside:
-                if c == '"':
-                    self.inside, self.chars, self.index, self.item = True, [], self.index + 1, self.item + 1
-                    moved[('t', self.index)] = ('', False)
-                elif c == '{':
-                    self.depth, self.action, self.item = 1, [c], self.item + 1
+            if not self.depth:
+                if c == '{':
+                    self.depth, self.call, self.item = 1, [c], self.item + 1
                 elif c == ']':
                     self.closed = True
                 continue
-            if self.escape:
-                self.escape += c
-                if self.escape[1] != 'u' or len(self.escape) == 6:
-                    try:
-                        self.chars.append(json.loads(f'"{self.escape}"'))
-                    except json.JSONDecodeError:
-                        pass
-                    self.escape = ''
-            elif c == '\\':
-                self.escape = c
-            elif c == '"':
-                self.inside = False
-                moved[('t', self.index)] = (''.join(self.chars), True)
+            self.call.append(c)
+            if self.inside:  # le texte d'une pensée, lettre à lettre
+                if self.escape:
+                    self.escape += c
+                    if self.escape[1] != 'u' or len(self.escape) == 6:
+                        try:
+                            self.chars.append(json.loads(f'"{self.escape}"'))
+                        except json.JSONDecodeError:
+                            pass
+                        self.escape = ''
+                elif c == '\\':
+                    self.escape = c
+                elif c == '"':
+                    self.inside = False
+                    moved[('t', self.index)] = (''.join(self.chars), True, self.meta)
+                    continue
+                else:
+                    self.chars.append(c)
+                moved[('t', self.index)] = (''.join(self.chars), False, self.meta)
                 continue
-            else:
-                self.chars.append(c)
-            moved[('t', self.index)] = (''.join(self.chars), False)
+            if self.escaped:
+                self.escaped = False
+            elif self.quoted:
+                self.escaped, self.quoted = c == '\\', c != '"'
+            elif c == '"':
+                self.quoted = True
+                think = self.depth == 1 and self.item not in self.thinks and self.THINK.match(''.join(self.call))
+                if think:
+                    self.index += 1
+                    self.thinks[self.item] = self.index
+                    self.inside, self.chars, self.quoted = True, [], False
+                    self.meta = dict(self.META.findall(think.group(1)))
+                    moved[('t', self.index)] = ('', False, self.meta)
+            elif c in '{}':
+                self.depth += 1 if c == '{' else -1
+                if not self.depth:
+                    try:
+                        moved[('c', self.item)] = json.loads(''.join(self.call))
+                    except json.JSONDecodeError:
+                        pass  # la réponse entière, relue à la fin, le rattrape
         return list(moved.items())
 
 
-def thought_shape(raw):
-    """Profondeur (deux espaces par niveau, deux au plus) et genre d'une pensée, et son texte nettoyé."""
-    body = raw.lstrip(' ')
-    depth = min((len(raw) - len(body)) // 2, 2)
-    kind = MARKS.get(body[:1], 'idea')
-    text = body[1:] if kind != 'idea' else body
-    return depth, kind, ' '.join(text.replace('*', '').replace('~', '').split())[:140]
+def thought_shape(raw, kind=None):
+    """Genre d'une pensée (celui du call, sinon sa marque « ? », « ✗ », « ✓ » en tête) et son texte nettoyé."""
+    body = raw.strip()
+    marked = MARKS.get(body[:1])
+    text = body[1:] if marked else body
+    return (kind if kind in KINDS else marked or 'idea'), ' '.join(text.replace('*', '').replace('~', '').split())[:140]
 
 
 def near_misses(piece, chances):
@@ -522,6 +527,7 @@ class Guardian(IaquaOps):
         self.suffix = ''  # mode Pensée : marque les références d'une instance appelée (t1.x1, new1.x1)
         self.explorations = []  # branches confiées par la réponse en cours : (node, consigne)
         self.branches = itertools.count(1)  # instances appelées pendant la demande (partagé par les branches)
+        self.lots = itertools.count(1)  # lots de nodes (call nodes) de la demande
 
     # --- contexte envoyé par la page
 
@@ -788,6 +794,21 @@ class Guardian(IaquaOps):
             child = f'{ref}.{i}'
             self.emit('action', self.op_create({'ref': child, 'text': text, 'near': ref, 'color': action.get('color')}, agents))
             self.emit('action', {'op': 'link', 'source': ref, 'target': child})
+        return None
+
+    def op_nodes(self, action, agents):
+        """Un lot de nodes d'un coup (MAX_BATCH au plus), chacun relié à near : pour les longues listes."""
+        near = self.existing(action.get('near'))
+        items = [str(t) for t in action.get('items') or [] if str(t).strip()][:MAX_BATCH]
+        if not items:
+            raise PlanError('nodes : items vide')
+        base = f'lot{next(self.lots)}{self.suffix}'
+        for i, text in enumerate(items, 1):
+            ref = f'{base}.{i}'
+            self.emit('action', self.op_create({'ref': ref, 'text': text, 'near': near, 'color': action.get('color'),
+                                                'shape': action.get('shape')}, agents))
+            self.emit('action', {'op': 'link', 'source': near, 'target': ref})
+            self.parents[ref] = near
         return None
 
     # --- gabarits : structures de nodes construites par le Gardien (layouts.py), gardées dans son cerveau
@@ -1250,7 +1271,8 @@ class Guardian(IaquaOps):
         return (SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
                 .replace('{guidelines}', guidelines or guardian.system_prompt or prompts.GUARDIAN))
 
-    def plan_call(self, guardian, messages, round_, request, schema=PLAN_SCHEMA, on_text=None, temperature=0.2, on_token=None):
+    def plan_call(self, guardian, messages, round_, request, schema=PLAN_SCHEMA, on_text=None, temperature=0.2, on_token=None,
+                  max_tokens=None):
         """Appel du modèle pour un plan. Un prompt plus long que le contexte du modèle (ValueError de llama-cpp-python)
         est raccourci, moins de nodes et de texte puis les plus anciens tours, avant d'abandonner clairement."""
         while True:
@@ -1259,7 +1281,8 @@ class Guardian(IaquaOps):
                 return self.engine.chat(guardian.model, messages, json_schema=schema, priority=priorities.CHAT, owner='gardien',
                                         on_text=on_text or (lambda piece: self.emit('thinking', {'round': round_, 'text': piece})),
                                         **({'on_token': on_token} if on_token else {}),
-                                        **{'temperature': temperature, **guardian.params})
+                                        **{'temperature': temperature, **({'max_tokens': max_tokens} if max_tokens else {}),
+                                           **guardian.params})
             except ValueError as e:
                 if 'context window' not in str(e):
                     raise
@@ -1294,8 +1317,9 @@ class Guardian(IaquaOps):
         saved = self.templates()
         if saved:
             memory = f"{memory}\nTes gabarits gardés : {', '.join(saved)}".strip()
-        return (THINK_SYSTEM.replace('{schemas}', ', '.join(layouts.SCHEMAS)).replace('{guidelines}', prompts.THINKER)
-                .replace('{tools}', tools.prompt([op for op in self.allowed if op in THINK_TOOLS], self.docs))
+        agentic = [op for op in self.allowed if op in THINK_TOOLS]
+        return (THINK_SYSTEM.replace('{schemas}', ', '.join(layouts.SCHEMAS))
+                .replace('{tools}', '\n'.join(f"{op}{' [L]' if tools.BY_OP[op].get('read') else ''} {tools.usage(op, self.docs)}" for op in agentic))
                 .replace('{memory}', memory))
 
     def source_node(self, request):
@@ -1338,17 +1362,20 @@ class Guardian(IaquaOps):
         _mark, _color, ink, form = KINDS[kind]
         return text_html(f'[{ink}]' + form.format(text) + '[/]')
 
-    def form(self, index, raw, done):
-        """Une pensée qui s'écrit : posée dès son premier mot (sa marque et son indentation disent où et comment),
+    def form(self, index, raw, done, meta=None):
+        """Une pensée (call think) qui s'écrit : posée dès son premier mot (kind et under disent comment et où),
         écrite en direct (brouillon, non sauvegardé), puis figée et sauvegardée ; alors ses échos et ses mots presque
-        dits apparaissent."""
-        depth, kind, text = thought_shape(raw)
+        dits apparaissent. Sans under, elle suit la pensée principale ; avec, elle en est une branche."""
+        kind, text = thought_shape(raw, (meta or {}).get('kind'))
         entry = self.formed.get(index)
         if entry is None:
             if not text or len(self.formed) >= MAX_THOUGHTS:
                 return
             ref = f't{index + 1}{self.suffix}'
-            parent = self.levels.get(depth - 1, self.source) if depth else self.levels.get(0, self.source)
+            under = self.remap({'ref': str((meta or {}).get('under') or '')})['ref']
+            branch_of = next((e for e in self.formed.values() if e['ref'] == under), None)
+            depth = min(branch_of['depth'] + 1, 2) if branch_of else 1 if under in self.nodes else 0
+            parent = under if depth else self.levels.get(0, self.source)
             self.parents[ref] = parent
             branch = depth and (0.9 if len([e for e in self.formed.values() if e['depth'] == depth]) % 2 else -0.9)
             x, y = self.grow_spot(parent, turn=branch * depth)
@@ -1427,24 +1454,25 @@ class Guardian(IaquaOps):
         return free
 
     def ponder(self, guardian, messages, request, agents, depth):
-        """Une pensée : pensées et actions entremêlées, chacune posée dès qu'elle est écrite ; si elle a lu quelque
-        chose (lectures [L]), ce qu'elle a lu lui revient et elle continue (MAX_READS tours au plus). Les portails et
-        les voyages à la fin ; puis les branches confiées à d'autres instances d'elle-même (explore) poussent à leur tour."""
+        """Une pensée : le modèle écrit son plan de calls (ses think poussent en direct), puis le plan s'exécute ; s'il a
+        lu quelque chose (lectures [L]), ce qu'il a lu lui revient et il continue (MAX_READS tours au plus). Portails et
+        voyages à la fin ; puis les branches confiées à d'autres instances de lui-même (explore) poussent à leur tour."""
         self.formed, self.levels, self.whispers, self.explorations, self.gates = {}, {}, {}, [], []
         self.families = {}
         for round_ in range(MAX_READS + 1):
-            raw = self.flow(guardian, messages, request, agents, depth)
+            raw = self.write(guardian, messages, request, depth)
+            self.carry_out(agents)
             if not self.gathered or round_ == MAX_READS:
                 break
             messages = [*messages, {'role': 'assistant', 'content': raw}, {'role': 'user', 'content': self.resume()}]
-        # Les portails et voyages en dernier : tout le reste est posé dans la dimension du node source avant.
         self.execute(self.gates, agents)
         if depth < MAX_DEPTH:
             self.branch_out(guardian, request, agents, depth)
 
-    def flow(self, guardian, messages, request, agents, depth):
-        """Un appel au modèle : son flux, posé au fil de l'écriture. Rend sa réponse brute."""
-        self.acted, self.gathered = set(), []
+    def write(self, guardian, messages, request, depth):
+        """Un appel au modèle : ses think deviennent des nodes au fil de l'écriture, ses autres calls vont au plan.
+        Rend sa réponse brute."""
+        self.planned, self.seen_calls = [], set()
         stream = ThoughtStream(len(self.formed))
 
         def heard(piece, chances=None):
@@ -1455,51 +1483,59 @@ class Guardian(IaquaOps):
                 if kind == 't':
                     self.form(index, *value)
                 else:
-                    self.act(index, value, agents)
+                    self.plan(index, value, stream.thinks)
 
         self.emit('intent', {'text': 'Je réfléchis…' if not depth else f"Une autre instance de moi creuse « {short(self.nodes[self.source]['text'], 30)} »…"})
-        base = len(self.formed)
-        raw = self.plan_call(guardian, messages, 0, request, schema=think_schema(self.allowed), on_text=heard, on_token=heard, temperature=0.6)
+        raw = self.plan_call(guardian, messages, 0, request, schema=think_schema(self.allowed), on_text=heard, on_token=heard,
+                             temperature=0.6, max_tokens=THINK_TOKENS)
         last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
         if last:
             self.timings.append(last)
         try:
-            flow = json.loads(raw).get('flow') or []
-        except (json.JSONDecodeError, AttributeError):  # coupé en route : ce qui est posé reste
-            flow = []
-            self.emit('notice', {'text': 'Mon modèle s\'est emballé : je garde ce qui est déjà posé.'})
-        thought = base
-        for item, value in enumerate(flow):  # ce que le flux n'a pas vu finir
-            if isinstance(value, str):
-                if not self.formed.get(thought, {}).get('done'):
-                    self.form(thought, value, True)
-                thought += 1
-            elif item not in self.acted:
-                self.act(item, value, agents)
+            calls = json.loads(raw).get('calls') or []
+        except (json.JSONDecodeError, AttributeError):  # coupé en route : ses pensées et les calls finis restent
+            calls = []
+            self.emit('notice', {'text': 'Mon modèle s\'est emballé : je garde ce qu\'il a fini d\'écrire.'})
+        for item, call in enumerate(calls):  # ce que le flux n'a pas vu finir
+            if item not in self.seen_calls:
+                self.plan(item, call, {})
         return raw
+
+    def plan(self, item, call, thinks):
+        """Un call terminé : une pensée pas encore posée l'est (sans texte en flux) ; les autres vont au plan, avec leur
+        place dans l'arbre et leur couleur de famille."""
+        self.seen_calls.add(item)
+        if not isinstance(call, dict):
+            return
+        if call.get('op') == 'think':
+            if item not in thinks:
+                self.form(len(self.formed), str(call.get('text') or ''), True, call)
+            return
+        call = self.remap(self.painted(call))
+        if call.get('op') == 'put' and str(call.get('ref', '')).startswith('new') and call.get('near'):
+            self.parents.setdefault(call['ref'], call['near'])
+        (self.gates if call.get('op') in ('portal', 'travel', 'goto') else self.planned).append(call)
+        if len(self.planned) == 1 or not len(self.planned) % 10:  # la file qui grossit, sans noyer le suivi
+            self.emit('intent', {'text': f'Plan : {len(self.planned)} call{"s" if len(self.planned) > 1 else ""} en file'})
+
+    def carry_out(self, agents):
+        """Le plan écrit s'exécute, call après call, dans l'ordre ; l'avancement s'affiche par dizaines."""
+        self.gathered, total = [], len(self.planned)
+        if total:
+            self.emit('intent', {'text': f"J'exécute mon plan : {total} call{'s' if total > 1 else ''}"})
+        for done, call in enumerate(self.planned, 1):
+            self.execute([call], agents)
+            self.gathered += self.reads
+            if total >= 10 and not done % 10:
+                self.emit('intent', {'text': f'Plan : {done} / {total}'})
 
     def resume(self):
         """Le tour suivant d'une pensée qui a lu : ce qu'elle a lu, et où reprendre sa numérotation."""
         mine = re.compile(rf'new(\d+){re.escape(self.suffix)}')
         taken = [int(m.group(1)) for ref in self.nodes if (m := mine.fullmatch(ref))]
         return '\n'.join(['Ce que tu as lu :', *self.gathered,
-                          f'Continue ta pensée avec : tes pas suivants sont t{len(self.formed) + 1}…, tes nouveaux résultats '
-                          f'new{max(taken, default=0) + 1}… ; ne répète pas ce qui est déjà posé.'])
-
-    def act(self, item, action, agents):
-        """Une action du flux, posée dès qu'elle est écrite, rattachée dans l'arbre à sa pensée (ou son node). Les
-        lectures sont gardées pour le tour suivant ; portails et voyages attendent la fin de la pensée."""
-        self.acted.add(item)
-        if not isinstance(action, dict):
-            return
-        action = self.remap(self.painted(action))
-        if action.get('op') == 'put' and str(action.get('ref', '')).startswith('new') and action.get('near'):
-            self.parents.setdefault(action['ref'], action['near'])
-        if action.get('op') in ('portal', 'travel', 'goto'):
-            self.gates.append(action)
-        else:
-            self.execute([action], agents)
-            self.gathered += self.reads
+                          f'Continue ton plan de calls : tes think suivants sont t{len(self.formed) + 1}…, tes nouveaux nodes '
+                          f'new{max(taken, default=0) + 1}… ; ne refais pas ce qui est déjà posé.'])
 
     def branch_out(self, guardian, request, agents, depth):
         """Les branches confiées (explore) poussent ensemble quand le modèle le permet (par API, plusieurs générations
@@ -1570,7 +1606,7 @@ class Guardian(IaquaOps):
         if not self.suffix:
             return action
         own = lambda v: f'{v}{self.suffix}' if isinstance(v, str) and re.fullmatch(r't\d+|new\d+', v) else v
-        return {k: [own(x) for x in v] if k == 'links' else own(v) if k in ('ref', 'near', 'source', 'target') else v
+        return {k: [own(x) for x in v] if k == 'links' else own(v) if k in ('ref', 'near', 'source', 'target', 'under') else v
                 for k, v in action.items()}
 
     def think(self, request, context, deep=False):
