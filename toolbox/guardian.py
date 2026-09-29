@@ -40,7 +40,7 @@ LAYOUT_ALIASES = {'liste': 'list', 'frise': 'timeline', 'chronologie': 'timeline
                   'matrice': 'matrix', 'tableau': 'matrix', 'table': 'matrix', 'grid': 'matrix', 'board': 'kanban'}
 HISTORY, HISTORY_TEXT = 6, 200  # derniers échanges du chat rappelés au Gardien (il suit la conversation)
 MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recherche, fichier)
-TYPES = ['text', 'image', 'file', 'canvas']  # types de node de Nodz
+TYPES = ['text', 'image', 'file', 'canvas', 'code']  # types de node de Nodz
 SHAPES = ['circle', 'square', 'none']
 LAYOUT_NAMES = {'matrix': 'la matrice', 'kanban': 'le kanban', 'timeline': 'la frise', 'pyramid': 'la pyramide', 'tree': "l'arbre", 'list': 'la liste'}
 OPS = [t['op'] for t in tools.TOOLS]  # catalogue commun Nodz + iAqua (tools.py)
@@ -150,10 +150,10 @@ Agents équipés :
 # pensée devient aussitôt un node discret, relié à la précédente, qui pousse depuis le node source ; puis elle crée ses
 # résultats avec les outils de création, chacun rattaché à la pensée qui l'a produit. Pas de chat, pas d'automatisation
 # (web, fichiers, agents, missions : mode Automatisation, la boucle de handle()).
-THINK_OPS = ['put', 'grow', 'build', 'schema', 'link', 'portal']
+THINK_OPS = ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal']
 MAX_THOUGHTS = 10
 THOUGHT_RADIUS = 60      # place d'une pensée (petit node sans cadre)
-DUST_RADIUS = 30         # place d'un grain de poussière (mot presque dit, étincelle de réflexion libre)
+SPARK_RADIUS = 45        # place d'une étincelle de la réflexion libre (mode Profond)
 # Genres de pensée : la marque qui l'ouvre, la couleur de son lien, l'encre de son texte et sa mise en forme.
 KINDS = {
     'idea': ('', '#8B7FC8', '#C9BEF2', '*{}*'),
@@ -162,7 +162,6 @@ KINDS = {
     'decision': ('✓', '#B89AF2', '#EFE9FF', '**✓ {}**'),
 }
 MARKS = {mark: kind for kind, (mark, *_rest) in KINDS.items() if mark}
-WHISPER_INK, WHISPER_COLOR = '#7F77A8', '#4E4870'  # mots presque dits : poussière grise autour de la pensée
 SPARK_INK, SPARK_COLOR = '#8FD3E8', '#3E6B7A'      # réflexion libre (mode Profond) : étincelles bleu pâle
 MAX_WHISPERS, MAX_SPARKS = 12, 10
 # Mot presque dit : le modèle hésitait (son choix sous 75 %) et ce mot avait au moins 12 % de chances.
@@ -170,8 +169,10 @@ HESITATION, NEAR_MISS = 0.75, 0.12
 MUSE = ('Avant ta réponse, pense librement à voix haute, sans JSON : fragments courts, un par ligne (intuitions, '
         'doutes, associations, pistes que tu écartes). 3 à 8 fragments.')
 # Champs des actions de création seulement : une grammaire plus petite s'échantillonne plus vite.
-THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'children', 'links', 'layout', 'type', 'fill',
-                'rows', 'cols', 'items', 'cells', 'title', 'name')
+THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'radius', 'content_type', 'children', 'links',
+                'layout', 'type', 'fill', 'rows', 'cols', 'items', 'cells', 'title', 'name')
+# Couleurs par défaut des résultats sans couleur : une par pensée d'attache, pour que les familles se lisent.
+RESULT_COLORS = ['#4D96FF', '#33FF99', '#FFD93D', '#FF6B6B', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5']
 THINK_SCHEMA = {
     'type': 'object',
     'required': ['thoughts', 'actions'],  # les pensées d'abord : elles s'écrivent (et poussent) avant les résultats
@@ -193,8 +194,9 @@ branche du pas d'avant (pistes comparées, sous-idée) ; sans espace, la pensée
 pas te rappelle un node de l'univers : un fil d'écho les relie.
 actions : ce que tu crées ensuite, avec une vue d'ensemble de tes pensées : chaque résultat se rattache à la pensée qui l'a
 produit (near et links vers t…) ou à un autre résultat (new…).
-- put : un node résultat {"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle|square","children":["sous-idée"]}
-- grow : une explication en arbre {"op":"grow","text":"titre\n- idée\n  - détail"}
+- put : un node résultat {"op":"put","ref":"new1","text":"…","near":"t2","links":["t2"],"color":"#hex","shape":"circle|square|none","radius":90,"content_type":"code","children":["sous-idée"]}
+- style : changer l'apparence d'un node (source, pensée, résultat) {"op":"style","ref":"N-3","color":"#hex","shape":"square","radius":140}
+- grow : une explication en arbre {"op":"grow","text":"titre\\n- idée\\n  - détail"}
 - build : un gabarit {"op":"build","layout":"tree|list|kanban|timeline|matrix|pyramid","title":"…","items":["…"]} (kanban : cols et items ; matrix : rows, cols, cells)
 - schema : un modèle rempli {"op":"schema","type":"swot","title":"…","fill":{"Forces":["idée"]}} ; modèles : {schemas}
 - link : relier deux nodes (N-…, t…, new…)
@@ -203,10 +205,18 @@ produit (near et links vers t…) ou à un autre résultat (new…).
 L'univers est fait de dimensions : des plans séparés, chacun avec ses nodes (la liste est dans le message). Tu es dans
 celle du node source et tu y crées. Un portail relie deux dimensions : le même node existe des deux côtés (champ
 "portail" d'un node) ; un node joint d'une autre dimension indique la sienne.
-Mise en forme : **gras**, *italique*, [#FF6B6B]couleur[/], ^^grand^^ ; emojis bienvenus.
+Catalogue de style : sers-t'en à chaque résultat, l'univers se lit d'un coup d'œil.
+- Couleur = sens : #FF6B6B problème, risque ; #FFD93D idée, énergie ; #33FF99 solution, positif ; #4D96FF info,
+  structure ; #C77DFF créatif, rêve ; #FF9F45 action, à faire ; #4DD4C6 ressource ; #F15BB5 émotion, humain.
+- Forme : circle une idée ; square un concept clé, une catégorie, un conteneur ; none une note légère, une citation.
+- Taille (radius 60 à 200) : l'importance ; le résultat principal plus grand que ses détails.
+- Type : content_type "code" pour du code (le texte est le code).
+- Texte : **gras**, *italique*, __souligné__, [#FF6B6B]couleur[/], ^^grand^^ pour un titre, ,,petit,, ; un emoji en tête
+  d'un node le rend reconnaissable.
 Exemples (imite leur forme) :
 « bonjour » → {"thoughts":["Un salut, pas encore de sujet"],"actions":[{"op":"put","ref":"new1","text":"👋 Bonjour ! Donne-moi un node et une consigne : j'y penserai ici.","near":"t1","links":["t1"]}]}
 « des noms pour mon café » → {"thoughts":["Un café : chaleur, rencontre","Trois pistes","  jeu de mots","  ✗ lieu : trop banal","  émotion","? court ou évocateur","✓ Garder les plus courts"],"actions":[{"op":"put","ref":"new1","text":"☕ **Noms**","near":"t7","links":["t7"],"color":"#FFD93D","children":["Grain de Folie","Le Comptoir","Tasse & Toi"]}]}
+« une fonction pour trier » → {"thoughts":["Tri simple : sorted suffit","  ✗ tri à bulles : trop lent","✓ sorted avec une clé"],"actions":[{"op":"put","ref":"new1","text":"🧩 ^^Trier^^","near":"t3","links":["t3"],"color":"#4D96FF","shape":"square","radius":110},{"op":"put","ref":"new2","text":"def trier(xs, cle=None):\\n    return sorted(xs, key=cle)","near":"new1","links":["new1"],"content_type":"code","color":"#33FF99"}]}
 « SWOT de mon café » → {"thoughts":["Interne : emplacement, petite salle","Externe : loyers, concurrence"],"actions":[{"op":"schema","type":"swot","title":"**Mon café**","fill":{"Forces":["Emplacement"],"Faiblesses":["Petite salle"],"Menaces":["Loyer en hausse"]}}]}
 Tes consignes :
 {guidelines}
@@ -600,6 +610,8 @@ class Guardian(IaquaOps):
         styled = ('radius', 'lock') if created else ('color', 'shape', 'radius', 'lock')
         if any(action.get(k) is not None for k in styled):
             self.emit('action', self.op_style(action, agents))
+        if created and action.get('content_type') in TYPES and action['content_type'] != 'text':
+            self.emit('action', self.op_set_type(action, agents))
         for target in dict.fromkeys(action.get('links') or []):
             if target != ref:
                 self.emit('action', self.op_link({'source': ref, 'target': target}, agents))
@@ -1244,11 +1256,11 @@ class Guardian(IaquaOps):
                 return round(x), round(y)
         return free_spot((base['x'], base['y']), self.occupied, radius)
 
-    def speck(self, ref, near, text, ink, color, radius=DUST_RADIUS, turn=0.0):
-        """Un grain : tout petit node sans cadre, texte menu, relié à `near` (mots presque dits, étincelles)."""
-        x, y = self.grow_spot(near, turn=turn or random.uniform(-2.5, 2.5), radius=radius, gap=10)
-        self.nodes[ref] = {'x': x, 'y': y, 'r': radius, 'text': text, 'new': True}
-        self.occupied.append((x, y, radius))
+    def speck(self, ref, near, text, ink, color, turn=0.0):
+        """Une étincelle de la réflexion libre : tout petit node sans cadre, texte menu, relié à `near`."""
+        x, y = self.grow_spot(near, turn=turn, radius=SPARK_RADIUS, gap=10)
+        self.nodes[ref] = {'x': x, 'y': y, 'r': SPARK_RADIUS, 'text': text, 'new': True}
+        self.occupied.append((x, y, SPARK_RADIUS))
         self.emit('action', {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(f',,[{ink}]{text}[/],,'),
                              'color': color, 'shape': 'none'})
         self.emit('action', {'op': 'link', 'source': near, 'target': ref})
@@ -1284,10 +1296,10 @@ class Guardian(IaquaOps):
             entry['done'] = True
             self.emit('action', {'op': 'update', 'ref': entry['ref'], 'text': self.thought_html(entry['kind'], text)})
             self.echo(entry['ref'], text)
-            for n, word in enumerate(self.whispers.pop(index, [])):
-                if self.dust < MAX_WHISPERS:
-                    self.dust += 1
-                    self.speck(f"{entry['ref']}w{n + 1}", entry['ref'], f'{word}…', WHISPER_INK, WHISPER_COLOR)
+            words = self.whispers.pop(index, [])[:max(0, MAX_WHISPERS - self.dust)]
+            if words:  # éphémères : la page les fait flotter puis s'évaporer, rien n'est sauvegardé
+                self.dust += len(words)
+                self.emit('action', {'op': 'whisper', 'ref': entry['ref'], 'words': words})
 
     def echo(self, ref, text):
         """Fils d'écho : la pensée rappelle un node de l'univers (cité N-12, ou dont le titre court apparaît en toutes
@@ -1307,6 +1319,13 @@ class Guardian(IaquaOps):
                 if word not in words and len(words) < 3:
                     words.append(word)
 
+    def painted(self, actions):
+        """Résultats sans couleur : une couleur par pensée d'attache (ou par node voisin), pour que les familles de
+        résultats se lisent. Les couleurs choisies par le modèle restent."""
+        families = {}
+        return [{**a, 'color': RESULT_COLORS[families.setdefault(a.get('near') or '', len(families)) % len(RESULT_COLORS)]}
+                if a.get('op') == 'put' and not a.get('color') and str(a.get('ref', '')).startswith('new') else a for a in actions]
+
     def muse(self, guardian, messages):
         """Mode Profond : le modèle pense d'abord librement (sans format) ; chaque fragment devient une étincelle qui
         dérive depuis le node source, de l'autre côté de la pensée. Rend sa réflexion, relue par l'appel suivant."""
@@ -1316,7 +1335,7 @@ class Guardian(IaquaOps):
             fragment = ' '.join(re.sub(r'</?think>|^[-*•\d.)\s]+', '', fragment).replace('*', '').split())[:120]
             if len(fragment.split()) >= 2 and len(sparks) < MAX_SPARKS:
                 ref = f's{len(sparks) + 1}'
-                self.speck(ref, sparks[-1] if sparks else self.source, fragment, SPARK_INK, SPARK_COLOR, radius=45,
+                self.speck(ref, sparks[-1] if sparks else self.source, fragment, SPARK_INK, SPARK_COLOR,
                            turn=math.pi + random.uniform(-0.5, 0.5) if not sparks else random.uniform(-0.8, 0.8))
                 sparks.append(ref)
 
@@ -1384,7 +1403,7 @@ class Guardian(IaquaOps):
                 if not self.formed.get(index, {}).get('done'):
                     self.form(index, str(text), True)
             # Les portails en dernier : tout le reste est posé dans la dimension du node source avant qu'on les ouvre.
-            self.execute(sorted(answer.get('actions') or [], key=lambda a: a.get('op') == 'portal'), agents)
+            self.execute(sorted(self.painted(answer.get('actions') or []), key=lambda a: a.get('op') == 'portal'), agents)
             made = [ref for ref, n in self.nodes.items() if n.get('new')]
             if made:  # la caméra cadre la pensée entière : le node source, ses pensées et ses résultats
                 self.emit('action', {'op': 'frame', 'refs': [self.source, *made]})

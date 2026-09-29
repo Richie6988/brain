@@ -4,7 +4,7 @@
 // caméra ne dérangent pas l'utilisateur ailleurs.
 
 const KEY = 'gardien-pending';
-const CAMERA = new Set(['focus', 'overview', 'travel', 'goto', 'tour', 'frame']);
+const CAMERA = new Set(['focus', 'overview', 'travel', 'goto', 'tour', 'frame', 'whisper']);  // ni gardés ni rejoués
 
 export function createPending({ bridge, say, onApplied = () => {} }) {
     let store = {};

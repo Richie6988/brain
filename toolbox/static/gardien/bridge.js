@@ -176,6 +176,24 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             nodeOf(ref).classList.remove('gardien-forming');
             setText(nodeOf(ref), text);
         },
+        // Mode Pensée : les mots que le modèle a failli écrire flottent autour de la pensée, dérivent et s'évaporent ;
+        // éphémères, ils ne sont ni des nodes ni sauvegardés.
+        whisper({ ref, words }) {
+            const node = nodeOf(ref);
+            if (!node) return;
+            const c = at(node);
+            (words || []).forEach((word, i) => {
+                const angle = -Math.PI / 2 + (i - (words.length - 1) / 2) * 0.9 + (Math.random() - 0.5) * 0.4;
+                const w = Object.assign(document.createElement('span'), { className: 'gardien-whisper', textContent: `${word}…` });
+                w.style.left = `${c.x + Math.cos(angle) * 70}px`;
+                w.style.top = `${c.y + Math.sin(angle) * 50}px`;
+                w.style.setProperty('--dx', `${Math.cos(angle) * 60}px`);
+                w.style.setProperty('--dy', `${Math.sin(angle) * 60 - 30}px`);
+                w.style.animationDelay = `${i * 0.25}s`;
+                w.addEventListener('animationend', () => w.remove());
+                document.body.append(w);
+            });
+        },
         // Mode Pensée : la pensée en train de s'écrire, mot à mot ; pas sauvegardée (update la fige et la sauve).
         draft({ ref, text }) {
             const node = nodeOf(ref);

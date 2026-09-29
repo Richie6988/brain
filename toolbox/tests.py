@@ -1163,7 +1163,7 @@ class GuardianTests(TestCase):
         self.assertEqual((thought['shape'], thought['color']), ('none', '#8B7FC8'))
         self.assertIn('<i>Un voyage : où, quand</i>', thought['text'])
         call = engine.calls[0]
-        self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'grow', 'build', 'schema', 'link', 'portal'])
+        self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal'])
         self.assertIn('on_token', call)  # le moteur réel donne aussi les jetons envisagés
         self.assertIn('Node source : N-1', call['messages'][1]['content'])
         self.assertIn('on te voit penser', call['messages'][0]['content'])
@@ -1246,9 +1246,9 @@ class GuardianTests(TestCase):
         self.assertIn(('t1', 'N-2'), links)
         self.assertIn(('t2', 'N-3'), links)
 
-    def test_near_misses_become_dust_around_the_thought(self):
-        # Mots presque dits : quand le modèle hésitait, les mots qu'il a failli écrire se posent en poussière autour
-        # de la pensée, une fois celle-ci finie.
+    def test_near_misses_whisper_around_the_thought(self):
+        # Mots presque dits : quand le modèle hésitait, les mots qu'il a failli écrire flottent autour de la pensée une
+        # fois celle-ci finie ; éphémères, ce ne sont pas des nodes.
         class Hesitant(ScriptedEngine):
             def chat(self, model, messages, *, json_schema=None, on_text=None, on_token=None, **params):
                 self.calls.append({'messages': messages})
@@ -1259,11 +1259,26 @@ class GuardianTests(TestCase):
                 return ''.join(piece for piece, _ in pieces)
 
         self.think(engine=Hesitant())
-        dust = [a for a in self.actions() if a['op'] == 'create' and a['ref'].startswith('t1w')]
-        self.assertEqual(len(dust), 1)
-        self.assertIn('automne…', dust[0]['text'])
-        self.assertEqual((dust[0]['shape'], dust[0]['color']), ('none', '#4E4870'))
-        self.assertIn({'op': 'link', 'source': 't1', 'target': 't1w1'}, self.actions())
+        self.assertIn({'op': 'whisper', 'ref': 't1', 'words': ['automne']}, self.actions())
+        self.assertEqual([a['ref'] for a in self.actions() if a['op'] == 'create'], ['t1'])  # aucun node de plus
+
+    def test_results_use_the_style_catalogue(self):
+        # Catalogue de style : sans couleur, un résultat prend celle de la famille de sa pensée d'attache ; type code,
+        # taille et forme passent ; style restyle un node existant.
+        self.think(json.dumps({'thoughts': ['Deux familles', 'Un code'], 'actions': [
+            {'op': 'put', 'ref': 'new1', 'text': 'A', 'near': 't1', 'links': ['t1'], 'shape': 'square', 'radius': 150},
+            {'op': 'put', 'ref': 'new2', 'text': 'B', 'near': 't1', 'links': ['t1']},
+            {'op': 'put', 'ref': 'new3', 'text': 'print(1)', 'near': 't2', 'links': ['t2'], 'content_type': 'code', 'color': '#33FF99'},
+            {'op': 'style', 'ref': 'N-1', 'color': '#FFD93D', 'radius': 160}]}))
+        color = {a['ref']: a['color'] for a in self.actions() if a['op'] == 'create'}
+        self.assertEqual(color['new1'], color['new2'])
+        self.assertNotEqual(color['new1'], None)
+        self.assertEqual(color['new3'], '#33FF99')
+        self.assertIn({'op': 'set_type', 'ref': 'new3', 'content_type': 'code'}, self.actions())
+        styles = {a['ref']: a for a in self.actions() if a['op'] == 'style'}
+        self.assertEqual(styles['new1']['radius'], 150.0)
+        self.assertEqual((styles['N-1']['color'], styles['N-1']['radius']), ('#FFD93D', 160.0))
+        self.assertEqual(self.errors(), [])
 
     def test_deep_mode_muses_freely_before_thinking(self):
         # Mode Profond : réflexion libre d'abord (sans format), en étincelles depuis le source, puis la pensée en JSON
