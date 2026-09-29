@@ -1163,7 +1163,7 @@ class GuardianTests(TestCase):
         self.assertEqual((thought['shape'], thought['color']), ('none', '#8B7FC8'))
         self.assertIn('<i>Un voyage : où, quand</i>', thought['text'])
         call = engine.calls[0]
-        self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal'])
+        self.assertEqual(call['schema']['properties']['actions']['items']['properties']['op']['enum'], ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal', 'explore'])
         self.assertIn('on_token', call)  # le moteur réel donne aussi les jetons envisagés
         self.assertIn('Node source : N-1', call['messages'][1]['content'])
         self.assertIn('on te voit penser', call['messages'][0]['content'])
@@ -1189,6 +1189,29 @@ class GuardianTests(TestCase):
         ops = [a['op'] for a in self.actions()]
         self.assertEqual(ops[-2:], ['gate', 'frame'])
         self.assertEqual(self.actions()[-2]['name'], 'Japon')
+
+    def test_think_mode_calls_another_instance_from_where_it_stands_in_the_tree(self):
+        # explore : une autre instance reçoit la branche et le chemin de la racine jusqu'à elle ; sa pensée pousse
+        # depuis ce node, avec ses propres références (t1.x1), et elle ne rappelle pas au-delà de la profondeur permise.
+        engine = self.think(
+            json.dumps({'thoughts': ['Un voyage', '  Le budget'], 'actions': [{'op': 'explore', 'ref': 't2', 'task': 'creuser le budget'}]}),
+            json.dumps({'thoughts': ['Vols : 900 €'], 'actions': [{'op': 'put', 'ref': 'new1', 'text': 'Total', 'near': 't1', 'links': ['t1']}]}))
+        self.assertEqual(len(engine.calls), 2)
+        called = engine.calls[1]['messages'][1]['content']
+        self.assertIn("Où tu en es dans l'arbre : Voyage au Japon → Un voyage → Le budget (ici)", called)
+        self.assertIn('creuser le budget (branche « Le budget »', called)
+        self.assertIn('Node source : t2', called)
+        links = [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link']
+        self.assertIn(('t2', 't1.x1'), links)
+        self.assertIn(('new1.x1', 't1.x1'), links)
+        self.assertEqual(self.errors(), [])
+
+    def test_the_lineage_follows_the_links_of_the_page(self):
+        # Une pensée partie d'un node enfant voit le chemin depuis la racine de la page (sens Node1 → Node2).
+        engine = self.think(json.dumps({'thoughts': ['Une idée'], 'actions': []}),
+                            context={**self.CONTEXT, 'nodes': [*self.CONTEXT['nodes'][:1], {**self.CONTEXT['nodes'][1], 'text': 'Kyoto'}],
+                                     'selection': ['N-2']})
+        self.assertIn("Où tu en es dans l'arbre : Voyage au Japon → Kyoto (ici)", engine.calls[0]['messages'][1]['content'])
 
     def test_think_mode_without_a_node_makes_the_request_a_node(self):
         self.think(json.dumps({'thoughts': ['Une question ouverte'], 'actions': []}),

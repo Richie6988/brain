@@ -150,7 +150,7 @@ Agents équipés :
 # pensée devient aussitôt un node discret, relié à la précédente, qui pousse depuis le node source ; puis elle crée ses
 # résultats avec les outils de création, chacun rattaché à la pensée qui l'a produit. Pas de chat, pas d'automatisation
 # (web, fichiers, agents, missions : mode Automatisation, la boucle de handle()).
-THINK_OPS = ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal']
+THINK_OPS = ['put', 'style', 'grow', 'build', 'schema', 'link', 'portal', 'explore']
 MAX_THOUGHTS = 10
 THOUGHT_RADIUS = 60      # place d'une pensée (petit node sans cadre)
 SPARK_RADIUS = 45        # place d'une étincelle de la réflexion libre (mode Profond)
@@ -170,7 +170,10 @@ MUSE = ('Avant ta réponse, pense librement à voix haute, sans JSON : fragments
         'doutes, associations, pistes que tu écartes). 3 à 8 fragments.')
 # Champs des actions de création seulement : une grammaire plus petite s'échantillonne plus vite.
 THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'radius', 'content_type', 'children', 'links',
-                'layout', 'type', 'fill', 'rows', 'cols', 'items', 'cells', 'title', 'name')
+                'layout', 'type', 'fill', 'rows', 'cols', 'items', 'cells', 'title', 'name', 'task')
+# L'IA appelle l'IA : une branche confiée à une autre instance, qui la creuse depuis sa place dans l'arbre.
+MAX_EXPLORE, MAX_DEPTH, MAX_EXPLORATIONS = 2, 2, 4  # par réponse, profondeur, par demande
+LINEAGE = 8  # nodes du chemin dans l'arbre montrés au modèle
 # Couleurs par défaut des résultats sans couleur : une par pensée d'attache, pour que les familles se lisent.
 RESULT_COLORS = ['#4D96FF', '#33FF99', '#FFD93D', '#FF6B6B', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5']
 THINK_SCHEMA = {
@@ -200,6 +203,8 @@ produit (near et links vers t…) ou à un autre résultat (new…).
 - build : un gabarit {"op":"build","layout":"tree|list|kanban|timeline|matrix|pyramid","title":"…","items":["…"]} (kanban : cols et items ; matrix : rows, cols, cells)
 - schema : un modèle rempli {"op":"schema","type":"swot","title":"…","fill":{"Forces":["idée"]}} ; modèles : {schemas}
 - link : relier deux nodes (N-…, t…, new…)
+- explore : confier une branche à une autre instance de toi, qui la creuse en partant de là où elle est dans l'arbre
+  (elle voit le chemin de la racine jusqu'à ce node) {"op":"explore","ref":"t3","task":"creuser le budget"} ; 2 au plus
 - portal : un sujet qui mérite son propre espace ; le résultat devient un portail vers une nouvelle dimension qui porte ce nom
   {"op":"portal","ref":"new1","name":"Voyage au Japon"} (en dernier ; on pensera ce sujet là-bas)
 L'univers est fait de dimensions : des plans séparés, chacun avec ses nodes (la liste est dans le message). Tu es dans
@@ -395,6 +400,7 @@ def intent(action, nodes):
         'link': lambda a: f"Je relie {name(a.get('source'))} à {name(a.get('target'))}",
         'unlink': lambda a: f"Je détache {name(a.get('source'))} de {name(a.get('target'))}",
         'portal': lambda a: f"J'ouvre un portail vers « {short(a.get('name'))} »",
+        'explore': lambda a: f"Je confie {name(a.get('ref'))} à une autre instance de moi : {short(a.get('task'), 60)}",
         'archive': lambda a: f"Je supprime {name(a.get('ref'))} (Ctrl+Z pour annuler)",
         'cleanup': lambda a: 'Je fais le ménage des nodes vides',
         'build': lambda a: f"Je construis {LAYOUT_NAMES.get(a.get('layout'), 'le gabarit')} « {short(a.get('title') or a.get('template'))} »",
@@ -463,6 +469,10 @@ class Guardian(IaquaOps):
         self.allowed = []  # outils permis (lus avec le prompt système)
         self.source = None  # mode Pensée : le node d'où la pensée pousse
         self.heading = None  # mode Pensée : direction de la pousse, qui ondule d'une pensée à l'autre
+        self.parents = {}  # mode Pensée : node → son parent dans l'arbre de la pensée (pensées, résultats)
+        self.suffix = ''  # mode Pensée : marque les références d'une instance appelée (t1.x1, new1.x1)
+        self.explorations = []  # branches confiées par la réponse en cours : (node, consigne)
+        self.explored = 0  # instances appelées pendant la demande
 
     # --- contexte envoyé par la page
 
@@ -540,6 +550,7 @@ class Guardian(IaquaOps):
             *(['Outils pour cette demande :', guide] if guide else []),  # aiguillage : ceux que ses mots appellent
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
             *([f'Node source : {self.source}'] if self.source else []),
+            *([f"Où tu en es dans l'arbre : {' → '.join(path)} (ici)"] if len(path := self.lineage(self.source)) > 1 else []),
         ])
 
     def dimensions(self):
@@ -1108,7 +1119,7 @@ class Guardian(IaquaOps):
                 continue
             self.seen.add(key)
             try:
-                if op not in OPS:
+                if op not in OPS and op not in THINK_OPS:  # explore n'existe qu'en mode Pensée
                     raise PlanError(f'action inconnue : {op!r}')
                 if op not in self.allowed:
                     raise PlanError(f"outil désactivé dans Agents & modèles : {op}")
@@ -1278,8 +1289,9 @@ class Guardian(IaquaOps):
         if entry is None:
             if not text or len(self.formed) >= MAX_THOUGHTS:
                 return
-            ref = f't{index + 1}'
+            ref = f't{index + 1}{self.suffix}'
             parent = self.levels.get(depth - 1, self.source) if depth else self.levels.get(0, self.source)
+            self.parents[ref] = parent
             branch = depth and (0.9 if len([e for e in self.formed.values() if e['depth'] == depth]) % 2 else -0.9)
             x, y = self.grow_spot(parent, turn=branch * depth)
             self.nodes[ref] = {'x': x, 'y': y, 'r': THOUGHT_RADIUS, 'text': text, 'new': True}
@@ -1356,6 +1368,87 @@ class Guardian(IaquaOps):
             self.timings.append(last)
         return free
 
+    def ponder(self, guardian, messages, request, agents, depth):
+        """Un appel au modèle : ses pensées poussent pendant qu'il les écrit, puis ses résultats se posent ; enfin les
+        branches qu'il a confiées à d'autres instances de lui-même (explore) poussent à leur tour."""
+        self.formed, self.levels, self.whispers, self.explorations = {}, {}, {}, []
+        stream = ThoughtStream()
+
+        def heard(piece, chances=None):
+            self.emit('tick', None)  # un arrêt demandé coupe le modèle au fragment suivant, même entre deux pensées
+            moved = stream.feed(piece)
+            self.overheard(stream, piece, chances)
+            for index, text, done in moved:
+                self.form(index, text, done)
+
+        self.emit('intent', {'text': 'Je réfléchis…' if not depth else f"Une autre instance de moi creuse « {short(self.nodes[self.source]['text'], 30)} »…"})
+        raw = self.plan_call(guardian, messages, 0, request, schema=THINK_SCHEMA, on_text=heard, on_token=heard, temperature=0.6)
+        last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
+        if last:
+            self.timings.append(last)
+        try:
+            answer = json.loads(raw)
+        except json.JSONDecodeError:  # coupé en route : ses pensées sont déjà posées, ses résultats sont perdus
+            answer = {}
+            self.emit('notice', {'text': 'Mon modèle s\'est emballé : je garde ses pensées, sans ses résultats.'})
+        for index, text in enumerate(answer.get('thoughts') or []):  # celles que le flux n'a pas vues finir
+            if not self.formed.get(index, {}).get('done'):
+                self.form(index, str(text), True)
+        actions = [self.remap(a) for a in self.painted(answer.get('actions') or [])]
+        for action in actions:  # les résultats aussi ont leur place dans l'arbre : la pensée (ou le node) d'attache
+            if action.get('op') == 'put' and str(action.get('ref', '')).startswith('new') and action.get('near'):
+                self.parents.setdefault(action['ref'], action['near'])
+        # Les portails en dernier : tout le reste est posé dans la dimension du node source avant qu'on les ouvre.
+        self.execute(sorted(actions, key=lambda a: a.get('op') == 'portal'), agents)
+        if depth < MAX_DEPTH:
+            for ref, task in self.explorations[:MAX_EXPLORE]:
+                if self.explored < MAX_EXPLORATIONS:
+                    self.explore(guardian, ref, task, request, agents, depth + 1)
+
+    def explore(self, guardian, ref, task, request, agents, depth):
+        """L'IA appelle l'IA : une autre instance, avec le même prompt système (relu du cache), reçoit la branche `ref`,
+        le chemin de la racine jusqu'à elle et la consigne ; sa pensée pousse depuis ce node, sans croiser celle qui
+        l'a appelée (références suffixées)."""
+        self.explored += 1
+        saved = (self.source, self.formed, self.levels, self.whispers, self.explorations, self.heading, self.suffix)
+        path = self.lineage(ref)
+        parent, node = self.nodes.get(self.parents.get(ref) or ''), self.nodes[ref]
+        # La branche part dans le prolongement de sa place dans l'arbre, vers l'extérieur.
+        self.heading = math.atan2(node['y'] - parent['y'], node['x'] - parent['x']) if parent else None
+        self.source, self.suffix = ref, f'.x{self.explored}'
+        try:
+            prompt = self.prompt(f"{task} (branche « {short(node['text'], 40)} » ; le fil : {' → '.join(path)})")
+            messages = [{'role': 'system', 'content': self.think_system(agents)}, {'role': 'user', 'content': prompt}]
+            self.ponder(guardian, messages, request, agents, depth)
+        finally:
+            self.source, self.formed, self.levels, self.whispers, self.explorations, self.heading, self.suffix = saved
+
+    def op_explore(self, action, agents):
+        ref, task = self.existing(action.get('ref')), ' '.join(str(action.get('task') or '').split())[:200]
+        if not task:
+            raise PlanError('consigne vide (task)')
+        self.explorations.append((ref, task))
+        return None
+
+    def lineage(self, ref):
+        """Le chemin de la racine jusqu'à `ref` dans l'arbre : parents de la pensée en cours, puis liens de la page
+        (Nodz garde le sens parent → enfant d'un lien)."""
+        path, seen = [], set()
+        while ref and ref not in seen and len(path) < LINEAGE:
+            seen.add(ref)
+            path.append(short(self.nodes.get(ref, {}).get('text') or ref, 40))
+            ref = self.parents.get(ref) or next((a for a, b in self.links if b == ref), None)
+        return path[::-1]
+
+    def remap(self, action):
+        """Références d'une instance appelée : ses t2 et new1 deviennent t2.x1 et new1.x1 (celles de l'appelante
+        restent à elle)."""
+        if not self.suffix:
+            return action
+        own = lambda v: f'{v}{self.suffix}' if isinstance(v, str) and re.fullmatch(r't\d+|new\d+', v) else v
+        return {k: [own(x) for x in v] if k == 'links' else own(v) if k in ('ref', 'near', 'source', 'target') else v
+                for k, v in action.items()}
+
     def think(self, request, context, deep=False):
         """Mode Pensée : ses pensées poussent en nodes pendant qu'il les écrit (brouillon mot à mot, genre, branches,
         échos, mots presque dits), puis ses résultats se posent, rattachés aux pensées qui les ont produits. Mode
@@ -1373,39 +1466,16 @@ class Guardian(IaquaOps):
         self.emit('start', {'run': str(self.run.id)})
         try:
             self.source = self.source_node(request)
-            self.formed, self.levels, self.whispers, self.dust = {}, {}, {}, 0
-            stream = ThoughtStream()
-
-            def heard(piece, chances=None):
-                self.emit('tick', None)  # un arrêt demandé coupe le modèle au fragment suivant, même entre deux pensées
-                moved = stream.feed(piece)
-                self.overheard(stream, piece, chances)
-                for index, text, done in moved:
-                    self.form(index, text, done)
-
+            self.dust = 0
             messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': self.prompt(request)}]
             if deep:
                 muse = [*messages[:1], {'role': 'user', 'content': f'{messages[1]["content"]}\n{MUSE}'}]
                 free = self.muse(guardian, muse)
                 messages = [*muse, {'role': 'assistant', 'content': free},
                             {'role': 'user', 'content': 'Maintenant ta pensée et tes résultats, en JSON.'}]
-            self.emit('intent', {'text': 'Je réfléchis…'})
-            raw = self.plan_call(guardian, messages, 0, request, schema=THINK_SCHEMA, on_text=heard, on_token=heard, temperature=0.6)
-            last = (getattr(self.engine, 'stats', {}).get(guardian.model.pk) or {}).get('last')
-            if last:
-                self.timings.append(last)
-            try:
-                answer = json.loads(raw)
-            except json.JSONDecodeError:  # coupé en route : ses pensées sont déjà posées, ses résultats sont perdus
-                answer = {}
-                self.emit('notice', {'text': 'Mon modèle s\'est emballé : je garde ses pensées, sans ses résultats.'})
-            for index, text in enumerate(answer.get('thoughts') or []):  # celles que le flux n'a pas vues finir
-                if not self.formed.get(index, {}).get('done'):
-                    self.form(index, str(text), True)
-            # Les portails en dernier : tout le reste est posé dans la dimension du node source avant qu'on les ouvre.
-            self.execute(sorted(self.painted(answer.get('actions') or []), key=lambda a: a.get('op') == 'portal'), agents)
+            self.ponder(guardian, messages, request, agents, depth=0)
             made = [ref for ref, n in self.nodes.items() if n.get('new')]
-            if made:  # la caméra cadre la pensée entière : le node source, ses pensées et ses résultats
+            if made:  # la caméra cadre la pensée entière : le node source, ses pensées, ses résultats et ses branches
                 self.emit('action', {'op': 'frame', 'refs': [self.source, *made]})
             if not self.formed and not self.done:
                 raise PlanError("mon modèle n'a rien pensé ni créé : reformule, ou prends un modèle plus grand")
