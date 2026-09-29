@@ -11,7 +11,7 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onSchema = async () => {}, onFree = () => {} }) {
+export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {} }) {
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
     let take = 0;            // numéro de prise : un geste de l'utilisateur coupe le travelling
     const cut = () => { take += 1; };
@@ -407,8 +407,9 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             pill.id = 'gardien-send';
             pill.hidden = true;
             pill.innerHTML = '<button type="button" class="send" title="Envoyer ce node au Gardien (Ctrl+Entrée)"><i></i><span>Gardien</span><kbd>Ctrl ↵</kbd></button>'
-                + '<button type="button" class="visit" title="Visiter la branche à partir de ce node">▶ Visite</button>';
-            const [sendButton, visitButton] = pill.children;
+                + '<button type="button" class="visit" title="Visiter la branche à partir de ce node">▶ Visite</button>'
+                + '<button type="button" class="arrange" title="Ordonner ces nodes : ils se repoussent et se posent">Ordonner</button>';
+            const [sendButton, visitButton, arrangeButton] = pill.children;
             const label = sendButton.querySelector('span');
             document.body.append(pill);
             let target = null;
@@ -468,6 +469,12 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                     return onAttach(nodes);
                 }
                 if (target && !sendButton.disabled) fire(target);
+            });
+            // Sélection de zone : la physique de répulsion range ces nodes, les autres restent en place.
+            arrangeButton.addEventListener('click', () => {
+                const nodes = group.filter(n => n.isConnected);
+                hide();
+                onArrange(nodes);
             });
             visitButton.addEventListener('click', () => {
                 const node = target;

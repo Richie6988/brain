@@ -17,7 +17,8 @@
     box-shadow: 0 0 14px rgba(104, 72, 166, 0.55); transition: filter 0.15s, box-shadow 0.15s;
 }
 #gardien-send .send { padding-left: 5px; }
-#gardien-send.multi .visit, #gardien-send.multi kbd { display: none; }
+#gardien-send.multi .visit, #gardien-send.multi kbd, #gardien-send:not(.multi) .arrange { display: none; }
+#gardien-send .arrange { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
 #gardien-send .visit { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
 #gardien-send button:hover:not(:disabled) { filter: brightness(1.12); box-shadow: 0 0 20px rgba(30, 144, 255, 0.7); }
 #gardien-send button:disabled { opacity: 0.55; cursor: progress; }

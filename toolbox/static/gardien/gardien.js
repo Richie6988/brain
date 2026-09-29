@@ -110,7 +110,8 @@ createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estom
 createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au relâcher
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
-    onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node) });
+    onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node),
+    onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); nodes.forEach(n => physics.add(n)); } });
 const tour = createTour({ bridge, say });
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
