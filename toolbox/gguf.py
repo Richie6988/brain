@@ -9,6 +9,7 @@ from pathlib import Path
 
 SCALARS = {0: '<B', 1: '<b', 2: '<H', 3: '<h', 4: '<I', 5: '<i', 6: '<f', 7: '<?', 10: '<Q', 11: '<q', 12: '<d'}
 STRING, ARRAY = 8, 9
+SMALL = 1024  # tableaux lus en entier ; au-delà (vocabulaire), sautés
 _cache = {}
 
 
@@ -31,7 +32,9 @@ def _value(f, kind):
         return _string(f)
     if kind == ARRAY:
         inner, count = _read(f, '<I'), _read(f, '<Q')
-        if inner in SCALARS:  # tableau de nombres : sauté d'un bloc
+        if inner in SCALARS and count <= SMALL:  # une valeur par couche (têtes KV des modèles hybrides)
+            return [_read(f, SCALARS[inner]) for _ in range(count)]
+        if inner in SCALARS:  # grand tableau de nombres : sauté d'un bloc
             f.seek(struct.calcsize(SCALARS[inner]) * count, 1)
         else:
             for _ in range(count):
@@ -41,7 +44,8 @@ def _value(f, kind):
 
 
 def info(path):
-    """{architecture, layers, context_length, embedding, heads, kv_heads} ou {} si le fichier n'est pas lisible."""
+    """{architecture, layers, context_length, embedding, heads, kv_heads, kv_layers, key_length, value_length,
+    attention_interval} (les clés présentes) ou {} si le fichier n'est pas lisible."""
     try:
         stat = Path(path).stat()
     except (OSError, TypeError):
@@ -75,7 +79,17 @@ def _parse(path):
                 elif name.endswith('.attention.head_count'):
                     found['heads'] = int(value) if isinstance(value, int) else None
                 elif name.endswith('.attention.head_count_kv'):
-                    found['kv_heads'] = int(value) if isinstance(value, int) else None
+                    if isinstance(value, list):  # modèle hybride : 0 tête KV sur les couches récurrentes
+                        found['kv_heads'] = max(value, default=0) or None
+                        found['kv_layers'] = sum(1 for v in value if v)
+                    else:
+                        found['kv_heads'] = int(value) if isinstance(value, int) else None
+                elif name.endswith('.attention.key_length'):
+                    found['key_length'] = int(value)
+                elif name.endswith('.attention.value_length'):
+                    found['value_length'] = int(value)
+                elif name.endswith('.full_attention_interval'):  # Qwen3.5, Qwen3-Next : attention complète 1 couche sur N
+                    found['attention_interval'] = int(value) if isinstance(value, int) else None
                 if name.startswith('tokenizer.') and 'layers' in found:
                     break  # les métadonnées du modèle précèdent celles du tokenizer (tableaux lourds)
     except (OSError, ValueError, struct.error):

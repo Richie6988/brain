@@ -253,6 +253,19 @@ class EngineTests(TestCase):
         engine.unload()  # le modèle rechargé devra tout relire
         self.assertTrue(engine.prefill(self.model, system))
 
+    def test_unload_frees_the_model_at_once(self):
+        class Closing(FakeLlama):
+            closed = 0
+
+            def close(self):
+                Closing.closed += 1
+
+        engine = Engine(Broker(), factory=Closing)
+        engine._watch = lambda: None
+        engine.chat(self.model, [{'role': 'user', 'content': 'bonjour'}])
+        engine.unload()  # la VRAM est rendue avant que le modèle suivant mesure la mémoire libre
+        self.assertEqual((Closing.closed, engine.loaded), (1, None))
+
     def test_prompt_and_answer_fit_the_context(self):
         class Windowed(FakeLlama):  # 2048 jetons de contexte, un jeton par caractère
             def n_ctx(self):
@@ -452,6 +465,20 @@ class FitTests(SimpleTestCase):
         fixed, _ = self.resolve({'n_gpu_layers': 12, 'n_ctx': 8192}, vram=8000)
         self.assertEqual((fixed['n_gpu_layers'], fixed['n_ctx']), (12, 8192))
 
+    def test_hybrid_models_count_only_attention_layers(self):
+        from . import fit
+
+        # Qwen3.5 9B : 32 couches dont 1 sur 4 à attention, 4 têtes KV de 256 : 32 Ko par jeton, pas 128.
+        qwen35 = {'layers': 32, 'embedding': 4096, 'heads': 16, 'kv_heads': 4, 'key_length': 256, 'value_length': 256,
+                  'attention_interval': 4}
+        self.assertEqual(fit.kv_bytes_per_token(qwen35), 8 * 4 * 512 * 2)
+        # Têtes KV par couche (0 sur les couches récurrentes) : seules les couches à attention comptent.
+        self.assertEqual(fit.kv_bytes_per_token({'layers': 16, 'embedding': 2048, 'heads': 32, 'kv_heads': 8, 'kv_layers': 6}),
+                         6 * 8 * 128 * 2)
+        self.INFO = {**qwen35, 'context_length': 262144}
+        full, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=7000, size_mb=5600)
+        self.assertEqual((full['n_gpu_layers'], summary['gpu_layers']), (-1, 32))  # 5,6 Go dans 7 Go : tout sur GPU
+
 
 class ParamsTests(SimpleTestCase):
     def test_validation(self):
@@ -482,11 +509,14 @@ class ParamsTests(SimpleTestCase):
             string('tokenizer.ggml.tokens') + struct.pack('<IIQ', 9, 8, 2) + string('a') + string('b'),
             string('qwen2.block_count') + struct.pack('<II', 4, 28),
             string('qwen2.context_length') + struct.pack('<II', 4, 32768),
+            string('qwen2.attention.head_count_kv') + struct.pack('<IIQ', 9, 4, 4) + struct.pack('<4I', 0, 8, 0, 8),
+            string('qwen2.full_attention_interval') + struct.pack('<II', 4, 4),
         ]
         with tempfile.NamedTemporaryFile(suffix='.gguf') as f:
             f.write(b'GGUF' + struct.pack('<IQQ', 3, 0, len(kv)) + b''.join(kv))
             f.flush()
-            self.assertEqual(gguf.info(f.name), {'architecture': 'qwen2', 'layers': 28, 'context_length': 32768})
+            self.assertEqual(gguf.info(f.name), {'architecture': 'qwen2', 'layers': 28, 'context_length': 32768, 'kv_heads': 8,
+                                                 'kv_layers': 2, 'attention_interval': 4})
         self.assertEqual(gguf.info('/nulle/part.gguf'), {})
 
 

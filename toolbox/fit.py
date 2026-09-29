@@ -30,12 +30,17 @@ def default_threads():
 
 
 def kv_bytes_per_token(info, quant_factor=1.0):
-    """Cache K et V en f16 : 2 × couches × dimension KV × 2 octets."""
+    """Cache K et V en f16 : couches à attention × têtes KV × (dimension K + dimension V) × 2 octets. Les modèles
+    hybrides (Qwen3.5, Qwen3-Next, LFM2…) n'ont de cache que sur leurs couches d'attention : les compter toutes
+    surestimait le cache et poussait des couches du GPU vers le CPU."""
     layers, embedding, heads = info.get('layers'), info.get('embedding'), info.get('heads')
     if not (layers and embedding and heads):
         return DEFAULT_KV_BYTES
-    kv_dim = embedding * (info.get('kv_heads') or heads) / heads
-    return int(2 * layers * kv_dim * 2 * quant_factor)
+    interval = info.get('attention_interval')
+    attention = info.get('kv_layers') or (layers // interval if interval and interval > 1 else layers)
+    head = embedding / heads
+    width = (info.get('kv_heads') or heads) * ((info.get('key_length') or head) + (info.get('value_length') or head))
+    return int(attention * width * 2 * quant_factor)
 
 
 def free_memory():

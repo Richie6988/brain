@@ -7,6 +7,7 @@ d'usage et déchargement après inactivité, comme le ModelService de SquidMind.
 """
 
 import collections
+import gc
 import threading
 import time
 from contextlib import contextmanager
@@ -190,7 +191,13 @@ class Engine:
         llama_cpp.llama_set_abort_callback(ctx, self._abort_callback, None)
 
     def unload(self):
+        """Libère le modèle tout de suite (VRAM comprise) : le suivant mesure la mémoire libre juste après, et une
+        VRAM encore tenue par l'ancien le ferait charger en partie sur CPU."""
+        close = getattr(self._llm, 'close', None)
         self._llm = None
+        if close:
+            close()
+        gc.collect()
         self.prefixes.clear()
         self._loaded = self._options = None
 
