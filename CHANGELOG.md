@@ -158,7 +158,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Pastille des jauges** : un Gardien branché sur un modèle par API l'affiche (« nom · par API », point vert) au lieu de « aucun modèle en mémoire » ; les barres CPU / RAM / disque en double des anneaux disparaissent de la bande (le détail reste au survol des anneaux).
 
-**Ordonner une zone** : après une sélection de plusieurs nodes (zone), la pastille propose « Ordonner » : la physique de répulsion range ces nodes (ils se repoussent, leurs liens les retiennent, ils se posent), les autres restent en place ; un seul Ctrl+Z annule.
+**Ordonner une zone** : après une sélection de plusieurs nodes (zone), la pastille propose « Ordonner » : la physique de répulsion range ces nodes : ils partent d'abord en éclats dans des directions tirées au hasard, ce qui défait les liens croisés, puis leurs liens les ramènent vers leurs voisins, un rappel doux les regroupe et ils se posent, les autres restent en place ; un seul Ctrl+Z annule.
 
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 

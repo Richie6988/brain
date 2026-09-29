@@ -18,6 +18,8 @@ const MAX_SPEED = 30;
 const CALM = 0.08;       // vitesse sous laquelle un node est posé
 const QUIET = 20;        // images calmes d'affilée avant la fin
 const LONGEST = 9000;    // ms au plus après la dernière naissance
+const BURST = 3;         // Ordonner : rayon de l'éclatement, en rayons de node par racine du nombre de nodes
+const GATHER = 0.004;    // Ordonner : rappel vers le centre de la zone, plus doux que TETHER
 
 const radius = node => parseFloat(node.children[1]?.getAttribute('r')) || 60;
 const place = node => ({ x: parseFloat(node.getAttribute('x')), y: parseFloat(node.getAttribute('y')) });
@@ -36,15 +38,30 @@ export function createPhysics({ timeline }) {
     const bodies = new Map();  // id → { node, vx, vy, home }
     let frame = 0, calm = 0, born = 0;
 
-    function add(node) {
+    function add(node, body = {}) {
         if (!node || bodies.has(node.id)) return;
-        bodies.set(node.id, { node, vx: 0, vy: 0, home: place(node) });
+        bodies.set(node.id, { node, vx: 0, vy: 0, home: place(node), tether: TETHER, ...body });
         born = performance.now();
         calm = 0;
         if (!frame) {
             timeline.begin();  // les positions finales rejoignent la demande : un seul Ctrl+Z
             frame = requestAnimationFrame(step);
         }
+    }
+
+    // Ordonner une zone : les nodes partent en éclats dans des directions tirées au hasard, loin du centre, ce qui
+    // défait les liens croisés ; puis les liens les ramènent vers leurs voisins et un rappel doux vers le centre regroupe.
+    function arrange(nodes) {
+        if (!nodes.length) return;
+        const spots = nodes.map(place);
+        const center = { x: spots.reduce((t, p) => t + p.x, 0) / nodes.length, y: spots.reduce((t, p) => t + p.y, 0) / nodes.length };
+        const span = BURST * Math.sqrt(nodes.length) * (nodes.reduce((t, n) => t + radius(n), 0) / nodes.length);
+        nodes.forEach((node, i) => {
+            const angle = Math.random() * 2 * Math.PI, far = span * (0.6 + 0.4 * Math.random());
+            const x = center.x + far * Math.cos(angle), y = center.y + far * Math.sin(angle);
+            // Vitesse qui, amortie image après image, porte le node jusqu'à son éclat.
+            add(node, { vx: (x - spots[i].x) * (1 - DAMPING), vy: (y - spots[i].y) * (1 - DAMPING), home: center, tether: GATHER, burst: true });
+        });
     }
 
     function held(node) {
@@ -63,7 +80,7 @@ export function createPhysics({ timeline }) {
                 return;
             }
             const a = place(node), ra = radius(node);
-            let fx = TETHER * (body.home.x - a.x), fy = TETHER * (body.home.y - a.y);
+            let fx = body.tether * (body.home.x - a.x), fy = body.tether * (body.home.y - a.y);
             all.forEach(other => {
                 if (other === node) return;
                 const b = place(other), reach = ra + radius(other);
@@ -91,7 +108,8 @@ export function createPhysics({ timeline }) {
             body.vx = (body.vx + fx) * DAMPING;
             body.vy = (body.vy + fy) * DAMPING;
             const speed = Math.hypot(body.vx, body.vy);
-            if (speed > MAX_SPEED) {
+            if (body.burst && speed <= MAX_SPEED) body.burst = false;  // l'éclat retombe : la limite de vitesse revient
+            if (speed > MAX_SPEED && !body.burst) {
                 body.vx *= MAX_SPEED / speed;
                 body.vy *= MAX_SPEED / speed;
             }
@@ -123,5 +141,5 @@ export function createPhysics({ timeline }) {
         timeline.end();
     }
 
-    return { add };
+    return { add, arrange };
 }
