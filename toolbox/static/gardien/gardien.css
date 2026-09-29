@@ -962,3 +962,11 @@ body:has(.universe.lightmode) .node-group[type=code] .node-text-input pre.code-o
 .gl-doctor li.bad { background: rgba(225, 29, 72, 0.12); }
 .gl-doctor li.bad::before { background: #e11d48; box-shadow: 0 0 6px rgba(225, 29, 72, 0.6); }
 .gl-doctor li.wait::before { background: #1E90FF; animation: gardien-blink 1s ease-in-out infinite; }
+
+/* Filtre des pensées de l'IA (thoughts.js), à côté du style des liens : visibles, estompées, masquées. */
+#thoughtsButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M12 4c4.4 0 8 2.7 8 6s-3.6 6-8 6c-.9 0-1.8-.1-2.6-.3L5.5 17.5l.9-3.1C4.9 13.3 4 11.7 4 10c0-3.3 3.6-6 8-6z'/%3E%3Ccircle cx='5' cy='21' r='1.3'/%3E%3Ccircle cx='9' cy='11' r='.6' fill='%23000'/%3E%3Ccircle cx='12' cy='11' r='.6' fill='%23000'/%3E%3Ccircle cx='15' cy='11' r='.6' fill='%23000'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#thoughtsButton[data-state="dim"]::after { opacity: 0.5; }
+#thoughtsButton[data-state="off"]::before { content: ''; position: absolute; left: 18%; right: 18%; top: 50%; height: 1.5px; z-index: 1;
+    background: #fff; transform: rotate(-40deg); box-shadow: 0 0 3px rgba(184, 154, 242, 0.85); }
+body.gardien-thoughts-dim .gardien-thought, body.gardien-thoughts-dim .gardien-thought-link { opacity: 0.15; transition: opacity 0.3s; }
+body.gardien-thoughts-off .gardien-thought, body.gardien-thoughts-off .gardien-thought-link { display: none !important; }  /* Nodz pose display en ligne */

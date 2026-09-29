@@ -19,10 +19,12 @@ import { createLibrary } from './library.js';
 import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
+import { createPhysics } from './physics.js';
 import { createPresence } from './presence.js';
 import { createSchemas } from './schemas.js';
 import { createSearch } from './search.js';
 import { createSide } from './side.js';
+import { createThoughts } from './thoughts.js';
 import { createTour } from './tour.js';
 
 const toast = document.getElementById('gardien-toast');
@@ -102,9 +104,10 @@ createDimensions();  // recherche, épinglées et nombre de nodes dans la liste 
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createLabels();  // libellés d'icônes au style HYPERSPACE, à la place des infobulles
+createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estompées, masquées
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
-    onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title) });
+    onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node) });
 const tour = createTour({ bridge, say });
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
@@ -114,6 +117,7 @@ const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids,
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 const presence = createPresence();  // l'avatar du Gardien là où il travaille
 const timeline = createHistory();  // Ctrl+Z / Ctrl+Y sur tout geste, du clavier, de la souris ou du Gardien
+const physics = createPhysics({ timeline });  // les nodes posés par l'IA se repoussent et se posent sous les yeux
 
 // Maj, Espace, Suppr, Tab, Ctrl+Z… sont des raccourcis de Nodz tant qu'on n'écrit pas. Écrire, c'est avoir le focus
 // dans un champ, où qu'il soit (chat, recherche, panneaux, IDE), pas seulement dans le texte d'un node.
