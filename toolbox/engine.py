@@ -55,6 +55,25 @@ def chances_reader(llm, into):
 
     return LogitsProcessorList([read])
 
+ANY = {'anyOf': [{'type': t} for t in ('string', 'number', 'boolean', 'array', 'object', 'null')]}
+
+
+def lean(schema):
+    """Le schéma, allégé pour la grammaire de llama.cpp. La grammaire s'applique sur le CPU à tout le vocabulaire
+    (150 000 jetons et plus) à chaque jeton : un schéma détaillé (champs facultatifs dans n'importe quel ordre, maxItems
+    déroulé en 150 répétitions imbriquées) la rend énorme, et le GPU attend le CPU. On garde la structure et les champs
+    requis (avec leurs énumérations, comme `op`) ; le reste est un JSON libre, que le Gardien valide de toute façon."""
+    if not isinstance(schema, dict):
+        return schema
+    if schema.get('type') == 'object' and 'properties' in schema:
+        required = schema.get('required', [])
+        return {'type': 'object', 'required': required, 'additionalProperties': ANY,
+                'properties': {k: lean(v) for k, v in schema['properties'].items() if k in required}}
+    if schema.get('type') == 'array':
+        return {'type': 'array', 'items': lean(schema.get('items', ANY))}
+    return {k: v for k, v in schema.items() if k not in ('maxItems', 'minItems', 'maxLength', 'minLength')}
+
+
 class EngineUnavailable(Exception):
     pass
 
@@ -275,7 +294,7 @@ class Engine:
     def _local(self, model, messages, json_schema, on_text, options, on_token=None):
         llm = self._ensure(model)
         if json_schema:
-            options['response_format'] = {'type': 'json_object', 'schema': json_schema}
+            options['response_format'] = {'type': 'json_object', 'schema': lean(json_schema)}
         # Mesure de l'appel : taille du prompt, attente du premier jeton (lecture du prompt), vitesse ensuite.
         tokenize = getattr(llm, 'tokenize', None)
         prompt_tokens = len(tokenize(''.join(m['content'] for m in messages).encode())) if tokenize else None

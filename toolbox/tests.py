@@ -465,6 +465,17 @@ class FitTests(SimpleTestCase):
         fixed, _ = self.resolve({'n_gpu_layers': 12, 'n_ctx': 8192}, vram=8000)
         self.assertEqual((fixed['n_gpu_layers'], fixed['n_ctx']), (12, 8192))
 
+    def test_lean_grammar_keeps_structure(self):
+        from .engine import lean
+        from .guardian import THINK_OPS, think_schema
+
+        light = lean(think_schema(THINK_OPS))
+        item = light['properties']['calls']['items']
+        self.assertEqual((light['required'], item['required'], item['properties']['op']['enum']), (['calls'], ['op'], THINK_OPS))
+        self.assertNotIn('maxItems', light['properties']['calls'])  # 150 répétitions imbriquées dans la grammaire
+        self.assertEqual(set(item['properties']), {'op'})  # le reste : JSON libre, validé par le Gardien
+        self.assertIn('anyOf', item['additionalProperties'])
+
     def test_hybrid_models_count_only_attention_layers(self):
         from . import fit
 
