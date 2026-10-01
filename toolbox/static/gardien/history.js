@@ -12,7 +12,7 @@ const TYPING = 5000;   // frappe sur un même node : les sauvegardes successives
 const LIMIT = 200;     // transactions gardées
 const SETTLE = 400;    // ms après un Ctrl+Z : les retouches différées de Nodz (tailles, aperçus) ne sont pas des gestes
 
-export function createHistory() {
+export function createHistory({ onGesture = () => {} } = {}) {  // onGesture(genre) : un geste vient d'avoir lieu (effets sonores)
     const known = new Map();   // id du node → dernier état sauvegardé
     const fresh = new Set();   // nodes créés depuis leur dernière sauvegarde
     const done = [], undone = [];
@@ -134,6 +134,7 @@ export function createHistory() {
         open = null;
         const transaction = done.pop();
         if (!transaction) return;
+        onGesture('undo');
         replay(transaction, false);
         undone.push(transaction);
     }
@@ -143,6 +144,7 @@ export function createHistory() {
         open = null;
         const transaction = undone.pop();
         if (!transaction) return;
+        onGesture('redo');
         replay(transaction, true);
         done.push(transaction);
     }
@@ -153,7 +155,10 @@ export function createHistory() {
 
     window.createNode = function (...args) {
         const node = nodz.createNode(...args);
-        if (!quiet()) fresh.add(node.id);
+        if (!quiet()) {
+            fresh.add(node.id);
+            onGesture('create');
+        }
         return node;
     };
 
@@ -170,6 +175,7 @@ export function createHistory() {
 
     window.deleteNode = function (nodes) {
         const list = Array.from(nodes);
+        if (!quiet() && list.length) onGesture('delete');
         if (!quiet()) list.forEach(node => note({ kind: 'node', id: node.id, before: known.get(node.id) || snap(node), after: null, clone: node.cloneNode(true) }));
         deleting += 1;
         try {
@@ -182,11 +188,13 @@ export function createHistory() {
 
     window.createLink = function (a, b, id) {
         const result = nodz.createLink(a, b, id);
+        if (!id && !quiet()) onGesture('link');
         if (!id && !quiet()) note({ kind: 'link', id: `L-${linkCounter}`, a: a.id, b: b.id, before: false, after: true });
         return result;
     };
 
     window.deleteLink = function (link) {
+        if (!quiet()) onGesture('unlink');
         if (!quiet()) note({ kind: 'link', id: link.id, a: link.getAttribute('Node1'), b: link.getAttribute('Node2'), before: true, after: false });
         return nodz.deleteLink(link);
     };

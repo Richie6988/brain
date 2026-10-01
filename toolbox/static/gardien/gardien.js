@@ -25,6 +25,7 @@ import { createPhysics } from './physics.js';
 import { createPresence } from './presence.js';
 import { createSchemas } from './schemas.js';
 import { createSearch } from './search.js';
+import { createSfx } from './sfx.js';
 import { createSide } from './side.js';
 import { createThoughts } from './thoughts.js';
 import { createTour } from './tour.js';
@@ -109,12 +110,13 @@ createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createLabels();  // libellés d'icônes au style HYPERSPACE, à la place des infobulles
 createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estompées, masquées
+const sfx = createSfx();  // effets sonores des gestes : création, lien, suppression, portail…
 const guide = createGuide();  // présentation et tous les contrôles : bouton « ? » du menu, touche « ? »
 createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au relâcher
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node),
-    onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); physics.arrange(nodes); } });
+    onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); sfx.play('arrange'); physics.arrange(nodes); } });
 const tour = createTour({ bridge, say });
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
@@ -123,7 +125,13 @@ createSide({ bridge, say, filters });  // vue de côté : X = numéro de dimensi
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 const presence = createPresence();  // l'avatar du Gardien là où il travaille
-const timeline = createHistory();  // Ctrl+Z / Ctrl+Y sur tout geste, du clavier, de la souris ou du Gardien
+const timeline = createHistory({ onGesture: kind => sfx.play(kind) });  // Ctrl+Z / Ctrl+Y sur tout geste, du clavier, de la souris ou du Gardien
+// Ouvrir une dimension (portail, Entrée sur un node) : l'arpège du passage.
+const nodzNewLayer = window.createNewLayer;
+window.createNewLayer = (...args) => {
+    sfx.play('portal');
+    return nodzNewLayer(...args);
+};
 const physics = createPhysics({ timeline });  // les nodes posés par l'IA se repoussent et se posent sous les yeux
 
 // Maj, Espace, Suppr, Tab, Ctrl+Z… sont des raccourcis de Nodz tant qu'on n'écrit pas. Écrire, c'est avoir le focus
@@ -391,6 +399,7 @@ async function ask(node, text, attached = [], direct = !!node) {
             + `la mémoire libre (${go(timing.memory.free_gb)} Go) : je relis le disque à chaque mot. Donne-moi un modèle d'environ `
             + `${go(timing.memory.advice_gb)} Go ou moins dans Agents & modèles (un 3B ou un 1.5B en Q4), ou branche un modèle par API : `
             + 'j\'écrirai bien plus vite.', 'mémoire');
+        if (!stopped) sfx.play('done');
     } catch (error) {
         think?.end('Réflexion interrompue');
         follow.end(error.message);
