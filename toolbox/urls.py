@@ -17,6 +17,7 @@ urlpatterns = [
     path('packs/<str:key>', api.pack),
     path('cuda', api.cuda_build),
     path('dimensions', api.dimensions),
+    path('gallery', api.gallery),
     path('search', api.search),
     path('side', api.side),
     path('nodes/meta', api.node_meta),

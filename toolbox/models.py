@@ -261,7 +261,8 @@ class ForgedTool(models.Model):
 
 
 class Preference(models.Model):
-    """Réglages d'interface d'un compte, gardés sur le serveur : dimensions épinglées."""
+    """Réglages d'interface d'un compte, gardés sur le serveur : dimensions épinglées, modèles personnels de la galerie."""
 
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='nodz_preference')
     pinned_layers = models.JSONField(default=list, blank=True)  # numéros de dimension (layer_id), dans l'ordre d'épinglage
+    gallery = models.JSONField(default=list, blank=True)  # [{id, name, nodes: [{x, y, text, color, shape, radius}], links: [[i, j]]}]

@@ -2,7 +2,10 @@
 // matrices, outils de stratégie, processus). Chaque modèle est une liste de nodes (coordonnées de Nodz, y vers le haut,
 // forme, rayon éventuel) et de liens ; la carte de la galerie en dessine l'aperçu, un clic le construit au centre de la
 // vue (outils du pont : création, liens, taille, sauvegarde et annulation de Nodz), puis la caméra recule pour tout
-// montrer. Le Gardien pose les mêmes modèles (op `schema`).
+// montrer. Le Gardien pose les mêmes modèles (op `schema`). « Mes modèles », en tête de la galerie : une sélection de
+// nodes et de leurs liens, enregistrée sur le serveur, se repose comme un modèle de la galerie.
+
+import { api } from './api.js';
 
 const PALETTE = ['#b89af2', '#1E90FF', '#33FF99', '#FFB84D', '#FF6B6B'];
 const Q = { shape: 'square' };  // titre, question, en-tête : un carré
@@ -305,7 +308,11 @@ export function layout(schema, fill, title) {
 }
 
 function preview(schema) {
-    const { nodes, links, width, height } = layout(schema);
+    return drawing(layout(schema));
+}
+
+// Aperçu de nodes posés (x, y relatifs, y vers le haut) et de leurs liens.
+function drawing({ nodes, links, width, height }) {
     const k = 150 / Math.max(width, height, 1);
     const p = n => [100 + n.x * k, 100 - n.y * k];
     const lines = links.map(([a, b]) => { const [x1, y1] = p(nodes[a]), [x2, y2] = p(nodes[b]); return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; });
@@ -331,6 +338,100 @@ export function createSchemas({ bridge }) {
             return card;
         }),
     ]));
+
+    // --- Mes modèles : enregistrer la sélection, la reposer, la retirer (deux clics, sans confirm()).
+    const mine = Object.assign(document.createElement('div'), { className: 'gt-mine' });
+    gallery.querySelector('.close-btn').after(Object.assign(document.createElement('h3'), { className: 'gt-trees-title', textContent: 'Mes modèles' }), mine);
+    let saved = [];
+    function selection() {
+        const list = selectedNodes.filter(n => n.isConnected);
+        const at = list.map(n => ({ x: Number(n.getAttribute('x')), y: Number(n.getAttribute('y')) }));
+        const cx = at.reduce((t, p) => t + p.x, 0) / (list.length || 1), cy = at.reduce((t, p) => t + p.y, 0) / (list.length || 1);
+        const index = new Map(list.map((n, i) => [n.id, i]));
+        const nodes = list.map((n, i) => {
+            const square = n.getAttribute('shape') === 'square';
+            return { x: at[i].x - cx, y: at[i].y - cy, text: n.children[0].children[0].innerHTML, color: n.getAttribute('color') || '',
+                shape: square ? 'square' : n.getAttribute('shape') === 'none' ? 'none' : '',
+                radius: square ? Number(n.children[2].getAttribute('width')) / 2 : Number(n.children[1].getAttribute('r')) };
+        });
+        const links = [...document.querySelectorAll('.link')].map(l => [index.get(l.getAttribute('Node1')), index.get(l.getAttribute('Node2'))])
+            .filter(([a, b]) => a !== undefined && b !== undefined);
+        return { nodes, links };
+    }
+    // Centré sur son cadre (l'aperçu et la pose le supposent), avec ses dimensions.
+    const measured = model => {
+        const xs = model.nodes.map(n => n.x), ys = model.nodes.map(n => n.y);
+        const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+        return { ...model, nodes: model.nodes.map(n => ({ ...n, x: n.x - cx, y: n.y - cy, color: n.color || PALETTE[0] })),
+            width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+    };
+    function renderMine() {
+        const count = selectedNodes.filter(n => n.isConnected).length;
+        const name = Object.assign(document.createElement('input'), { type: 'text', placeholder: 'Nom du modèle', maxLength: 60 });
+        const keep = Object.assign(document.createElement('button'), { type: 'button', className: 'gt-keep', textContent: 'Enregistrer',
+            disabled: !count });
+        name.addEventListener('keydown', event => {
+            event.stopPropagation();  // la saisie ne déclenche pas les raccourcis de Nodz
+            if (event.key === 'Enter') keep.click();
+        });
+        keep.addEventListener('click', async () => {
+            if (!name.value.trim()) return name.focus();
+            try {
+                saved = (await api.request('POST', 'toolbox/gallery', { name: name.value.trim(), ...selection() })).models;
+                renderMine();
+            } catch (error) {
+                note.textContent = error.message;
+            }
+        });
+        const note = Object.assign(document.createElement('small'), { textContent: count
+            ? `${count} node${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}, avec leurs liens`
+            : 'Sélectionne des nodes (Ctrl + glisser) pour en faire un modèle' });
+        const form = Object.assign(document.createElement('div'), { className: 'gt-save' });
+        form.append(Object.assign(document.createElement('b'), { textContent: '+ Nouveau modèle' }), note, name, keep);
+        mine.replaceChildren(form, ...saved.map(model => {
+            const card = Object.assign(document.createElement('div'), { className: 'template-tree gt-own', title: `${model.name} : ${model.nodes.length} nodes` });
+            card.innerHTML = `${drawing(measured(model))}<b></b><small>${model.nodes.length} nodes · ${model.links.length} liens</small>`;
+            card.querySelector('b').textContent = model.name;
+            card.addEventListener('click', () => {
+                closeGallery();
+                place(measured(model), bridge.center());
+            });
+            const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'gt-remove', textContent: '×', title: 'Retirer ce modèle' });
+            remove.addEventListener('click', async event => {
+                event.stopPropagation();
+                if (!remove.dataset.armed) {
+                    remove.dataset.armed = '1';
+                    remove.textContent = 'Retirer ?';
+                    setTimeout(() => { delete remove.dataset.armed; remove.textContent = '×'; }, 3000);
+                    return;
+                }
+                saved = (await api.request('DELETE', `toolbox/gallery?${new URLSearchParams({ id: model.id })}`)).models;
+                renderMine();
+            });
+            card.append(remove);
+            return card;
+        }));
+    }
+    // À chaque ouverture de la galerie : la sélection du moment et les modèles gardés sur le serveur.
+    document.getElementById('templateButton')?.addEventListener('click', async () => {
+        renderMine();
+        try {
+            saved = (await api.request('GET', 'toolbox/gallery')).models;
+            renderMine();
+        } catch { /* hors ligne : la galerie de base reste */ }
+    });
+
+    // Pose des nodes (x, y relatifs) et leurs liens autour de `at`, puis la caméra recule pour tout montrer.
+    async function place({ nodes, links, width, height }, at) {
+        const prefix = `schema${++built}-`;
+        selectedNodes.slice().forEach(n => nodeUnselection(n));
+        for (const [i, n] of nodes.entries()) {
+            await bridge.perform({ op: 'create', ref: prefix + i, x: at.x + n.x, y: at.y + n.y, text: n.text, color: n.color, shape: n.shape });
+            if (n.radius && n.radius !== 60) await bridge.perform({ op: 'style', ref: prefix + i, radius: n.radius });
+        }
+        for (const [a, b] of links) await bridge.perform({ op: 'link', source: prefix + a, target: prefix + b });
+        await bridge.fit(width + 360, height + 360);
+    }
 
     // Construit le modèle `key` centré sur `at` (coordonnées de Nodz), rempli par `fill` et `title` (Gardien) ;
     // `fit` : la caméra recule pour tout montrer.

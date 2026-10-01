@@ -777,6 +777,20 @@ foreignObject.portal { overflow: visible; animation: none; }
     background: radial-gradient(circle at 50% 40%, rgba(104, 72, 166, 0.35), rgba(5, 12, 23, 0.95) 70%);
     border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 14px; transition: transform 0.25s, box-shadow 0.25s;
 }
+#templates .gt-mine { grid-column: 1 / -1; justify-self: stretch; display: flex; flex-wrap: wrap; gap: 14px; justify-content: flex-start; }
+/* Galerie ouverte (la sélection y devient un modèle) : ni pastille ni barre d'outils du node par-dessus. */
+body:has(#templates[style*="flex"]) :is(#gardien-send, #gardien-nodebar, #gardien-sizer) { display: none !important; }
+#templates .gt-save { display: flex; flex-direction: column; gap: 8px; justify-content: center; width: 220px; padding: 14px; box-sizing: border-box;
+    border: 1px dashed rgba(184, 154, 242, 0.6); border-radius: 18px; color: #e2e8f0; font: 12px 'Cascadia Code', monospace; }
+#templates .gt-save b { color: #b89af2; }
+#templates .gt-save small { color: #94a3b8; line-height: 1.4; }
+#templates .gt-save input { font: inherit; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(184, 154, 242, 0.5); background: #050c17; color: #fff; }
+#templates .gt-keep { font: inherit; padding: 6px 12px; border-radius: 999px; border: 0; cursor: pointer; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
+#templates .gt-keep:disabled { opacity: 0.4; cursor: not-allowed; }
+#templates .gt-own { position: relative; }
+#templates .gt-remove { position: absolute; top: 8px; right: 8px; font: 11px 'Cascadia Code', monospace; padding: 2px 8px; border-radius: 999px; cursor: pointer;
+    color: #e2e8f0; background: rgba(5, 12, 23, 0.8); border: 1px solid rgba(255, 107, 107, 0.6); }
+#templates .gt-remove[data-armed] { background: #c0392b; color: #fff; }
 #templates .template-tree:hover { transform: translateY(-4px); box-shadow: 0 0 0 2px #6848A6, 0 0 18px rgba(30, 144, 255, 0.45); }
 #templates .template-tree svg { width: 130px; height: 130px; flex: none; }
 #templates .template-tree .gt-lines line { stroke: rgba(184, 154, 242, 0.55); stroke-width: 2; }

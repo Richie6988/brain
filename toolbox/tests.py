@@ -536,6 +536,21 @@ class ToolboxApiTests(TestCase):
         self.client.logout()
         self.assertEqual(self.client.get('/api/v1/toolbox/status').status_code, 401)
 
+    def test_personal_gallery(self):
+        body = {'name': 'Mon trio', 'nodes': [{'x': -100, 'y': 0, 'text': '<b>A</b>', 'color': '#33FF99', 'shape': 'square', 'radius': 90},
+                                              {'x': 100, 'y': 0, 'text': 'B', 'color': 'red;x', 'radius': 5000}, {'x': 0, 'y': 120, 'text': 'C'}],
+                'links': [[0, 1], [1, 2], [2, 9], [1, 1], 'x']}
+        saved = self.send('post', '/api/v1/toolbox/gallery', body).json()['models']
+        self.assertEqual(len(saved), 1)
+        model = saved[0]
+        self.assertEqual((model['name'], model['links']), ('Mon trio', [[0, 1], [1, 2]]))  # liens hors des nodes écartés
+        self.assertEqual((model['nodes'][1]['color'], model['nodes'][1]['radius'], model['nodes'][0]['shape']), ('', 600.0, 'square'))
+        self.assertEqual(self.send('post', '/api/v1/toolbox/gallery', {'name': 'vide', 'nodes': []}).status_code, 400)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get('/api/v1/toolbox/gallery').json()['models'], [])  # chacun ses modèles
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.delete(f"/api/v1/toolbox/gallery?id={model['id']}").json()['models'], [])
+
     def test_model_and_agent_params(self):
         model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf', status=LocalModel.Status.READY)
         url = f'/api/v1/toolbox/models/{model.id}'

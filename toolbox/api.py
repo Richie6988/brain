@@ -12,6 +12,7 @@ import queue
 import re
 import threading
 import time
+import uuid
 from pathlib import Path
 
 from django.conf import settings
@@ -252,6 +253,47 @@ def dimensions(request, body):
         prefs.save(update_fields=['pinned_layers'])
     counts = dict(Node.objects.filter(user=request.user, archive=False).values_list('layer__layer_id').annotate(n=Count('id')))
     return JsonResponse({'pinned': prefs.pinned_layers, 'counts': {str(k): v for k, v in counts.items()}})
+
+
+GALLERY_MAX = 60  # modèles personnels par compte
+GALLERY_NODES = 200
+HEX = re.compile(r'^#[0-9a-fA-F]{3,8}$')
+
+
+def gallery_model(body):
+    """Un modèle de la galerie fait d'une sélection : nodes (position relative, texte, couleur, forme, rayon) et liens."""
+    name = str(body.get('name') or '').strip()[:60]
+    nodes, links = body.get('nodes'), body.get('links') or []
+    if not name:
+        raise ChangeError('nom du modèle requis')
+    if not isinstance(nodes, list) or not 0 < len(nodes) <= GALLERY_NODES or not isinstance(links, list):
+        raise ChangeError(f'de 1 à {GALLERY_NODES} nodes')
+    kept = []
+    for n in nodes:
+        if not isinstance(n, dict) or not all(isinstance(n.get(k), (int, float)) for k in ('x', 'y')):
+            raise ChangeError('node : x et y requis')
+        color = str(n.get('color') or '')
+        kept.append({'x': round(float(n['x']), 1), 'y': round(float(n['y']), 1), 'text': str(n.get('text') or '')[:4000],
+                     'color': color if HEX.match(color) else '', 'shape': n.get('shape') if n.get('shape') in ('square', 'none') else '',
+                     'radius': min(600.0, max(20.0, float(n['radius']))) if isinstance(n.get('radius'), (int, float)) else 60.0})
+    pairs = [[a, b] for a, b in (l for l in links if isinstance(l, list) and len(l) == 2)
+             if isinstance(a, int) and isinstance(b, int) and 0 <= a < len(kept) and 0 <= b < len(kept) and a != b][:GALLERY_NODES * 2]
+    return {'id': uuid.uuid4().hex[:12], 'name': name, 'nodes': kept, 'links': pairs}
+
+
+@api('GET', 'POST', 'DELETE')
+def gallery(request, body):
+    """Modèles personnels de la galerie : liste, ajout (une sélection de nodes et ses liens), retrait (?id=)."""
+    prefs, _ = Preference.objects.get_or_create(owner=request.user)
+    if request.method == 'POST':
+        if len(prefs.gallery) >= GALLERY_MAX:
+            raise ChangeError(f'{GALLERY_MAX} modèles au plus : retires-en un')
+        prefs.gallery = [*prefs.gallery, gallery_model(body if isinstance(body, dict) else {})]
+        prefs.save(update_fields=['gallery'])
+    elif request.method == 'DELETE':
+        prefs.gallery = [m for m in prefs.gallery if m.get('id') != request.GET.get('id')]
+        prefs.save(update_fields=['gallery'])
+    return JsonResponse({'models': prefs.gallery})
 
 
 @api('GET', 'POST')

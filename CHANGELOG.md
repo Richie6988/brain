@@ -178,6 +178,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Filtres : clic dehors** : un clic hors du panneau des filtres le ferme ; les nodes cochés partent aussitôt en contexte du Gardien (plus besoin de « Joindre »). Les filtres réglés restent. × et Échap ferment sans rien joindre.
 
+**Galerie : mes modèles** : en tête de la galerie, « + Nouveau modèle » enregistre la sélection (nodes avec texte, couleur, forme, taille, et les liens entre eux) sous un nom, sur le serveur, pour ce compte seul (60 au plus). Sa carte dessine l'aperçu ; un clic le repose au centre de la vue, × puis « Retirer ? » le supprime. Galerie ouverte : la pastille et la barre d'outils du node ne passent plus par-dessus. Migration : `gallery` sur les préférences.
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
