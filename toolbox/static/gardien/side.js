@@ -6,6 +6,8 @@
 // La dimension ouverte tourne réellement (X·cos θ + Z·sin θ), les autres apparaissent ; liens de chaque dimension et
 // portails en arcs entre colonnes. Clic sur un node : retour dans le plan et voyage jusqu'à lui ; Échap ou le cube :
 // retour. Les nodes réels sont seulement cachés et les touches de création de Nodz bloquées : rien n'est modifié.
+// Pour rester légère, la vue ne montre des autres dimensions que leurs nodes interdimensionnels (les bouts des
+// portails) ; le pointeur au-dessus d'une colonne la montre en entier, ses nodes construits au premier passage.
 
 import { api } from './api.js';
 
@@ -68,11 +70,13 @@ export function createSide({ bridge, say, filters }) {
         const theta = (e * Math.PI) / 2, cos = Math.cos(theta), sin = Math.sin(theta);
         const squeeze = 0.25 + 0.75 * Math.abs(Math.cos(2 * theta));  // de profil à mi-rotation
         nodes.forEach(n => {
+            if (!n.el) return;  // pas encore montré
             n.px = n.here ? pivot + (n.x - pivot) * cos + (n.fx - pivot) * sin : pivot + (n.fx - pivot) * sin;
             n.el.setAttribute('transform', `translate(${n.px.toFixed(1)} ${(-n.y).toFixed(1)}) scale(${squeeze.toFixed(3)} 1)`);
             n.el.style.opacity = n.here ? 1 : e;
         });
         links.forEach(l => {
+            if (!l.el) return;
             l.el.setAttribute('x1', l.a.px); l.el.setAttribute('y1', -l.a.y);
             l.el.setAttribute('x2', l.b.px); l.el.setAttribute('y2', -l.b.y);
             l.el.style.opacity = l.a.here ? 1 : e;
@@ -166,7 +170,8 @@ export function createSide({ bridge, say, filters }) {
 
     // Documents des autres dimensions : leur aperçu est lu au serveur (route de Nodz), quelques-uns au plus.
     function fetchDocs(current) {
-        current.nodes.filter(n => !n.here && n.doc && PREVIEWED.test(n.file)).slice(0, DOCS).forEach(n => {
+        current.nodes.filter(n => !n.here && n.doc && !n.fetched && PREVIEWED.test(n.file)).slice(0, DOCS).forEach(n => {
+            n.fetched = true;
             fetch('/load-file/', { method: 'POST', headers: { 'X-CSRFToken': getCookie('nodz_csrftoken') },
                 body: JSON.stringify({ nodeID: parseInt(n.id.match(/\d+/)[0], 10), fileName: n.file }) })
                 .then(response => (response.ok ? response.blob() : null))
@@ -211,30 +216,33 @@ export function createSide({ bridge, say, filters }) {
         });
         const order = [...byLayer.keys()].sort((a, b) => a - b);
         let cursor = 0;
-        const centers = new Map();
+        const centers = new Map(), extents = new Map();
         order.forEach(layer => {
             const { min, max } = spread(byLayer.get(layer));
+            extents.set(layer, { min, max });
             centers.set(layer, cursor - min);
             cursor = cursor - min + max + COLUMN_GAP;
         });
         const shift = center.x - centers.get(current);
-        const rich = nodes.length <= RICH;
+        const gates = new Set(bridges.flat());  // nodes interdimensionnels : montrés d'emblée
+        nodes.forEach(n => { n.gate = gates.has(n.id); n.shown = n.here || n.gate; });
+        const rich = nodes.filter(n => n.shown).length <= RICH;
         // Dans `universe`, Nodz dessine un node à sa position plus (centerX, centerY) : même décalage ici.
         const group = make('g', { class: 'gardien-side-layer', transform: `translate(${centerX} ${centerY})` });
         const [guides, linkLayer, portalLayer, nodeLayer] = ['gs-guides', 'gs-links', 'gs-portals', 'gs-nodes'].map(c => group.appendChild(make('g', { class: c })));
         const byId = new Map();
         nodes.forEach(n => {
             n.fx = centers.get(n.layer) + shift + n.ox;
-            n.el = nodeLayer.appendChild(replica(n, rich));
+            if (n.shown) n.el = nodeLayer.appendChild(replica(n, rich));
             byId.set(n.id, n);
         });
-        const links = [];
+        const links = [];  // tracés quand leurs deux bouts sont montrés
         const linked = new Set();
         [...pairs, ...livePairs].forEach(([a, b]) => {
             const key = [a, b].sort().join('|');
             if (!byId.has(a) || !byId.has(b) || linked.has(key)) return;
             linked.add(key);
-            links.push({ a: byId.get(a), b: byId.get(b), el: linkLayer.appendChild(make('line')) });
+            links.push({ a: byId.get(a), b: byId.get(b), el: null });
         });
         const portals = bridges.filter(([a, b]) => byId.has(a) && byId.has(b))
             .map(([a, b]) => ({ a: byId.get(a), b: byId.get(b), el: portalLayer.appendChild(make('path')) }));
@@ -245,21 +253,67 @@ export function createSide({ bridge, say, filters }) {
             const x = centers.get(layer) + shift;
             const line = guides.appendChild(make('line', { class: layer === current ? 'here' : '', y1: -top + 60, y2: -bottom }));
             const label = guides.appendChild(make('text', { class: layer === current ? 'here' : '', y: -top }));
-            label.textContent = `${layer} · ${names.get(layer) || ''}`;
-            return { x, line, label };
+            const count = byLayer.get(layer).length;
+            label.textContent = `${layer} · ${names.get(layer) || ''} · ${count} node${count > 1 ? 's' : ''}`;
+            return { layer, x, line, label, ...extents.get(layer) };
         });
         const xs = nodes.map(n => n.fx).concat(columns.map(c => c.x));
-        scene = { nodes, links, portals, columns, group, pivot: center.x, urls: [],
+        scene = { nodes, links, portals, columns, group, nodeLayer, linkLayer, byLayer, pivot: center.x, urls: [], open: null,
             bounds: { x0: Math.min(...xs) - 200, x1: Math.max(...xs) + 200, y0: bottom, y1: top } };
+        wire();
         sift();
     }
+
+    // Liens dont les deux bouts sont montrés : tracés (une fois), les autres cachés.
+    function wire() {
+        scene.links.forEach(l => {
+            const on = l.a.shown && l.b.shown;
+            if (on && !l.el) l.el = scene.linkLayer.appendChild(make('line'));
+            if (l.el) l.el.style.display = on ? '' : 'none';
+        });
+    }
+
+    // Une autre dimension en entier (pointeur au-dessus de sa colonne), ou de nouveau ses seuls nodes interdimensionnels.
+    function reveal(layer) {
+        const previous = scene.open;
+        scene.open = layer;
+        [previous, layer].forEach(l => {
+            const column = l === null || l === layerNumber ? null : scene.byLayer.get(l);
+            column?.forEach(n => {
+                if (n.gate) return;
+                n.shown = l === layer;
+                if (n.shown && !n.el) n.el = scene.nodeLayer.appendChild(replica(n, column.length <= RICH));
+                if (n.el) n.el.style.display = n.shown ? '' : 'none';
+            });
+        });
+        wire();
+        frame(1);
+        sift();
+        fetchDocs(scene);
+    }
+
+    // Le pointeur au-dessus d'une colonne (sur toute sa hauteur) : celle-là s'ouvre.
+    let pending = 0;
+    document.addEventListener('pointermove', event => {
+        if (!scene || busy || pending) return;
+        pending = requestAnimationFrame(() => {
+            pending = 0;
+            if (!scene || busy) return;
+            const m = scene.group.getScreenCTM();
+            if (!m) return;
+            const hit = scene.columns.find(c => c.layer !== layerNumber
+                && event.clientX >= m.a * (c.x + c.min) + m.e - 40 && event.clientX <= m.a * (c.x + c.max) + m.e + 40);
+            const layer = hit ? hit.layer : null;
+            if (layer !== scene.open) reveal(layer);
+        });
+    });
 
     // Filtres du haut (texte, origine, période) : comme en vue standard, les nodes écartés et leurs liens s'estompent.
     function sift() {
         if (!scene) return;
         const on = filters.active();
-        scene.nodes.forEach(n => { n.out = on && !filters.keeps(n.id, n.plain || ''); n.el.classList.toggle('gs-out', n.out); });
-        [...scene.links, ...scene.portals].forEach(l => l.el.classList.toggle('gs-out', l.a.out || l.b.out));
+        scene.nodes.forEach(n => { n.out = on && !filters.keeps(n.id, n.plain || ''); n.el?.classList.toggle('gs-out', n.out); });
+        [...scene.links, ...scene.portals].forEach(l => l.el?.classList.toggle('gs-out', l.a.out || l.b.out));
     }
     filters.onChange(sift);
 

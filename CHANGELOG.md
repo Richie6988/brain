@@ -170,6 +170,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Guide** : bouton « ? » du menu et touche « ? » : panneau à onglets Présentation (Nodz, nodes, dimensions, Gardien, choix de l'IA), Souris, Clavier, Gardien et IA, qui recense tous les contrôles. Il s'ouvre de lui-même à la première connexion.
 
+**Hyperspace léger** : des autres dimensions, la vue ne montre d'abord que les nodes interdimensionnels (les bouts des portails) ; le pointeur au-dessus d'une colonne la montre en entier, ses nodes construits au premier passage seulement. La dimension ouverte reste entière ; chaque colonne affiche son nombre de nodes.
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
