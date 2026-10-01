@@ -13,6 +13,7 @@ import { createCorners } from './corners.js';
 import { createIde } from './ide.js';
 import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
+import { createGuide } from './guide.js';
 import { createHistory } from './history.js';
 import { createLabels } from './labels.js';
 import { createLibrary } from './library.js';
@@ -98,6 +99,7 @@ const signedIn = setInterval(() => {
     // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
     api.request('POST', 'toolbox/warm', { mode: chat.mode() }).catch(() => {});
     refreshLetters();  // notes du Gardien en attente dans Échanges
+    guide.welcome();  // première visite : le guide s'ouvre
 }, 400);
 
 const joined = node => ({ id: node.id, text: (node.children[0]?.children[0]?.innerText || '').trim() });  // node joint au chat
@@ -107,6 +109,7 @@ createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createLabels();  // libellés d'icônes au style HYPERSPACE, à la place des infobulles
 createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estompées, masquées
+const guide = createGuide();  // présentation et tous les contrôles : bouton « ? » du menu, touche « ? »
 createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au relâcher
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),

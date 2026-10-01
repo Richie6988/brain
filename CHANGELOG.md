@@ -168,6 +168,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Sélection = contexte du chat, sans clic** : les nodes sélectionnés partent d'eux-mêmes en contexte de la prochaine demande au Gardien ; le chat les annonce (« 2 nodes en contexte : … ») et suit la sélection ; × les retire jusqu'à la prochaine sélection. Le bouton « + Joindre la sélection » disparaît.
 
+**Guide** : bouton « ? » du menu et touche « ? » : panneau à onglets Présentation (Nodz, nodes, dimensions, Gardien, choix de l'IA), Souris, Clavier, Gardien et IA, qui recense tous les contrôles. Il s'ouvre de lui-même à la première connexion.
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
