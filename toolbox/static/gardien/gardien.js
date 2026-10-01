@@ -45,7 +45,7 @@ function say(text, kind = '') {
 }
 
 // Fil de suivi : plan annoncé, étape en cours, étapes faites ; s'efface après la réponse. Il vit dans la bande
-// déroulante de la pastille des jauges (on le voit en la dépliant).
+// déroulante de la pastille des jauges : une demande la déplie, elle se replie après la réponse (si elle était repliée).
 const follow = (() => {
     const card = document.createElement('aside');
     card.id = 'gardien-follow';
@@ -56,11 +56,16 @@ const follow = (() => {
     const next = document.createElement('ol');
     card.append(now, done, next);
     document.getElementById('button-container').after(card);
-    let timer = null;
+    let timer = null, unfolded = false;
+    const hud = () => card.closest('.gm-hud');
     const item = (text, className = '') => Object.assign(document.createElement('li'), { textContent: text, className });
     return {
         start() {
             clearTimeout(timer);
+            if (hud() && !hud().classList.contains('open')) {
+                hud().classList.add('open');
+                unfolded = true;
+            }
             card.hidden = false;
             card.classList.remove('fade', 'finished');
             now.textContent = 'Le Gardien réfléchit…';
@@ -83,7 +88,14 @@ const follow = (() => {
             this.step(text, 'idle');
             next.replaceChildren();
             card.classList.add('finished');
-            timer = setTimeout(() => { card.classList.add('fade'); timer = setTimeout(() => { card.hidden = true; }, 900); }, 5000);
+            timer = setTimeout(() => {
+                card.classList.add('fade');
+                timer = setTimeout(() => {
+                    card.hidden = true;
+                    if (unfolded) hud()?.classList.remove('open');
+                    unfolded = false;
+                }, 900);
+            }, 5000);
         },
     };
 })();
