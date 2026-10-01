@@ -196,6 +196,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Agents : consignes enregistrables** : chaque agent a un bouton « Enregistrer les consignes » et un état visible (personnalisées, par défaut, modifiées non enregistrées) ; les consignes restent sur le serveur.
 
+**Guide en mode invité** : le guide s'ouvre à chaque entrée par GUEST (et toujours à la première connexion d'un compte).
+
 **Illustrateur sans modèle d'image** : FLUX / SD reste utilisé dès qu'il est installé ; sinon l'Illustrateur dessine avec un modèle de texte (le sien, ou celui du Gardien). Vectoriel (par défaut) : il écrit un SVG, nettoyé par liste blanche (ni script, ni objet étranger, ni attribut d'événement, ni lien externe) et servi avec une CSP sans script, posé comme image nette à tout zoom. Croquis (mode sketch) : ses traits se tracent un à un sur le canvas du node. Ses consignes s'ajoutent à celles du dessin.
 
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).

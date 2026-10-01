@@ -1,5 +1,5 @@
 // Guide de Nodz : présentation du produit et tous les contrôles (souris, clavier, Gardien et IA), dans un panneau à
-// onglets. Bouton « ? » du menu ou touche « ? » ; ouvert de lui-même à la première connexion (pas sous automatisation :
+// onglets. Bouton « ? » du menu ou touche « ? » ; ouvert de lui-même à chaque entrée en invité et à la première connexion (pas sous automatisation :
 // les bancs de navigation pilotent un navigateur vierge).
 
 import { h } from './library.js';
@@ -106,13 +106,14 @@ export function createGuide() {
         open();
     });
 
-    // Une fois connecté, à la première visite.
+    // Une fois connecté : à chaque entrée en mode invité (GUEST), sinon à la première visite.
     function welcome() {
         let seen = true;
         try {
             seen = localStorage.getItem(KEY) === '1';
         } catch { /* stockage indisponible : pas d'ouverture d'office */ }
-        if (!seen && !navigator.webdriver) open();
+        const guest = typeof guestUser !== 'undefined' && guestUser;
+        if ((guest || !seen) && !navigator.webdriver) open();
     }
     return { open, welcome };
 }
