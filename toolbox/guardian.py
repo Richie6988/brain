@@ -26,7 +26,7 @@ from graph.models import AIRun
 from nodzapp.models import Link, Node
 
 from . import broker as priorities
-from . import imaging, layouts, perception, prompts, tools, web, workspace
+from . import drawing, imaging, layouts, perception, prompts, tools, web, workspace
 from .iaqua import IaquaOps
 from .engine import EngineUnavailable
 from .errors import PlanError
@@ -773,12 +773,20 @@ class Guardian(IaquaOps):
         agent = self.agent(agents, action.get('agent'))
         if agent.role == Agent.Role.ORCHESTRATOR:
             raise PlanError('le Gardien ne se délègue pas à lui-même')
-        if agent.model_id is None:
+        draw = None
+        if agent.role == Agent.Role.IMAGE and (agent.model is None or agent.model.kind != LocalModel.Kind.IMAGE):
+            # Sans modèle d'image, l'Illustrateur dessine avec un modèle de texte : le sien, sinon celui du Gardien.
+            guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
+            model = agent.model or (guardian.model if guardian else None)
+            if model is None:
+                raise PlanError(f"{agent.name} n'a aucun modèle pour dessiner")
+            draw = {'draw': 'sketch' if str(action.get('mode', '')).lower() in ('sketch', 'croquis', 'canvas') else 'vector', 'model': model}
+        elif agent.model_id is None:
             raise PlanError(f"{agent.name} n'a pas de modèle : branche-lui un modèle (plug_agent)")
-        if (agent.role == Agent.Role.IMAGE) != (agent.model.kind == LocalModel.Kind.IMAGE):
+        elif agent.role != Agent.Role.IMAGE and agent.model.kind == LocalModel.Kind.IMAGE:
             raise PlanError(f"{agent.name} : son modèle n'est pas du bon type (image ou texte)")
         ref = action['ref']
-        self.jobs.append((agent, action.get('task', ''), ref))
+        self.jobs.append((agent, action.get('task', ''), ref, draw) if draw else (agent, action.get('task', ''), ref))
         if ref in self.nodes:
             return None
         x, y = self.place(ref, action.get('near'), IMAGE_RADIUS if agent.role == Agent.Role.IMAGE else RADIUS)  # il attend le résultat
@@ -1242,6 +1250,8 @@ class Guardian(IaquaOps):
     def delegate(self, agent, task, ref, extra=None):
         self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task, 'role': agent.role})
         if agent.role == Agent.Role.IMAGE:
+            if extra and extra.get('draw'):
+                return self.draw(agent, task, ref, extra['draw'], extra['model'])
             return self.illustrate(agent, task, ref, extra or {})
         messages = [
             {'role': 'system', 'content': agent.system_prompt or prompts.default(agent.role)},
@@ -1264,6 +1274,32 @@ class Guardian(IaquaOps):
             self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(f'{agent.name} : {e}')})
             return
         self.emit('action', {'op': 'image', 'ref': ref, 'url': f'toolbox/images/{name}'})
+
+    def draw(self, agent, task, ref, mode, model):
+        """L'Illustrateur sans modèle d'image : un dessin vectoriel nettoyé (image du node) ou un croquis tracé sur le canvas
+        du node. Ses consignes (Agents & modèles) s'ajoutent à celles du dessin. Un échec est écrit dans le node."""
+        system = prompts.DRAW_SKETCH if mode == 'sketch' else prompts.DRAW_SVG
+        if agent.system_prompt:
+            system += f'\nConsignes de l\'humain pour toi :\n{agent.system_prompt}'
+        messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': task}]
+        self.emit('intent', {'text': f"{agent.name} {'trace un croquis' if mode == 'sketch' else 'dessine'}"})
+        try:
+            if mode == 'sketch':
+                raw = self.engine.chat(model, messages, json_schema=drawing.SKETCH_SCHEMA, priority=priorities.AGENT,
+                                       owner=f'agent:{agent.name}', **agent.params)
+                match = re.search(r'\{.*\}', raw or '', re.S)
+                try:
+                    data = json.loads(match.group(0)) if match else None
+                except ValueError:
+                    data = None
+                self.emit('action', {'op': 'sketch', 'ref': ref, 'operations': drawing.sketch_operations(data)})
+            else:
+                raw = self.engine.chat(model, messages, priority=priorities.AGENT, owner=f'agent:{agent.name}', **agent.params)
+                name = drawing.save_svg(self.user, drawing.sanitize_svg(raw))
+                self.emit('action', {'op': 'image', 'ref': ref, 'url': f'toolbox/images/{name}'})
+        except drawing.DrawingError as e:
+            self.emit('error', {'message': f'{agent.name} : {e}'})
+            self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(f'{agent.name} : {e}')})
 
     # --- boucle
 

@@ -616,7 +616,7 @@ class IaquaOps:
         painter = next((a for a in agents.values() if a.role == Agent.Role.IMAGE), None)
         if painter is None:
             raise PlanError("aucun agent d'image actif")
-        return self.op_delegate({'agent': painter.name, 'task': action.get('prompt') or action.get('text', ''),
+        return self.op_delegate({'agent': painter.name, 'task': action.get('prompt') or action.get('text', ''), 'mode': action.get('mode'),
                                  'ref': action.get('ref') or f'img{len(self.nodes) + 1}', 'near': action.get('near')}, agents)
 
     def op_edit_image(self, action, agents):

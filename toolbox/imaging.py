@@ -79,7 +79,7 @@ def output_dir(user):
 
 def image_path(user, name):
     """Fichier généré pour cet utilisateur, ou None (pas de chemin arbitraire)."""
-    if not re.fullmatch(r'[0-9a-f]{32}\.png', name or ''):
+    if not re.fullmatch(r'[0-9a-f]{32}\.(png|svg)', name or ''):  # svg : dessins vectoriels de l'Illustrateur (drawing.py)
         return None
     path = output_dir(user) / name
     return path if path.is_file() else None

@@ -874,14 +874,18 @@ class GuardianTests(TestCase):
             {'op': 'delegate', 'agent': 'Codeur', 'task': 'Convertisseur', 'ref': 'N-2'},
             {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'Une carte', 'ref': 'new2'},
         ]}
-        self.run_guardian(json.dumps(plan), 'Jour 1 : Tokyo\nJour 2 : Kyoto', 'Voici :\n```python\nprint(1 < 2)\n```')
+        self.run_guardian(json.dumps(plan), 'Jour 1 : Tokyo\nJour 2 : Kyoto', 'Voici :\n```python\nprint(1 < 2)\n```',
+                          'Une carte : <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="9" fill="#33FF99"/></svg>')
         ops = self.actions()
         self.assertEqual(ops[0]['op'], 'create')
         self.assertIn('Rédacteur travaille', ops[0]['text'])
-        self.assertEqual(ops[1], {'op': 'update', 'ref': 'new1', 'text': 'Jour 1 : Tokyo<br>Jour 2 : Kyoto'})
-        self.assertEqual(ops[2], {'op': 'update', 'ref': 'N-2', 'text': '<pre>print(1 &lt; 2)</pre>'})
+        self.assertIn({'op': 'update', 'ref': 'new1', 'text': 'Jour 1 : Tokyo<br>Jour 2 : Kyoto'}, ops)
+        self.assertIn({'op': 'update', 'ref': 'N-2', 'text': '<pre>print(1 &lt; 2)</pre>'}, ops)
         self.assertIn('agent_text', [k for k, _ in self.events])
-        self.assertIn("n'a pas de modèle", self.errors()[0])  # Illustrateur sans modèle d'image
+        # Illustrateur sans modèle d'image : il dessine en vectoriel avec le modèle du Gardien.
+        self.assertEqual(ops[-1]['op'], 'image')
+        self.assertRegex(ops[-1]['url'], r'^toolbox/images/[0-9a-f]{32}\.svg$')
+        self.assertEqual(self.errors(), [])
 
     def test_plug_agent_and_inventory_loop(self):
         other = LocalModel.objects.create(repo='org/coder', filename='Qwen2.5-Coder-7B-Q4_K_M.gguf', status=LocalModel.Status.READY)
@@ -1716,11 +1720,32 @@ class GuardianTests(TestCase):
         self.assertIn('Illustrateur dessine…', [a.get('text', '') for a in self.actions() if a['op'] == 'create'][0])
         self.assertIn('Illustrateur dessine : étape 4/4', [d['text'] for k, d in self.events if k == 'intent'])
         self.assertIn('pas de VAE', self.errors()[-1])
-        Agent.objects.filter(owner=self.user, role=Agent.Role.IMAGE).update(model=self.model)  # modèle de texte
+        Agent.objects.filter(owner=self.user, role=Agent.Role.IMAGE).update(model=self.model)  # modèle de texte : il dessine
         self.events = []
+        sketch = json.dumps({'strokes': [{'color': '#FFB84D', 'width': 5, 'points': [[100, 100], [400, 200], [650, 700]]}],
+                             'circles': [{'x': 375, 'y': 375, 'r': 90}]})
         self.run_guardian(json.dumps({'plan': [], 'say': '', 'actions': [
-            {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'x', 'ref': 'new1'}]}))
-        self.assertIn('bon type', self.errors()[0])
+            {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'un soleil', 'ref': 'new1', 'mode': 'sketch'},
+            {'op': 'delegate', 'agent': 'Illustrateur', 'task': 'rien', 'ref': 'new2'}]}), sketch, 'Désolé, pas de dessin.')
+        drawn = [a for a in self.actions() if a['op'] == 'sketch']
+        self.assertEqual(len(drawn), 1)
+        self.assertEqual([o['type'] for o in drawn[0]['operations']], ['path', 'circle'])  # canvas de Nodz
+        self.assertIn('aucun dessin SVG', self.errors()[-1])  # pas de SVG : l'échec est dit dans le node
+
+    def test_svg_drawings_are_sanitized(self):
+        from .drawing import DrawingError, sanitize_svg, sketch_operations
+
+        clean = sanitize_svg('<svg viewBox="0 0 9 9" onload="x()"><script>x()</script><foreignObject><b>x</b></foreignObject>'
+                             '<image href="http://evil/a.png"/><circle r="3" fill="url(#g)" stroke="url(http://evil)"/>'
+                             '<linearGradient id="g" gradientUnits="userSpaceOnUse"/></svg>')
+        for bad in ('onload', 'script', 'foreignObject', 'evil', '<image'):
+            self.assertNotIn(bad, clean)
+        self.assertIn('fill="url(#g)"', clean)
+        self.assertIn('gradientUnits=', clean)  # la casse du SVG est gardée
+        with self.assertRaises(DrawingError):
+            sanitize_svg('pas de dessin')
+        with self.assertRaises(DrawingError):
+            sketch_operations({'strokes': [{'points': [[1, 2]]}]})  # un seul point : pas un trait
 
     def test_free_spot(self):
         from .guardian import free_spot

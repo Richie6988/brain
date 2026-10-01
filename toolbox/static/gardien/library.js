@@ -184,7 +184,15 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
             const prompt = h('textarea', { rows: agent.prompt ? 26 : 12, 'aria-label': `Consignes de ${agent.name}` },
                 agent.prompt || agent.system_prompt || agent.default_prompt);
             const custom = () => (prompt.value.trim() === agent.default_prompt.trim() ? '' : prompt.value);
-            prompt.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { system_prompt: custom() }), 'Consignes enregistrées'));
+            // Consignes propres à l'agent : enregistrées sur le serveur, gardées d'une session à l'autre.
+            const saved = prompt.value;
+            const keep = h('button', { type: 'button', class: 'gl-primary', disabled: true }, 'Enregistrer les consignes');
+            const status = h('small', { class: 'gl-hint' }, agent.system_prompt ? 'Consignes personnalisées enregistrées.' : 'Consignes par défaut.');
+            prompt.addEventListener('input', () => {
+                keep.disabled = prompt.value === saved;
+                status.textContent = keep.disabled ? '' : 'Modifiées, pas encore enregistrées.';
+            });
+            keep.addEventListener('click', () => act(() => tb.updateAgent(agent.id, { system_prompt: custom() }), `${agent.name} : consignes enregistrées`));
             const reset = h('button', { type: 'button', disabled: !agent.system_prompt }, 'Rétablir les consignes par défaut');
             const sampling = h('form', { class: 'gl-params-form' }, paramFields(['Échantillonnage'], agent.params || {}),
                 h('div', { class: 'gl-actions' }, h('button', { type: 'submit' }, 'Enregistrer'),
@@ -206,7 +214,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                 h('details', {}, h('summary', {}, agent.system_prompt ? 'Consignes (personnalisées)' : 'Consignes'), prompt,
                     agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement. '
                         + 'Une fois le Gardien installé dans l\'univers, ses consignes se lisent et se réécrivent dans le node « Prompt système ».') : null,
-                    reset),
+                    h('div', { class: 'gl-actions' }, keep, reset, status)),
                 h('details', {}, h('summary', {}, Object.keys(agent.params || {}).length ? 'Échantillonnage (propre à cet agent)' : 'Échantillonnage'),
                     h('p', { class: 'gl-hint' }, "Vide = réglages du modèle. Ces valeurs priment pour cet agent."), sampling));
         }));

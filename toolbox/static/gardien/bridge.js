@@ -205,6 +205,20 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         async image({ ref, url }) {
             await setImage(nodeOf(ref), url);
         },
+        // Croquis de l'Illustrateur : le node passe en dessin et les traits s'y tracent un à un, puis il est sauvé.
+        async sketch({ ref, operations }) {
+            const node = nodeOf(ref);
+            const select = typeSelect(node);
+            select.value = 'canvas';
+            select.dispatchEvent(new Event('change'));
+            node.setAttribute('canvascontent', JSON.stringify(operations));
+            const canvasId = node.children[0].children[3].id;
+            for (let shown = 1; shown <= operations.length; shown++) {
+                redrawCanvas(canvasId, shown - operations.length, operations);
+                await new Promise(resolve => setTimeout(resolve, Math.max(25, 900 / operations.length)));
+            }
+            save(node);
+        },
         style({ ref, color: tint, shape, radius, lock }) {
             const node = nodeOf(ref);
             if (tint) paint(node, tint);

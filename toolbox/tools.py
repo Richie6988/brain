@@ -107,7 +107,8 @@ TOOLS = [
      'doc': '{"op":"delegate","agent":"<nom>","task":"consigne précise","ref":"new1 ou N-2","near":"N-1"} : confie la '
             'production à un agent ; son résultat est publié dans le node `ref` (créé s\'il est nouveau). Pour un agent '
             'd\'image (Illustrateur), `task` est un prompt d\'image en anglais, précis (sujet, style, lumière, cadrage) : '
-            'l\'image est posée dans le node `ref`.'},
+            'l\'image est posée dans le node `ref`. Sans modèle d\'image, l\'Illustrateur dessine lui-même : "mode":"vector" '
+            '(dessin vectoriel net, par défaut) ou "mode":"sketch" (croquis tracé sur le canvas du node).'},
     {'op': 'plug_agent', 'category': 'Agents', 'source': BOTH, 'iaqua': 'update_agent_field', 'label': 'Brancher un modèle sur un agent',
      'doc': '{"op":"plug_agent","agent":"<nom>","model":"<partie du nom du modèle>"} : branche un modèle sur un agent.'},
     {'op': 'create_agent', 'category': 'Agents', 'source': IAQUA, 'iaqua': 'create_agent', 'label': 'Créer un agent',
@@ -209,7 +210,8 @@ TOOLS = [
      'doc': '{"op":"send_email","subject":"...","body":"..."} : à l\'adresse de l\'utilisateur (un administrateur peut préciser "to").'},
     # --- Images
     {'op': 'generate_image', 'category': 'Images', 'source': IAQUA, 'iaqua': 'generate_image', 'label': 'Générer une image',
-     'doc': '{"op":"generate_image","prompt":"prompt en anglais","ref":"new1","near":"N-1"} : l\'agent d\'image dessine dans un node.'},
+     'doc': '{"op":"generate_image","prompt":"prompt en anglais","ref":"new1","near":"N-1","mode":"vector|sketch"} : l\'agent '
+            'd\'image dessine dans un node (FLUX / SD s\'il est installé, sinon dessin vectoriel ou croquis).'},
     {'op': 'edit_image', 'category': 'Images', 'source': IAQUA, 'iaqua': 'edit_image', 'label': 'Retoucher une image',
      'doc': '{"op":"edit_image","ref":"N-5","prompt":"ce qui change","strength":0.6} : img2img sur un node image ; strength de 0 (proche) à 1 (libre).'},
     # --- Agents (compléments d'iAqua)

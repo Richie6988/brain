@@ -424,6 +424,11 @@ def image(request, body, name):
     path = imaging.image_path(request.user, name)
     if path is None:
         return JsonResponse({'error': 'image introuvable'}, status=404)
+    if path.suffix == '.svg':  # dessin nettoyé (drawing.py) ; ouvert seul dans un onglet, aucun script ne s'y exécute
+        response = FileResponse(open(path, 'rb'), content_type='image/svg+xml')
+        response['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'"
+        response['X-Content-Type-Options'] = 'nosniff'
+        return response
     return FileResponse(open(path, 'rb'), content_type='image/png')
 
 
