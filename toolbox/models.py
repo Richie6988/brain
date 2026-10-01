@@ -7,7 +7,8 @@ from django.db import models
 
 
 class LocalModel(models.Model):
-    """Un fichier de poids (GGUF) téléchargé depuis Hugging Face, partagé par tout le serveur."""
+    """Un fichier de poids (GGUF) téléchargé depuis Hugging Face, partagé par tout le serveur ; ou un modèle par API,
+    partagé (ajouté par l'administrateur) ou personnel (`owner` : le connecteur et la clé d'un utilisateur, à lui seul)."""
 
     class Kind(models.TextChoices):
         TEXT = 'text'
@@ -38,14 +39,20 @@ class LocalModel(models.Model):
     # Modèle par API (remote.py) : URL de base compatible OpenAI ; filename porte alors le nom du modèle distant.
     endpoint = models.URLField(max_length=300, blank=True)
     api_key = models.CharField(max_length=300, blank=True)  # jamais renvoyée au navigateur
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name='api_models')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['repo', 'filename']
-        constraints = [models.UniqueConstraint(fields=['repo', 'filename'], name='unique_model_file')]
+        constraints = [models.UniqueConstraint(fields=['owner', 'repo', 'filename'], name='unique_model_file')]
 
     def __str__(self):
         return f'{self.repo}/{self.filename}'
+
+    @classmethod
+    def visible_to(cls, user):
+        """Les modèles partagés du serveur et les connecteurs personnels de cet utilisateur (jamais ceux des autres)."""
+        return cls.objects.filter(models.Q(owner=None) | models.Q(owner=user))
 
 
 class Agent(models.Model):

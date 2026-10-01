@@ -92,13 +92,13 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
     const hf = { q: '', pipeline: '', sort: 'downloads', quant: '', min_b: '', max_b: '', results: null, repo: null, files: null, error: '' };
 
     const panels = {};
-    const tabs = [['agents', 'Agents'], ['tools', 'Outils'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face'], ['api', 'Par API']];
+    const tabs = [['start', 'Choisir mon IA'], ['agents', 'Agents'], ['tools', 'Outils'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face'], ['api', 'Par API']];
     const nav = h('nav', { class: 'gl-tabs' }, tabs.map(([key, label]) =>
         h('button', { type: 'button', dataset: { tab: key }, onclick: () => show(key) }, label)));
     const machineLine = h('p', { class: 'gl-machine' });
     const readOnly = h('p', { class: 'gl-warning', hidden: true },
-        'Compte invité ou non administrateur : tu peux tout consulter, pas installer. Pour ajouter des modèles, recharge la page, ',
-        'choisis LOGIN et entre le compte administrateur du serveur (créé ou promu sur le VPS par ', h('code', {}, 'manage.py bootstrap --email … --password …'), ').');
+        'Compte invité ou non administrateur : tu branches ta propre IA par API (onglet Par API, avec ta clé) et tu choisis parmi les modèles '
+        + 'du serveur ; installer des modèles locaux est réservé au compte administrateur (créé ou promu par ', h('code', {}, 'manage.py bootstrap --email … --password …'), ').');
     const notice = h('p', { class: 'gl-notice', role: 'status' });
     tabs.forEach(([key]) => { panels[key] = h('section', { class: 'gl-panel', dataset: { panel: key } }); });
     const windowEl = h('div', { class: 'gl-window', role: 'dialog', 'aria-label': 'Agents et modèles' },
@@ -156,7 +156,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
     function render() {
         nav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         Object.entries(panels).forEach(([key, panel]) => { panel.hidden = key !== tab; });
-        ({ agents: renderAgents, tools: renderTools, library: renderLibrary, server: renderServer, hub: renderHub, api: renderApi })[tab]();
+        ({ start: renderStart, agents: renderAgents, tools: renderTools, library: renderLibrary, server: renderServer, hub: renderHub, api: renderApi })[tab]();
     }
 
     function show(key) {
@@ -599,19 +599,49 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         return card;
     }
 
-    async function renderWizard() {
-        const box = h('div', { class: 'gl-wizard' }, h('h3', {}, 'Aucun modèle pour l\'instant'),
-            h('p', {}, 'Voici ce qui convient à cette machine, en un clic :'), h('p', { class: 'gl-empty' }, 'Analyse de la machine…'));
-        panels.library.replaceChildren(box);
+    // Modèles recommandés pour cette machine (mémoire, GPU), à télécharger en un clic : remplace le dernier enfant de `box`.
+    async function recommend(box, images = true) {
         try {
             const rec = await tb.recommendations();
             box.lastChild.replaceWith(h('div', {}, rec.models.map(m => h('div', { class: `gl-rec ${m.recommended ? 'best' : ''}` },
                 h('div', {}, h('strong', {}, m.name), h('small', {}, `${m.why} · ${m.size_gb} Go`)),
                 h('button', { type: 'button', ...guard(), onclick: () => startDownload({ repo: m.repo, filename: m.filename, size: Math.round(m.size_gb * 1024 ** 3) }) },
-                    m.recommended ? 'Recommandé : télécharger' : 'Télécharger'))), h('h3', {}, 'Images'), imageHelp(state.models)));
+                    m.recommended ? 'Recommandé : télécharger' : 'Télécharger'))), images ? [h('h3', {}, 'Images'), imageHelp(state.models)] : null));
         } catch (error) {
             report(error);
         }
+    }
+
+    async function renderWizard() {
+        const box = h('div', { class: 'gl-wizard' }, h('h3', {}, 'Aucun modèle pour l\'instant'),
+            h('p', {}, 'Voici ce qui convient à cette machine, en un clic :'), h('p', { class: 'gl-empty' }, 'Analyse de la machine…'));
+        panels.library.replaceChildren(box);
+        await recommend(box);
+    }
+
+    // --- Choisir mon IA : 1. une IA externe par API ou 2. un modèle sur cette machine, puis 3. ses outils.
+
+    function renderStart() {
+        const guardian = state.agents.find(a => a.role === 'orchestrator');
+        const current = guardian?.model && state.models.find(m => m.id === guardian.model);
+        const local = h('div', { class: 'gl-step-recs' }, h('p', { class: 'gl-empty' }, 'Analyse de la machine…'));
+        const step = (number, title, text, ...rest) => h('section', { class: 'gl-step' }, h('b', { class: 'gl-step-n' }, number),
+            h('div', {}, h('h3', {}, title), h('p', {}, text), ...rest));
+        panels.start.replaceChildren(
+            h('p', { class: 'gl-step-now' }, current ? `Ton Gardien utilise ${current.label || current.filename}${current.endpoint ? ' (par API)' : ' (sur cette machine)'}.`
+                : 'Ton Gardien n\'a pas encore d\'IA : choisis-en une.'),
+            step('1', 'Une IA externe, par API', 'OpenAI, Mistral, Groq, OpenRouter… font tourner un grand modèle à ta place. Tu donnes ta clé : '
+                + 'elle reste sur le serveur Nodz et ne sert qu\'à toi.',
+            h('button', { type: 'button', class: 'gl-primary', onclick: () => show('api') }, 'Brancher une API')),
+            step('2', 'Sur ta machine', `${machineLine.textContent}. Un modèle local tourne sans connexion ni clé. `
+                + (state.staff ? 'Recommandés pour cette machine :' : 'Installer un modèle est réservé à l\'administrateur du serveur ; sur ton ordinateur, c\'est toi.'),
+            local, h('button', { type: 'button', onclick: () => show('hub') }, 'Chercher sur Hugging Face')),
+            step('3', 'Ses outils', 'Automatisation (mode Auto du chat) : il appelle des fonctions pour mener une mission, web, fichiers, images, '
+                + 'présentations, documents, agents. Agentique (modes Pensée et Profond) : il planifie et agit dans l\'univers, crée, relie, '
+                + 'range, supprime, voyage entre dimensions.',
+            h('div', { class: 'gl-step-actions' }, h('button', { type: 'button', onclick: () => show('tools') }, 'Choisir ses outils'),
+                h('button', { type: 'button', onclick: () => show('agents') }, 'Ses agents'))));
+        recommend(local, false);
     }
 
     // --- Fichiers du serveur
@@ -646,17 +676,19 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         const url = h('input', { type: 'url', placeholder: 'http://localhost:11434/v1', autocomplete: 'off' });
         const key = h('input', { type: 'password', placeholder: 'facultative (serveur local)', autocomplete: 'new-password' });
         const label = h('input', { type: 'text', placeholder: 'nom affiché (facultatif)', autocomplete: 'off' });
-        const add = h('button', { type: 'button', class: 'gl-primary', ...guard() }, 'Tester et ajouter');
+        const add = h('button', { type: 'button', class: 'gl-primary' }, 'Tester et ajouter');
         add.addEventListener('click', () => act(async () => {
             add.disabled = true;
             add.textContent = 'Test de la connexion…';
             try {
-                await tb.addApiModel({ endpoint: url.value.trim(), name: name.value.trim(), api_key: key.value.trim(), label: label.value.trim() });
+                const model = await tb.addApiModel({ endpoint: url.value.trim(), name: name.value.trim(), api_key: key.value.trim(), label: label.value.trim() });
+                const guardian = state.agents.find(a => a.role === 'orchestrator');
+                if (guardian && !guardian.model) await tb.updateAgent(guardian.id, { model: model.id });  // un Gardien sans IA la prend aussitôt
             } finally {
                 add.disabled = false;
                 add.textContent = 'Tester et ajouter';
             }
-        }, `${name.value.trim()} ajouté : choisis-le pour le Gardien dans l'onglet Agents`));
+        }, `${name.value.trim()} ajouté : il sert le Gardien s'il n'avait pas d'IA, sinon choisis-le dans l'onglet Agents`));
         const presets = h('div', { class: 'gl-presets' }, API_PRESETS.map(([title, base, model]) => h('button', { type: 'button', onclick: () => {
             url.value = base;
             if (model && !name.value) name.value = model;
@@ -665,16 +697,18 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         const connected = state.models.filter(m => m.endpoint);
         panels.api.replaceChildren(
             h('p', { class: 'gl-hint' }, "Un serveur compatible OpenAI fait tourner le modèle à la place de cette machine : plus de mémoire prise ici, ",
-                'et un gros modèle devient possible. La clé reste sur le serveur Nodz, jamais dans la page.'),
+                'et un gros modèle devient possible. La clé reste sur le serveur Nodz, jamais dans la page.',
+                state.staff ? ' Ajouté ici, le modèle sert tout le serveur.' : ' Ton connecteur et ta clé ne servent qu\'à toi ; adresse publique seulement (pas de localhost).'),
             presets,
             h('div', { class: 'gl-api-form' }, field('URL de base', url), field('Modèle', name), field('Clé API', key), field('Nom affiché', label), add),
             connected.length ? h('div', { class: 'gl-list' }, connected.map(m => {
+                const mine = m.mine || state.staff ? { disabled: false, title: '' } : {};  // son connecteur se règle par son propriétaire
                 const newKey = h('input', { type: 'password', placeholder: m.has_key ? 'clé enregistrée : la remplacer' : 'ajouter une clé', autocomplete: 'new-password' });
                 return h('div', { class: 'gl-row' },
-                    h('span', { class: 'gl-badge' }, 'API'), h('span', { class: 'gl-name', title: m.endpoint }, `${m.label || m.filename} · ${m.endpoint}`),
+                    h('span', { class: 'gl-badge' }, m.mine ? 'À MOI' : 'API'), h('span', { class: 'gl-name', title: m.endpoint }, `${m.label || m.filename} · ${m.endpoint}`),
                     m.agents.length ? h('span', { class: 'gl-size' }, m.agents.join(', ')) : '',
-                    newKey, h('button', { type: 'button', ...guard(), onclick: () => act(() => tb.updateModel(m.id, { api_key: newKey.value.trim() }), 'Clé enregistrée') }, 'Enregistrer'),
-                    confirmButton('Retirer', () => tb.removeModel(m.id)));
+                    newKey, h('button', { type: 'button', ...guard(), ...mine, onclick: () => act(() => tb.updateModel(m.id, { api_key: newKey.value.trim() }), 'Clé enregistrée') }, 'Enregistrer'),
+                    confirmButton('Retirer', () => tb.removeModel(m.id), mine));
             })) : h('p', { class: 'gl-empty' }, 'Aucun modèle par API pour le moment.'));
     }
 
@@ -785,10 +819,14 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
             ...[filters, sizes, filePanel || results, downloadList].filter(Boolean));
     }
 
+    // Sans clé : « Choisir mon IA » tant que le Gardien n'a pas de modèle, sinon l'onglet laissé.
     function open(key) {
         modal.hidden = false;
-        if (key) tab = key;
-        refresh().then(() => show(tab)).catch(report);
+        refresh().then(() => {
+            if (key) tab = key;
+            else if (!state.agents.find(a => a.role === 'orchestrator')?.model) tab = 'start';
+            show(tab);
+        }).catch(report);
     }
     function close() {
         modal.hidden = true;

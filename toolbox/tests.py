@@ -2001,10 +2001,39 @@ class ApiModelTests(TestCase):
             r = self.client.post('/api/v1/toolbox/models', {'endpoint': 'https://api.example.com/v1', 'name': 'x'}, content_type='application/json')
         self.assertEqual(r.status_code, 400)
         self.assertIn('401', r.json()['error'])
+
+    def test_personal_connectors(self):
+        shared = LocalModel.objects.create(repo='api:shared', filename='big', endpoint='https://shared.example.com/v1',
+                                           status=LocalModel.Status.READY)
         user = NodzUser.objects.create_user(email='u@nodz.local', password='pw-123456')
+        other = NodzUser.objects.create_user(email='v@nodz.local', password='pw-123456')
         self.client.force_login(user)
-        self.assertEqual(self.client.post('/api/v1/toolbox/models', {'endpoint': 'http://x/v1', 'name': 'x'},
-                                          content_type='application/json').status_code, 403)  # administrateurs seulement
+        public = [(2, 1, 6, '', ('93.184.216.34', 443))]
+        body = {'endpoint': 'https://api.example.com/v1', 'name': 'gpt', 'api_key': 'sk-u'}
+        with mock.patch('toolbox.web.socket.getaddrinfo', return_value=public), \
+                mock.patch('toolbox.remote.requests.post', return_value=ApiResponse(body={'choices': []})) as post:
+            r = self.client.post('/api/v1/toolbox/models', body, content_type='application/json')
+        self.assertEqual(r.status_code, 201)  # un compte non administrateur branche son IA, avec sa clé
+        mine = r.json()
+        self.assertTrue(mine['mine'])
+        self.assertFalse(post.call_args.kwargs['allow_redirects'])
+        with mock.patch('toolbox.web.socket.getaddrinfo', return_value=[(2, 1, 6, '', ('127.0.0.1', 11434))]), \
+                mock.patch('toolbox.remote.requests.post') as post:
+            r = self.client.post('/api/v1/toolbox/models', {**body, 'endpoint': 'http://localhost:11434/v1'}, content_type='application/json')
+        self.assertEqual(r.status_code, 400)  # pas de relais vers le réseau du serveur
+        self.assertIn('interne', r.json()['error'])
+        post.assert_not_called()
+        self.assertEqual(self.client.delete(f'/api/v1/toolbox/models/{shared.id}').status_code, 403)  # le partagé : l'administrateur
+        self.assertEqual(self.client.patch(f'/api/v1/toolbox/models/{mine["id"]}', {'label': 'Mon GPT'}, content_type='application/json').status_code, 200)
+        self.client.force_login(other)
+        ids = [m['id'] for m in self.client.get('/api/v1/toolbox/models').json()['models']]
+        self.assertEqual((str(shared.id) in ids, mine['id'] in ids), (True, False))  # ni le nom ni la clé d'un autre
+        self.assertEqual(self.client.patch(f'/api/v1/toolbox/models/{mine["id"]}', {'label': 'x'}, content_type='application/json').status_code, 404)
+        agent = self.client.post('/api/v1/toolbox/agents', {'name': 'A', 'role': 'text'}, content_type='application/json').json()
+        r = self.client.patch(f'/api/v1/toolbox/agents/{agent["id"]}', {'model': mine['id']}, content_type='application/json')
+        self.assertEqual(r.status_code, 400)  # son connecteur ne se prête pas
+        self.client.force_login(user)
+        self.assertEqual(self.client.delete(f'/api/v1/toolbox/models/{mine["id"]}').status_code, 200)
 
     def test_engine_streams_from_the_api(self):
         model = LocalModel.objects.create(repo='api:localhost', filename='qwen2.5:3b', endpoint='http://localhost:11434/v1',

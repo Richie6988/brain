@@ -63,6 +63,12 @@ def staff_only(request):
         raise Forbidden('réservé aux administrateurs : les modèles sont partagés par tout le serveur')
 
 
+def own_or_staff(request, model):
+    """Un connecteur personnel se règle par son propriétaire ; le reste de la bibliothèque, par l'administrateur."""
+    if model.owner_id != request.user.pk:
+        staff_only(request)
+
+
 def hub_call(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
@@ -81,7 +87,8 @@ def model_to_dict(m, user):
             'gguf': info, 'kv_bytes': fit.kv_bytes_per_token(info) if info else None,  # estimation mémoire du dialogue
             'config': Engine.config(m),  # réglages effectifs (défauts d'iAqua compris)
             'placement': engine.placement.get(m.id),  # couches GPU et contexte retenus au dernier chargement
-            'endpoint': m.endpoint, 'has_key': bool(m.api_key)}  # modèle par API : la clé ne quitte jamais le serveur
+            'endpoint': m.endpoint, 'has_key': bool(m.api_key),  # modèle par API : la clé ne quitte jamais le serveur
+            'mine': m.owner_id is not None and m.owner_id == user.pk}  # connecteur personnel de cet utilisateur
 
 
 def agent_to_dict(a):
@@ -423,10 +430,10 @@ def recommendations(request, body):
 @api('GET', 'POST')
 def models(request, body):
     if request.method == 'GET':
-        return JsonResponse({'models': [model_to_dict(m, request.user) for m in LocalModel.objects.prefetch_related('agents')]})
+        return JsonResponse({'models': [model_to_dict(m, request.user) for m in LocalModel.visible_to(request.user).prefetch_related('agents')]})
+    if body.get('endpoint'):  # tout compte branche son IA par API, avec sa clé ; l'administrateur, pour tout le serveur
+        return JsonResponse(model_to_dict(api_model(body, owner=None if request.user.is_staff else request.user), request.user), status=201)
     staff_only(request)
-    if body.get('endpoint'):
-        return JsonResponse(model_to_dict(api_model(body), request.user), status=201)
     repo, filename = body.get('repo', ''), body.get('filename', '')
     if repo.count('/') != 1 or not filename.lower().endswith('.gguf') or '..' in filename:
         raise ChangeError('repo (organisation/dépôt) et filename (.gguf) requis')
@@ -437,16 +444,16 @@ def models(request, body):
     return JsonResponse(model_to_dict(model, request.user), status=202)
 
 
-def api_model(body, model=None):
+def api_model(body, model=None, owner=None):
     """Entrée « modèle par API » (URL de base compatible OpenAI, nom du modèle, clé facultative), vérifiée par un petit
-    appel avant d'être gardée."""
+    appel avant d'être gardée. `owner` : connecteur personnel (un compte non administrateur), adresse publique exigée."""
     endpoint = str(body.get('endpoint', model.endpoint if model else '')).strip().rstrip('/')
     name = str(body.get('name', model.filename if model else '')).strip()
     if not endpoint.startswith(('http://', 'https://')) or not name or len(endpoint) > 300 or len(name) > 300:
         raise ChangeError('URL de base (http:// ou https://) et nom du modèle requis')
     host = endpoint.split('/')[2]
     model = model or LocalModel(repo=f'api:{host}'[:200], status=LocalModel.Status.READY, kind=LocalModel.Kind.TEXT,
-                                capabilities=['chat', 'api'])
+                                capabilities=['chat', 'api'], owner=owner)
     model.endpoint, model.filename = endpoint, name
     if 'api_key' in body:  # absente : on garde la clé enregistrée
         model.api_key = str(body['api_key']).strip()[:300]
@@ -455,7 +462,7 @@ def api_model(body, model=None):
         remote.check(model)
     except remote.RemoteError as e:
         raise ChangeError(f'connexion impossible : {e}') from None
-    if LocalModel.objects.filter(repo=model.repo, filename=model.filename).exclude(pk=model.pk).exists():
+    if LocalModel.objects.filter(repo=model.repo, filename=model.filename, owner=model.owner).exclude(pk=model.pk).exists():
         raise ChangeError('ce modèle de cette API est déjà dans la bibliothèque')
     model.save()
     return model
@@ -464,10 +471,10 @@ def api_model(body, model=None):
 @api('PATCH', 'DELETE')
 def model_detail(request, body, model_id):
     """Réglages d'un modèle ; DELETE le retire de la bibliothèque (?file=1 supprime aussi le fichier)."""
-    staff_only(request)
-    model = LocalModel.objects.filter(id=model_id).first()
+    model = LocalModel.visible_to(request.user).filter(id=model_id).first()
     if model is None:
         return JsonResponse({'error': 'modèle introuvable'}, status=404)
+    own_or_staff(request, model)
     if request.method == 'DELETE':
         hub.cancel_download(model)
         if engine.loaded == model.id:
@@ -529,10 +536,10 @@ def local_files(request, body):
     return JsonResponse(model_to_dict(hub.import_local(path), request.user), status=201)
 
 
-def _agent_model(body):
+def _agent_model(body, user):
     if not body.get('model'):
         return None
-    model = LocalModel.objects.filter(id=body['model']).first()
+    model = LocalModel.visible_to(user).filter(id=body['model']).first()  # jamais le connecteur (la clé) d'un autre
     if model is None:
         raise ChangeError('modèle introuvable')
     return model
@@ -546,7 +553,7 @@ def agents(request, body):
         return JsonResponse({'agents': [agent_to_dict(a) for a in Agent.objects.filter(owner=request.user)]})
     if not body.get('name') or body.get('role', Agent.Role.TEXT) not in Agent.Role.values:
         raise ChangeError('name et role valides requis')
-    agent = Agent(owner=request.user, model=_agent_model(body))
+    agent = Agent(owner=request.user, model=_agent_model(body, request.user))
     for field in AGENT_FIELDS:
         if field in body:
             setattr(agent, field, body[field])
@@ -563,7 +570,7 @@ def agent_detail(request, body, agent_id):
         agent.delete()
         return JsonResponse({'deleted': str(agent_id)})
     if 'model' in body:
-        agent.model = _agent_model(body)
+        agent.model = _agent_model(body, request.user)
     for field in AGENT_FIELDS:
         if field in body:
             setattr(agent, field, body[field])

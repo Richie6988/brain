@@ -556,6 +556,13 @@ body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255,
 .gl-rename[hidden] { display: none; }
 
 .gl-wizard { text-align: center; }
+.gl-step-now { margin: 10px 0 4px; color: #440852; font-weight: 600; }
+.gl-step { display: grid; grid-template-columns: 34px 1fr; gap: 12px; border: 1px solid #e3dcef; border-radius: 14px; padding: 12px 14px; margin: 10px 0; }
+.gl-step-n { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #6848A6, #1E90FF); color: #fff; font-size: 14px; }
+.gl-step h3 { margin: 4px 0 4px; }
+.gl-step p { margin: 0 0 8px; line-height: 1.5; }
+.gl-step-recs .gl-rec { margin: 6px 0; max-width: none; }
+.gl-step-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .gl-image-help { display: grid; gap: 6px; justify-items: center; text-align: center; }
 .gl-image-help small { color: #888; overflow-wrap: anywhere; }
 .gl-rec { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid #e3dcef; border-radius: 12px; padding: 8px 12px; margin: 6px auto; max-width: 560px; text-align: left; }

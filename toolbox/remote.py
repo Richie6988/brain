@@ -3,13 +3,16 @@
 Ollama, LM Studio, llama.cpp server, vLLM, OpenRouter, OpenAI, Groq, Mistral… L'entrée de la bibliothèque garde l'URL
 de base, le nom du modèle et la clé (jamais renvoyée au navigateur). Le JSON du Gardien est demandé par schéma
 (response_format json_schema) ; un serveur qui ne le connaît pas reçoit json_object, et le schéma est rappelé dans les
-consignes. Seuls les administrateurs ajoutent ou modifient ces entrées.
+consignes. L'administrateur en ajoute pour tout le serveur ; chaque compte peut brancher les siens (sa clé, pour lui
+seul), vers une adresse publique uniquement : le serveur ne sert pas de relais vers son propre réseau.
 """
 
 import json
 import math
 
 import requests
+
+from .web import WebError, _public
 
 TIMEOUT = (10, 300)  # connexion, puis silence maximal entre deux fragments
 
@@ -22,9 +25,14 @@ def _post(model, payload, stream):
     headers = {'Content-Type': 'application/json'}
     if model.api_key:
         headers['Authorization'] = f'Bearer {model.api_key}'
+    url = f"{model.endpoint.rstrip('/')}/chat/completions"
+    guarded = model.owner_id is not None and not model.owner.is_staff  # connecteur d'un compte non administrateur
     try:
-        response = requests.post(f"{model.endpoint.rstrip('/')}/chat/completions", json=payload, headers=headers,
-                                 stream=stream, timeout=TIMEOUT)
+        if guarded:
+            _public(url)  # à chaque appel : une adresse qui change de cible ne mène pas au réseau interne
+        response = requests.post(url, json=payload, headers=headers, stream=stream, timeout=TIMEOUT, allow_redirects=not guarded)
+    except WebError as e:
+        raise RemoteError(str(e)) from None
     except requests.RequestException as e:
         raise RemoteError(f'{model.endpoint} injoignable ({type(e).__name__})') from None
     if response.status_code >= 400:

@@ -526,7 +526,7 @@ class IaquaOps:
                 'tasks_open': Task.objects.filter(owner=self.user).exclude(status=Task.Status.COMPLETED).count(),
                 'missions_running': Mission.objects.filter(owner=self.user, status=Mission.Status.RUNNING).count(),
                 'projects': list(Project.objects.filter(owner=self.user).values_list('name', flat=True)),
-                'models_ready': list(LocalModel.objects.filter(status=LocalModel.Status.READY).values_list('filename', flat=True)),
+                'models_ready': list(LocalModel.visible_to(self.user).filter(status=LocalModel.Status.READY).values_list('filename', flat=True)),
             },
             **self.guardian.brain,
         }
@@ -645,7 +645,7 @@ class IaquaOps:
 
     def op_list_models(self, action, agents):
         self.read('Modèles', [f'- {m.label or m.filename} ({m.kind}, {m.status})'
-                              for m in LocalModel.objects.exclude(kind=LocalModel.Kind.COMPONENT)])
+                              for m in LocalModel.visible_to(self.user).exclude(kind=LocalModel.Kind.COMPONENT)])
         return None
 
     def op_dispatch_to_agent(self, action, agents):

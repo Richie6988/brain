@@ -1134,7 +1134,7 @@ class Guardian(IaquaOps):
 
     def ready_model(self, query):
         query = (query or '').strip()
-        ready = LocalModel.objects.filter(status=LocalModel.Status.READY).exclude(kind=LocalModel.Kind.COMPONENT)
+        ready = LocalModel.visible_to(self.user).filter(status=LocalModel.Status.READY).exclude(kind=LocalModel.Kind.COMPONENT)
         model = ready.filter(Q(filename__icontains=query) | Q(repo__icontains=query) | Q(label__icontains=query)).first() if query else None
         if model is None:
             raise PlanError(f'aucun modèle prêt ne correspond à {query!r}')
@@ -1161,7 +1161,7 @@ class Guardian(IaquaOps):
 
     def inventory(self):
         agents = Agent.objects.filter(owner=self.user).select_related('model')
-        models = LocalModel.objects.filter(status=LocalModel.Status.READY).exclude(kind=LocalModel.Kind.COMPONENT)
+        models = LocalModel.visible_to(self.user).filter(status=LocalModel.Status.READY).exclude(kind=LocalModel.Kind.COMPONENT)
         current = self.layer.get('id')
         return '\n'.join([
             'Dimensions : ' + (', '.join(f"{l.get('name')}{' (courante)' if l.get('id') == current else ''}" for l in self.layers) or 'aucune'),
