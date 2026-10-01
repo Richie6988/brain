@@ -909,9 +909,9 @@ function createNode(x,y,id) {
 
     var quantumButtonfo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     quantumButtonfo.setAttribute('class', 'stylebutton'); 
-    const quantumButtonimg = document.createElement('div');  // porte de verre en 3D (gardien.css), comme le cube HYPERSPACE
+    const quantumButtonimg = document.createElement('div');  // anneau vivant autour du node (gardien/portal.js)
     quantumButtonimg.className = 'portal-door';
-    quantumButtonimg.innerHTML = '<span class="pd3"><i></i><i></i><b></b></span>';
+    quantumButtonimg.innerHTML = window.portalRing ? window.portalRing() : '';
     quantumButtonimg.style.width = '100%';
     quantumButtonimg.style.height = '100%';
     quantumButtonfo.classList.add("portal");
@@ -922,8 +922,8 @@ function createNode(x,y,id) {
         currentNode = nodeGroup;
         document.addEventListener('keydown', keydownPortal);
     });
-    quantumButtonimg.addEventListener('mouseout', function(){
-        currentNode = null;
+    quantumButtonimg.addEventListener('mouseout', function(event){
+        if (!nodeGroup.contains(event.relatedTarget)) currentNode = null;  // de l'anneau vers l'intérieur : on reste sur le node
         document.removeEventListener('keydown', keydownPortal);
     });
 

@@ -22,6 +22,7 @@ import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
 import { createPhysics } from './physics.js';
+import './portal.js';  // window.portalRing : l'anneau vivant des portails, que Nodz pose en créant un node
 import { createPresence } from './presence.js';
 import { createSchemas } from './schemas.js';
 import { createSearch } from './search.js';

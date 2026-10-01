@@ -758,12 +758,12 @@ function nodeSizing(nodeGroup,w,h) {
         picker.setSize(2*hitboxRadius*currentZoom); 
     }
 
-    // PORTAL
+    // PORTAL : un anneau qui entoure le node (132/100 de son diamètre)
     let quantumButtonfo = nodeGroup.children[3];
-    quantumButtonfo.setAttribute('x', centerX - 0.71*hitboxRadius - 30); 
-    quantumButtonfo.setAttribute('y', centerY - 0.71*hitboxRadius - 30);
-    quantumButtonfo.style.width = 33;
-    quantumButtonfo.style.height = 33;
+    quantumButtonfo.setAttribute('x', centerX - 1.32*hitboxRadius); 
+    quantumButtonfo.setAttribute('y', centerY - 1.32*hitboxRadius);
+    quantumButtonfo.style.width = `${2.64*hitboxRadius}px`;
+    quantumButtonfo.style.height = `${2.64*hitboxRadius}px`;
 
 
     // UPDATE LINKS

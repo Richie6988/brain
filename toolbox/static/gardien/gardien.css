@@ -744,27 +744,22 @@ body:has(.universe.lightmode) .gc-links button { color: #440852; }
 /* Correspondance : le bouton Échanges du chat s'allume quand le Gardien a laissé des notes. */
 .gc-panel header .gc-exchanges.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
 
-/* Portail : une porte de verre en 3D, du même matériau que le cube HYPERSPACE (faces violet → bleu, arêtes lumineuses),
-   qui pivote lentement ; dans l'ouverture, un voile lumineux ondule. Au survol, la porte s'entrouvre et le voile s'avive.
-   Même place et même ancrage (le feel ne bouge pas). La visite le traverse (tour.js) : bouton de choix et passage « ⟿ »
-   dans le fil d'Ariane. */
-@keyframes pd3-spin { from { transform: rotateX(-12deg) rotateY(0deg); } to { transform: rotateX(-12deg) rotateY(360deg); } }
-@keyframes pd3-veil { 0%, 100% { opacity: 0.55; background-position: 50% 0%; } 50% { opacity: 1; background-position: 50% 100%; } }
-foreignObject.portal { overflow: visible; animation: none; }
-.portal-door { cursor: pointer; perspective: 120px; display: grid; place-items: center; }
-.portal-door .pd3 { position: relative; width: 26px; height: 36px; transform-style: preserve-3d; animation: pd3-spin 7s linear infinite; }
-.portal-door .pd3 i {
-    position: absolute; inset: 0; border: 1.5px solid rgba(184, 154, 242, 0.95); border-radius: 10px 10px 2px 2px;  /* arche de porte */
-    box-shadow: inset 0 0 6px rgba(30, 144, 255, 0.6), 0 0 10px rgba(104, 72, 166, 0.7); transform: translateZ(3px);
-}
-.portal-door .pd3 i + i { transform: translateZ(-3px); }
-.portal-door .pd3 b {
-    position: absolute; inset: 3px; border-radius: 8px 8px 1px 1px; transform-origin: left center;
-    background: linear-gradient(180deg, #e9ddff, rgba(120, 190, 255, 0.95) 40%, rgba(184, 154, 242, 0.95) 70%, #e9ddff) 50% 0% / 100% 220%;
-    box-shadow: 0 0 12px rgba(120, 190, 255, 0.9), inset 0 0 6px #fff; animation: pd3-veil 2.4s ease-in-out infinite; transition: transform 0.35s;
-}
-.portal-door:hover .pd3 { animation-duration: 2.2s; }
-.portal-door:hover .pd3 b { transform: rotateY(-55deg); animation-duration: 0.9s; }
+/* Portail : un anneau vivant autour du node (portal.js). Deux contours bruités se déforment en boucle : l'un respire en
+   dégradé, l'autre, en pointillés, tourne à contre-sens. Seul l'anneau prend la souris (survol, clic : voyage), le node
+   garde son intérieur. La visite le traverse (tour.js) : bouton de choix et passage « ⟿ » dans le fil d'Ariane. */
+@keyframes pr-spin { to { transform: rotate(-360deg); } }
+@keyframes pr-flow { to { stroke-dashoffset: -16; } }
+foreignObject.portal.stylebutton { overflow: visible; animation: none; pointer-events: none; background: none; }
+foreignObject.portal.stylebutton > div.portal-door { display: block; width: 100%; height: 100%; border: 0; border-radius: 0; background: none;
+    box-shadow: none; pointer-events: none; }
+foreignObject.portal.stylebutton > div.portal-door svg.pr { display: block; width: 100%; height: 100%; overflow: visible; }
+.portal-door .pr path { fill: none; }
+.portal-door .pr-breath path { stroke-width: 3.2; stroke-linejoin: round; filter: drop-shadow(0 0 3px #1E90FF); transition: stroke-width 0.25s; }
+.portal-door .pr-drift { animation: pr-spin 24s linear infinite; }
+.portal-door .pr-drift path { stroke: #b89af2; stroke-width: 1.4; stroke-dasharray: 2 6; stroke-linecap: round; opacity: 0.85; animation: pr-flow 3s linear infinite; }
+.portal-door .pr-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
+.portal-door:hover .pr-breath path { stroke-width: 5; filter: drop-shadow(0 0 8px #1E90FF); }
+.portal-door:hover .pr-drift { animation-duration: 5s; }
 .gt-crumbs .gt-portal { flex: none; color: #b89af2; font-size: 14px; text-shadow: 0 0 8px #1E90FF; }
 .gt-choices button.portal { border-style: dashed !important; }
 

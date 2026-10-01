@@ -36,7 +36,7 @@ svg.addEventListener('mousedown', function(event) {
                 }  
             }         
         } else if(!isCtrlPressed) {           
-            if(svg !== event.target && !currentNode.tools.type.contains(event.target) && !colorWheelfo.contains(event.target)){
+            if(svg !== event.target && !currentNode.tools.type.contains(event.target) && !colorWheelfo.contains(event.target) && !currentNode.children[3].contains(event.target)){  // le portail voyage, il n'ouvre pas le texte
                 nodeUnselection(currentNode);
                 setTimeout(() => {
                     currentNode.children[0].children[0].focus();
