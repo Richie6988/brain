@@ -176,6 +176,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Effets sonores** : synthétisés en direct (aucun fichier) : une goutte qui monte à la création d'un node, deux notes de verre pour un lien, un déclic pour un lien retiré, un souffle qui descend pour une suppression, un arpège pour un portail, un souffle qui s'ouvre pour Ordonner, un petit glissé pour Ctrl+Z / Ctrl+Y, un accord doux quand le Gardien a fini. Les créations rapprochées montent une gamme pentatonique (le Gardien qui pose 40 nodes joue une cascade, jamais une répétition). Seuls les gestes sonnent, pas le chargement d'une dimension ni ce que rejoue un Ctrl+Z. Bouton du menu (note de musique) pour les couper, à côté de la musique d'ambiance.
 
+**Filtres : clic dehors** : un clic hors du panneau des filtres le ferme ; les nodes cochés partent aussitôt en contexte du Gardien (plus besoin de « Joindre »). Les filtres réglés restent. × et Échap ferment sans rien joindre.
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.

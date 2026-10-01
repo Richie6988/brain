@@ -87,12 +87,14 @@ export function createFilters({ onAttach = () => {} } = {}) {
     document.addEventListener('mousedown', event => {
         if (!menu.contains(event.target) && event.target !== who) menu.hidden = true;
         if (!period.contains(event.target) && event.target !== when) period.hidden = true;
+        // Un clic hors du panneau le ferme ; les nodes cochés partent au Gardien, sans passer par « Joindre ».
+        if (open && !panel.contains(event.target) && !button.contains(event.target)) finish();
     }, true);
 
     // Bouton « Filtres » du dock, à côté de la recherche
     const button = make('button', { type: 'button', id: 'gardien-context-button', className: 'menuBtn', title: 'Filtres' });
     button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg>';  // entonnoir
-    button.addEventListener('click', () => toggle());
+    button.addEventListener('click', () => (open ? finish() : toggle(true)));
     document.getElementById('nextsearch')?.after(button);
 
     function toggle(on = !open) {
@@ -194,6 +196,12 @@ export function createFilters({ onAttach = () => {} } = {}) {
     }
     const layerOf = id => (document.getElementById(id) ? Number(layerNumber) : Number(nodes[id]?.layer));
     const textOf = id => { const node = document.getElementById(id); return node ? liveText(node) : nodes[id]?.text || ''; };
+
+    // Fermer en gardant la sélection en cours : jointe au Gardien s'il y en a une (× et Échap ferment sans joindre).
+    function finish() {
+        if (picked.size) attach();
+        else toggle(false);
+    }
 
     function attach() {
         const items = [...picked].map(id => ({ id, text: textOf(id).trim(), layer: layerOf(id) }));
