@@ -28,6 +28,7 @@ import { createSearch } from './search.js';
 import { createSfx } from './sfx.js';
 import { createSide } from './side.js';
 import { createThoughts } from './thoughts.js';
+import { createTheme } from './theme.js';
 import { createTour } from './tour.js';
 
 const toast = document.getElementById('gardien-toast');
@@ -110,6 +111,7 @@ createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createLabels();  // libellés d'icônes au style HYPERSPACE, à la place des infobulles
 createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estompées, masquées
+createTheme();  // bouton jour / nuit : Nuit ou Ardoise (gris-bleu sombre), plus d'univers blanc
 const sfx = createSfx();  // effets sonores des gestes : création, lien, suppression, portail…
 const guide = createGuide();  // présentation et tous les contrôles : bouton « ? » du menu, touche « ? »
 createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au relâcher

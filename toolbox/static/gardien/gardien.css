@@ -1027,3 +1027,14 @@ body:has(.universe.lightmode) .gardien-side-layer .gs-label { fill: #440852; str
 /* Relier en glissant (linkdrop.js) : le node touché depuis une demi-seconde s'allume, le lien se fera au relâcher. */
 .node-group.gardien-link-armed { filter: drop-shadow(0 0 6px #1E90FF) drop-shadow(0 0 14px rgba(184, 154, 242, 0.9)); animation: gardien-link-armed 0.8s ease-in-out infinite alternate; }
 @keyframes gardien-link-armed { to { filter: drop-shadow(0 0 10px #1E90FF) drop-shadow(0 0 22px rgba(184, 154, 242, 1)); } }
+
+/* Thème Ardoise (theme.js) : gris-bleu sombre, panneaux un ton au-dessus ; nodes, liens et néons inchangés. */
+body.gardien-slate {
+    --nz-glass: rgba(39, 49, 65, 0.78);
+    --nz-glass-strong: rgba(39, 49, 65, 0.95);
+    --nz-card: rgba(39, 49, 65, 0.96);
+    --nz-line: rgba(176, 190, 210, 0.24);
+    --nz-text: #e6edf3;
+}
+body.gardien-slate .universe { background: #1e2633; }
+body.gardien-slate .node-text-input { text-shadow: 0 0 4px #1e2633, 0 0 2px #1e2633, 0 1px 1px #1e2633; }

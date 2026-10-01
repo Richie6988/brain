@@ -180,6 +180,12 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Galerie : mes modèles** : en tête de la galerie, « + Nouveau modèle » enregistre la sélection (nodes avec texte, couleur, forme, taille, et les liens entre eux) sous un nom, sur le serveur, pour ce compte seul (60 au plus). Sa carte dessine l'aperçu ; un clic le repose au centre de la vue, × puis « Retirer ? » le supprime. Galerie ouverte : la pastille et la barre d'outils du node ne passent plus par-dessus. Migration : `gallery` sur les préférences.
 
+**Thème Ardoise à la place de l'univers blanc** : le bouton jour / nuit bascule entre Nuit (le noir) et Ardoise, un gris-bleu sombre (#1e2633) sans éblouissement, où les couleurs des nodes et des liens ressortent comme sur le noir ; les panneaux prennent un ton au-dessus. Le choix est gardé par navigateur ; un compte qui avait choisi le blanc retrouve Ardoise.
+
+**Gardien local plus rapide (GPU)** : la grammaire JSON de llama.cpp s'applique sur le CPU à tout le vocabulaire à chaque jeton ; le schéma détaillé (maxItems de 150 déroulé en répétitions imbriquées, champs facultatifs dans tous les ordres) la rendait énorme et le GPU attendait le CPU. Le moteur local lui donne désormais un schéma allégé : structure et champs requis (l'op en énumération), le reste en JSON libre, validé par le Gardien. Grammaire 7 fois plus petite (13 740 → 1 865 caractères en Pensée, 24 169 → 3 456 en Automatisation). Les modèles par API gardent le schéma complet.
+
+**Fil du Gardien visible à l'envoi** : une demande déplie la pastille en haut à gauche pour montrer sa réflexion ; elle se replie quelques secondes après la réponse si elle était repliée.
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
