@@ -10,6 +10,7 @@ import { api } from './api.js';
 import { createBridge } from './bridge.js';
 import { createChat } from './chat.js';
 import { createCorners } from './corners.js';
+import { createCutter } from './cutter.js';
 import { createIde } from './ide.js';
 import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
@@ -147,7 +148,8 @@ window.createNewLayer = (...args) => {
     sfx.play('portal');
     return nodzNewLayer(...args);
 };
-const physics = createPhysics({ timeline });  // les nodes posés par l'IA se repoussent et se posent sous les yeux
+const physics = createPhysics({ timeline });
+createCutter({ timeline });  // X maintenu ou Ciseaux : un trait tranche les liens qu'il traverse  // les nodes posés par l'IA se repoussent et se posent sous les yeux
 
 // Maj, Espace, Suppr, Tab, Ctrl+Z… sont des raccourcis de Nodz tant qu'on n'écrit pas. Écrire, c'est avoir le focus
 // dans un champ, où qu'il soit (chat, recherche, panneaux, IDE), pas seulement dans le texte d'un node.

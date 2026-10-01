@@ -13,7 +13,7 @@ const SPACING = 40;  // ms au plus serré entre deux sons d'un même genre
 const hz = semitones => 440 * 2 ** ((semitones - 9) / 12) * 2;  // 0 = do5
 
 export function createSfx() {
-    let ctx = null, out = null, on = true, combo = 0, lastCreate = 0;
+    let ctx = null, out = null, on = true, combo = 0, lastCreate = 0, snips = 0, lastSnip = 0;
     const last = {};
     try {
         on = localStorage.getItem(KEY) !== 'off';
@@ -94,8 +94,12 @@ export function createSfx() {
             tone({ type: 'triangle', from: hz(16), decay: 0.32, gain: 0.55 });
             tone({ type: 'sine', from: hz(23), decay: 0.45, gain: 0.45, at: 0.06 });
         },
-        unlink() {  // petit déclic grave
-            tone({ type: 'sine', from: hz(4), to: hz(-3), decay: 0.1, gain: 0.5 });
+        unlink() {  // « snip » de ciseaux : un éclat aigu et un déclic, un degré plus haut à chaque coupe enchaînée
+            const now = performance.now();
+            snips = now - lastSnip < COMBO ? Math.min(snips + 1, SCALE.length - 1) : 0;
+            lastSnip = now;
+            breath({ from: 6500, to: 2600, decay: 0.07, gain: 0.7 });
+            tone({ type: 'triangle', from: hz(SCALE[snips] + 12), to: hz(SCALE[snips] + 5), decay: 0.09, gain: 0.4 });
         },
         delete() {  // souffle qui descend, et sa note
             breath({ from: 2200, to: 260, decay: 0.26, gain: 0.55 });

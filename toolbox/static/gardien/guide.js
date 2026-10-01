@@ -31,6 +31,7 @@ const MOUSE = [
     ['Pavé tactile', 'Deux doigts : déplacer ; pincer : zoomer'],
     ['Tenir un node contre un autre (0,5 s)', 'Au relâcher, les deux sont reliés'],
     ['Clic sur un lien', 'Voyager jusqu\'au node de l\'autre bout'],
+    ['X maintenu + glisser (ou Ciseaux)', 'Couper les liens que le trait traverse ; un seul Ctrl+Z recoud le geste'],
     ['Poignée du node', 'Redimensionner (largeur et hauteur pour un rectangle)'],
 ];
 

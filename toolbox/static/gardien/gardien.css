@@ -1033,3 +1033,15 @@ body.gardien-slate {
 }
 body.gardien-slate .universe { background: #1e2633; }
 body.gardien-slate .node-text-input { text-shadow: 0 0 4px #1e2633, 0 0 2px #1e2633, 0 1px 1px #1e2633; }
+
+/* Coupe-liens (cutter.js) : traînée de la lame, étincelle au point de coupe, curseur et bouton Ciseaux. */
+#gardien-cutter { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 30; }
+#gardien-cutter polyline { fill: none; stroke: #e9ddff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+    filter: drop-shadow(0 0 4px #1E90FF) drop-shadow(0 0 10px #b89af2); }
+body.gardien-cutting .universe, body.gardien-cutting .universe * { cursor: crosshair !important; }
+@keyframes gardien-spark { from { transform: translate(-50%, -50%) scale(0.3); opacity: 1; } to { transform: translate(-50%, -50%) scale(2.4); opacity: 0; } }
+.gardien-spark { position: fixed; z-index: 31; width: 22px; height: 22px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, #fff 0 18%, #b89af2 30%, rgba(30, 144, 255, 0.6) 50%, transparent 70%);
+    animation: gardien-spark 0.55s ease-out forwards; }
+#cutButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Cpath d='M8.1 8.1 20 20M8.1 15.9 20 4'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#cutButton.on, body.gardien-cutting #cutButton { box-shadow: var(--nz-glow); }

@@ -190,6 +190,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Portail en anneau vivant** : la porte flottante laisse place à un anneau autour du node. Deux contours bruités (ondes aux phases tirées au hasard, propres à chaque portail) se déforment en boucle : l'un respire en dégradé violet → bleu → vert, l'autre, en pointillés, tourne à contre-sens ; au survol, l'anneau s'épaissit et accélère. Seul l'anneau prend la souris (clic : voyage, comme avant) ; l'intérieur du node reste à lui. Corrigé au passage : passer de l'anneau au node ne perd plus le node sous la souris, et un clic sur le portail n'ouvre plus le texte (erreur de page au voyage).
 
+**Coupe-liens** : X maintenu (ou le bouton Ciseaux du menu, Échap pour sortir), un trait tranche tous les liens qu'il traverse, même par-dessus les nodes, sans faire glisser l'univers. Une traînée lumineuse suit la lame, une étincelle marque chaque coupe, et un « snip » monte d'une note à chaque coupe enchaînée (le son d'un lien retiré, partout). Un seul Ctrl+Z recoud tout le geste. Le guide l'explique.
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.
