@@ -1,0 +1,445 @@
+/* Nodz modernisé : une couche de style chargée en dernier, pour le chrome seulement (barre de
+   boutons, dimensions, recherche, popups, accueil, profil). Le canevas, les nodes, les liens et la
+   roue de couleurs ne sont pas touchés : le feel de navigation reste celui d'origine.
+   Mêmes couleurs que Nodz (violet #6848A6, prune #440852, bleu #1E90FF, ivoire), en verre dépoli. */
+
+:root {
+    --nz-glass: rgba(10, 16, 30, 0.72);
+    --nz-glass-strong: rgba(10, 16, 30, 0.92);
+    --nz-line: rgba(148, 163, 184, 0.22);
+    --nz-text: #e2e8f0;
+    --nz-muted: #94a3b8;
+    --nz-violet: #6848A6;
+    --nz-plum: #440852;
+    --nz-blue: #1E90FF;
+    --nz-glow: 0 0 0 1px rgba(104, 72, 166, 0.7), 0 6px 18px rgba(104, 72, 166, 0.4);
+    --nz-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    /* Fenêtres : même langage que la pastille, le chat et le lecteur du Gardien (verre sombre, liseré violet) */
+    --nz-card: rgba(5, 12, 23, 0.92);
+    --nz-card-line: rgba(104, 72, 166, 0.6);
+    --nz-card-text: #e2e8f0;
+    --nz-card-title: #b89af2;
+    --nz-inner: rgba(148, 163, 184, 0.08);
+    --nz-field: rgba(148, 163, 184, 0.12);
+    --nz-field-line: rgba(148, 163, 184, 0.3);
+    --nz-gradient: linear-gradient(135deg, #6848A6, #1E90FF);
+    --nz-card-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(104, 72, 166, 0.25);
+}
+body:has(.universe.lightmode) {
+    --nz-card: rgba(255, 255, 255, 0.96);
+    --nz-card-line: rgba(104, 72, 166, 0.35);
+    --nz-card-text: #440852;
+    --nz-card-title: #6848A6;
+    --nz-inner: #fff;
+    --nz-field: rgba(68, 8, 82, 0.05);
+    --nz-field-line: rgba(68, 8, 82, 0.2);
+    --nz-card-shadow: 0 16px 40px rgba(68, 8, 82, 0.18);
+}
+
+/* --- Barre de boutons : toujours visible en bas, dans le style de la tour de contrôle (haut gauche).
+   Nodz ajoute ou retire la classe .show selon la souris : la position ne dépend plus d'elle. */
+
+#button-container, #button-container.show {
+    width: auto; max-width: calc(100vw - 32px); height: 50px; box-sizing: border-box;
+    padding: 0 10px; gap: 2px; justify-content: center; bottom: 14px;
+    background: rgba(5, 12, 23, 0.72); border: 1px solid var(--nz-line); border-radius: 14px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: none;
+}
+
+/* Son et Export perdent la classe menuBtn quand Nodz change leur état (className = 'soundon', 'save'…) :
+   ils sont aussi visés par leur id pour garder l'apparence des autres boutons et leur icône.
+   Style HYPERSPACE : tuile de verre (faces violet → bleu, arêtes lumineuses, comme le cube), trait lumineux ;
+   au survol la tuile pivote en perspective et son libellé apparaît dessous (labels.js). */
+.menuBtn, #soundButton, #exportButton {
+    position: relative; width: 34px; height: 34px; margin: 0 3px; padding: 0; flex: none; cursor: pointer;
+    border: 1.5px solid rgba(184, 154, 242, 0.5); border-radius: 9px;
+    background: linear-gradient(135deg, rgba(104, 72, 166, 0.34), rgba(30, 144, 255, 0.16));
+    box-shadow: inset 0 0 10px rgba(30, 144, 255, 0.28), 0 0 8px rgba(104, 72, 166, 0.22);
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.35s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.menuBtn::after, #soundButton::after, #exportButton::after {
+    content: ''; position: absolute; top: 20%; left: 20%; width: 60%; height: 60%;
+    filter: brightness(0) invert(1) drop-shadow(0 0 3px rgba(184, 154, 242, 0.85)); transition: filter 0.2s;
+}
+#soundButton:not(.soundon)::after { background: url('../img/nosound.svg') no-repeat center / 100%; }
+#exportButton:not(.save)::after { background: url('../img/export.svg') no-repeat center / 80%; }
+.menuBtn:hover, #soundButton:hover, #exportButton:hover {
+    border-color: #1E90FF; background: linear-gradient(135deg, rgba(104, 72, 166, 0.55), rgba(30, 144, 255, 0.3));
+    box-shadow: inset 0 0 14px rgba(30, 144, 255, 0.6), 0 0 14px rgba(30, 144, 255, 0.5);
+    transform: perspective(160px) rotateX(16deg) rotateY(-20deg) translateY(-2px);
+}
+.menuBtn:active, #soundButton:active, #exportButton:active { background: var(--nz-violet); transform: perspective(160px) scale(0.94); }
+.menuBtn:focus-visible, #soundButton:focus-visible, #exportButton:focus-visible { outline: 2px solid var(--nz-blue); outline-offset: 2px; }
+/* Boutons du compte administrateur (Console IA, Utilisateurs) : fond jaune de Nodz remplacé par un liseré. */
+#statsButton, #usersButton { background-color: transparent; box-shadow: inset 0 0 0 1px rgba(243, 238, 88, 0.55); }
+#statsButton:hover, #usersButton:hover { background-color: rgba(104, 72, 166, 0.55); box-shadow: var(--nz-glow); }
+#notificationButton[data-count]:not([data-count="0"])::before {
+    top: -4px; right: -4px; min-width: 16px; padding: 2px 4px; box-sizing: border-box; z-index: 1;
+    background: #FF4D6D; font: 700 10px/12px 'Cascadia Code', monospace; box-shadow: 0 0 0 2px rgba(10, 16, 30, 0.9);
+}
+
+/* Dimension courante */
+#layerButton.dropdown-button {
+    height: 34px; margin: 0 6px; padding: 0 14px; border: none; border-radius: 999px;
+    background: rgba(104, 72, 166, 0.22); color: #ddd0ff; font: 600 13px 'Cascadia Code', monospace;
+    box-shadow: inset 0 0 0 1px rgba(104, 72, 166, 0.6); transition: background-color 0.2s, box-shadow 0.2s;
+}
+#layerButton.dropdown-button:hover { background: rgba(104, 72, 166, 0.4); box-shadow: var(--nz-glow); transform: none; }
+#layerButton.dropdown-button:active { background: var(--nz-violet); }
+#layerButton span { opacity: 0.7; margin-left: 2px; }
+
+/* Recherche sémantique et ses flèches */
+#semanticsearch {
+    height: 34px; min-width: 180px; box-sizing: border-box; padding: 0 14px;
+    border: 1px solid var(--nz-line); border-radius: 999px; background: rgba(255, 255, 255, 0.05);
+    color: #8cc4ff; font-size: 13px; outline: none; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+#semanticsearch:focus { border-color: rgba(30, 144, 255, 0.7); background: rgba(30, 144, 255, 0.08); box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.18); }
+.arrow-button {
+    width: 26px; height: 26px; display: grid; place-items: center; margin: 0 2px;
+    border-radius: 50%; background: transparent; color: var(--nz-muted); font: 15px 'Cascadia Code', monospace;
+    transition: color 0.2s, background-color 0.2s;
+}
+.arrow-button:hover { color: #fff; background: rgba(104, 72, 166, 0.5); transform: none; box-shadow: none; }
+
+/* Poignée du dock (sa couleur vient de Nodz) */
+/* La poignée annonçait la barre cachée : la barre est désormais permanente. */
+.indicator { display: none; }
+
+/* --- Liste des dimensions */
+
+@keyframes nz-rise { from { opacity: 0; transform: translate(-50%, 8px); } }
+
+/* Ancrée au-dessus de son bouton du dock (position fixée à l'ouverture), plus au milieu de l'écran. */
+.dropdown-content {
+    position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); max-height: min(60vh, 440px); z-index: 1000;
+    animation: nz-rise 0.16s ease-out;
+    min-width: 230px; padding: 6px; box-sizing: border-box;
+    background: var(--nz-glass-strong); border: 1px solid var(--nz-line); border-radius: 16px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--nz-shadow);
+}
+.dropdown-content .dropdown-item {
+    margin: 2px 0; padding: 8px 12px; border-radius: 10px; gap: 12px;
+    background: transparent; color: var(--nz-text); font-size: 13px; transition: background-color 0.15s;
+}
+.dropdown-content .dropdown-item:hover { background: rgba(104, 72, 166, 0.3); }
+.dropdown-content .dropdown-item[style*="background"] { background: rgba(104, 72, 166, 0.55) !important; box-shadow: inset 3px 0 0 #b89af2; }
+.dropdown-content .dropdown-item.new { color: #b89af2; border-bottom: 1px solid var(--nz-line); border-radius: 10px 10px 4px 4px; margin-bottom: 6px; }
+/* Icônes dessinées au lieu des caractères ➕ et ✎ (pas d'emoji dans le chrome) */
+.dropdown-content .dropdown-item .icon { font-size: 0 !important; margin-left: 0 !important; width: 14px; height: 14px; flex: none; opacity: 0.75; }
+.dropdown-content .dropdown-item .icon:hover { opacity: 1; }
+#create-layer-btn .icon {
+    background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,
+                linear-gradient(currentColor, currentColor) center / 2px 100% no-repeat;
+}
+.dropdown-content .dropdown-item:not(.new) .icon { background: url('../img/edit.svg') center / contain no-repeat; }
+
+/* Renommer une dimension */
+#edit-modal { background: rgba(5, 12, 23, 0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+#edit-modal .modal-content {
+    width: 300px; padding: 16px 18px; border-radius: 18px; background: var(--nz-card); color: var(--nz-card-title);
+    border: 1px solid var(--nz-card-line); box-shadow: var(--nz-card-shadow); font: 12px 'Cascadia Code', monospace; letter-spacing: 0.04em;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+#layer-name-input {
+    box-sizing: border-box; width: 100%; margin-top: 8px; padding: 9px 14px; border-radius: 12px; border: 1px solid var(--nz-field-line);
+    background: var(--nz-field); font: 13px 'Cascadia Code', monospace; color: var(--nz-card-text); outline: none;
+}
+#layer-name-input:focus { border-color: rgba(184, 154, 242, 0.8); box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.25); }
+
+/* --- Popups, boutons et accueil */
+
+.popup, #export .exportContent, #templates .templatesContent {
+    border: 1px solid var(--nz-card-line); border-radius: 18px; background: var(--nz-card); color: var(--nz-card-text);
+    box-shadow: var(--nz-card-shadow); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    font-family: 'Cascadia Code', monospace;
+}
+.popup .smallmessage, #export .toggle-label { color: var(--nz-card-text); font-family: 'Cascadia Code', monospace; }
+.popup .message { background: var(--nz-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.popup input:not([type=checkbox]):not([type=radio]), .popup textarea, .popup select {
+    background: var(--nz-field); color: var(--nz-card-text); border: 1px solid var(--nz-field-line); border-radius: 12px;
+    font-family: 'Cascadia Code', monospace;
+}
+.popup input:focus, .popup textarea:focus { outline: none; border-color: rgba(184, 154, 242, 0.8); }
+.submit-button {
+    border-radius: 999px; padding: 9px 24px; letter-spacing: 0.04em; font: 600 12px 'Cascadia Code', monospace; color: #fff;
+    background: var(--nz-gradient); border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 0 14px rgba(104, 72, 166, 0.45);
+    transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s;
+}
+.submit-button:hover:enabled { background: var(--nz-gradient); filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 0 20px rgba(30, 144, 255, 0.6); }
+.submit-button.secondary { background: rgba(255, 255, 255, 0.06); color: var(--nz-text); box-shadow: inset 0 0 0 1px var(--nz-line); }
+.submit-button.secondary:hover:enabled { background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.5); }
+#loginPopup { box-shadow: none; }
+#loginPopup .log-button { min-width: 132px; padding: 11px 26px !important; font: 600 14px 'Cascadia Code', monospace; }
+#loginPopup .popupbutton-container { gap: 16px; justify-content: center; width: auto; }
+#loginPopup { background: transparent; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
+#loginPopup .message { font-weight: 700; letter-spacing: 0.02em; background: var(--nz-gradient); -webkit-background-clip: text; background-clip: text; color: transparent !important; text-shadow: none !important; font-size: 2.6rem; }
+.close-btn { width: 34px; height: 34px; top: 10px; right: 12px; display: grid; place-items: center; border-radius: 50%; font-size: 24px; line-height: 1; transition: background-color 0.2s, transform 0.2s; }
+.close-btn { color: var(--nz-card-title); }
+.close-btn:hover { background: rgba(104, 72, 166, 0.3); transform: rotate(90deg); }
+
+/* --- Profil */
+
+#profile .profile-content {
+    border-radius: 18px; border: 1px solid var(--nz-card-line); background: var(--nz-card); color: var(--nz-card-text); box-shadow: var(--nz-card-shadow);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+#profile .section-title { color: var(--nz-card-title); border-bottom: 1px solid var(--nz-field-line); }
+#profile .field-container { align-items: center; padding: 6px 0; border-bottom: 1px solid var(--nz-field-line); }
+#profile .field-label { color: var(--nz-card-title); font-weight: 600; }
+#profile .edit-icon.icon { font-size: 0; width: 16px; height: 16px; cursor: pointer; opacity: 0.6; background: url('../img/edit-light.svg') center / contain no-repeat; }
+#profile .edit-icon.icon:hover { opacity: 1; }
+
+/* Profil en cartes : identité, activité (nodes et graphique), parrainage, Premium, avis */
+#profile .profile-content { width: min(920px, 92vw); max-width: none; padding: 26px 30px; box-sizing: border-box; }
+#profile .section-title { margin: 22px 0 12px; font-size: 1.15rem; letter-spacing: 0.02em; }
+#profile .section-title:first-of-type { margin-top: 0; font-size: 1.4rem; }
+#profile #userProfile, #profile .user-stats, #profile [data-field="Referee"], #profile .subscription {
+    background: var(--nz-inner); border: 1px solid var(--nz-field-line); border-radius: 14px; padding: 10px 18px; margin-bottom: 14px;
+}
+#profile #userProfile .field-container { grid-template-columns: 150px 1fr 24px; justify-items: start; gap: 12px; padding: 9px 0; }
+#profile #userProfile .field-container:last-child { border-bottom: none; }
+#profile .field-value { font-size: 0.95rem; color: var(--nz-card-text); }
+#profile .user-stats { grid-template: none; grid-template-columns: 220px 1fr; align-items: center; gap: 12px; padding: 16px 18px; }
+#profile .user-stats .message { margin: 0; }
+#profile #nodesKPI { font-size: 3.4rem; line-height: 1; background: linear-gradient(135deg, #6848A6, #1E90FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#profile #nodesKPI + .message { font-size: 0.8rem; letter-spacing: 0.3em; color: #8a7aa8; }
+#profile .chart { max-width: 300px !important; margin: 0 auto; }
+#profile [data-field="Referee"] { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: space-between !important; gap: 12px !important; }
+#profile [data-field="Referee"] > div { margin: 0 !important; gap: 12px; }
+#profile [data-field="Referee"] p { margin: 0; }
+#profile #referrerKPI { font-size: 1.6rem; color: #6848A6; margin: 0; }
+#profile .subscription-upgrade > .subscription-upgrade {
+    background: var(--nz-inner) !important; box-shadow: none !important; border: 1px solid var(--nz-card-line); max-width: none !important; margin: 6px 0 14px !important;
+}
+#profile .subscription-upgrade > .subscription-upgrade > p:first-child { font-size: 1.2rem !important; }
+#profile #feedback { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px 18px; padding: 0 !important; }
+#profile #feedback li { list-style: none !important; margin: 0 !important; }
+#profile #feedback li p { margin: 0; font-size: 0.9rem; }
+#profile #feedback li p::before {  /* coche dessinée, sans emoji */
+    content: ''; display: inline-block; width: 5px; height: 10px; margin: 0 10px 2px 2px;
+    border: solid #0f9f6e; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+#profile #plan { width: auto !important; border-radius: 999px !important; padding: 8px 16px !important; background: #2b2438 !important; }
+#profile #pay-button { width: auto !important; margin-left: 10px; }
+#profile #feedback-input { border: 1px solid var(--nz-field-line) !important; border-radius: 12px; padding: 10px 12px; font: 13px 'Cascadia Code', monospace; resize: vertical;
+    background: var(--nz-field) !important; color: var(--nz-card-text); }
+#profile .subscription-upgrade { background: transparent; color: var(--nz-card-text); }
+#profile .subscription-upgrade p, #profile #feedback li p { color: var(--nz-card-text) !important; }
+#profile .subscription-upgrade > .subscription-upgrade > p:first-child { background: var(--nz-gradient); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
+#profile .subscription-upgrade a { color: #1E90FF; }
+#profile #feedback-input:focus { outline: none; border-color: #6848A6; box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.15); }
+#profile .danger-button { position: static; margin: 0 auto; border-radius: 999px; }
+@media (max-width: 700px) {
+    #profile .user-stats { grid-template-columns: 1fr; }
+    #profile #userProfile .field-container { grid-template-columns: 110px 1fr 20px; }
+}
+
+/* --- Node : barres d'outils et poignée de taille, au style du Gardien. Aucune taille ni position changée :
+   les boutons gardent leur place (le feel ne bouge pas), seules les icônes changent d'apparence. */
+
+/* Texte en cours d'écriture : pas l'anneau de focus du navigateur (le node le coupe en deux traits), un curseur violet. */
+.node-text-input:focus { outline: none; caret-color: #b89af2; }
+/* Texte des nodes lisible : blanc pur sur le fond sombre (encre prune en mode clair), trait épaissi d'un quart de pixel
+   (text-stroke : la chasse de la police monospace ne bouge pas, donc ni la place du texte ni la taille des nodes),
+   liseré de la couleur du fond pour rester net sur un lien ou une image.
+   Centré verticalement en CSS (top 50 %, translateY) : juste dès l'affichage, quelle que soit l'arrivée de la police.
+   Les couleurs choisies dans le texte (balises font) gardent la main. */
+.node-text-input {
+    top: 50%; transform: translateY(-50%);
+    color: #fff; -webkit-text-stroke: 0.25px currentColor; paint-order: stroke fill;
+    text-shadow: 0 0 4px #050c17, 0 0 2px #050c17, 0 1px 1px #050c17;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
+}
+.node-text-input[contenteditable]:empty:focus::before { color: #94a3b8; }
+/* Le curseur de saisie faisait défiler la boîte du node (foreignObject, overflow hidden) en fin de ligne longue : le texte
+   restait décalé et rogné. Avec clip, même découpe, mais plus aucun défilement possible. */
+.node-group > foreignObject { overflow: clip; }
+body:has(.universe.lightmode) .node-text-input { color: #2a0f3a; text-shadow: 0 0 3px #f4efe6, 0 0 1px #f4efe6; }
+
+/* Icônes des barres (format, couleur, forme, verrou, calendrier, portail, fichiers, dessin) : les SVG de
+   img/ sont dessinés à trait (clair, prune en mode clair, violet vif quand l'outil est actif). */
+.stylebuttonimg { opacity: 0.85; border-radius: 6px; transition: opacity 0.15s, filter 0.15s, transform 0.15s; }
+.stylebuttonimg:hover { opacity: 1; filter: drop-shadow(0 0 4px #b89af2); transform: scale(1.15); }
+/* Choix du type de node et de la police : pilule sombre à liseré violet, chevron dessiné. */
+.select-dropdown, .selectlight {
+    appearance: none; -webkit-appearance: none; max-width: 100%; padding: 1px 16px 1px 6px; font: 10px 'Cascadia Code', monospace; line-height: 16px;
+    color: #e2e8f0; border: 1px solid rgba(184, 154, 242, 0.55); border-radius: 999px; background: rgba(5, 12, 23, 0.7)
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b89af2' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E")
+        no-repeat right 6px center / 8px 5px;
+}
+.select-dropdown:hover, .selectlight:hover { border: 1px solid #b89af2; box-shadow: 0 0 8px rgba(104, 72, 166, 0.55); }
+.select-dropdown option, .selectlight option { color: #e2e8f0; background: #0b1220; }
+/* Poignée de taille : pastille ronde en verre, flèches à la couleur du node (Nodz la pose), halo au survol. */
+foreignObject.stylebutton:has(> div > svg) { overflow: visible; background: none; }
+foreignObject.stylebutton > div:has(> svg) {
+    box-sizing: border-box; display: grid; place-items: center; border-radius: 50%;
+    background: rgba(5, 12, 23, 0.85); border: 1px solid rgba(184, 154, 242, 0.7); box-shadow: 0 0 8px rgba(104, 72, 166, 0.5);
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+foreignObject.stylebutton > div:has(> svg) svg { width: 70%; height: 70%; }
+foreignObject.stylebutton > div:has(> svg):hover { border-color: #1E90FF; box-shadow: 0 0 12px rgba(30, 144, 255, 0.8); }
+body:has(.universe.lightmode) :is(.select-dropdown, .selectlight) { color: #440852; background-color: rgba(255, 255, 255, 0.85); }
+body:has(.universe.lightmode) foreignObject.stylebutton > div:has(> svg) { background: rgba(255, 255, 255, 0.9); }
+
+/* Sélecteur d'emojis du texte (bouton emoji) : ses classes Tailwind n'étaient chargées nulle part (panneau blanc
+   brut) ; verre sombre, grille de 8, survol violet. Les barres flottantes du node s'effacent tant qu'il est ouvert. */
+#smileys { z-index: 45 !important; }
+#smileys .smileyContent {
+    position: relative; max-height: 72vh; overflow-y: auto; padding: 18px 14px 14px; border-radius: 20px;
+    background: rgba(10, 16, 30, 0.95); border: 1px solid rgba(184, 154, 242, 0.35); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+#emojiPicker { display: grid; grid-template-columns: repeat(8, 40px); gap: 4px; padding: 0; background: transparent; border: 0; }
+#emojiPicker .emoji-item {
+    display: grid; place-items: center; width: 40px; height: 40px; font-size: 22px; border-radius: 12px; cursor: pointer;
+    transition: background-color 0.12s, transform 0.12s;
+}
+#emojiPicker .emoji-item:hover { background: rgba(104, 72, 166, 0.45); transform: scale(1.15); }
+body:has(#smileys[style*="flex"]) :is(#gardien-nodebar, #gardien-sizer, #gardien-send) { display: none !important; }
+body:has(.universe.lightmode) #smileys .smileyContent { background: rgba(255, 255, 255, 0.96); border-color: rgba(68, 8, 82, 0.18); }
+
+/* --- Mode clair (bouton Dark/Light de Nodz) */
+
+body:has(.universe.lightmode) #button-container { background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }
+body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton) {
+    border-color: rgba(104, 72, 166, 0.4); background: linear-gradient(135deg, rgba(104, 72, 166, 0.12), rgba(30, 144, 255, 0.08));
+    box-shadow: inset 0 0 8px rgba(30, 144, 255, 0.15);
+}
+body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton)::after { filter: none; }
+body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton):is(:hover, :active)::after { filter: brightness(0) invert(1); }
+body:has(.universe.lightmode) #layerButton.dropdown-button { color: var(--nz-plum); background: rgba(104, 72, 166, 0.1); }
+body:has(.universe.lightmode) #semanticsearch { color: #1668c4; background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.18); }
+body:has(.universe.lightmode) .dropdown-content { background: rgba(255, 255, 255, 0.92); border-color: rgba(68, 8, 82, 0.14); }
+body:has(.universe.lightmode) .dropdown-content .dropdown-item { color: var(--nz-plum); }
+body:has(.universe.lightmode) .dropdown-content .dropdown-item:not(.new) .icon { background-image: url('../img/edit-light.svg'); }
+
+@media (max-width: 900px) {
+    #button-container { padding: 0 6px; gap: 0; }
+    .menuBtn, #soundButton, #exportButton { width: 28px; height: 28px; margin: 0 1px; }
+    #semanticsearch { min-width: 110px; }
+}
+
+/* Indicateurs de coin (nodes hors de l'écran dans chaque direction) : quart de disque de verre au lieu du triangle
+   plat, entrée à ressort, onde lente vers le bord tant qu'il y a des nodes par là, halo au survol, et le nombre
+   sursaute quand il change (classe gc-bump, corners.js). Mêmes coins, même clic (le node le plus proche). */
+@keyframes corner-wave { from { transform: scale(1); opacity: 0.75; } to { transform: scale(1.9); opacity: 0; } }
+@keyframes corner-bump { 40% { scale: 1.45; } }
+.triangle-container {
+    width: 30px; height: 30px; opacity: 1; scale: 1;
+    transition: opacity 0.35s ease, scale 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.triangle-container.counter-zero { opacity: 0; scale: 0.3; pointer-events: none; }
+.triangle, .triangle-light, .triangle:hover, .triangle-light:hover {
+    position: relative; width: 46px; height: 46px; border: 0; border-radius: 0 0 100% 0; cursor: pointer;
+    background: radial-gradient(circle at 0 0, rgba(30, 144, 255, 0.55), rgba(104, 72, 166, 0.55) 70%);
+    box-shadow: inset -1px -1px 0 rgba(184, 154, 242, 0.7), 0 0 12px rgba(104, 72, 166, 0.45);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    transform-origin: 0 0; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s, filter 0.25s;
+}
+.triangle::after, .triangle-light::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; transform-origin: 0 0;
+    border-right: 2px solid rgba(184, 154, 242, 0.8); border-bottom: 2px solid rgba(184, 154, 242, 0.8);
+    animation: corner-wave 2.6s ease-out infinite;
+}
+.triangle:hover, .triangle-light:hover {
+    transform: scale(1.18); filter: brightness(1.2);
+    box-shadow: inset -1px -1px 0 #b89af2, 0 0 22px rgba(30, 144, 255, 0.75);
+}
+.triangle-light, .triangle-light:hover { background: radial-gradient(circle at 0 0, rgba(165, 83, 185, 0.7), rgba(83, 170, 185, 0.6) 70%); }
+.counter {
+    top: 14px; left: 14px; transform: translate(-50%, -50%);
+    font: 700 13px 'Cascadia Code', monospace; text-shadow: 0 0 6px rgba(5, 12, 23, 0.9); transition: color 0.2s;
+}
+/* le nombre reste droit : il annule la rotation de son coin */
+.top-right .counter { transform: translate(-50%, -50%) rotate(-90deg); }
+.bottom-left .counter { transform: translate(-50%, -50%) rotate(90deg); }
+.bottom-right .counter { transform: translate(-50%, -50%) rotate(180deg); }
+.counter.gc-bump { animation: corner-bump 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* --- Rappel (calendrier flatpickr) : carte de verre centrée, au lieu d'un panneau blanc collé en haut à gauche */
+.flatpickr-calendar.open {
+    position: fixed !important; inset: 0 !important; margin: auto; height: fit-content; z-index: 60;
+    padding: 8px; box-sizing: content-box; border: 1px solid var(--nz-card-line); border-radius: 16px;
+    background: var(--nz-card); color: var(--nz-card-text); box-shadow: var(--nz-card-shadow);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.flatpickr-calendar.open::before, .flatpickr-calendar.open::after { display: none; }
+.flatpickr-calendar .flatpickr-months .flatpickr-month, .flatpickr-calendar .flatpickr-current-month,
+.flatpickr-calendar .flatpickr-current-month .flatpickr-monthDropdown-months, .flatpickr-calendar .flatpickr-current-month input.cur-year,
+.flatpickr-calendar span.flatpickr-weekday, .flatpickr-calendar .flatpickr-day, .flatpickr-calendar .flatpickr-time input,
+.flatpickr-calendar .flatpickr-time .flatpickr-time-separator {
+    background: transparent; color: var(--nz-card-text); fill: var(--nz-card-text);
+}
+.flatpickr-calendar .flatpickr-current-month, .flatpickr-calendar .flatpickr-current-month .flatpickr-monthDropdown-months, .flatpickr-calendar .flatpickr-current-month input.cur-year { font: 600 15px 'Cascadia Code', monospace; }
+.flatpickr-calendar .flatpickr-current-month .flatpickr-monthDropdown-months option { background: var(--nz-card); }
+.flatpickr-calendar .flatpickr-months .flatpickr-prev-month, .flatpickr-calendar .flatpickr-months .flatpickr-next-month { color: var(--nz-card-title); fill: var(--nz-card-title); }
+.flatpickr-calendar .flatpickr-months .flatpickr-prev-month:hover svg, .flatpickr-calendar .flatpickr-months .flatpickr-next-month:hover svg { fill: var(--nz-blue); }
+.flatpickr-calendar span.flatpickr-weekday { color: var(--nz-card-title); font-size: 11px; opacity: 0.8; }
+.flatpickr-calendar .flatpickr-day { border-radius: 10px; border-color: transparent; }
+.flatpickr-calendar .flatpickr-day:hover, .flatpickr-calendar .flatpickr-day:focus { background: var(--nz-field); border-color: var(--nz-field-line); }
+.flatpickr-calendar .flatpickr-day.today { border-color: var(--nz-card-line); }
+.flatpickr-calendar .flatpickr-day.selected, .flatpickr-calendar .flatpickr-day.selected:hover {
+    background: var(--nz-gradient); border-color: transparent; color: #fff; box-shadow: 0 0 12px rgba(104, 72, 166, 0.55);
+}
+.flatpickr-calendar .flatpickr-day.prevMonthDay, .flatpickr-calendar .flatpickr-day.nextMonthDay { color: var(--nz-muted); opacity: 0.5; }
+.flatpickr-calendar.hasTime .flatpickr-time { border-top: 1px solid var(--nz-field-line); margin-top: 6px; }
+.flatpickr-calendar .flatpickr-time input:hover, .flatpickr-calendar .flatpickr-time input:focus { background: var(--nz-field); border-radius: 8px; }
+.flatpickr-calendar .flatpickr-time .numInputWrapper span.arrowUp::after { border-bottom-color: var(--nz-muted); }
+.flatpickr-calendar .flatpickr-time .numInputWrapper span.arrowDown::after { border-top-color: var(--nz-muted); }
+.flatpickr-calendar .notification {
+    margin: 6px; padding: 6px 14px; border-radius: 999px; background: var(--nz-gradient); color: #fff;
+    font: 700 11px 'Cascadia Code', monospace; letter-spacing: 0.08em; transition: filter 0.2s, box-shadow 0.2s;
+}
+.flatpickr-calendar .notification:hover { filter: brightness(1.15); box-shadow: var(--nz-glow); }
+.flatpickr-calendar .notification.reset { background: linear-gradient(135deg, #b9538b, #6848A6); }
+
+/* --- Infobulles des boutons du bas (texte SVG) : lisibles sur tous les fonds, halo au lieu du bleu nu */
+.tooltiptext {
+    fill: var(--nz-card-text); font: 600 11px 'Cascadia Code', monospace; letter-spacing: 0.04em;
+    paint-order: stroke; stroke: var(--nz-card); stroke-width: 5px; stroke-linejoin: round;
+}
+
+/* --- Partage : le lien dans un champ, un vrai bouton Copier (les styles en ligne de Nodz cèdent) */
+#invitePopup { max-width: min(640px, calc(100vw - 32px)); }
+#invitePopup .smallmessage {
+    padding: 10px 14px; border-radius: 12px; background: var(--nz-field); border: 1px solid var(--nz-field-line);
+    font-size: 13px; overflow-wrap: anywhere; user-select: all; text-align: left;
+}
+#invitePopup .submit-button {
+    padding: 8px 22px !important; font-size: 12px !important; font-weight: 700; letter-spacing: 0.08em; border-radius: 999px; cursor: pointer;
+}
+
+/* Drapeau de la nouvelle origine (bouton drapeau, interface.js) : verre en 3D comme le cube HYPERSPACE, planté au
+   centre de l'écran (pied du mât au centre), il tourne en ondulant puis s'efface au bout de 3 s. */
+@keyframes of3-life {
+    0% { opacity: 0; transform: translate(-50%, -80%) scale(0.6); }
+    12% { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+    80% { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -100%) scale(0.9); }
+}
+@keyframes of3-spin { from { transform: rotateX(-14deg) rotateY(0deg); } to { transform: rotateX(-14deg) rotateY(360deg); } }
+@keyframes of3-wave { from { transform: rotateY(-22deg); } to { transform: rotateY(22deg); } }
+.origin-flag {
+    position: fixed; left: 50%; top: 50%; z-index: 30; pointer-events: none; perspective: 260px;
+    animation: of3-life 3s ease forwards;
+}
+.origin-flag .of3 { position: relative; display: block; width: 46px; height: 62px; transform-style: preserve-3d; animation: of3-spin 2.6s linear infinite; }
+.origin-flag .pole {
+    position: absolute; left: 0; top: 0; width: 3px; height: 62px; border-radius: 2px;
+    background: linear-gradient(#e0d4ff, #1E90FF); box-shadow: 0 0 8px rgba(30, 144, 255, 0.75);
+}
+.origin-flag .pole + .pole { transform: rotateY(90deg); }
+.origin-flag .sail { position: absolute; left: 2px; top: 2px; width: 40px; height: 26px; transform-origin: left center; transform-style: preserve-3d;
+    animation: of3-wave 0.9s ease-in-out infinite alternate; }
+.origin-flag .sail i {
+    position: absolute; inset: 0; border: 1.5px solid rgba(184, 154, 242, 0.9); border-radius: 2px 7px 7px 2px;
+    background: linear-gradient(135deg, rgba(104, 72, 166, 0.6), rgba(30, 144, 255, 0.35));
+    box-shadow: inset 0 0 12px rgba(30, 144, 255, 0.5), 0 0 12px rgba(104, 72, 166, 0.45); transform: translateZ(2px);
+}
+.origin-flag .sail i + i { transform: translateZ(-2px); }
+.origin-flag small {
+    position: absolute; top: 100%; left: 50%; margin-top: 10px; transform: translateX(-50%); white-space: nowrap;
+    font: 600 9px 'Cascadia Code', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #b89af2;
+}
+body:has(.universe.lightmode) .origin-flag small { color: #6848A6; }

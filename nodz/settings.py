@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'nodzapp',
     'graph',
+    'toolbox',
     # 'widget_tweaks',
     # 'django_tex',
     # 'wkhtmltopdf',
@@ -186,6 +187,23 @@ STORAGES = {
 }
 MEDIA_URL = (FORCE_SCRIPT_NAME or '') + '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'nodzapp/media')
+
+# Boîte à outils IA (modèles locaux GGUF téléchargés depuis Hugging Face).
+MODELS_DIR = Path(os.environ.get('MODELS_DIR') or BASE_DIR / 'var' / 'models')
+HF_TOKEN = os.environ.get('HF_TOKEN', '')
+# Défauts du serveur, comme iAqua : « auto » calcule au chargement (contexte, couches GPU selon la VRAM libre).
+LLM_CTX = os.environ.get('LLM_CTX', 'auto')
+LLM_GPU_LAYERS = os.environ.get('LLM_GPU_LAYERS', 'auto')  # auto, max ou un nombre
+LLM_THREADS = int(os.environ.get('LLM_THREADS', '0'))  # 0 = cœurs physiques
+# Outils portés d'iAqua : espace de travail par utilisateur, environnement Python, shell et MCP (administrateur)
+WORKSPACE_DIR = Path(os.environ.get('WORKSPACE_DIR') or BASE_DIR / 'var' / 'workspace')
+GUARDIAN_PYENV = Path(os.environ.get('GUARDIAN_PYENV') or BASE_DIR / 'var' / 'pyenv')
+GUARDIAN_SHELL = os.environ.get('GUARDIAN_SHELL', '0') == '1'  # shell, Python et outils forgés : coupés par défaut
+MCP_SERVERS = os.environ.get('MCP_SERVERS', '')  # JSON : {"nom": {"url": "https://…/mcp", "headers": {}, "description": "…"}}
+SD_BIN = os.environ.get('SD_BIN', '')  # stable-diffusion.cpp (vide = cherché dans le PATH)
+GUARDIAN_WEB = os.environ.get('GUARDIAN_WEB', '1') == '1'  # recherche et lecture web par le Gardien
+GUARDIAN_WORKERS = int(os.environ.get('GUARDIAN_WORKERS', '1'))  # demandes au Gardien traitées en même temps
+GUARDIAN_QUEUE = int(os.environ.get('GUARDIAN_QUEUE', '8'))  # demandes en attente au plus
 
 LOGGING = {
     'version': 1,

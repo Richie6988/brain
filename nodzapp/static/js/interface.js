@@ -177,8 +177,19 @@ document.getElementById('linksButton').addEventListener('mouseover', function(ev
 });
 
 
+// Retour à l'origine : dans la dimension du drapeau d'abord (elle se charge), puis à ses coordonnées.
 document.getElementById('originButton').addEventListener('click', function() {
-    dragUniverse(parseFloat(root.getAttribute('x'))-originX*currentZoom,-originY*currentZoom - parseFloat(root.getAttribute('y')));
+    const home = () => dragUniverse(parseFloat(root.getAttribute('x'))-originX*currentZoom,-originY*currentZoom - parseFloat(root.getAttribute('y')));
+    if (originLayer === null || Number(originLayer) === Number(layerNumber) || !layers.some(l => Number(l.id) === Number(originLayer))) {
+        home();
+        return;
+    }
+    load(Number(originLayer));
+    const arrived = setInterval(() => {
+        if (isLoading) return;
+        clearInterval(arrived);
+        home();
+    }, 50);
 });
 document.getElementById('originButton').addEventListener('mouseover', function(event) {
     createTooltip ('originButton','Back to origin');
@@ -196,31 +207,17 @@ document.getElementById('layerButton').addEventListener('mouseover', function(ev
 document.getElementById('flagButton').addEventListener('click', function() {
     originX = parseFloat(root.getAttribute('x'))/currentZoom;
     originY = - parseFloat(root.getAttribute('y'))/currentZoom;
+    originLayer = layerNumber;
 
     placeFlag();
 
+    // Drapeau de verre en 3D (comme le cube HYPERSPACE) planté au centre de l'écran, qui tourne puis s'efface.
     function placeFlag() {
-        // Create a flag element
-        const flagImage = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-
-        // Set the href attribute to point to the image source (e.g., flag icon)
-        flagImage.setAttributeNS(null, 'href', NODZ_BASE + '/static/img/pin.svg');
-        
-        // Set the width and height of the image
-        flagImage.setAttribute('width', '30px');
-        flagImage.setAttribute('height', '30px');
-
-        // Set the x and y coordinates for positioning
-        flagImage.setAttribute('x', window.innerWidth/2 - parseFloat(flagImage.getAttribute('width'))/2);
-        flagImage.setAttribute('y', window.innerHeight/2 - parseFloat(flagImage.getAttribute('height'))/2);
-       
-        // Append the flag to the map
-        svg.appendChild(flagImage);
-  
-        // Optional: Remove the flag after a few seconds
-        setTimeout(() => {
-            flagImage.remove();
-        }, 3000); 
+        const flag = document.createElement('div');
+        flag.className = 'origin-flag';
+        flag.innerHTML = '<span class="of3"><i class="pole"></i><i class="pole"></i><b class="sail"><i></i><i></i></b></span><small>origine</small>';
+        document.body.appendChild(flag);
+        flag.addEventListener('animationend', event => { if (event.target === flag) flag.remove(); });
     }
 
 });
@@ -334,7 +331,17 @@ function generateInvite(nodeIds) {
                         }).catch(err => {
                             console.error('Failed to copy text: ', err);
                         });
-                    } 
+                    } else {  // page en http : pas d'API presse-papiers, copie par une zone de texte temporaire
+                        const area = document.createElement('textarea');
+                        area.value = inviteLink;
+                        area.style.cssText = 'position:fixed;opacity:0';
+                        document.body.appendChild(area);
+                        area.select();
+                        document.execCommand('copy');
+                        area.remove();
+                        message.textContent = "Link copied to clipboard!";
+                        setTimeout(closePopup, 1000);
+                    }
                 });
                 
                 svg.addEventListener('mousedown', function(event) {
@@ -505,6 +512,12 @@ document.getElementById('profileButton').addEventListener('mousedown', function(
 //////////////////// DARK ////////////////////
 
 let dark = true;
+// Les barres d'outils des nodes sont gardées hors de la page (node.tools) : leurs images et leurs listes changent
+// de thème avec le reste (Nodz lit la forme et le verrou d'un node dans le nom de ces images).
+function themed(selector) {
+    const tools = [...document.querySelectorAll('.node-group')].flatMap(n => Object.values(n.tools || {}).flatMap(g => [...g.querySelectorAll(selector)]));
+    return [...new Set([...document.querySelectorAll(selector), ...tools])];
+}
 document.getElementById('darkButton').addEventListener('mouseover', function() {
     if (dark) {
         createTooltip ('darkButton','Dark');
@@ -517,7 +530,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
     this.style.transform = this.style.transform === 'rotate(180deg)' ? 'rotate(0deg)' : 'rotate(180deg)';
     if (dark) {
         dark = false;
-        const dropdowns = document.querySelectorAll('.select-dropdown')
+        const dropdowns = themed('.select-dropdown')
         layer.classList.add('lightmode');
         for (let i = 0; i < dropdowns.length; i++) {
             dropdowns[i].className = 'selectlight';       
@@ -529,7 +542,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
             node.classList.add('raylight');
         });
 
-        const colorLogo = document.querySelectorAll('img');
+        const colorLogo = themed('img');
         colorLogo.forEach(color => {
             if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking.svg'){
                 color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking-light.svg');
@@ -602,7 +615,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
         }
     } else {
         dark = true;
-        const dropdowns = document.querySelectorAll('.selectlight')
+        const dropdowns = themed('.selectlight')
         layer.classList.remove('lightmode');
         for (let i = 0; i < dropdowns.length; i++) {
             dropdowns[i].className = 'select-dropdown';  
@@ -614,7 +627,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
             node.classList.add('raydark');
         });
 
-        const colorLogo = document.querySelectorAll('img');
+        const colorLogo = themed('img');
         colorLogo.forEach(color => {
             if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking-light.svg'){
                 color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking.svg');
@@ -1266,7 +1279,7 @@ notification.addEventListener('click', function () {
             focusNode(document.getElementById(notificationsDate[notificationIndex][2]),true)
             CurrentNode(document.getElementById(notificationsDate[notificationIndex][2]));
             currentNode.children[1].setAttribute('class', 'selectednode');
-            currentNode.children[7].children[6].children[0].click()
+            currentNode.tools.type.children[6].children[0].click()
         } else {
             layerNumber = notificationsDate[notificationIndex][1];
             seeNotification = true;

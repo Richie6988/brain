@@ -6,13 +6,15 @@ migration met à jour ce qui a changé côté v1 sans jamais dupliquer. Rien n'e
 Correspondances :
 - plan v1 `layer_id` (1, 2, …) → index v2 `layer_id - 1` (Home = 0) ; nom conservé ;
 - coordonnées : v1 stocke y vers le haut (affiché à -y) ; v2 suit SVG, y vers le bas → y = -y_v1 ;
-- contenu : chaque état non vide est gardé dans `payload` (text, image, file) ; les états sans
-  équivalent v2 (dessin, vidéo YouTube, rappel, likes) sont conservés dans `payload.legacy` ;
+- contenu : chaque état non vide est gardé dans `payload` (text, image, file, drawing : les opérations
+  de dessin v1 telles quelles) ; les états sans équivalent v2 (rappel, likes, dessin illisible) sont
+  conservés dans `payload.legacy` ;
 - Link et `siblings` → arêtes `link` dédupliquées ; `quantum` → arêtes `portal` ;
 - node v1 archivé → status `archived`.
 """
 
 import json
+import mimetypes
 
 from django.db import transaction
 
@@ -22,7 +24,7 @@ from .models import AuditLog, Edge, Layer, Node, NodeRevision, Origin, StoredFil
 from .services import node_to_dict
 
 DEFAULT_RADIUS = 62.5
-V2_TYPES = {'text': 'text', 'image': 'image', 'file': 'file'}
+V2_TYPES = {'text': 'text', 'image': 'image', 'file': 'file', 'canvas': 'drawing'}
 
 
 def _ref(user, key):
@@ -49,15 +51,17 @@ def _payload(old):
     payload = {}
     if old.text_content:
         payload['text'] = {'html': old.text_content}
-    if old.image_content:
-        payload['image'] = {'path': old.image_content.name}
     if old.file:
         payload['file'] = {'name': old.file_name or '', 'preview': old.preview.name if old.preview else ''}
     legacy = {}
     if old.type not in V2_TYPES:
         legacy['type'] = old.type
     if old.canvas_content and old.canvas_content != '[]':
-        legacy['canvas'] = old.canvas_content
+        ops = _json_list(old.canvas_content)
+        if ops:
+            payload['drawing'] = {'ops': ops}
+        else:
+            legacy['canvas'] = old.canvas_content
     if old.notification:
         legacy['notification'] = old.notification
     if old.likes:
@@ -99,14 +103,22 @@ class Migrator:
                 self.stats['updated'] += 1
             self.layers[old.layer_id] = layer
 
-    def stored_file(self, old):
-        if not old.file:
+    def stored_file(self, field, name='', text=''):
+        """Fichier v1 (image ou document) repris tel quel en StoredFile, servi par /api/v1/files."""
+        if not field:
             return None
-        existing = StoredFile.objects.filter(owner=self.user, file=old.file.name).first()
+        existing = StoredFile.objects.filter(owner=self.user, file=field.name).first()
+        name = name or field.name.rsplit('/', 1)[-1]
         return existing or StoredFile.objects.create(
-            owner=self.user, file=old.file.name, name=old.file_name or old.file.name.rsplit('/', 1)[-1],
-            extracted_text=old.file_text_content or '',
+            owner=self.user, file=field.name, name=name, mime=mimetypes.guess_type(name)[0] or '', extracted_text=text or '',
         )
+
+    def payload(self, old):
+        payload = _payload(old)
+        image = self.stored_file(old.image_content)
+        if image:
+            payload['image'] = {'file': str(image.id), 'name': image.name}
+        return payload
 
     def migrate_nodes(self):
         for old in v1.Node.objects.filter(user=self.user).select_related('layer'):
@@ -119,8 +131,8 @@ class Migrator:
                 'color': old.color,
                 'lock': old.lock,
                 'content_type': V2_TYPES.get(old.type, 'text'),
-                'payload': _payload(old),
-                'file': self.stored_file(old),
+                'payload': self.payload(old),
+                'file': self.stored_file(old.file, old.file_name, old.file_text_content),
                 'status': Node.Status.ARCHIVED if old.archive else Node.Status.ACCEPTED,
             }
             ref = _ref(self.user, f'node:{old.node_id}')

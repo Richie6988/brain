@@ -73,33 +73,13 @@ if(!isCtrlPressed) {
                 }
             }); 
         }
-        // Cancel
-        if (event.ctrlKey && (event.key === 'z' || event.key === 'Z') && !isTyping) {
-            event.preventDefault();
-            isCtrlPressed = false;
-            cancel();
-        } 
         // Delete
         if (!isTyping && (event.key === 'Delete' || event.key === 'Backspace')) {
-            if (cancelIndex > 0){
-                cancelList.length = 0;
-                cancelIndex = 0;
-            }
-            if (selectedNodes.length !== 0 && selectedTemplates.length !== 0) {
-                doubleCancel.push([cancelList.length,cancelList.length+1]);
-            }
             if (selectedNodes.length !== 0) {
                 deleteNode(selectedNodes);
             } 
             if (selectedTemplates.length !== 0) {
-                cancelList.push(['templatedeletion', Array.from(selectedTemplates).map(template => template.cloneNode(true))]);
-                var data = [];
-                selectedTemplates.forEach(template => {
-                    data.push({templateid: parseInt(template.getAttribute('id').match(/\d+/)[0], 10)});
-                    template.remove();
-                });
-                deleteFetch(data);
-                selectedTemplates.length = 0; 
+                deleteTemplates(selectedTemplates);
             }                 
         }
         // Refresh view
@@ -355,16 +335,16 @@ function pastenodes(tunnel) {
             if(element.getAttribute('shape') === 'none'){
                 pasteNode.children[1].style.stroke = 'transparent';
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
                 }
             } else if(element.getAttribute('shape') === 'circle'){
                 pasteNode.children[1].style.stroke = element.getAttribute('color');
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
                 }
             }  else if(element.getAttribute('shape') === 'square'){
                 pasteNode.children[1].style.stroke = 'transparent';
@@ -372,24 +352,24 @@ function pastenodes(tunnel) {
                 pasteNode.children[2].style.display = 'block';  
                 pasteNode.children[2].setAttribute('class','squareShape'); 
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
                 }
             }  
 
             pasteNode.setAttribute('lock', element.getAttribute('lock'));
             if(element.getAttribute('lock') === '1'){
                 if (dark) {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
                 } else {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
                 }
             } else {
                 if (dark) {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
                 } else {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
                 }
             }  
             
@@ -404,7 +384,7 @@ function pastenodes(tunnel) {
             const spinner = pasteNode.children[0].children[2].children[1];
             const fileContainer = pasteNode.children[0].children[2];
             const fileName = element.getAttribute('filename');
-            pasteNode.children[5].children[2].children[0].textContent = element.children[5].children[2].children[0].textContent;
+            pasteNode.tools.file.children[2].children[0].textContent = element.querySelector('.filename, .filename-light')?.textContent || '';  // copie : un clone, sans node.tools
             
             // Canvas
             pasteNode.setAttribute('canvascontent',element.getAttribute('canvascontent'));
@@ -414,8 +394,9 @@ function pastenodes(tunnel) {
             redrawCanvas(pasteNode.children[0].children[3].id,0, drawingData);
 
             pasteNode.children[1].setAttribute('r', parseFloat(element.children[1].getAttribute('r')));
+            pasteNode.setAttribute('ratio', element.getAttribute('ratio') || 0);
 
-            pasteNode.children[7].children[0].children[0].value = pasteNode.getAttribute('type'); 
+            pasteNode.tools.type.children[0].children[0].value = pasteNode.getAttribute('type'); 
             var event = new Event('change');
 
             if(pasteNode.getAttribute('type') === "file"){
@@ -459,7 +440,7 @@ function pastenodes(tunnel) {
             }
 
             if(pasteNode.getAttribute('type') !== "text"){
-                pasteNode.children[7].children[0].children[0].dispatchEvent(event);
+                pasteNode.tools.type.children[0].children[0].dispatchEvent(event);
             }
 
             quickSize(pasteNode); 
@@ -522,21 +503,32 @@ function pastenodes(tunnel) {
 
 //////////////////// CANCEL ////////////////////
 
+// Téléportation quantique : les nodes supprimés de la dimension de départ renaissent dans celle d'arrivée.
 function cancel()   {   
     cancelIndex ++;
     if (cancelIndex > cancelList.length){
         return;
     }
-    const undo = (cancelList[cancelList.length - cancelIndex]);
-    var action = undo[0];
-    var object = undo[1];
+    const nodes = cancelList[cancelList.length - cancelIndex][1];
+    restoreNodes(nodes);
+    // L'origine suit les nodes téléportés, dans leur nouvelle dimension (l'annulation, elle, n'y touche pas).
+    const last = nodes[nodes.length - 1];
+    if (last) {
+        originX = parseFloat(last.getAttribute('x'))/currentZoom;
+        originY = - parseFloat(last.getAttribute('y'))/currentZoom;
+        originLayer = layerNumber;
+    }
+    document.activeElement.blur();
+}
 
-    if (action === 'deletion') {
-        object.forEach(node =>{
+// Fait renaître des nodes supprimés (clones pris avant la suppression) avec leurs liens.
+function restoreNodes(nodes) {
+        nodes.forEach(node =>{
             node.node_id = parseInt(node.getAttribute('id').match(/\d+/)[0], 10);
             node.x_coordinate = parseInt(node.getAttribute('x'));
             node.y_coordinate = parseInt(node.getAttribute('y'));
             node.radius = node.children[1].getAttribute('r')
+            node.ratio = node.getAttribute('ratio');
             node.type = node.getAttribute('type');
             node.color = node.getAttribute('color');
             if(quantum){
@@ -580,18 +572,12 @@ function cancel()   {
                     createLink(document.getElementById(node.getAttribute('id')),connectedNode,linksArray[index]); 
                 }
             });
-            originX = parseFloat(node.getAttribute('x'))/currentZoom;
-            originY = - parseFloat(node.getAttribute('y'))/currentZoom;
         });
-    } if (action === 'linkdeletion') {   
-        const node1 = document.getElementById(object.getAttribute('Node1'));
-        const node2 = document.getElementById(object.getAttribute('Node2'));
-        const linkID = object.id; 
-        console.log(linkID)                 
-        createLink(node1,node2,linkID); 
+}
 
-    } if (action === 'templatedeletion') {   
-        object.forEach(template =>{
+// Fait renaître des gabarits supprimés.
+function restoreTemplates(templates) {
+        templates.forEach(template =>{
             const redoTemplate = createTemplate(parseFloat(template.getAttribute('x')),parseFloat(template.getAttribute('y')),template.getAttribute('type'),template.getAttribute('id'));
             redoTemplate.setAttribute('layer', template.getAttribute('layer'));
             redoTemplate.setAttribute('size', template.getAttribute('size'));
@@ -600,17 +586,16 @@ function cancel()   {
             redoTemplate.setAttribute('lock', template.getAttribute('lock'));
             saveTemplate(redoTemplate);
         });
-    }
+}
 
-    // var event = new MouseEvent('mousedown');
-    // svg.dispatchEvent(event);    
-    // event = new MouseEvent('mouseup');
-    // svg.dispatchEvent(event);
-    document.activeElement.blur();
-
-    if(doubleCancel.some(sublist => sublist.includes(cancelList.length - cancelIndex))) {
-        cancel();
-    } 
+function deleteTemplates(templates) {
+    var data = [];
+    templates.forEach(template => {
+        data.push({templateid: parseInt(template.getAttribute('id').match(/\d+/)[0], 10)});
+        template.remove();
+    });
+    deleteFetch(data);
+    templates.length = 0; 
 }
 
 
@@ -916,11 +901,6 @@ function createLink(nodeGroup1, nodeGroup2,id) {
 
     function keydownHandler(event) {
         if (!isTyping && (event.key === 'Delete' || event.key === 'Backspace')) {
-            if (cancelIndex > 0){
-                cancelList.length = 0;
-                cancelIndex = 0;
-            }    
-            cancelList.push(['linkdeletion', link.cloneNode(true)]);
             deleteLink(link);
             document.removeEventListener('keydown', keydownHandler);
         }
@@ -1002,8 +982,11 @@ function updateLink(link) {
     link.setAttribute('x2', x2 - offset);
     link.setAttribute('y2', y2 - offset);
     link.style.strokeWidth = ''+3+'px'; 
-    universe.appendChild(link);
-    universe.insertBefore(link, universe.firstChild); 
+    // Le lien passe derrière les nodes : seulement s'il n'y est pas déjà (le retirer et le remettre à chaque pas d'un
+    // glissé forçait le navigateur à tout recalculer, et un glissé de plusieurs nodes ramait).
+    let before = link.previousElementSibling;
+    while (before && before.classList.contains('link')) before = before.previousElementSibling;
+    if (before) universe.insertBefore(link, universe.firstChild); 
 }
 
 function updateLinkColor(link) {

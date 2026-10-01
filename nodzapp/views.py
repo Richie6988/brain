@@ -434,6 +434,7 @@ def save_node(request):
                     shape=group_data['shape'],
                     likes=group_data['likes'],
                     radius=group_data['radius'],
+                    ratio=float(group_data.get('ratio') or 0),
                     layer=layer_instance,
                     text_content=group_data['textContent'],
                     image_content=group_data['imgContent'],
@@ -480,6 +481,7 @@ def save_node(request):
                 param.update(
                     originX=group_data['originX'],
                     originY=group_data['originY'],
+                    originLayer=group_data.get('originLayer'),
                     nodecounter=nodecounter,
                     linkcounter=linkcounter,
                     layercounter=layercounter,
@@ -645,9 +647,9 @@ def loading(request):
                 layer = Param.objects.filter(user=user).values('layer').first()['layer']          
             elif json_data['layer'] == -1: #Register
                 Param.objects.create(user=user)
-                params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+                params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
                 formatted_params = []
-                for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter', 'layercounter']:
+                for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter', 'layercounter']:
                     if param_name in params[0]:  # Assuming there's at least one result
                         formatted_params.append({'name': param_name, 'value': params[0][param_name]})
                 layer = Layer.objects.get(user=user)  
@@ -685,15 +687,15 @@ def loading(request):
         layer_instance = Layer.objects.get(user=user, layer_id=layer)                          
         # Retrieve all groups and link data from the database
         nodes = Node.objects.filter(user=user,archive=False, layer=layer_instance).values('node_id', 'x_coordinate', 'y_coordinate', 'layer__layer_id',
-                                          'type', 'color','shape','likes', 'radius', 'rank', 'quantum',
+                                          'type', 'color','shape','likes', 'radius', 'ratio', 'rank', 'quantum',
                                           'text_content','image_content','canvas_content',
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
         templates = Template.objects.filter(user=user,archive=False,layer=layer_instance).values('template_id', 'x_coordinate', 'y_coordinate','type','lock','size')
-        params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+        params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
         formatted_params = []
 
-        for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
+        for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
             if param_name in params[0]:  # Assuming there's at least one result
                 formatted_params.append({'name': param_name, 'value': params[0][param_name]})
         
@@ -1222,11 +1224,12 @@ def terms(request):
 def contact(request): 
     return render(request, "contact.html")
 
-from django.contrib.auth import logout
 def universe(request):   
     r_id = request.GET.get('r')
     context = {'r': r_id} 
-    logout(request)
+    # Plus de logout ici : un autre onglet, un rechargement ou un préchargement de /universe
+    # déconnectait la page ouverte (sauvegardes, profil et IA refusés). La page affiche toujours
+    # LOGIN / GUEST ; la déconnexion se fait par le profil.
     return render(request, "universe.html", context)
 
 def referree(request, r_id):
@@ -1671,15 +1674,15 @@ def admin_loading(request):
         layer_instance = Layer.objects.get(user=user, layer_id=layer)                          
         # Retrieve all groups and link data from the database
         nodes = Node.objects.filter(user=user,archive=False, layer=layer_instance).values('node_id', 'x_coordinate', 'y_coordinate', 'layer__layer_id',
-                                          'type', 'color','shape','likes', 'radius', 'rank', 'quantum',
+                                          'type', 'color','shape','likes', 'radius', 'ratio', 'rank', 'quantum',
                                           'text_content','image_content','canvas_content',
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
         templates = Template.objects.filter(user=user,archive=False,layer=layer_instance).values('template_id', 'x_coordinate', 'y_coordinate','type','lock','size')
-        params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+        params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
         formatted_params = []
 
-        for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
+        for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
             if param_name in params[0]:  # Assuming there's at least one result
                 formatted_params.append({'name': param_name, 'value': params[0][param_name]})
         

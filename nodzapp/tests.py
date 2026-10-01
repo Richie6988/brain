@@ -10,6 +10,13 @@ class BootstrapCommandTests(TestCase):
     def run_bootstrap(self, *args):
         call_command('bootstrap', *args, stdout=StringIO())
 
+    def test_existing_account_becomes_admin(self):
+        NodzUser.objects.create_user(email='b@nodz.local', password='x')
+        self.run_bootstrap('--email', 'b@nodz.local')
+        user = NodzUser.objects.get(email='b@nodz.local')
+        self.assertTrue(user.is_staff and user.is_superuser)
+        self.assertTrue(user.check_password('x'))
+
     def test_creates_local_user_with_param_and_home_layer(self):
         self.run_bootstrap('--email', 'a@nodz.local', '--password', 'pw-123456')
         user = NodzUser.objects.get(email='a@nodz.local')
@@ -74,3 +81,11 @@ class DeploymentTests(TestCase):
         response = self.client.get('/login/')
         self.assertIn('nodz_csrftoken', response.cookies)
         self.assertNotIn('csrftoken', response.cookies)
+
+
+class UniverseSessionTests(TestCase):
+    def test_opening_universe_keeps_the_session(self):
+        user = NodzUser.objects.create_user(email='s@nodz.local', password='x')
+        self.client.force_login(user)
+        self.assertEqual(self.client.get('/universe').status_code, 200)  # un autre onglet, un rechargement
+        self.assertEqual(self.client.get('/api/v1/toolbox/status').status_code, 200)

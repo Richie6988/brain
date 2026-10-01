@@ -42,7 +42,7 @@ body, html {
 }
 
 .lightmode {
-    background: #f0f0f0;
+    background: #f4efe6;  /* blanc cassé, ton papier : moins éblouissant que le blanc ou le gris froid */
 }
 
 

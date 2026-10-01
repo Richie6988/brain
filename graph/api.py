@@ -1,13 +1,23 @@
 """API JSON v1 : /api/v1/... (session Django, jeton CSRF dans l'en-tête X-CSRFToken)."""
 
 import json
+import mimetypes
 from functools import wraps
 
+from django.conf import settings
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import FileResponse, JsonResponse
 
-from .models import AIRun, Edge, Layer, Node, NodeRevision
+from .extract import extract_text
+from .models import AIRun, Edge, Layer, Node, NodeRevision, StoredFile
 from .services import ChangeError, Conflict, apply_changes, edge_to_dict, layer_to_dict, node_to_dict
+
+
+def unauthenticated(request):
+    """401 qui dit pourquoi : cookie de session absent (https, domaine, chemin) ou session inconnue du serveur."""
+    sent = settings.SESSION_COOKIE_NAME in request.COOKIES
+    return JsonResponse({'error': 'authentification requise',
+                         'reason': 'session inconnue ou expirée' if sent else 'cookie de session absent'}, status=401)
 
 
 def api(*methods):
@@ -19,9 +29,9 @@ def api(*methods):
             if request.method not in methods:
                 return JsonResponse({'error': 'méthode non autorisée'}, status=405)
             if not request.user.is_authenticated:
-                return JsonResponse({'error': 'authentification requise'}, status=401)
+                return unauthenticated(request)
             body = None
-            if request.method in ('POST', 'PATCH'):
+            if request.method in ('POST', 'PATCH') and not request.content_type.startswith('multipart/'):
                 try:
                     body = json.loads(request.body or b'{}')
                 except json.JSONDecodeError:
@@ -124,3 +134,35 @@ def run_detail(request, body, run_id):
             raise ChangeError('statut inconnu')
         run.save()
     return JsonResponse(run_to_dict(run))
+
+
+MAX_UPLOAD = 12 * 1024 * 1024  # aligné sur client_max_body_size de nginx
+
+
+def file_to_dict(f):
+    return {'id': str(f.id), 'name': f.name, 'mime': f.mime, 'size': f.size}
+
+
+@api('POST')
+def files(request, body):
+    """Envoi d'un fichier (multipart, champ `file`) ; son texte est extrait pour la recherche et l'IA."""
+    upload = request.FILES.get('file')
+    if upload is None:
+        raise ChangeError('fichier attendu (champ file)')
+    if upload.size > MAX_UPLOAD:
+        raise ChangeError(f'fichier trop lourd (maximum {MAX_UPLOAD // 1024 // 1024} Mo)')
+    mime = upload.content_type or mimetypes.guess_type(upload.name)[0] or 'application/octet-stream'
+    stored = StoredFile.objects.create(owner=request.user, file=upload, name=upload.name[:255], mime=mime[:100], size=upload.size)
+    stored.extracted_text = extract_text(stored.file.path)
+    stored.save(update_fields=['extracted_text'])
+    return JsonResponse(file_to_dict(stored), status=201)
+
+
+@api('GET')
+def file_detail(request, body, file_id):
+    """Contenu d'un fichier, réservé à son propriétaire (?download=1 pour l'enregistrer)."""
+    stored = StoredFile.objects.filter(id=file_id, owner=request.user).first()
+    if stored is None:
+        return JsonResponse({'error': 'fichier introuvable'}, status=404)
+    return FileResponse(stored.file.open('rb'), as_attachment=request.GET.get('download') == '1',
+                        filename=stored.name, content_type=stored.mime or None)

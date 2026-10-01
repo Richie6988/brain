@@ -196,109 +196,6 @@ function selectNodes(startX, startY, endX, endY) {
 }
 
 
-//////////////////// SEMENTIC SEARCH ////////////////////
-
-
-
-let semanticsearch = document.getElementById('semanticsearch');
-let prevsearch = document.getElementById('prevsearch');
-let nextsearch = document.getElementById('nextsearch');
-//let results = document.getElementById('results');
-let resultsprio = 0;
-
-semanticsearch.addEventListener('keydown', function(event) {
-    if (event.key === 'Enter') {  // Check if Enter key is pressed
-        event.preventDefault();  // Prevent form submission if inside a form
-        const data = [{
-            search: semanticsearch.value
-        }];
-        searchrequest(data);
-    }
-});
-semanticsearch.addEventListener('mousedown', function() {
-    isTyping = true; 
-});
-
-
-function searchrequest(data){
-    const csrfToken = getCookie('nodz_csrftoken');
-    resultsprio = 0;
-   
-    // Set up headers
-    const headers = {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrfToken
-    };
-
-    // Set up fetch options
-    const fetchOptions = {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(data)
-    };
-
-    // Make the fetch request
-    fetch('/semantic-search/', fetchOptions)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(responseData => {
-            // Handle success
-
-            const rankedNodes = responseData.ranked_nodes;
-            console.log(rankedNodes)
-            if (rankedNodes[resultsprio] && rankedNodes[resultsprio].matching_score != 0) {
-                 /// Display result
-                focus = false;
-                const node = document.getElementById('N-'+rankedNodes[resultsprio].id);
-                if (node) {
-                    focusNode(node,true);
-                } else {
-                    load(rankedNodes[resultsprio].layer,'N-'+rankedNodes[resultsprio].id)
-                }
-                
-            }
-
-            prevsearch.addEventListener('mousedown', function() {
-                resultsprio -=1
-                if (rankedNodes[resultsprio] && rankedNodes[resultsprio].matching_score != 0) {
-                    /// Display result
-                   focus = false;
-                   const node = document.getElementById('N-'+rankedNodes[resultsprio].id);
-                    if (node) {
-                        focusNode(node,true);
-                    } else {
-                        load(rankedNodes[resultsprio].layer,'N-'+rankedNodes[resultsprio].id)
-                    }
-               } else { resultsprio +=1}
-            });
-            nextsearch.addEventListener('mousedown', function() {
-                resultsprio +=1
-                if (rankedNodes[resultsprio] && rankedNodes[resultsprio].matching_score != 0) {
-                    /// Display result
-                   focus = false;
-                   const node = document.getElementById('N-'+rankedNodes[resultsprio].id);
-                    if (node) {
-                        focusNode(node,true);
-                    } else {
-                        load(rankedNodes[resultsprio].layer,'N-'+rankedNodes[resultsprio].id)
-                    }
-               } else { resultsprio -=1}
-            });
-     
-        })
-        .catch(error => {
-            // Handle error
-            console.error('There was a problem with the fetch operation:', error);
-        });
-
-}
-
-
-
 function focusNode(node,val){
     if (node){
         isFocused = true;
@@ -441,24 +338,24 @@ function nodeUnselection(node){
         node.children[2].style.strokeWidth = '4px';
         node.children[2].style.stroke = node.getAttribute('color'); 
     }
-    node.children[7].style.display = 'none';
+    node.tools.type.style.display = 'none';
 }
 
 let paramColor = 'rgba(39, 9, 39, 0.5)';
 let paramColorLight = 'rgba(232, 232, 232, 0.5)';
 
 function showParams(nodeGroup) {    
-    const typeGroup = nodeGroup.children[7];
-    const typeButtonfo = nodeGroup.children[7].children[0];
-    const typeButton = nodeGroup.children[7].children[1];
-    const colorButtonfo = nodeGroup.children[7].children[2];
-    const shapeButtonfo = nodeGroup.children[7].children[5];
-    const calendarButtonfo = nodeGroup.children[7].children[6];
-    const lockButtonfo = nodeGroup.children[7].children[7];
-    const layerButtonfo = nodeGroup.children[7].children[8];
+    const typeGroup = nodeGroup.tools.type;
+    const typeButtonfo = nodeGroup.tools.type.children[0];
+    const typeButton = nodeGroup.tools.type.children[1];
+    const colorButtonfo = nodeGroup.tools.type.children[2];
+    const shapeButtonfo = nodeGroup.tools.type.children[5];
+    const calendarButtonfo = nodeGroup.tools.type.children[6];
+    const lockButtonfo = nodeGroup.tools.type.children[7];
+    const layerButtonfo = nodeGroup.tools.type.children[8];
 
     typeButton.style.pointerEvents = 'auto';
-    const canvasStyleGroup = nodeGroup.children[6];
+    const canvasStyleGroup = nodeGroup.tools.canvas;
     canvasStyleGroup.setAttribute('visibility', 'hidden');
 
     typeGroup.style.display ='block';
@@ -490,13 +387,13 @@ function showParams(nodeGroup) {
 }
 
 function hideParams(nodeGroup) {
-    const typeButtonfo = nodeGroup.children[7].children[0];
-    const typeButton = nodeGroup.children[7].children[1];
-    const colorButtonfo = nodeGroup.children[7].children[2];
-    const shapeButtonfo = nodeGroup.children[7].children[5];
-    const calendarButtonfo = nodeGroup.children[7].children[6];
-    const lockButtonfo = nodeGroup.children[7].children[7];
-    const layerButtonfo = nodeGroup.children[7].children[8];
+    const typeButtonfo = nodeGroup.tools.type.children[0];
+    const typeButton = nodeGroup.tools.type.children[1];
+    const colorButtonfo = nodeGroup.tools.type.children[2];
+    const shapeButtonfo = nodeGroup.tools.type.children[5];
+    const calendarButtonfo = nodeGroup.tools.type.children[6];
+    const lockButtonfo = nodeGroup.tools.type.children[7];
+    const layerButtonfo = nodeGroup.tools.type.children[8];
 
     typeButtonfo.setAttribute('visibility', 'hidden');
     typeButton.setAttribute('visibility', 'hidden');
@@ -536,7 +433,26 @@ function noCurrentNode() {
 //     }
 // });
 
+// Texte des nodes centré verticalement en CSS (modern.css, top 50 % et translateY) : plus de mesure en JavaScript,
+// donc plus de texte décalé quand la police arrive après le calcul. Seuls les rectangles de texte dépendent encore de
+// la hauteur mesurée du texte : ils sont recalculés quand une police finit de charger.
+document.fonts?.addEventListener('loadingdone', () => {
+    document.querySelectorAll('.node-group[shape="square"]:is([type="text"], [type="code"])').forEach(node => {
+        const box = node.children[0];
+        nodeSizing(node, parseFloat(box.getAttribute('width')), parseFloat(box.getAttribute('height')));
+    });
+});
+
 function nodeSizing(nodeGroup,w,h) {  
+    // Rectangle étiré (attribut ratio = largeur / hauteur) : à surface égale, ses proportions sont gardées quel que
+    // soit l'appel, et sa hauteur n'est plus seulement celle du texte.
+    const ratio = parseFloat(nodeGroup.getAttribute('ratio')) || 0;
+    const stretched = ratio > 0 && nodeGroup.getAttribute('shape') === 'square' && ['text', 'code'].includes(nodeGroup.getAttribute('type'));
+    if (stretched) {
+        const area = w * h;
+        w = Math.sqrt(area * ratio);
+        h = Math.sqrt(area / ratio);
+    }
     var screenSize = window.innerHeight*2;
     if ((w > screenSize || h > screenSize)) {
         console.log('max node size')
@@ -551,7 +467,6 @@ function nodeSizing(nodeGroup,w,h) {
 
     let input = nodeGroup.children[0].children[0];
   
-    input.style.bottom = (foreignObject.getAttribute('height') - input.scrollHeight)/2 +'px';
     input.style.width = '100%';
 
     if (nodeGroup.getAttribute('type') === 'canvas') {
@@ -591,9 +506,9 @@ function nodeSizing(nodeGroup,w,h) {
                 reduction_factor = 2*hitboxRadius - h*nw/nh; 
             }               
         }           
-    } else if (nodeGroup.getAttribute('type') === 'text' && nodeGroup.getAttribute('shape') === 'square') {
+    } else if (['text', 'code'].includes(nodeGroup.getAttribute('type')) && nodeGroup.getAttribute('shape') === 'square') {
         square.setAttribute('width', w + 30); 
-        square.setAttribute('height', input.scrollHeight + 30);
+        square.setAttribute('height', Math.max(input.scrollHeight, stretched ? h : 0) + 30);
         reduction_factor = 2*hitboxRadius - w - 30; 
     } else {
         square.setAttribute('width', 2 * hitboxRadius); 
@@ -620,12 +535,12 @@ function nodeSizing(nodeGroup,w,h) {
          
     // TEXT INPUT 
     
-    let boldButtonfo = nodeGroup.children[4].children[0];
-    let italicButtonfo = nodeGroup.children[4].children[1];
-    let underlineButtonfo = nodeGroup.children[4].children[2];
-    let fontSizeButtonfo = nodeGroup.children[4].children[3];
-    let textColorButtonfo = nodeGroup.children[4].children[4];
-    let smileyButtonfo = nodeGroup.children[4].children[5];
+    let boldButtonfo = nodeGroup.tools.text.children[0];
+    let italicButtonfo = nodeGroup.tools.text.children[1];
+    let underlineButtonfo = nodeGroup.tools.text.children[2];
+    let fontSizeButtonfo = nodeGroup.tools.text.children[3];
+    let textColorButtonfo = nodeGroup.tools.text.children[4];
+    let smileyButtonfo = nodeGroup.tools.text.children[5];
 
     if(nodeGroup.getAttribute('shape') === 'square') { 
         const shift = (input.scrollHeight + 40)/2;       
@@ -670,9 +585,9 @@ function nodeSizing(nodeGroup,w,h) {
 
     // FILE
 
-    let fileButton1fo = nodeGroup.children[5].children[0];
-    let fileButton2fo = nodeGroup.children[5].children[1];
-    let fileButton3fo = nodeGroup.children[5].children[2];
+    let fileButton1fo = nodeGroup.tools.file.children[0];
+    let fileButton2fo = nodeGroup.tools.file.children[1];
+    let fileButton3fo = nodeGroup.tools.file.children[2];
     let filePreview = nodeGroup.children[0].children[2].children[0];
     let fileTypeImg = nodeGroup.children[0].children[2].children[2];
 
@@ -709,14 +624,14 @@ function nodeSizing(nodeGroup,w,h) {
   
     // CANVAS
 
-    let canvasEraserButtonfo = nodeGroup.children[6].children[0];
-    let canvasRedoButtonfo = nodeGroup.children[6].children[1];
-    let canvasUndoButtonfo = nodeGroup.children[6].children[2];
-    let canvasClearButtonfo = nodeGroup.children[6].children[3];
-    let canvasLineButtonfo = nodeGroup.children[6].children[4];
-    let canvasCircleButtonfo = nodeGroup.children[6].children[5];
-    let canvassliderfo = nodeGroup.children[6].children[6];
-    let canvasColorButtonfo = nodeGroup.children[6].children[7];
+    let canvasEraserButtonfo = nodeGroup.tools.canvas.children[0];
+    let canvasRedoButtonfo = nodeGroup.tools.canvas.children[1];
+    let canvasUndoButtonfo = nodeGroup.tools.canvas.children[2];
+    let canvasClearButtonfo = nodeGroup.tools.canvas.children[3];
+    let canvasLineButtonfo = nodeGroup.tools.canvas.children[4];
+    let canvasCircleButtonfo = nodeGroup.tools.canvas.children[5];
+    let canvassliderfo = nodeGroup.tools.canvas.children[6];
+    let canvasColorButtonfo = nodeGroup.tools.canvas.children[7];
 
     canvasEraserButtonfo.setAttribute('x', centerX - hitboxRadius - 20); 
     canvasEraserButtonfo.setAttribute('y', centerY + 0);
@@ -745,15 +660,15 @@ function nodeSizing(nodeGroup,w,h) {
 
 
     // NODE PARAMS 
-    let typeButtonfo = nodeGroup.children[7].children[0];
-    let typeButton = nodeGroup.children[7].children[1];
-    let colorButtonfo = nodeGroup.children[7].children[2];
-    let sizeButtonfo = nodeGroup.children[7].children[3];
-    let sizeButton = nodeGroup.children[7].children[4];
-    let shapeButtonfo = nodeGroup.children[7].children[5];
-    let calendarButtonfo = nodeGroup.children[7].children[6];
-    let lockButtonfo = nodeGroup.children[7].children[7];
-    let layerButtonfo = nodeGroup.children[7].children[8];
+    let typeButtonfo = nodeGroup.tools.type.children[0];
+    let typeButton = nodeGroup.tools.type.children[1];
+    let colorButtonfo = nodeGroup.tools.type.children[2];
+    let sizeButtonfo = nodeGroup.tools.type.children[3];
+    let sizeButton = nodeGroup.tools.type.children[4];
+    let shapeButtonfo = nodeGroup.tools.type.children[5];
+    let calendarButtonfo = nodeGroup.tools.type.children[6];
+    let lockButtonfo = nodeGroup.tools.type.children[7];
+    let layerButtonfo = nodeGroup.tools.type.children[8];
 
     if(nodeGroup.getAttribute('shape') === 'square') {
         const shift = (input.scrollHeight + 40)/2;
@@ -833,22 +748,22 @@ function nodeSizing(nodeGroup,w,h) {
     foreignObject.setAttribute('x', centerX - parseFloat(foreignObject.getAttribute('width'))/2);
     foreignObject.setAttribute('y', centerY - parseFloat(foreignObject.getAttribute('height'))/2);
 
-    // COLORWHEEL
-   
-    colorWheelfo.setAttribute('width', 2*hitboxRadius*currentZoom);
-    colorWheelfo.setAttribute('height', 2*hitboxRadius*currentZoom); 
-    const nodeRect = nodeGroup.children[1].getBoundingClientRect();
-    const x = nodeRect.x;
-    const y = nodeRect.y;
-    colorWheelfo.setAttribute('transform', `translate(${x}, ${y})`);
-    picker.setSize(2*hitboxRadius*currentZoom); 
+    // COLORWHEEL : seulement quand elle est ouverte (chaque ouverture refait ce calage) ; fermée, la redessiner et
+    // mesurer le node forçaient un calcul de mise en page à chaque création, zoom ou redimensionnement.
+    if (colorWheelfo.getAttribute('visibility') !== 'hidden') {
+        colorWheelfo.setAttribute('width', 2*hitboxRadius*currentZoom);
+        colorWheelfo.setAttribute('height', 2*hitboxRadius*currentZoom); 
+        const nodeRect = nodeGroup.children[1].getBoundingClientRect();
+        colorWheelfo.setAttribute('transform', `translate(${nodeRect.x}, ${nodeRect.y})`);
+        picker.setSize(2*hitboxRadius*currentZoom); 
+    }
 
-    // PORTAL
+    // PORTAL : un anneau qui entoure le node (132/100 de son diamètre)
     let quantumButtonfo = nodeGroup.children[3];
-    quantumButtonfo.setAttribute('x', centerX - 0.71*hitboxRadius - 30); 
-    quantumButtonfo.setAttribute('y', centerY - 0.71*hitboxRadius - 30);
-    quantumButtonfo.style.width = 33;
-    quantumButtonfo.style.height = 33;
+    quantumButtonfo.setAttribute('x', centerX - 1.32*hitboxRadius); 
+    quantumButtonfo.setAttribute('y', centerY - 1.32*hitboxRadius);
+    quantumButtonfo.style.width = `${2.64*hitboxRadius}px`;
+    quantumButtonfo.style.height = `${2.64*hitboxRadius}px`;
 
 
     // UPDATE LINKS

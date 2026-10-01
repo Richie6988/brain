@@ -62,6 +62,7 @@ function createNewLayer() {
 // Show modal to edit layer name
 function showEditModal(layer) {
     colorWheelfo.setAttribute('visibility', 'hidden');
+    dropdownContent.style.display = 'none';  // la liste se ferme : le panneau d'édition est visible
     isTyping = true;
     setTimeout(() => {
         editModal.style.display = 'flex';

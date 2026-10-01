@@ -288,7 +288,6 @@
         </div>
 
         <!-- Usage Statistics Section -->
-        <br></br>
         <div class="user-stats">
             <div style="display: flex; flex-direction: column; width: 100%; height:fit-content ; grid-column: 1; margin-top: 12px;"> 
                 <h2 id="nodesKPI" class="message">524</h2>
@@ -323,22 +322,22 @@
                     <p style="font-size: 24px; font-weight: bold; color: #663399; text-align: center; margin-bottom: 20px;">Level Up Your Experience with Premium Features</p>
                     <ul id="feedback" style="font-size: 16px; margin: 0; padding-left: 20px; color: #444;">
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Extended Server Capabilities</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">Extended Server Capabilities</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Unlimited Nodes & Dimensions</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">Unlimited Nodes & Dimensions</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ High Document Size</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">High Document Size</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Multi-User Access</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">Multi-User Access</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ New Features Coming (AI, Voice Messages, etc.)</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">New Features Coming (AI, Voice Messages, etc.)</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Premium Support</p> 
+                            <p class="field-label" style="font-weight: bold; color: #333;">Premium Support</p> 
                         </li>
                     </ul>
                     <p style="color: #663399; text-align: center; font-size: 14px; margin-top: 20px;">
@@ -598,7 +597,7 @@
                     nodeCategoryChart.destroy();  // Free up the canvas
                 }
                 nodeCategoryChart = new Chart(pieCtx, {
-                    type: 'pie',  // Pie chart type
+                    type: 'doughnut',  // anneau : pas de trait du centre quand une seule catégorie
                     data: {
                         labels: ['Text', 'Image', 'Files', 'Sketch'],  // Node categories
                         datasets: [{
@@ -615,11 +614,12 @@
                                 'rgba(153, 102, 255, 1)', // Files - Purple Border
                                 'rgba(255, 99, 132, 1)'   
                             ],
-                            borderWidth: 2
+                            borderWidth: 0
                         }]
                     },
                     options: {
                         responsive: true,
+                        cutout: '62%',
                         animation: {
                             animateScale: true, // Animates scaling of pie chart on load
                             animateRotate: true // Animates rotation of pie chart on load

@@ -23,15 +23,17 @@ function dragSelected(dragX,dragY) {
                     selectedLinks.push(id);
                 }
             });
-            selectedLinks.forEach(id => {
-                const link = document.getElementById(id);
-                updateLink(link)  
-                if(linkState === 0){
-                    updateLinkColor(link) 
-                }                               
-            }); 
         } 
     });    
+    // Chaque lien une seule fois, une fois tous les nodes déplacés (dans la boucle, chaque node redessinait tous les
+    // liens déjà vus : nodes × liens mises à jour par pas, et un glissé de plusieurs nodes ramait).
+    selectedLinks.forEach(id => {
+        const link = document.getElementById(id);
+        updateLink(link)  
+        if(linkState === 0){
+            updateLinkColor(link) 
+        }                               
+    }); 
     selectedTemplates.forEach(template => {
         const transformAttr = template.getAttribute('transform');
         const transformRegex = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;                          
