@@ -164,6 +164,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Modèles locaux sur GPU** : le calcul des couches GPU « auto » ne compte plus le cache KV que sur les couches à attention (modèles hybrides comme Qwen3.5 : têtes KV par couche, attention complète une couche sur N) et lit les dimensions K et V réelles ; le cache était surestimé jusqu'à 16 fois et poussait des couches sur CPU. Changer de modèle libère aussi la VRAM de l'ancien avant de mesurer la mémoire libre.
 
+**Molette de souris = zoom** : un cran de molette zoome sur le pointeur (environ 14 % par cran) au lieu de faire défiler ; Shift + molette fait toujours défiler. Le pavé tactile ne change pas : deux doigts déplacent, le pincement zoome.
+
 **Portail en porte de verre** : le vortex laisse place à une porte de verre en 3D, du matériau du cube HYPERSPACE, qui pivote lentement avec un voile lumineux ondulant dans l'ouverture ; au survol, elle s'entrouvre et accélère (même place, mêmes gestes ; `portal-vortex.svg` retiré).
 
 **Tour de contrôle en pastille** : en haut à gauche, une pastille de verre avec le point du modèle et un anneau de jauge par ressource (CPU, RAM, GPU, VRAM, disque), vert, ambre ou rouge ; un clic déplie le détail (modèle, barres, lien vers Agents & modèles). Le stop reste sur la pastille pendant que le modèle travaille. Le fil de suivi remonte sous elle.

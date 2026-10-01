@@ -12,12 +12,13 @@ svg.addEventListener('wheel', function(event) {
     const deltaY = event.deltaY;
     const deltaX = event.deltaX;
 
-    if (deltaY === Math.round(deltaY)) {
-        // Two-finger movement detected
+    const mouse = mouseWheel(event);
+    if (deltaY === Math.round(deltaY) && (!mouse || event.shiftKey)) {
+        // Two-finger movement detected (or Shift + mouse wheel)
         dragUniverse(-deltaX,-deltaY,false)
          
     } else {        
-        // Pinch zoom detected
+        // Pinch zoom detected, or a mouse wheel notch
         if(!isCtrlPressed && !preview){
             if(!isZooming) {
                 areaWidth = window.innerWidth;
@@ -26,7 +27,9 @@ svg.addEventListener('wheel', function(event) {
                 zoomY = -Math.round((event.clientY - centerY) - parseFloat(root.getAttribute('y')))/currentZoom;    
                 isZooming = true;
             }  
-            zoom(event);
+            // A mouse notch zooms several steps at once, a pinch one step per event
+            const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
+            for (let i = 0; i < steps; i++) zoom(event);
         } else {
             event.stopPropagation();
         }     
@@ -37,6 +40,14 @@ svg.addEventListener('wheel', function(event) {
         nodeSizing(currentNode,r,r);
     }
 });
+
+// A mouse wheel (notches) rather than a touchpad: lines in Firefox, multiples of 120 in Chrome and Safari,
+// except the Mac touchpad signature (wheelDeltaY = -3 x deltaY)
+function mouseWheel(event) {
+    if (event.deltaMode === 1) return true;
+    const notch = event.wheelDeltaY;
+    return !event.deltaX && !!notch && notch % 120 === 0 && notch !== -3 * event.deltaY;
+}
 
 function zoom(event) {  
     // Get the delta value to determine the direction of the scroll (positive for zooming out, negative for zooming in)
