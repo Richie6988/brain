@@ -413,6 +413,18 @@ def text_html(text):
     return '<br>'.join(lines)
 
 
+LANGS = {'py': 'python', 'python': 'python', 'python3': 'python', 'js': 'javascript', 'javascript': 'javascript',
+         'node': 'javascript', 'html': 'html', 'bash': 'bash', 'sh': 'bash', 'shell': 'bash'}
+
+
+def code_parts(text):
+    """(langage de l'IDE, code) d'une réponse du Codeur : le premier bloc ``` et son langage, Python par défaut."""
+    match = re.search(r'```([\w+-]*)\n(.*?)```', text or '', re.S)
+    if not match:
+        return 'python', (text or '').strip()
+    return LANGS.get(match.group(1).lower(), 'python'), match.group(2).strip('\n')
+
+
 def code_html(text):
     match = re.search(r'```[\w+-]*\n(.*?)```', text, re.S)
     return f'<pre>{html.escape((match.group(1) if match else text).strip(chr(10)))}</pre>'
@@ -1257,11 +1269,27 @@ class Guardian(IaquaOps):
             {'role': 'system', 'content': agent.system_prompt or prompts.default(agent.role)},
             {'role': 'user', 'content': task},
         ]
-        text = self.engine.chat(
-            agent.model, messages, on_text=lambda piece: self.emit('agent_text', {'ref': ref, 'text': piece}),
-            priority=priorities.AGENT, owner=f'agent:{agent.name}', **agent.params,
-        )
-        self.emit('action', {'op': 'update', 'ref': ref, 'text': code_html(text) if agent.role == Agent.Role.CODE else text_html(text)})
+        written, shown = [], [0]
+
+        def heard(piece):
+            self.emit('agent_text', {'ref': ref, 'text': piece})
+            written.append(piece)
+            if agent.role == Agent.Role.CODE and len(text := ''.join(written)) - shown[0] >= 120:  # le code s'écrit sous les yeux
+                shown[0] = len(text)
+                self.emit('action', {'op': 'draft', 'ref': ref, 'text': code_html(text + '\n```')})
+
+        text = self.engine.chat(agent.model, messages, on_text=heard, priority=priorities.AGENT, owner=f'agent:{agent.name}',
+                                **agent.params)
+        if agent.role != Agent.Role.CODE:
+            return self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(text)})
+        # Le Codeur : son node devient un node de code (IDE) relié à un node de sortie ; la page exécute la chaîne.
+        lang, code = code_parts(text)
+        out = f'{ref}.sortie'
+        if out not in self.nodes:
+            x, y = self.place(out, ref)
+            self.emit('action', {'op': 'create', 'ref': out, 'x': x, 'y': y, 'text': text_html('Sortie…'), 'color': '#4DD4C6', 'shape': None})
+            self.emit('action', {'op': 'link', 'source': ref, 'target': out})
+        self.emit('action', {'op': 'code', 'ref': ref, 'lang': lang, 'code': code})
 
     def illustrate(self, agent, prompt, ref, extra):
         """Image par stable-diffusion.cpp, posée dans le node `ref` ; un échec est écrit dans le node."""

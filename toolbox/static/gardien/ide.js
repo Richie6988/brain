@@ -268,12 +268,20 @@ export function createIde({ say }) {
     // s'écrit dans le node, puis ses sorties en aval se recalculent.
     async function runNode(target) {
         const code = codeOf(target);
-        if (!code?.textContent.trim()) return;
+        if (!code?.textContent.trim()) return { result: 'vide', lines: [] };
         const lang = code.dataset.lang || 'python';
         const lines = [];
-        if (lang !== 'html') await runCode(lang, program(target, lang, code.textContent), 'browser', text => lines.push(`${text}`.replace(/\n$/, '')));
+        const result = lang === 'html' ? 'ok'
+            : await runCode(lang, program(target, lang, code.textContent), 'browser', text => lines.push(`${text}`.replace(/\n$/, '')));
         write(target, lang, code.textContent, rendered(lang, code.textContent, lines));
         await refresh(target);
+        return { result, lines };
+    }
+
+    // Le Codeur du Gardien : son code s'écrit dans le node (IDE), s'exécute, et ses sorties en aval se calculent.
+    async function deliver(target, lang, source) {
+        write(target, lang, source);
+        return runNode(target);
     }
 
     // Les sorties en aval de `start` (lui compris et les nodes de code qui le suivent) : chaque node non-code relié à un
@@ -347,5 +355,5 @@ export function createIde({ say }) {
         const task = detail.action === 'run' ? runNode(detail.node) : open(detail.node);
         task.catch(error => say(`${detail.action === 'run' ? 'Exécution' : 'IDE'} : ${error.message}`, 'error'));
     });
-    return { open, close };
+    return { open, close, deliver };
 }

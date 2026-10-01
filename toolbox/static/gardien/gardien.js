@@ -132,11 +132,20 @@ createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node),
-    onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); sfx.play('arrange'); physics.arrange(nodes); } });
+    onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); sfx.play('arrange'); physics.arrange(nodes); },
+    // Le code du Codeur échoue : le Gardien le reprend une fois (pas de boucle de corrections).
+    onCodeError: (node, error) => {
+        if (fixed.has(node.id)) return chat.add('notice', `Le code de ${node.id} échoue encore : ${error.split('\n').pop()}`);
+        fixed.add(node.id);
+        queue = queue.then(() => ask(node, `Le code de ce node (${node.id}) échoue à l'exécution :\n${error}\nCorrige-le : `
+            + `confie-le au Codeur (delegate, ref ${node.id}).`, [], true));
+    } });
+const fixed = new Set();  // nodes de code déjà renvoyés une fois au Gardien pour correction
 const tour = createTour({ bridge, say });
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
 const ide = createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur
+bridge.useIde(ide);  // le Codeur du Gardien y écrit et y exécute son code
 createSide({ bridge, say, filters });  // vue de côté : X = numéro de dimension, Y = Y
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur

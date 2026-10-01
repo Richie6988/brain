@@ -11,7 +11,9 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {} }) {
+export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {},
+    onCodeError = () => {} }) {
+    let ide = null;  // l'IDE des nodes de code (gardien.js le branche) : le Codeur y écrit et y exécute
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
     let take = 0;            // numéro de prise : un geste de l'utilisateur coupe le travelling
     const cut = () => { take += 1; };
@@ -205,6 +207,17 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         async image({ ref, url }) {
             await setImage(nodeOf(ref), url);
         },
+        // Le Codeur : le node devient un node de code, le code s'y écrit et s'exécute ; une erreur est rendue au Gardien.
+        async code({ ref, lang, code }) {
+            const node = nodeOf(ref);
+            const select = typeSelect(node);
+            select.value = 'code';
+            select.dispatchEvent(new Event('change'));
+            if (!ide) return;
+            const { result, lines } = await ide.deliver(node, lang, code);
+            const error = result !== 'ok' ? result : lines.find(l => /Traceback|Error\b|Erreur/.test(l));
+            if (error) onCodeError(node, lines.slice(-6).join('\n') || error);
+        },
         // Croquis de l'Illustrateur : le node passe en dessin et les traits s'y tracent un à un, puis il est sauvé.
         async sketch({ ref, operations }) {
             const node = nodeOf(ref);
@@ -332,6 +345,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
     };
 
     return {
+        useIde(editor) { ide = editor; },
         // Travelling de la visite ; faux si l'utilisateur a repris la main (clic, molette) ou si la visite a coupé.
         async visit(node, zoom = 0.9) {  // assez large pour voir les branches au-dessus du lecteur
             cut();

@@ -880,7 +880,10 @@ class GuardianTests(TestCase):
         self.assertEqual(ops[0]['op'], 'create')
         self.assertIn('Rédacteur travaille', ops[0]['text'])
         self.assertIn({'op': 'update', 'ref': 'new1', 'text': 'Jour 1 : Tokyo<br>Jour 2 : Kyoto'}, ops)
-        self.assertIn({'op': 'update', 'ref': 'N-2', 'text': '<pre>print(1 &lt; 2)</pre>'}, ops)
+        # Le Codeur : son node devient un node de code exécuté par la page, relié à un node de sortie.
+        self.assertIn({'op': 'code', 'ref': 'N-2', 'lang': 'python', 'code': 'print(1 < 2)'}, ops)
+        self.assertIn({'op': 'link', 'source': 'N-2', 'target': 'N-2.sortie'}, ops)
+        self.assertIn('N-2.sortie', [a['ref'] for a in ops if a['op'] == 'create'])
         self.assertIn('agent_text', [k for k, _ in self.events])
         # Illustrateur sans modèle d'image : il dessine en vectoriel avec le modèle du Gardien.
         self.assertEqual(ops[-1]['op'], 'image')
