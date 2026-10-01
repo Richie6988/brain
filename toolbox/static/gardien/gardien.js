@@ -293,7 +293,7 @@ let queue = Promise.resolve();
 async function ask(node, text, attached = [], direct = !!node) {
     let actions = Promise.resolve();
     const history = chat.recent();  // la conversation jusqu'ici : le Gardien la suit
-    chat.add('user', text, node ? `node ${node.id}` : attached.length ? `${attached.length} nodes joints` : '');
+    chat.add('user', text, node ? `node ${node.id}` : attached.length ? `${attached.length} node${attached.length > 1 ? 's' : ''} en contexte` : '');
     if (typeof admin !== 'undefined' && admin) return chat.add('notice', 'Univers d\'un autre compte, en lecture : le Gardien n\'y agit pas.');
     const reply = (kind, message) => {
         chat.add(kind === 'text' ? 'guardian' : kind, message);

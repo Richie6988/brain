@@ -53,21 +53,31 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     const input = h('textarea', { rows: 1, placeholder: PLACEHOLDER[mode], 'aria-label': 'Message au Gardien' });
     const send = h('button', { type: 'submit', class: 'gc-send', title: 'Envoyer (Entrée)' }, '↑');
     const form = h('form', { class: 'gc-form' }, input, send);
-    let attached = [];  // nodes joints au prochain message
+    let attached = [];  // nodes joints au prochain message (pastille, sélecteur de contexte)
+    let ignored = '';  // sélection retirée du contexte par ×, tant qu'elle ne change pas
     let working = false;  // une demande est en cours : le bouton d'envoi l'arrête
     const tray = h('div', { class: 'gc-attach' });
     const nodeText = node => node.children[0]?.children[0]?.innerText?.trim() || '(vide)';
     const item = node => ({ id: node.id, text: nodeText(node) });  // un node joint : son id et son texte (autre dimension comprise)
-    function renderTray() {
-        const selection = (typeof selectedNodes !== 'undefined' ? selectedNodes : []).filter(n => n.isConnected);
-        tray.replaceChildren(...(attached.length
-            ? [h('span', { class: 'gc-chip', title: attached.map(n => `${n.id} : ${n.text.slice(0, 60)}`).join('\n') },
-                `${attached.length} node${attached.length > 1 ? 's' : ''} joint${attached.length > 1 ? 's' : ''} : `,
-                attached.slice(0, 3).map(n => (n.text || '(vide)').slice(0, 18)).join(', ') + (attached.length > 3 ? '…' : ''),
-                h('button', { type: 'button', title: 'Retirer', onclick: () => { attached = []; renderTray(); } }, '×'))]
-            : selection.length ? [h('button', { type: 'button', class: 'gc-join', onclick: () => { attached = selection.map(item); renderTray(); input.focus(); } },
-                `+ Joindre la sélection (${selection.length} node${selection.length > 1 ? 's' : ''})`)] : []));
+    const selection = () => (typeof selectedNodes !== 'undefined' ? selectedNodes : []).filter(n => n.isConnected);
+    const signature = nodes => nodes.map(n => n.id).sort().join(',');
+    // Le contexte de la prochaine demande : les nodes joints, plus la sélection en cours, sans clic (× la retire).
+    function context() {
+        const chosen = selection();
+        const nodes = [...attached, ...(chosen.length && signature(chosen) !== ignored ? chosen.map(item) : [])];
+        return nodes.filter((n, i) => nodes.findIndex(m => m.id === n.id) === i);
     }
+    function renderTray() {
+        const nodes = context();
+        tray.replaceChildren(...(nodes.length
+            ? [h('span', { class: 'gc-chip', title: nodes.map(n => `${n.id} : ${n.text.slice(0, 60)}`).join('\n') },
+                `${nodes.length} node${nodes.length > 1 ? 's' : ''} en contexte : `,
+                nodes.slice(0, 3).map(n => (n.text || '(vide)').slice(0, 18)).join(', ') + (nodes.length > 3 ? '…' : ''),
+                h('button', { type: 'button', title: 'Retirer du contexte', onclick: () => { attached = []; ignored = signature(selection()); renderTray(); } }, '×'))]
+            : []));
+    }
+    // La sélection change (clic, rectangle, Ctrl+A, amont / aval) : le contexte suit, chat ouvert.
+    ['mouseup', 'keyup'].forEach(type => document.addEventListener(type, () => setTimeout(() => { if (!panel.hidden) renderTray(); }), true));
     // Correspondance : les notes que le Gardien a laissées, posées dans la dimension « Échanges » à l'ouverture.
     const exchanges = h('button', { type: 'button', class: 'gc-exchanges', title: 'Notes du Gardien (dimension Échanges) : réponds dans un node relié',
         onclick: () => { toggle(false); onExchanges(); } }, 'Échanges');
@@ -104,8 +114,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         log, status, tray, ideas, form);
     // Deux nodes ou plus sélectionnés (Pensée, Profond) : la pastille envoie aussitôt, la sélection est le contexte.
     const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Gardien', onclick: () => {
-        const selection = (typeof selectedNodes !== 'undefined' ? selectedNodes : []).filter(n => n.isConnected);
-        if (mode !== 'auto' && !working && selection.length > 1) onSend('Pense à partir de ces nodes.', [], true);
+        if (mode !== 'auto' && !working && selection().length > 1) onSend('Pense à partir de ces nodes.', [], true);
         else toggle();
     } }, h('i', {}), h('b', { hidden: true }));
     const root = h('div', { id: 'gardien-chat' }, panel, bubble);
@@ -133,13 +142,13 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     form.addEventListener('submit', event => {
         event.preventDefault();
         if (working) return onStop();  // pendant une réflexion, le bouton d'envoi est le stop
-        const selected = typeof selectedNodes !== 'undefined' && selectedNodes.length > 0;
+        const nodes = context();
         // Pensée : la consigne est optionnelle, un node en contexte suffit.
-        const text = input.value.trim() || (mode !== 'auto' && (selected || attached.length) ? 'Pense à partir de ce node.' : '');
+        const text = input.value.trim() || (mode !== 'auto' && nodes.length ? 'Pense à partir de ce node.' : '');
         if (!text) return;
         input.value = '';
         grow();
-        onSend(text, attached.map(n => n.id));
+        onSend(text, nodes.map(n => n.id));
         attached = [];  // contexte de cette demande seulement
         renderTray();
     });

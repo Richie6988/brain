@@ -161,10 +161,8 @@ body:has(.universe.lightmode) .gardien-whisper { color: #7a6aa8; text-shadow: 0 
 .gc-attach:empty { display: none; }
 .gc-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; font-size: 10px;
     color: #fff; background: rgba(30, 144, 255, 0.25); border: 1px solid rgba(30, 144, 255, 0.6); overflow: hidden; white-space: nowrap; }
-.gc-chip button, .gc-join { font: inherit; cursor: pointer; border-radius: 999px; }
+.gc-chip button { font: inherit; cursor: pointer; border-radius: 999px; }
 .gc-chip button { color: #fff; background: transparent; border: 0; padding: 0 6px; font-size: 13px; }
-.gc-join { font-size: 10px; color: #b89af2; background: transparent; border: 1px dashed rgba(184, 154, 242, 0.6); padding: 3px 10px; }
-.gc-join:hover { color: #fff; background: rgba(104, 72, 166, 0.4); }
 /* Saisie flottante : champ et bouton d'envoi dans une même capsule de verre. */
 .gc-form {
     display: flex; align-items: flex-end; gap: 6px; margin: 4px 12px 12px; padding: 5px 5px 5px 12px; border-radius: 20px;
