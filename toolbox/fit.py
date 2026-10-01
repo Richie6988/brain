@@ -1,8 +1,10 @@
 """Placement d'un modèle GGUF, comme l'« auto-budget » d'iAqua (ModelService.loadModel).
 
-Couches GPU « auto » : autant de couches que la VRAM libre en permet, en gardant la place du cache KV
-pour un contexte de travail et une marge (tampons CUDA) ; « max » : toutes. Contexte « auto » : le plus
-grand qui tient dans la mémoire restante, sans dépasser le contexte d'entraînement du modèle.
+Le GPU d'abord. Couches GPU « auto » : autant de couches que la VRAM libre en permet, en gardant la place du cache KV
+pour le contexte de travail du Gardien (8192) et une marge (tampons CUDA) ; « max » : toutes. Contexte « auto » : le
+plus grand qui tient dans la mémoire restante, sans dépasser le contexte d'entraînement du modèle. Un contexte fixé
+qui ne tient pas à côté de toutes les couches est réduit (jamais sous 8192) plutôt que de renvoyer des couches sur le
+CPU : une couche sur CPU coûte bien plus cher qu'un contexte plus court.
 
 Sur CPU, la RAM décide de tout : un modèle qui n'y tient pas relit le disque à chaque jeton écrit (moins d'un jeton
 par seconde). Le contexte se règle donc sur la RAM libre une fois le modèle chargé ; quand elle est juste, le cache
@@ -71,8 +73,7 @@ def resolve(path, options, gpu_offload=True, chosen=()):
         if not vram or not layers:
             gl = 0
         else:
-            ctx_reserve = options['n_ctx'] if isinstance(options.get('n_ctx'), int) else WORK_CTX
-            fit = int((vram - OVERHEAD_MB - ctx_reserve * kv_mb) / per_layer) if per_layer else 0
+            fit = int((vram - OVERHEAD_MB - WORK_CTX * kv_mb) / per_layer) if per_layer else 0
             gl = -1 if fit >= layers else max(0, fit)
     out['n_gpu_layers'] = gl
     on_gpu = layers if gl == -1 else min(gl, layers)
@@ -86,6 +87,11 @@ def resolve(path, options, gpu_offload=True, chosen=()):
             kv_mb /= 2
         if 'n_batch' not in chosen:
             out['n_batch'] = min(out.get('n_batch') or 512, 512)
+    capped = False
+    if gpu and on_gpu >= layers and isinstance(out.get('n_ctx'), int) and kv_mb:  # tout sur GPU : le contexte s'y loge
+        room = int((vram - OVERHEAD_MB - on_gpu * per_layer) / kv_mb) // 1024 * 1024
+        if out['n_ctx'] > max(room, MIN_AUTO_CTX):
+            out['n_ctx'], capped = max(room, MIN_AUTO_CTX), True
     if options.get('n_ctx', 'auto') == 'auto':
         budget = vram - OVERHEAD_MB - on_gpu * per_layer if gpu else spare  # le cache suit les couches
         tokens = int(budget / kv_mb) if kv_mb else trained
@@ -94,5 +100,5 @@ def resolve(path, options, gpu_offload=True, chosen=()):
     need = weights_ram + COMPUTE_MB + (0 if gpu else out['n_ctx'] * kv_mb)
     summary = {'gpu_layers': on_gpu, 'layers': layers, 'n_ctx': out['n_ctx'], 'vram_free_mb': int(vram),
                'ram_free_mb': int(ram), 'gpu_offload': gpu_offload, 'model_mb': int(size_mb), 'need_mb': int(need),
-               'kv_q8': out.get('type_k') == 8, 'fits': not ram or need <= ram * 0.95}
+               'kv_q8': out.get('type_k') == 8, 'fits': not ram or need <= ram * 0.95, 'ctx_capped': capped}
     return out, summary

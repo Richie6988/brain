@@ -465,6 +465,17 @@ class FitTests(SimpleTestCase):
         fixed, _ = self.resolve({'n_gpu_layers': 12, 'n_ctx': 8192}, vram=8000)
         self.assertEqual((fixed['n_gpu_layers'], fixed['n_ctx']), (12, 8192))
 
+    def test_gpu_first_over_a_fixed_context(self):
+        # 9B dense de 5,6 Go, 8 Go de VRAM, contexte fixé à 32k (4 Go de cache KV) : avant, le cache réservé d'abord
+        # renvoyait des couches sur le CPU ; maintenant toutes les couches vont au GPU et le contexte se réduit.
+        self.INFO = {'layers': 36, 'context_length': 32768, 'embedding': 4096, 'heads': 32, 'kv_heads': 8}
+        out, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 32768}, vram=8000, size_mb=5600)
+        self.assertEqual((out['n_gpu_layers'], summary['gpu_layers']), (-1, 36))
+        self.assertTrue(summary['ctx_capped'])
+        self.assertTrue(8192 <= out['n_ctx'] < 32768)
+        roomy, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 16384}, vram=24000, size_mb=5600)
+        self.assertEqual((roomy['n_gpu_layers'], roomy['n_ctx'], summary['ctx_capped']), (-1, 16384, False))  # la place y est
+
     def test_lean_grammar_keeps_structure(self):
         from .engine import lean
         from .guardian import THINK_OPS, think_schema

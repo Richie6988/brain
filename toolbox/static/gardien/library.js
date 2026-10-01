@@ -432,8 +432,11 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         if (gpuRaw === 'max' || gpuRaw === '-1') onGpu = layers;
         else if (/^\d+$/.test(gpuRaw)) onGpu = Math.min(layers, Number(gpuRaw));
         else if (placed && auto(ctxRaw)) onGpu = placed.gpu_layers;
-        else onGpu = !perLayer ? 0 : Math.max(0, Math.min(layers, Math.floor((vramMb - 600 - ctx * kvMb) / perLayer)));
+        else onGpu = !perLayer ? 0 : Math.max(0, Math.min(layers, Math.floor((vramMb - 600 - 8192 * kvMb) / perLayer)));  // le GPU d'abord (fit.py)
         if (!vramMb) onGpu = 0;  // pas de GPU utilisable : tout reste sur CPU, quoi qu'on demande
+        if (vramMb && layers && onGpu >= layers && /^\d+$/.test(ctxRaw)) {  // tout sur GPU : un contexte trop grand se réduit
+            ctx = Math.min(ctx, Math.max(8192, Math.floor((vramMb - 600 - onGpu * perLayer) / kvMb / 1024) * 1024));
+        }
         if (auto(ctxRaw) && !placed) {  // contexte auto : le plus grand qui tient, 32768 au plus
             const budget = onGpu && vramMb ? vramMb - 600 - onGpu * perLayer : (state.machine.ram_mb || 0) * 0.8 - sizeMb;
             ctx = Math.max(2048, Math.min(trained, 32768, Math.floor(budget / kvMb / 1024) * 1024));
@@ -505,6 +508,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                 h('div', {}, h('span', {}, 'Vitesse'), h('b', { class: level }, speed)),
                 h('small', {}, `Fichier ${gb(m.size)}`, m.gguf?.context_length ? ` · contexte d'entraînement ${m.gguf.context_length}` : '',
                     m.placement ? ` · dernier chargement : ${m.placement.gpu_layers} couches GPU, contexte ${m.placement.n_ctx}`
+                        + `${m.placement.ctx_capped ? ' (réduit pour garder toutes les couches sur le GPU)' : ''}`
                         + `${m.placement.kv_q8 ? ', cache KV q8_0 (RAM juste)' : ''}` : ''),
                 m.placement && m.placement.fits === false ? h('small', { class: 'bad' }, `Ne tient pas dans la RAM libre `
                     + `(${fmt(m.placement.need_mb)} Go demandés, ${fmt(m.placement.ram_free_mb)} Go libres) : il relit le disque à chaque jeton, `
@@ -558,6 +562,12 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
             h('div', { class: 'gl-params' }, kv('TTL', `${c.ttl} min`), kv('FLASH', c.flash_attn ? 'ON' : 'OFF', c.flash_attn ? 'on' : 'off'),
                 kv('MMAP', yes(c.use_mmap)), kv('MLOCK', yes(c.use_mlock)), c.random_seed === false ? kv('GRAINE', 'fixe') : null),
             differs ? h('small', { class: 'gl-hint' }, `Enregistré : contexte ${c.n_ctx}, couches GPU ${c.n_gpu_layers}`) : null,
+            // Des couches restées sur le CPU : chaque jeton les attend. Un clic les met toutes sur le GPU (rechargement).
+            p && p.layers && p.gpu_layers < p.layers && p.vram_free_mb ? h('button', { type: 'button', class: 'gl-primary', ...guard(),
+                title: 'Toutes les couches sur le GPU : le contexte se réduit s\'il le faut', onclick: () => act(async () => {
+                    await tb.updateModel(m.id, { params: { ...m.params, n_gpu_layers: 'max' } });
+                    await tb.modelAction(m.id, 'unload');
+                }, 'Toutes les couches iront sur le GPU au prochain message') }, `Tout sur le GPU (${p.layers - p.gpu_layers} couches sur CPU)`) : null,
             stats ? h('div', { class: 'gl-params gl-runtime' }, kv('CHARGÉ', ago(stats.loaded_at)), kv('DERNIER USAGE', ago(stats.last_used)),
                 kv('REQUÊTES', stats.requests), kv('JETONS', stats.tokens >= 1000 ? `${(stats.tokens / 1000).toFixed(1)} k` : stats.tokens)) : null,
             stats?.last ? h('div', { class: 'gl-params gl-runtime', title: 'Dernier appel : lecture du prompt (attente du premier mot), puis génération' },
