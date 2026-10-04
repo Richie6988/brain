@@ -42,6 +42,7 @@ MAX_ATTACHED_AWAY = 30  # nodes joints d'autres dimensions (lus en base)
 # build : noms de gabarit qu'un modèle écrit en français ou par synonyme
 LAYOUT_ALIASES = {'liste': 'list', 'frise': 'timeline', 'chronologie': 'timeline', 'arbre': 'tree', 'pyramide': 'pyramid',
                   'matrice': 'matrix', 'tableau': 'matrix', 'table': 'matrix', 'grid': 'matrix', 'board': 'kanban'}
+READ_ONLY = re.compile(r"\bj['’]ai (?:bien )?(?:lu|relu|consulté|regardé|ouvert|parcouru)\b", re.I)  # réponse qui ne fait que lire
 HISTORY, HISTORY_TEXT = 6, 200  # derniers échanges du chat rappelés au Gardien (il suit la conversation)
 # Modèle par API (grand contexte, lecture rapide) : il voit l'univers en grand ; les limites ci-dessus sont celles d'un
 # petit modèle local sur CPU, où chaque jeton du prompt se paie.
@@ -572,7 +573,7 @@ class Guardian(IaquaOps):
                         if isinstance(h, dict) and h.get('role') in ('user', 'guardian') and h.get('text')]
         for n in nodes:
             self.nodes[n['id']] = {'x': _number(n.get('x')), 'y': _number(n.get('y')), 'r': _number(n.get('r'), RADIUS),
-                                   'text': plain(n.get('text', '')), 'color': n.get('color', '')}
+                                   'text': plain(n.get('text', '')), 'color': n.get('color', ''), 'type': n.get('type') or 'text'}
         self.occupied = [(n['x'], n['y'], n['r']) for n in self.nodes.values()]
         origin = context.get('origin')  # le node message : les réponses se placent autour de lui
         first = self.nodes.get(origin) or (self.nodes.get(selected[0]['id']) if selected else None)
@@ -607,6 +608,7 @@ class Guardian(IaquaOps):
         cited = list(dict.fromkeys(re.findall(r'N-\d+', request)))[:4]
         limits = dict((i, len(text) or 1) for i, text in self.attached)  # nodes joints : dans le budget de load()
         full = {*limits, *(self.selection if self.direct else self.selection[:3]), *([self.origin] if self.origin else []), *cited}
+        self.full = full  # leur texte entier est dans le message : les relire serait un tour perdu
         shown = self.context if self.scale >= 1 else sorted(self.nearest[:max(6, int(len(self.nearest) * self.scale))],
                                                             key=lambda n: node_id(n['id']) or 0)
         view = self.perception.objects(shown, self.links, full=full, limits=limits, scale=self.scale)
@@ -1120,6 +1122,9 @@ class Guardian(IaquaOps):
                 raise PlanError(str(e)) from None
             return None
         ref = str(action.get('ref') or '')
+        if ref in getattr(self, 'full', ()) and self.nodes.get(ref, {}).get('type') in ('text', 'code'):
+            raise PlanError(f"son texte (« {short(self.nodes[ref].get('text'), 40)} ») est déjà en entier dans la demande : "
+                            'ne le relis pas, réponds à la demande avec des actions')
         node = Node.objects.filter(user=self.user, node_id=ref.removeprefix('N-')).first() if ref.startswith('N-') else None
         if node is None or not (node.file_text_content or node.text_content):
             raise PlanError(f'{ref} : aucun document lisible')
@@ -1860,6 +1865,12 @@ class Guardian(IaquaOps):
                     nudged = True
                     feedback.append(f"Tu refais {', '.join(sorted(set(self.repeated)))} à l'identique (déjà fait ou refusé : voir plus haut). "
                                     "N'ajoute plus d'action : réponds maintenant dans say, à partir de ce que tu as lu.")
+                elif read and not nudged and not self.done and not reads and not self.failed and READ_ONLY.search(say or ''):
+                    # Petit modèle qui s'arrête à « J'ai lu le node… » : la lecture n'était qu'un moyen.
+                    nudged = True
+                    feedback.append(f"« {short(say, 80)} » ne répond pas à la demande « {short(request, 120)} » : lire n'était qu'un moyen. "
+                                    'Fais maintenant ce qu\'elle attend (actions : nodes, liens, gabarit…) ou réponds sur le fond dans say, '
+                                    'sans redire ce que tu as lu.')
                 elif steps and not self.done and not reads and not self.failed and not read:
                     feedback.append(f"Tu as annoncé « {' ; '.join(steps)} » sans aucune action : rien n'a été fait. "
                                     'Réponds maintenant avec les actions qui le réalisent.')

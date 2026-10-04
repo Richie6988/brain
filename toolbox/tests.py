@@ -1823,6 +1823,27 @@ class GuardianTests(TestCase):
         self.assertEqual([d['text'] for k, d in self.events if k == 'text'], ["J'ai lu le contenu du node N-171."])
         self.assertEqual(self.errors(), [])
 
+    def test_no_rereading_the_request_and_no_answer_that_only_reads(self):
+        # « modele de velos » sélectionné : le petit modèle relisait le node (son texte est déjà là), puis répondait
+        # « J'ai lu le node N-1 » sans rien faire. La relecture est refusée avec la raison ; une réponse qui ne fait que
+        # constater une lecture est relancée une fois vers la demande.
+        from nodzapp.models import Layer, Node
+
+        Node.objects.create(user=self.user, node_id=45, layer=Layer.objects.create(user=self.user, layer_id=2, layer_name='Doc'),
+                            type='file', file_name='velos.pdf', file_text_content='VTT, route, gravel')
+        engine = self.run_guardian(
+            json.dumps({'plan': [], 'say': '', 'actions': [{'op': 'read_file', 'ref': 'N-1'}, {'op': 'read_file', 'ref': 'N-45'}]}),
+            json.dumps({'plan': [], 'say': "J'ai lu le node N-1 : « Voyage au Japon ».", 'actions': []}),
+            json.dumps({'plan': [], 'say': 'Voici trois étapes.', 'actions': [{'op': 'create', 'ref': 'new1', 'text': 'Kyoto', 'near': 'N-1'}]}),
+        )
+        self.assertEqual(len(engine.calls), 3)
+        self.assertIn('déjà en entier dans la demande', self.errors()[0])
+        first = [m['content'] for m in engine.calls[1]['messages'] if m['role'] == 'user'][1]
+        self.assertIn('VTT, route, gravel', first)  # un document se lit toujours
+        nudge = [m['content'] for m in engine.calls[2]['messages'] if m['role'] == 'user'][2]
+        self.assertIn('lire n\'était qu\'un moyen', nudge)
+        self.assertEqual([a['text'] for a in self.actions() if a['op'] == 'create'][:1], ['Kyoto'])
+
     def test_web_tools(self):
         from . import web
 
