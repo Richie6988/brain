@@ -30,6 +30,7 @@ urlpatterns = [
     path('brain-map', api.brain_map),
     path('letters', api.letters),
     path('rooms', api.rooms),
+    path('dataset', api.dataset),
     path('rooms/<str:token>', api.room),
     path('marks', api.marks),
     path('tools', api.tool_list),

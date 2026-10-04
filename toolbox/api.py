@@ -448,6 +448,33 @@ def letters(request, body):
                          'unread': sum(1 for n in notes if not n.get('node'))})
 
 
+MAX_SHEET_ROWS, MAX_SHEET_COLUMNS = 2000, 40
+
+
+@api('POST')
+def dataset(request, body):
+    """Lignes d'un classeur Excel envoyé pour l'import de dataset (dataset.js) : la première feuille, sa première
+    ligne comme en-têtes, des valeurs en texte. Rien n'est gardé sur le serveur."""
+    upload = request.FILES.get('file')
+    if upload is None or upload.size > 10 * 1024 * 1024:
+        raise ChangeError('classeur requis (10 Mo au plus)')
+    from openpyxl import load_workbook
+
+    try:
+        sheet = load_workbook(upload, read_only=True, data_only=True).worksheets[0]
+        raw = [row[:MAX_SHEET_COLUMNS] for row in sheet.iter_rows(values_only=True, max_row=MAX_SHEET_ROWS + 1)]
+    except Exception as e:  # tout fichier illisible (zip abîmé, format inattendu) : la raison à l'humain
+        raise ChangeError(f'classeur illisible : {type(e).__name__}') from None
+    filled = lambda row: [i for i, v in enumerate(row) if v not in (None, '')]
+    raw = [row for row in raw if filled(row)]
+    if not raw:
+        return JsonResponse({'rows': []})
+    width = max(filled(row)[-1] for row in raw) + 1  # les colonnes vides du bord de la feuille ne comptent pas
+    head = [str(h).strip() if h not in (None, '') else f'colonne {i + 1}' for i, h in enumerate((list(raw[0]) + [None] * width)[:width])]
+    text = lambda v: '' if v is None else v.isoformat(sep=' ') if hasattr(v, 'isoformat') else str(v)
+    return JsonResponse({'rows': [dict(zip(head, map(text, (list(row) + [None] * width)[:width]))) for row in raw[1:]]})
+
+
 @api('GET', 'POST', 'DELETE')
 def rooms(request, body):
     """Le salon de l'humain (un seul à la fois) : GET le rend s'il est ouvert, POST l'ouvre (ou le renomme), DELETE

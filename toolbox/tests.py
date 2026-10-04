@@ -2257,6 +2257,29 @@ class CudaBuildTests(TestCase):
         self.assertFalse(data['installed'])  # le binaire est recherché à nouveau (ici toujours absent)
 
 
+class DatasetTests(TestCase):
+    def test_excel_rows_come_back_as_text(self):
+        import io
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from openpyxl import Workbook
+
+        book = Workbook()
+        sheet = book.active
+        sheet.append(['Nom', 'Catégorie', None])
+        sheet.append(['Vélo cargo', 'Urbain', 1290.5])
+        sheet.append([None, None, None])
+        sheet.append(['VTT', 'Sport', 899])
+        data = io.BytesIO()
+        book.save(data)
+        self.client.force_login(NodzUser.objects.create_user(email='x@nodz.local', password='pw-123456'))
+        r = self.client.post('/api/v1/toolbox/dataset', {'file': SimpleUploadedFile('velos.xlsx', data.getvalue())})
+        self.assertEqual(r.json()['rows'], [{'Nom': 'Vélo cargo', 'Catégorie': 'Urbain', 'colonne 3': '1290.5'},
+                                            {'Nom': 'VTT', 'Catégorie': 'Sport', 'colonne 3': '899'}])
+        r = self.client.post('/api/v1/toolbox/dataset', {'file': SimpleUploadedFile('faux.xlsx', b'pas un classeur')})
+        self.assertEqual(r.status_code, 400)
+
+
 class DimensionsTests(TestCase):
     def test_pinned_dimensions_and_counts(self):
         from nodzapp.models import Layer, Node

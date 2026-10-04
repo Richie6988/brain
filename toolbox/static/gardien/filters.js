@@ -6,13 +6,14 @@
 // dimension à l'écran estompe les nodes écartés et allume les nodes cochés (classes CSS, rien n'est modifié dans Nodz).
 
 import { api } from './api.js';
+import { describe, download, stamp, toCsv } from './dataset.js';
 
 const STEPS = 1000;  // crans du double curseur
 const SHOWN = 40;  // nodes affichés par dimension (les plus récents d'abord, selon l'ordre)
 const CHARS_PER_TOKEN = 3.5;
 const fold = text => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export function createFilters({ onAttach = () => {} } = {}) {
+export function createFilters({ onAttach = () => {}, onImport = () => {} } = {}) {
     const state = { text: '', off: new Set(), lo: 0, hi: STEPS, basis: 'modified', order: -1 };
     let nodes = {};  // N-12 → {origin, created, modified, layer, text} (serveur, toutes les dimensions)
     let authors = [{ key: 'ai', label: 'IA' }, { key: 'me', label: 'Moi' }];
@@ -82,7 +83,9 @@ export function createFilters({ onAttach = () => {} } = {}) {
     const all = chip('Tout', () => { walk().forEach(hit => picked.add(hit.id)); render(); }, { title: 'Cocher tous les nodes gardés' });
     const none = chip('Aucun', () => { picked.clear(); render(); });
     const join = chip('Joindre au Gardien', () => attach(), { className: 'gx-join' });
-    panel.append(head, columns, make('div', { className: 'gx-foot' }, count, all, none, join));
+    const csv = chip('Exporter CSV', () => exportCsv(), { title: 'Les nodes cochés, sinon tous ceux que les filtres gardent, dans un fichier CSV' });
+    const load = chip('Importer un dataset', () => { toggle(false); onImport(); }, { title: 'CSV, TSV, JSON ou Excel : une ligne = un node, rangés par groupe, dans cette dimension' });
+    panel.append(head, columns, make('div', { className: 'gx-foot' }, count, load, all, none, csv, join));
     document.body.append(panel);
     document.addEventListener('mousedown', event => {
         if (!menu.contains(event.target) && event.target !== who) menu.hidden = true;
@@ -201,6 +204,19 @@ export function createFilters({ onAttach = () => {} } = {}) {
     function finish() {
         if (picked.size) attach();
         else toggle(false);
+    }
+
+    // Export : dimension, texte, auteur, dates ; pour la dimension à l'écran, aussi type, couleur, position, rappel, liens.
+    function exportCsv() {
+        const ids = picked.size ? [...picked] : walk().map(hit => hit.id);
+        if (!ids.length) return;
+        const day = seconds => (seconds ? new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ') : '');
+        const rows = ids.map(id => {
+            const info = nodes[id] || {}, node = document.getElementById(id), layer = layerOf(id);
+            return { ...(node ? describe(node) : { id, texte: textOf(id).trim() }), dimension: names[layer] || layer,
+                auteur: (local.get(id) || info.origin) === 'ai' ? 'IA' : 'humain', 'créé': day(info.created), 'modifié': day(info.modified) };
+        });
+        download(`nodz-${picked.size ? 'selection' : 'filtres'}-${stamp()}.csv`, toCsv(rows));
     }
 
     function attach() {

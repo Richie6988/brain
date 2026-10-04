@@ -58,6 +58,8 @@ const GARDIEN = [
     ['Chat', 'Bulle en bas à droite. Les nodes sélectionnés partent d\'eux-mêmes en contexte ; × les retire'],
     ['Modes', 'Pensée : il pense en nodes ; Profond : réflexion libre d\'abord ; Auto : web, fichiers, agents et missions'],
     ['Bulle avec 2 nodes ou plus', 'Envoi direct : la sélection est tout le contexte'],
+    ['Dataset', 'Filtres, « Importer un dataset » : un CSV, TSV, JSON ou Excel devient un arbre de nodes (une ligne = un node), libellé et '
+        + 'groupes devinés. Export CSV : bouton CSV de la pastille (sélection) ou « Exporter CSV » des Filtres (cochés, sinon ceux gardés)'],
     ['Web, Dessin, Image', 'Puces au-dessus de la saisie, ou /web, /dessin, /image en tête du message : le prochain message part avec '
         + 'cet outil (recherche web sourcée, croquis du Gardien sur un node, image FLUX ou dessin si FLUX manque)'],
     ['Visite', 'Espace : pause ; ← / → : précédent, suivant ; Échap : arrêter'],

@@ -42,6 +42,7 @@ let editLayer = null;
 // Create a new layer
 function createNewLayer() {
     rebootUniverse();
+    currentNode = null;  // comme load() : le node de l'ancienne dimension ne doit plus être redimensionné au zoom (la sélection reste : le portail la colle)
     layerCounter += 1;
     const newLayer = {id: layerCounter, name: `Dim-${layerCounter}`};
     layers.push(newLayer);
