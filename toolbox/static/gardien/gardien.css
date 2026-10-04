@@ -1156,3 +1156,7 @@ body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #ga
 body:has(.universe.lightmode) #gardien-branch { color: #440852; background: rgba(255, 255, 255, 0.96); }
 .gx-formats button { text-align: left; }
 
+/* Texte des nodes (textfit.js) : interligne à la mesure de chaque police (Nodz fixait la hauteur de ligne à la plus
+   grande taille du texte : les lignes d'une grande police se chevauchaient) ; un mot n'est coupé que s'il ne tient
+   vraiment pas (le node s'élargit d'abord pour lui). */
+.node-text-input { line-height: 1.25 !important; word-break: normal; overflow-wrap: break-word; }

@@ -33,6 +33,7 @@ import { createSchemas } from './schemas.js';
 import { createSearch } from './search.js';
 import { createSfx } from './sfx.js';
 import { createSide } from './side.js';
+import { createTextFit } from './textfit.js';
 import { createThoughts } from './thoughts.js';
 import { createTheme } from './theme.js';
 import { createTour } from './tour.js';
@@ -94,6 +95,7 @@ const filters = createFilters({ onAttach: items => chat.attach(items), onImport:
 const dimensions = createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createGrab();  // zone de saisie du node allumée au survol
+createTextFit();  // le texte d'un node n'est jamais rogné : le node grandit juste assez
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createLabels();  // libellés d'icônes au style HYPERSPACE, à la place des infobulles
 createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estompées, masquées
