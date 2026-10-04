@@ -1,0 +1,480 @@
+// Salons multijoueur. L'hôte ouvre sa dimension par un lien (bouton Partager) ; ceux qui le suivent voient son
+// univers, les curseurs nommés de chacun et chaque geste en direct, et peuvent l'éditer. Le navigateur de l'hôte fait
+// autorité : chaque sauvegarde de Nodz (/save-node/, /delete/) part aussi dans le salon ; l'hôte applique celles des
+// autres et les enregistre dans son univers ; un invité n'écrit jamais rien sur le serveur pendant le salon, ni dans
+// son propre univers. Le serveur relaie et signe chaque message de son auteur (toolbox/rooms.py). Tout ce qui vient
+// d'un autre compte est nettoyé avant d'entrer dans la page (texte du node, couleur, image, dessin).
+
+import { api } from './api.js';
+
+const BASE = document.documentElement.dataset.base || '';
+const COLORS = ['#FF6B6B', '#FFD93D', '#33FF99', '#4D96FF', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5'];
+const BLOCK = 10000;  // plage d'identifiants de nodes et de liens propre à chaque invité : pas de collision
+const TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'SPAN', 'FONT', 'DIV', 'P', 'BR', 'UL', 'OL', 'LI', 'A',
+    'CODE', 'PRE', 'H1', 'H2', 'H3', 'SUB', 'SUP', 'BLOCKQUOTE', 'HR']);
+const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'TEMPLATE', 'LINK', 'META', 'IMG', 'VIDEO', 'AUDIO']);
+
+// Texte d'un node venu d'un autre compte : seulement la mise en forme de Nodz (gras, couleurs, listes, liens web).
+export function clean(markup) {
+    const doc = new DOMParser().parseFromString(`<body>${markup ?? ''}</body>`, 'text/html');  // inerte : rien ne s'exécute
+    const walk = parent => [...parent.children].forEach(el => {
+        const tag = el.tagName.toUpperCase();
+        if (DROP.has(tag)) return el.remove();
+        walk(el);
+        if (!TAGS.has(tag)) return el.replaceWith(...el.childNodes);
+        [...el.attributes].forEach(({ name }) => {
+            const kept = name === 'style' || (tag === 'FONT' && ['color', 'size', 'face'].includes(name)) || (tag === 'A' && name === 'href');
+            if (!kept) el.removeAttribute(name);
+        });
+        if (/url\(|expression|javascript:|@import/i.test(el.getAttribute('style') || '')) el.removeAttribute('style');
+        if (tag === 'A') {
+            if (!/^https?:\/\//i.test(el.getAttribute('href') || '')) el.removeAttribute('href');
+            el.setAttribute('target', '_blank');
+            el.setAttribute('rel', 'noopener noreferrer');
+        }
+    });
+    walk(doc.body);
+    return doc.body.innerHTML;
+}
+
+const number = value => (Number.isFinite(Number(value)) ? Number(value) : 0);
+const localUrl = value => (typeof value === 'string' && (/^\/(?!\/)/.test(value) || value.startsWith(`${location.origin}/`) || /^data:image\/(png|jpe?g|gif|webp);/.test(value)) ? value : '');
+const drawing = value => {
+    try {
+        const parsed = JSON.parse(value || '[]');
+        return typeof parsed === 'object' && parsed ? JSON.stringify(parsed) : '[]';
+    } catch {
+        return '[]';
+    }
+};
+
+export function createRoom({ bridge, say }) {
+    let socket = null, me = null, room = null, role = null, applying = 0, layer = null, following = null, moving = false;
+    const people = new Map();  // id du compte → { name, host, color, cursor, at, view }
+    const slots = new Map();   // id d'un invité → son rang (sa plage d'identifiants)
+    const byId = id => document.getElementById(id);
+    const send = message => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message)); };
+
+    // --- relais des sauvegardes de Nodz ; un invité n'écrit rien sur le serveur (seuls le Gardien et la déconnexion passent)
+    const nativeFetch = window.fetch;
+    window.fetch = (url, options = {}) => {
+        if (!socket && role !== 'member') return nativeFetch(url, options);
+        const path = String(url).split('?')[0], method = (options.method || 'GET').toUpperCase();
+        if (method === 'POST' && !applying && typeof options.body === 'string') {
+            if (path.endsWith('/save-node/')) send({ t: 'save', data: JSON.parse(options.body) });
+            else if (path.endsWith('/delete/')) send({ t: 'delete', data: JSON.parse(options.body) });
+        }
+        if (role === 'member' && method !== 'GET' && !/\/api\/v1\/|\/logout\//.test(path)) {
+            return Promise.resolve(new Response('{"message":"salon"}', { headers: { 'Content-Type': 'application/json' } }));
+        }
+        return nativeFetch(url, options);
+    };
+
+    // --- l'univers des autres, appliqué sans être renvoyé ; chez l'hôte, enregistré
+    function quietly(fn) {
+        const loading = isLoading;
+        applying += 1;
+        isLoading = true;  // ni sauvegarde ni historique pendant la pose
+        try {
+            fn();
+        } finally {
+            isLoading = loading;
+            applying -= 1;
+        }
+    }
+
+    // Un node décrit comme dans une sauvegarde de Nodz : posé (ou remplacé) avec ses champs vérifiés.
+    function place(d, trusted) {
+        const id = `N-${parseInt(d.id, 10)}`;
+        if (!/^N-\d+$/.test(id)) return null;
+        const old = byId(id);
+        if (old?.contains(document.activeElement)) return null;  // quelqu'un écrit dans ce node ici : sa frappe d'abord
+        const keep = name => old?.getAttribute(name) ?? '';
+        const node = {
+            node_id: parseInt(d.id, 10), x_coordinate: number(d.x), y_coordinate: number(d.y),
+            radius: Math.min(2000, Math.max(10, number(d.radius) || 60)), ratio: number(d.ratio),
+            type: /^[a-z0-9_-]{1,20}$/.test(d.type || '') ? d.type : 'text',
+            color: /^#[0-9a-f]{3,8}$/i.test(d.color || '') ? d.color : '#33FF99',
+            shape: ['circle', 'square', 'none'].includes(d.shape) ? d.shape : 'circle',
+            layer__layer_id: layerNumber, text_content: clean(d.textContent),
+            image_content: d.imgContent === keep('imagecontent') ? keep('imagecontent') : localUrl(d.imgContent),
+            canvas_content: drawing(d.canvasContent),
+            // Fichiers et portails : ceux de l'univers de l'hôte ; un invité ne les change pas.
+            file_name: trusted ? String(d.fileName || '') : keep('filename'), file: trusted ? String(d.file || '') : keep('file'),
+            quantum: trusted ? drawing(d.quantum) : keep('quantum') || '[]',
+            notification: /^\d{2}-\d{2}-\d{4} \d{2}:\d{2}$/.test(d.notification || '') ? d.notification : '',
+            lock: String(d.lock) === '1' || d.lock === true,
+        };
+        if (old) {
+            JSON.parse(old.getAttribute('links') || '[]').map(byId).filter(Boolean).forEach(link => {
+                const other = byId(link.getAttribute('Node1') === id ? link.getAttribute('Node2') : link.getAttribute('Node1'));
+                if (other) {
+                    other.setAttribute('links', JSON.stringify(JSON.parse(other.getAttribute('links') || '[]').filter(l => l !== link.id)));
+                    other.setAttribute('siblings', JSON.stringify(JSON.parse(other.getAttribute('siblings') || '[]').filter(n => n !== id)));
+                }
+                byId(`grad${link.id}`)?.remove();
+                link.remove();
+            });
+            selectedNodes.splice(0, selectedNodes.length, ...selectedNodes.filter(n => n !== old));
+            if (currentNode === old) currentNode = null;
+            old.remove();
+        }
+        displayNode(node);
+        return byId(id);
+    }
+
+    function tie(l) {
+        const id = `L-${parseInt(l.linkid, 10)}`, a = byId(l.linkA), b = byId(l.linkB);
+        if (/^L-\d+$/.test(id) && !byId(id) && a?.classList.contains('node-group') && b?.classList.contains('node-group')) createLink(a, b, id);
+    }
+
+    function apply(data, trusted) {
+        if (!Array.isArray(data)) return;
+        let node = null;
+        quietly(() => {
+            const entry = data.find(d => d && 'id' in d);
+            if (entry) node = place(entry, trusted);
+            data.filter(d => d && 'linkid' in d).forEach(tie);
+        });
+        if (role === 'host' && node) {
+            applying += 1;
+            try {
+                save(node);  // dans l'univers de l'hôte, sans le renvoyer au salon
+            } finally {
+                applying -= 1;
+            }
+        }
+    }
+
+    function remove(data) {
+        if (!Array.isArray(data)) return;
+        applying += 1;
+        try {
+            const nodes = data.filter(d => d && 'id' in d).map(d => byId(`N-${parseInt(d.id, 10)}`)).filter(n => n?.classList.contains('node-group'));
+            if (nodes.length) deleteNode(nodes);
+            else data.filter(d => d && 'linkid' in d).map(d => byId(`L-${parseInt(d.linkid, 10)}`)).filter(Boolean).forEach(deleteLink);
+            // Chez l'hôte, la suppression est aussi enregistrée telle quelle : un lien déjà retiré de la page (node
+            // reposé entre-temps) n'aurait sinon jamais été archivé.
+            if (role === 'host') {
+                deleteFetch(data.filter(d => d && ('id' in d || 'linkid' in d)).map(d => ('id' in d ? { id: parseInt(d.id, 10) } : { linkid: parseInt(d.linkid, 10) }))
+                    .filter(d => Number.isInteger(d.id ?? d.linkid)));
+            }
+        } finally {
+            applying -= 1;
+        }
+    }
+
+    // --- l'état complet de la dimension de l'hôte, pour un invité qui arrive (ou quand l'hôte change de dimension)
+    const view = () => {
+        const a = { x: (0 - centerX + parseFloat(root.getAttribute('x'))) / currentZoom, y: -(0 - centerY - parseFloat(root.getAttribute('y'))) / currentZoom };
+        const b = { x: (innerWidth - centerX + parseFloat(root.getAttribute('x'))) / currentZoom, y: -(innerHeight - centerY - parseFloat(root.getAttribute('y'))) / currentZoom };
+        return { x0: a.x, x1: b.x, y0: Math.min(a.y, b.y), y1: Math.max(a.y, b.y) };
+    };
+    const describe = node => ({
+        id: parseInt(node.id.slice(2), 10), x: Math.round(node.getAttribute('x')), y: Math.round(node.getAttribute('y')),
+        type: node.getAttribute('type'), color: node.getAttribute('color'), shape: node.getAttribute('shape'),
+        radius: node.children[1].getAttribute('r'), ratio: node.getAttribute('ratio') || 0, textContent: node.getAttribute('textcontent'),
+        imgContent: node.getAttribute('imagecontent'), canvasContent: node.getAttribute('canvascontent'), fileName: node.getAttribute('filename'),
+        file: node.getAttribute('file'), quantum: node.getAttribute('quantum'), notification: node.getAttribute('notification'), lock: node.getAttribute('lock'),
+    });
+    function share(to) {
+        if (!slots.has(to) && to) slots.set(to, slots.size + 1);
+        const top = Math.max(Number(nodeCounter) || 0, Number(linkCounter) || 0);
+        send({
+            t: 'state', to, base: to ? top + BLOCK * slots.get(to) : undefined, view: view(),
+            dimension: layers.find(l => l.id === layerNumber)?.name || '',
+            nodes: [...universe.querySelectorAll('.node-group')].map(describe),
+            links: [...universe.querySelectorAll('.link')].map(l => ({ linkid: parseInt(l.id.slice(2), 10), linkA: l.getAttribute('Node1'), linkB: l.getAttribute('Node2') })),
+        });
+    }
+    function settle(m) {
+        quietly(() => {
+            rebootUniverse();
+            (m.nodes || []).forEach(d => place(d, true));
+            (m.links || []).forEach(tie);
+        });
+        if (m.base) nodeCounter = linkCounter = m.base;
+        layer = m.dimension;
+        render();
+        if (m.view) bridge.frame(m.view, 0);
+    }
+
+    // --- présence : curseurs nommés, vues (pour « suivre »)
+    const overlay = document.createElement('div');
+    overlay.id = 'gardien-room-cursors';
+    document.body.append(overlay);
+    function meet(who) {
+        if (!who || who.id === me?.id) return null;
+        if (!people.has(who.id)) {
+            const cursor = document.createElement('div');
+            cursor.className = 'gsal-cursor';
+            const color = COLORS[who.id % COLORS.length];
+            cursor.style.setProperty('--gsal-color', color);
+            cursor.innerHTML = '<svg viewBox="0 0 16 20" aria-hidden="true"><path d="M1 1l14 9-6.5 1.5L5.5 19z"/></svg><span></span>';
+            cursor.lastChild.textContent = who.name;
+            cursor.hidden = true;
+            overlay.append(cursor);
+            people.set(who.id, { ...who, color, cursor });
+            render();
+        }
+        return people.get(who.id);
+    }
+    function forget(id) {
+        people.get(id)?.cursor.remove();
+        people.delete(id);
+        if (following === id) following = null;
+        render();
+    }
+    (function draw() {
+        people.forEach(p => {
+            if (!p.at) return;
+            const x = p.at.x * currentZoom - parseFloat(root.getAttribute('x')) + centerX;
+            const y = -p.at.y * currentZoom + parseFloat(root.getAttribute('y')) + centerY;
+            p.cursor.hidden = false;
+            p.cursor.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+        });
+        requestAnimationFrame(draw);
+    })();
+    let lastCursor = 0, lastView = '';
+    document.addEventListener('pointermove', event => {
+        if (!socket || performance.now() - lastCursor < 50) return;
+        lastCursor = performance.now();
+        const x = (event.clientX - centerX + parseFloat(root.getAttribute('x'))) / currentZoom;
+        const y = -(event.clientY - centerY - parseFloat(root.getAttribute('y'))) / currentZoom;
+        send({ t: 'cursor', x: Math.round(x), y: Math.round(y) });
+    });
+    setInterval(() => {
+        if (!socket) return;
+        const v = view(), key = JSON.stringify(Object.values(v).map(Math.round));
+        if (key !== lastView) send({ t: 'view', ...v });
+        lastView = key;
+        if (role === 'host' && layer !== null && layer !== layerNumber && !isLoading) {  // l'hôte change de dimension : le salon le suit
+            layer = layerNumber;
+            share();
+        }
+    }, 700);
+    // La caméra rejoint la dernière vue reçue ; une vue arrivée pendant le travelling est jouée juste après.
+    let next = null;
+    async function follow(v) {
+        next = v;
+        if (moving) return;
+        moving = true;
+        try {
+            while (next && following) {
+                const target = next;
+                next = null;
+                await bridge.frame(target, 0);
+            }
+        } finally {
+            moving = false;
+        }
+    }
+
+    // Frappe en direct : le texte d'un node apparaît chez les autres pendant qu'on l'écrit (au plus tous les 120 ms,
+    // la dernière frappe toujours envoyée).
+    let typing = null, typed = 0;
+    document.addEventListener('input', event => {
+        const node = event.target.isContentEditable && event.target.closest?.('.node-group');
+        if (!socket || !node) return;
+        typing = { t: 'type', id: node.id, html: event.target.innerHTML };
+        typed ||= setTimeout(() => {
+            typed = 0;
+            send(typing);
+        }, 120);
+    }, true);
+
+    function receive(m) {
+        const who = m.from?.id === me?.id ? null : m.from;
+        if (m.t === 'welcome') {
+            me = m.me;
+            room = { ...room, ...m.room };
+            role = me.host ? 'host' : 'member';
+            layer = role === 'host' ? layerNumber : layer;
+            send({ t: 'hello' });
+            return render();
+        }
+        const person = meet(who);
+        if (!person) return;
+        if (m.t === 'join') say(`${who.name} entre dans le salon.`);
+        else if (m.t === 'hello') {
+            send({ t: 'view', ...view() });  // il nous voit aussitôt
+            if (role === 'host' && !who.host) share(who.id);
+        } else if (m.t === 'leave') {
+            say(who.host ? "L'hôte a quitté le salon : tes gestes ne seront plus enregistrés." : `${who.name} quitte le salon.`);
+            forget(who.id);
+        } else if (m.t === 'state' && role === 'member') settle(m);
+        else if (m.t === 'save') apply(m.data, who.host);
+        else if (m.t === 'delete') remove(m.data);
+        else if (m.t === 'type') {
+            const input = byId(String(m.id))?.children[0]?.children[0];
+            if (input && input !== document.activeElement && input.closest('.node-group')) input.innerHTML = clean(m.html);
+        } else if (m.t === 'cursor') person.at = { x: number(m.x), y: number(m.y) };
+        else if (m.t === 'view') {
+            person.view = { x0: number(m.x0), x1: number(m.x1), y0: number(m.y0), y1: number(m.y1) };
+            if (following === who.id) follow(person.view);
+        } else if (m.t === 'kick') {
+            if (m.user === me.id) end('Tu as été exclu du salon.');
+            else forget(m.user);
+        } else if (m.t === 'close') end("L'hôte a fermé le salon.");
+    }
+
+    function connect(token) {
+        const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+        socket = new WebSocket(`${scheme}://${location.host}${BASE}/ws/room/${encodeURIComponent(token)}/`);
+        socket.addEventListener('message', event => {
+            try {
+                receive(JSON.parse(event.data));
+            } catch (error) {
+                console.error('salon :', error);
+            }
+        });
+        socket.addEventListener('close', () => {
+            if (!socket) return;
+            socket = null;
+            if (role === 'member') end('Connexion au salon perdue.');
+            render();
+        });
+    }
+
+    function end(message) {
+        const open = socket;
+        socket = null;
+        open?.close();
+        people.forEach((_, id) => forget(id));
+        if (message) say(message);
+        render();
+    }
+
+    // --- panneau du salon (bouton Partager de Nodz)
+    const panel = document.createElement('section');
+    panel.id = 'gardien-room';
+    panel.hidden = true;
+    panel.innerHTML = '<header><b>Salon</b><span class="gsal-where"></span><button type="button" class="gsal-x" title="Fermer">×</button></header>'
+        + '<p class="gsal-intro">Ouvre cette dimension à d\'autres : ils voient ton univers, vos curseurs et chaque geste en direct, et peuvent l\'éditer. Tout s\'enregistre chez toi.</p>'
+        + '<div class="gsal-link"><input readonly aria-label="Lien du salon"><button type="button" class="gsal-copy">Copier le lien</button></div>'
+        + '<ul class="gsal-people"></ul>'
+        + '<div class="gsal-actions"><button type="button" class="gsal-open">Ouvrir un salon</button><button type="button" class="gsal-end">Fermer le salon</button><button type="button" class="gsal-leave">Quitter le salon</button></div>';
+    document.body.append(panel);
+    const $ = selector => panel.querySelector(selector);
+    const link = () => room && `${location.origin}${BASE}/universe?room=${encodeURIComponent(room.token)}`;
+    function render() {
+        const live = !!socket, host = role !== 'member';
+        $('.gsal-where').textContent = !room ? '' : host ? ` · ${layers.find(l => l.id === layerNumber)?.name || ''}` : ` de ${room.host || ''}${layer ? ` · ${layer}` : ''}`;
+        $('.gsal-intro').hidden = live || !host;
+        $('.gsal-link').hidden = !live || !host;
+        $('.gsal-link input').value = link() || '';
+        $('.gsal-open').hidden = live || !host;
+        $('.gsal-end').hidden = !live || !host;
+        $('.gsal-leave').hidden = host;
+        const list = $('.gsal-people');
+        list.replaceChildren();
+        if (live && me) list.append(row({ ...me, color: '#e2e8f0' }, true));
+        people.forEach((p, id) => list.append(row({ ...p, id })));
+        const button = byId('shareButton');
+        button?.classList.toggle('gardien-room-live', live);
+        button?.setAttribute('data-count', live ? String(people.size + 1) : '');
+    }
+    function row(p, self = false) {
+        const item = document.createElement('li');
+        const dot = document.createElement('i');
+        dot.style.background = p.color;
+        const name = document.createElement('span');
+        name.textContent = `${p.name}${p.host ? ' · hôte' : ''}${self ? ' (toi)' : ''}`;
+        item.append(dot, name);
+        if (!self) {
+            const look = document.createElement('button');
+            look.type = 'button';
+            look.textContent = following === p.id ? 'Suivi' : 'Suivre';
+            look.title = 'Ta caméra suit la sienne ; un clic de plus arrête';
+            look.classList.toggle('on', following === p.id);
+            look.addEventListener('click', () => {
+                following = following === p.id ? null : p.id;
+                if (following && p.view) follow(p.view);
+                render();
+            });
+            item.append(look);
+            if (role === 'host') {
+                const kick = document.createElement('button');
+                kick.type = 'button';
+                kick.textContent = 'Exclure';
+                kick.addEventListener('click', () => {
+                    send({ t: 'kick', user: p.id });
+                    forget(p.id);
+                });
+                item.append(kick);
+            }
+        }
+        return item;
+    }
+    // Suivre s'arrête dès qu'on bouge soi-même la caméra (molette, glissé).
+    svg.addEventListener('wheel', event => { if (event.isTrusted && following) { following = null; render(); } }, { passive: true });
+    svg.addEventListener('mousedown', event => { if (event.isTrusted && following) { following = null; render(); } });
+
+    $('.gsal-x').addEventListener('click', () => { panel.hidden = true; });
+    $('.gsal-copy').addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(link());
+            say('Lien du salon copié.');
+        } catch {
+            $('.gsal-link input').select();
+        }
+    });
+    $('.gsal-open').addEventListener('click', async () => {
+        try {
+            room = (await api.request('POST', 'toolbox/rooms', {})).room;
+            role = 'host';
+            connect(room.token);
+            render();
+        } catch (error) {
+            say(`Salon : ${error.message}`, 'error');
+        }
+    });
+    $('.gsal-end').addEventListener('click', async () => {
+        send({ t: 'close' });
+        end();
+        room = null;
+        await api.request('DELETE', 'toolbox/rooms').catch(() => {});
+        render();
+    });
+    $('.gsal-leave').addEventListener('click', () => { location.href = `${BASE}/universe`; });
+    document.addEventListener('click', event => {
+        if (event.target.closest?.('#shareButton') && document.body.classList.contains('gardien-ready')) {
+            event.preventDefault();
+            event.stopImmediatePropagation();  // à la place de l'ancien lien de partage (copie en lecture)
+            panel.hidden = !panel.hidden;
+            render();
+        }
+    }, true);
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') panel.hidden = true; });
+
+    return {
+        // Une fois connecté : rejoindre le salon du lien (?room=), ou reprendre le sien s'il est resté ouvert.
+        async start() {
+            const token = new URLSearchParams(location.search).get('room');
+            while (isLoading) await new Promise(resolve => setTimeout(resolve, 100));  // l'univers de connexion d'abord
+            try {
+                if (token) {
+                    const found = await api.request('GET', `toolbox/rooms/${encodeURIComponent(token)}`);
+                    room = { token, name: found.name, host: found.host };
+                    role = found.mine ? 'host' : 'member';
+                    if (role === 'member') {
+                        // Dans un salon, la dimension est celle de l'hôte : changer de dimension attend la sortie du salon.
+                        window.load = () => say("Dans un salon, la dimension est celle de l'hôte : quitte le salon pour revenir chez toi.");
+                        quietly(rebootUniverse);
+                        say(`Salon de ${found.host} : connexion…`);
+                    }
+                    connect(token);
+                } else {
+                    room = (await api.request('GET', 'toolbox/rooms')).room;
+                    if (room) {
+                        role = 'host';
+                        connect(room.token);
+                    }
+                }
+            } catch (error) {
+                say(token ? 'Salon fermé ou introuvable.' : `Salon : ${error.message}`, 'error');
+            }
+            render();
+        },
+    };
+}

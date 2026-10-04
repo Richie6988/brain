@@ -1,5 +1,6 @@
 """Boîte à outils IA intégrée (portée de SquidMind) : modèles locaux et agents."""
 
+import secrets
 import uuid
 
 from django.conf import settings
@@ -266,3 +267,19 @@ class Preference(models.Model):
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='nodz_preference')
     pinned_layers = models.JSONField(default=list, blank=True)  # numéros de dimension (layer_id), dans l'ordre d'épinglage
     gallery = models.JSONField(default=list, blank=True)  # [{id, name, nodes: [{x, y, text, color, shape, radius}], links: [[i, j]]}]
+
+
+def room_token():
+    return secrets.token_urlsafe(16)
+
+
+class Room(models.Model):
+    """Salon multijoueur : l'univers de l'hôte ouvert en direct à d'autres comptes, par un lien. Le navigateur de
+    l'hôte fait autorité (il enregistre les gestes des invités dans son univers) ; le serveur relaie (rooms.py)."""
+
+    token = models.CharField(max_length=40, unique=True, default=room_token)
+    host = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='rooms')
+    name = models.CharField(max_length=120, blank=True)
+    closed = models.BooleanField(default=False)
+    banned = models.JSONField(default=list, blank=True)  # comptes exclus par l'hôte
+    created_at = models.DateTimeField(auto_now_add=True)

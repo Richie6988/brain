@@ -2826,3 +2826,68 @@ class DoctorTests(TestCase):
         self.assertIn('augmente le contexte', by['Contexte']['detail'])
         self.assertFalse(by['Vitesse']['ok'])
         self.assertIn('30.0 s', by['Essai du modèle']['detail'])
+
+
+class RoomTests(TransactionTestCase):
+    """Salons : un relais par salon, l'accès vérifié, l'auteur signé par le serveur, l'hôte seul maître."""
+
+    def setUp(self):
+        self.host = NodzUser.objects.create_user(email='hote@nodz.local', password='pw-123456', username='Hote')
+        self.guest = NodzUser.objects.create_user(email='invite@nodz.local', password='pw-123456', username='Invite')
+
+    def connect(self, token, user):
+        from channels.routing import URLRouter
+        from channels.testing import WebsocketCommunicator
+
+        from nodzapp.routing import websocket_urlpatterns
+
+        socket = WebsocketCommunicator(URLRouter(websocket_urlpatterns), f'/ws/room/{token}/')
+        socket.scope['user'] = user
+        return socket
+
+    def test_api_opens_one_room_and_closes_it(self):
+        self.client.force_login(self.host)
+        first = self.client.post('/api/v1/toolbox/rooms', {'name': 'Atelier'}, content_type='application/json').json()['room']
+        again = self.client.post('/api/v1/toolbox/rooms', {}, content_type='application/json').json()['room']
+        self.assertEqual(first['token'], again['token'])
+        self.assertTrue(self.client.get(f"/api/v1/toolbox/rooms/{first['token']}").json()['mine'])
+        self.client.force_login(self.guest)
+        self.assertEqual(self.client.get(f"/api/v1/toolbox/rooms/{first['token']}").json()['host'], 'Hote')
+        self.client.force_login(self.host)
+        self.assertIsNone(self.client.delete('/api/v1/toolbox/rooms').json()['room'])
+        self.assertEqual(self.client.get(f"/api/v1/toolbox/rooms/{first['token']}").status_code, 404)
+
+    def test_relay_signs_sender_and_guards_host_powers(self):
+        from asgiref.sync import async_to_sync
+        from django.contrib.auth.models import AnonymousUser
+
+        from .models import Room
+
+        room = Room.objects.create(host=self.host, name='Atelier')
+
+        async def scenario():
+            host, guest = self.connect(room.token, self.host), self.connect(room.token, self.guest)
+            self.assertTrue((await host.connect())[0])
+            self.assertEqual((await host.receive_json_from())['me']['host'], True)
+            self.assertTrue((await guest.connect())[0])
+            await guest.receive_json_from()  # welcome
+            joined = await host.receive_json_from()
+            self.assertEqual((joined['t'], joined['from']['name']), ('join', 'Invite'))
+            # L'invité se fait passer pour l'hôte : le serveur signe de sa vraie identité.
+            await guest.send_json_to({'t': 'save', 'data': [{'id': 7}], 'from': {'id': self.host.pk, 'host': True}})
+            relayed = await host.receive_json_from()
+            self.assertEqual((relayed['t'], relayed['from']['id'], relayed['from']['host']), ('save', self.guest.pk, False))
+            await guest.send_json_to({'t': 'state', 'nodes': []})  # réservé à l'hôte : ignoré
+            await guest.send_json_to({'t': 'close'})
+            self.assertTrue(await host.receive_nothing(0.2))
+            await host.send_json_to({'t': 'kick', 'user': self.guest.pk})
+            self.assertEqual((await guest.receive_json_from())['t'], 'kick')
+            self.assertEqual((await guest.receive_output())['type'], 'websocket.close')
+            again = self.connect(room.token, self.guest)
+            self.assertFalse((await again.connect())[0])  # exclu
+            stranger = self.connect(room.token, AnonymousUser())
+            self.assertFalse((await stranger.connect())[0])
+            await host.disconnect()
+
+        async_to_sync(scenario)()
+        self.assertEqual(Room.objects.get().banned, [self.guest.pk])

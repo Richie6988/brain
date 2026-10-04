@@ -1096,3 +1096,38 @@ li.soon .gr-left { color: #ffb454; }
 .gr-actions { grid-column: 2; display: flex; gap: 6px; }
 .gr-actions button { padding: 2px 8px !important; font-size: 11px !important; }
 .gr-empty { margin: 14px 6px; color: #94a3b8; line-height: 1.6; }
+
+/* Salon multijoueur (room.js) : panneau du bouton Partager, curseurs nommés des autres. */
+#gardien-room {
+    position: fixed; top: 76px; left: 56px; z-index: 45; width: min(340px, calc(100vw - 32px)); box-sizing: border-box;
+    display: grid; gap: 10px; padding: 12px 14px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: rgba(5, 12, 23, 0.88); border: 1px solid rgba(104, 72, 166, 0.55); border-radius: 14px;
+    box-shadow: 0 0 18px rgba(104, 72, 166, 0.25); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+#gardien-room[hidden], #gardien-room [hidden] { display: none !important; }
+#gardien-room header { display: flex; align-items: center; gap: 4px; }
+#gardien-room header b { color: #b89af2; letter-spacing: 0.06em; }
+#gardien-room .gsal-where { flex: 1; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gardien-room .gsal-x { background: none; border: 0; color: #94a3b8; font-size: 16px; cursor: pointer; }
+#gardien-room p { margin: 0; color: #cbd5e1; line-height: 1.5; }
+#gardien-room .gsal-link { display: flex; gap: 6px; }
+#gardien-room .gsal-link input { flex: 1; min-width: 0; padding: 6px 8px; font: inherit; color: #e2e8f0; background: #0b1220; border: 1px solid #1e293b; border-radius: 8px; }
+#gardien-room button:not(.gsal-x) { padding: 6px 10px; font: inherit; color: #eef2ff; background: rgba(104, 72, 166, 0.35); border: 1px solid rgba(184, 154, 242, 0.45); border-radius: 8px; cursor: pointer; }
+#gardien-room button:not(.gsal-x):hover, #gardien-room button.on { background: #6848A6; }
+#gardien-room .gsal-end { background: rgba(255, 107, 107, 0.18) !important; border-color: rgba(255, 107, 107, 0.5) !important; }
+#gardien-room .gsal-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+#gardien-room .gsal-people:empty { display: none; }
+#gardien-room .gsal-people li { display: flex; align-items: center; gap: 8px; }
+#gardien-room .gsal-people i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+#gardien-room .gsal-people span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gardien-room .gsal-people button { padding: 3px 8px !important; font-size: 11px !important; }
+#gardien-room .gsal-actions { display: flex; gap: 6px; justify-content: flex-end; }
+#gardien-room-cursors { position: fixed; inset: 0; z-index: 30; pointer-events: none; overflow: hidden; }
+.gsal-cursor { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 2px; transition: transform 0.08s linear; }
+.gsal-cursor[hidden] { display: none; }
+.gsal-cursor svg { width: 14px; height: 18px; fill: var(--gsal-color); stroke: rgba(5, 12, 23, 0.8); stroke-width: 1.2; filter: drop-shadow(0 0 4px var(--gsal-color)); }
+.gsal-cursor span { margin-top: 12px; padding: 1px 6px; font: 11px 'Cascadia Code', monospace; color: #050c17; background: var(--gsal-color); border-radius: 6px; white-space: nowrap; }
+#shareButton.gardien-room-live { box-shadow: 0 0 0 2px #33FF99, 0 0 12px rgba(51, 255, 153, 0.5); }
+#shareButton.gardien-room-live::before { content: attr(data-count); position: absolute; top: -4px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; font: 10px/15px 'Cascadia Code', monospace; color: #050c17; background: #33FF99; border-radius: 8px; text-align: center; }
+body:has(.universe.lightmode) #gardien-room { color: #440852; background: rgba(255, 255, 255, 0.94); }
+body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #gardien-room .gsal-link input { color: #440852; background: #fff; }

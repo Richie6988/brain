@@ -28,6 +28,8 @@ urlpatterns = [
     path('workspace/<path:path>', api.workspace_file),
     path('brain-map', api.brain_map),
     path('letters', api.letters),
+    path('rooms', api.rooms),
+    path('rooms/<str:token>', api.room),
     path('marks', api.marks),
     path('tools', api.tool_list),
     path('command', api.command),

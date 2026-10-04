@@ -26,6 +26,7 @@ import { createPending } from './pending.js';
 import { createPhysics } from './physics.js';
 import './portal.js';  // window.portalRing : l'anneau vivant des portails, que Nodz pose en créant un node
 import { createReminders } from './reminders.js';
+import { createRoom } from './room.js';
 import { createSchemas } from './schemas.js';
 import { createSearch } from './search.js';
 import { createSfx } from './sfx.js';
@@ -82,6 +83,7 @@ const signedIn = setInterval(() => {
     dimensions.refresh();
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
     guide.welcome();  // première visite : le guide s'ouvre
+    room.start();  // salon du lien (?room=) ou le sien resté ouvert
 }, 400);
 
 const joined = node => ({ id: node.id, text: (node.children[0]?.children[0]?.innerText || '').trim() });  // node joint au chat
@@ -110,6 +112,7 @@ const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node 
 const fixed = new Set();  // nodes de code déjà renvoyés une fois au Gardien pour correction
 const reminders = createReminders({ bridge, say, sfx });  // rappels : compte à rebours, notifications, panneau de la cloche
 const tour = createTour({ bridge, say });
+const room = createRoom({ bridge, say });  // salons multijoueur : bouton Partager, curseurs, gestes en direct
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
 const ide = createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur

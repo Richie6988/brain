@@ -30,7 +30,8 @@ from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable, acting_for
 from .guardian import Guardian, PlanError, guardian_prompt
-from .models import Agent, LocalModel, Mission, NodeMark, Preference
+from .models import Agent, LocalModel, Mission, NodeMark, Preference, Room
+from .rooms import display_name
 from .runtime import broker, dispatcher, engine
 
 logger = logging.getLogger(__name__)
@@ -436,6 +437,33 @@ def letters(request, body):
 
     return JsonResponse({'letters': [{**n, 'html': text_html(n['text'])} for n in notes], 'root': universe.get('exchanges'),
                          'unread': sum(1 for n in notes if not n.get('node'))})
+
+
+@api('GET', 'POST', 'DELETE')
+def rooms(request, body):
+    """Le salon de l'humain (un seul à la fois) : GET le rend s'il est ouvert, POST l'ouvre (ou le renomme), DELETE
+    le ferme ; le lien d'accès est universe?room=<token>."""
+    room = Room.objects.filter(host=request.user, closed=False).first()
+    if request.method == 'POST':
+        name = str(body.get('name') or '')[:120]
+        if room is None:
+            room = Room.objects.create(host=request.user, name=name)
+        elif name:
+            Room.objects.filter(pk=room.pk).update(name=name)
+            room.name = name
+    elif request.method == 'DELETE' and room:
+        Room.objects.filter(pk=room.pk).update(closed=True)
+        room = None
+    return JsonResponse({'room': room and {'token': room.token, 'name': room.name}})
+
+
+@api('GET')
+def room(request, body, token):
+    """Un salon, vu par qui veut y entrer : son nom, son hôte ; introuvable s'il est fermé ou si l'on en est exclu."""
+    found = Room.objects.filter(token=token, closed=False).select_related('host').first()
+    if found is None or (found.host_id != request.user.pk and request.user.pk in found.banned):
+        return JsonResponse({'error': 'salon fermé ou introuvable'}, status=404)
+    return JsonResponse({'name': found.name, 'host': display_name(found.host), 'mine': found.host_id == request.user.pk})
 
 
 @api('GET')

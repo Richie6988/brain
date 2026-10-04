@@ -53,7 +53,7 @@ const KEYBOARD = [
 
 const GARDIEN = [
     ['Pastille d\'un node', 'Gardien (lui envoyer), Visite (parcours de la branche), ▲ Amont / ▼ Aval (étendre la '
-        + 'sélection aux parents ou aux enfants)'],
+        + 'sélection au node et à sa seule lignée, parents ou enfants)'],
     ['Pastille d\'une sélection', 'Gardien · N nodes (les joindre au chat), Ordonner (la physique les éclate puis les range)'],
     ['Chat', 'Bulle en bas à droite. Les nodes sélectionnés partent d\'eux-mêmes en contexte ; × les retire'],
     ['Modes', 'Pensée : il pense en nodes ; Profond : réflexion libre d\'abord ; Auto : web, fichiers, agents et missions'],
@@ -64,6 +64,8 @@ const GARDIEN = [
     ['Agents & modèles', 'Pastille du HUD : choisir l\'IA, ses outils et ses agents'],
     ['Rappels', 'Bouton Rappel d\'un node (calendrier), ou « rappelle-moi vendredi 9 h… » au Gardien. Compte à rebours au-dessus du node, '
         + 'notification à l\'échéance ; la cloche du dock les liste tous (report, retrait, voyage)'],
+    ['Salon', 'Bouton Partager du dock : ouvre ta dimension par un lien. Les autres voient ton univers, vos curseurs et chaque geste en '
+        + 'direct, et l\'éditent ; tout s\'enregistre chez toi. Suivre : ta caméra suit la sienne ; l\'hôte peut exclure'],
 ];
 
 const table = rows => h('dl', { class: 'gg-list' }, rows.flatMap(([key, text]) => [h('dt', {}, key), h('dd', {}, text)]));
