@@ -525,8 +525,8 @@ def free_spot(anchor, occupied, radius=RADIUS):
     """Premier emplacement libre sur des anneaux autour de `anchor` (aucun chevauchement).
 
     `occupied` : points (x, y) ou (x, y, rayon) ; sans rayon, celui d'un node texte."""
-    gap = max(radius, RADIUS) * 2 + 70
-    clear = lambda x, y, p: math.dist((x, y), p[:2]) >= radius + (p[2] if len(p) > 2 else RADIUS) + 55
+    gap = max(radius, RADIUS) * 2 + 150
+    clear = lambda x, y, p: math.dist((x, y), p[:2]) >= radius + (p[2] if len(p) > 2 else RADIUS) + 110
     for ring in range(1, 12):
         steps = 6 * ring
         for i in range(steps):
@@ -1527,7 +1527,7 @@ class Guardian(IaquaOps):
         self.emit('action', self.op_create({'ref': 'ask1', 'text': request}, {}))
         return 'ask1'
 
-    def grow_spot(self, previous, turn=0.0, radius=THOUGHT_RADIUS, gap=40):
+    def grow_spot(self, previous, turn=0.0, radius=THOUGHT_RADIUS, gap=90):
         """Pousse organique : le node suivant s'écarte de `previous` dans la direction de la pousse, qui ondule (une
         branche part de biais : `turn`) ; une place prise fait tourner la pousse, puis on se rabat sur l'anneau libre
         le plus proche. Seule la pensée principale entraîne la direction."""
@@ -1539,7 +1539,7 @@ class Guardian(IaquaOps):
         for shift in (0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.3, -2.3):
             angle = heading + shift
             x, y = base['x'] + step * math.cos(angle), base['y'] + step * math.sin(angle)
-            if all(math.dist((x, y), p[:2]) >= radius + (p[2] if len(p) > 2 else RADIUS) + 20 for p in self.occupied):
+            if all(math.dist((x, y), p[:2]) >= radius + (p[2] if len(p) > 2 else RADIUS) + 50 for p in self.occupied):
                 if not turn:
                     self.heading = angle
                 return round(x), round(y)
@@ -1547,7 +1547,7 @@ class Guardian(IaquaOps):
 
     def speck(self, ref, near, text, ink, color, turn=0.0):
         """Une étincelle de la réflexion libre : tout petit node sans cadre, texte menu, relié à `near`."""
-        x, y = self.grow_spot(near, turn=turn, radius=SPARK_RADIUS, gap=10)
+        x, y = self.grow_spot(near, turn=turn, radius=SPARK_RADIUS, gap=40)
         self.nodes[ref] = {'x': x, 'y': y, 'r': SPARK_RADIUS, 'text': text, 'new': True}
         self.occupied.append((x, y, SPARK_RADIUS))
         self.emit('action', {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(f',,[{ink}]{text}[/],,'),

@@ -83,6 +83,10 @@ export function createExchange({ dataset, filters }) {
         if (on) render();
     }
 
+    // Son libellé dit ce qu'il fait (Nodz y affichait « Save » en invité, « Export » sinon).
+    const tooltip = window.createTooltip;
+    window.createTooltip = (id, text) => tooltip(id, id === 'exportButton' ? 'Importer / Exporter' : text);
+
     // Le bouton Export du dock ouvre ce panneau à la place de l'ancienne fenêtre de Nodz (gardée pour le PDF).
     document.addEventListener('mousedown', event => {
         if (bypass || !event.target.closest?.('#exportButton') || !document.body.classList.contains('gardien-ready')) return;

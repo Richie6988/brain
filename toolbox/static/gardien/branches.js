@@ -8,8 +8,8 @@
 // Tout se fait à partir de la page : les nodes et les liens de la dimension ouverte.
 
 const KEY = 'gardien-folds';
-const GAP_X = 110;   // entre le bord d'un node et le bord de ses enfants
-const GAP_Y = 26;    // entre deux sous-arbres voisins
+const GAP_X = 160;   // entre le bord d'un node et le bord de ses enfants
+const GAP_Y = 46;    // entre deux sous-arbres voisins
 const TRANSFORM = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 

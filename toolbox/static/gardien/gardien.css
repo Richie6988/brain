@@ -17,14 +17,13 @@
     box-shadow: 0 0 14px rgba(104, 72, 166, 0.55); transition: filter 0.15s, box-shadow 0.15s;
 }
 #gardien-send .send { padding-left: 5px; }
-#gardien-send.multi .visit, #gardien-send.multi kbd, #gardien-send:not(.multi) .arrange { display: none; }
+#gardien-send:not(.multi) :is(.send, .arrange), #gardien-send.multi :is(.branch, .pick) { display: none; }
 #gardien-send .arrange, #gardien-send .branch { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
-#gardien-send .visit, #gardien-send .up, #gardien-send .down { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
-#gardien-send.multi .up, #gardien-send.multi .down, #gardien-send button[hidden] { display: none; }
+#gardien-send .pick { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
+#gardien-send button[hidden] { display: none; }
 #gardien-send button:hover:not(:disabled) { filter: brightness(1.12); box-shadow: 0 0 20px rgba(30, 144, 255, 0.7); }
 #gardien-send button:disabled { opacity: 0.55; cursor: progress; }
 #gardien-send i { width: 20px; height: 20px; border-radius: 50%; background: rgba(255, 255, 255, 0.92) url('agents.svg') no-repeat center / 70%; }
-#gardien-send kbd { font: inherit; font-size: 9px; opacity: 0.75; padding: 1px 5px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 6px; }
 @keyframes gardien-appear { from { opacity: 0; transform: scale(0.85); } }
 
 /* Zone de saisie du node (grab.js) : l'anneau où Nodz prend le node, dessiné par-dessus, sans prendre la souris. */
@@ -994,6 +993,10 @@ body:has(.universe.lightmode) .node-group[type=code] .node-text-input pre.code-o
 #sfxButton[data-state="off"]::after { opacity: 0.4; }
 #sfxButton[data-state="off"]::before { content: ''; position: absolute; left: 18%; right: 18%; top: 50%; height: 1.5px; z-index: 1;
     background: #fff; transform: rotate(-35deg); box-shadow: 0 0 3px rgba(184, 154, 242, 0.85); }
+/* Le bouton Visite (42 px) est pris sur la recherche : le dock garde sa largeur, la zone des gestes de l'univers aussi. */
+@media (min-width: 901px) { #button-container #semanticsearch { width: 175px; min-width: 0; } }
+#visitButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M10 8.5v7l5.5-3.5z' fill='%23000'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#exportButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 4v13M4 13l4 4 4-4M16 20V7M12 11l4-4 4 4'/%3E%3C/svg%3E") no-repeat center / 80% !important; }
 #guideButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7'/%3E%3Ccircle cx='12' cy='17' r='.7' fill='%23000'/%3E%3C/svg%3E") no-repeat center / 90%; }
 /* Guide (guide.js) : fenêtre sombre comme les autres panneaux, parcours de découverte, raccourcis, cartes. */
 .gg-window {
@@ -1223,14 +1226,15 @@ body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #ga
     font: 600 11px 'Cascadia Code', monospace; color: #050c17; background: #b89af2; border: 0; border-radius: 10px; box-shadow: 0 0 10px rgba(184, 154, 242, 0.6); }
 #gardien-folds .gf-badge:hover { background: #33FF99; }
 #gardien-folds .gf-badge[hidden] { display: none; }
-#gardien-branch { position: fixed; z-index: 46; display: grid; gap: 4px; min-width: 180px; padding: 8px; box-sizing: border-box;
+:is(#gardien-branch, #gardien-pick) { position: fixed; z-index: 46; display: grid; gap: 4px; min-width: 180px; padding: 8px; box-sizing: border-box;
     font: 12px 'Cascadia Code', monospace; color: #e2e8f0; background: rgba(5, 12, 23, 0.92); border: 1px solid rgba(104, 72, 166, 0.55);
     border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-#gardien-branch[hidden] { display: none; }
-#gardien-branch button { text-align: left; padding: 6px 10px; font: inherit; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
-#gardien-branch button:hover { background: rgba(104, 72, 166, 0.45); }
+:is(#gardien-branch, #gardien-pick)[hidden] { display: none; }
+#gardien-pick button:disabled { opacity: 0.4; cursor: default; }
+:is(#gardien-branch, #gardien-pick) button { text-align: left; padding: 6px 10px; font: inherit; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+:is(#gardien-branch, #gardien-pick) button:hover:not(:disabled) { background: rgba(104, 72, 166, 0.45); }
 #gardien-branch small { margin: 4px 10px 0; color: #94a3b8; font-size: 10px; letter-spacing: 0.06em; }
-body:has(.universe.lightmode) #gardien-branch { color: #440852; background: rgba(255, 255, 255, 0.96); }
+body:has(.universe.lightmode) :is(#gardien-branch, #gardien-pick) { color: #440852; background: rgba(255, 255, 255, 0.96); }
 
 /* Texte des nodes (textfit.js) : interligne à la mesure de chaque police (Nodz fixait la hauteur de ligne à la plus
    grande taille du texte : les lignes d'une grande police se chevauchaient) ; un mot n'est coupé que s'il ne tient
@@ -1260,3 +1264,7 @@ body:has(.universe.lightmode) #gardien-branch { color: #440852; background: rgba
 #gardien-exchange .gxx-seg button.on { color: #050c17; background: #33FF99; border-color: #33FF99; font-weight: 600; }
 body:has(.universe.lightmode) #gardien-exchange { color: #440852; background: rgba(255, 255, 255, 0.96); }
 body:has(.universe.lightmode) #gardien-exchange .gxx-note { color: #5b4a78; }
+
+/* Sélection rectangle (Ctrl + glisser) : plus de voile translucide sur les nodes, un trait fin seulement. */
+.selectionBox { fill: none; stroke: #b89af2; stroke-width: 1.5px; stroke-dasharray: 6 5; }
+body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }

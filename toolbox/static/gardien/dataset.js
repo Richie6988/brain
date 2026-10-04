@@ -118,9 +118,9 @@ export function shape(rows) {
 
 const escape = text => String(text).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
-// Anneaux autour d'un parent : 210 de place par node (un node de texte fait ~180 de large), chaque anneau plus large
+// Anneaux autour d'un parent : 270 de place par node (un node de texte fait ~180 de large), chaque anneau plus large
 // que le précédent.
-const SLOT = 210;
+const SLOT = 270;
 const ring = k => 240 + SLOT * k;
 const capacity = k => Math.max(6, Math.floor((2 * Math.PI * ring(k)) / SLOT));
 function rings(count) {  // rayon du dernier anneau pour `count` nodes
@@ -172,6 +172,41 @@ export async function plant(rows, title, { bridge, center }) {
         }
     }
     return { refs, label, group, total: rows.length, placed: taken.length };
+}
+
+// Un CSV exporté par Nodz (describe : texte, couleur, forme, x, y, verrou, liens) : chaque ligne redevient le node
+// qu'elle décrit, à sa place relative autour du centre de la vue, relié comme avant ; pas un node qui afficherait ces
+// colonnes en texte. Les types à contenu (image, fichier, dessin) ne sont pas dans le CSV : leurs nodes reviennent en texte.
+const OWN = ['texte', 'couleur', 'forme', 'x', 'y'];
+export const ownExport = rows => rows.length > 0 && OWN.every(c => c in rows[0]);
+
+export async function restore(rows, { bridge, center }) {
+    const taken = rows.slice(0, MAX_ROWS);
+    const mid = axis => {
+        const values = taken.map(r => Number(r[axis]) || 0);
+        return (Math.min(...values) + Math.max(...values)) / 2;
+    };
+    const mx = mid('x'), my = mid('y');
+    const refs = new Map();
+    for (const [i, row] of taken.entries()) {
+        const ref = `cv-${i}`;
+        refs.set(row.id || ref, ref);
+        await bridge.perform({ op: 'create', ref, x: Math.round(center.x + (Number(row.x) || 0) - mx), y: Math.round(center.y + (Number(row.y) || 0) - my),
+            text: escape(row.texte || '').replace(/\r?\n/g, '<br>'), color: /^#[0-9a-f]{3,8}$/i.test(row.couleur) ? row.couleur : undefined,
+            shape: ['circle', 'square'].includes(row.forme) ? row.forme : undefined });
+        if (row.type === 'code') await bridge.perform({ op: 'set_type', ref, content_type: 'code' });
+        if (row.verrou === 'oui') await bridge.perform({ op: 'style', ref, lock: true });
+    }
+    const done = new Set();
+    for (const row of taken) {
+        for (const other of String(row.liens || '').split(/\s+/).filter(id => refs.has(id))) {
+            const pair = [row.id, other].sort().join(' ');
+            if (other === row.id || done.has(pair)) continue;
+            done.add(pair);
+            await bridge.perform({ op: 'link', source: refs.get(row.id), target: refs.get(other) });
+        }
+    }
+    return { refs: [...refs.values()], total: rows.length, placed: taken.length };
 }
 
 // --- cartes (arbres)
@@ -289,6 +324,11 @@ export function createDataset({ bridge, say, onDone = () => {} }) {
             const rows = await readRows(file);
             if (!rows.length) return say(`${file.name} : aucune ligne lue.`, 'error');
             say(`Import de ${file.name} : ${Math.min(rows.length, MAX_ROWS)} nodes…`);
+            if (ownExport(rows)) {  // un export de Nodz : les nodes tels qu'ils étaient
+                const back = await restore(rows, { bridge, center: bridge.center() });
+                say(`${back.placed} nodes restaurés avec leurs liens${back.total > back.placed ? ` (${MAX_ROWS} au plus)` : ''}.`);
+                return onDone(back.refs);
+            }
             const done = await plant(rows, file.name.replace(/\.[^.]+$/, ''), { bridge, center: bridge.center() });
             say(`${done.placed} nodes posés (libellé : ${done.label}${done.group ? `, groupés par ${done.group}` : ''})`
                 + (done.total > done.placed ? ` ; ${done.total - done.placed} lignes laissées (${MAX_ROWS} au plus)` : '') + '.');

@@ -119,9 +119,17 @@ const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node 
 const fixed = new Set();  // nodes de code déjà renvoyés une fois au Gardien pour correction
 const reminders = createReminders({ bridge, say, sfx });  // rappels : compte à rebours, notifications, panneau de la cloche
 const tour = createTour({ bridge, say });
-const room = createRoom({ bridge, say });
+// Visite : bouton du dock, à partir du node sélectionné (le dernier d'une multisélection).
+const visitButton = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'visitButton', title: 'Visite' });
+document.getElementById('originButton')?.after(visitButton);
+visitButton.addEventListener('click', () => {
+    const node = selectedNodes.filter(n => n.isConnected).at(-1);
+    if (node) tour.start(node);
+    else say('Sélectionne le node d\'où part la visite.');
+});
+const room = createRoom({ bridge, say });  // salons multijoueur : bouton Partager, curseurs, gestes en direct
 const dataset = createDataset({ bridge, say, onDone: refs => bridge.perform({ op: 'frame', refs }) });  // import de cartes et de tableaux
-createExchange({ dataset, filters });  // bouton Export du dock : tout l'import et l'export  // salons multijoueur : bouton Partager, curseurs, gestes en direct
+createExchange({ dataset, filters });  // bouton Export du dock : tout l'import et l'export
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
 const ide = createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur

@@ -33,7 +33,7 @@ const STEPS = [
     ['ai', 'Le Gardien pense avec toi', 'L\'IA de ton univers, locale ou par API. Sélectionne des nodes et ouvre la bulle en bas à droite, '
         + 'ou [Ctrl]+[Entrée] dans un node. Il crée, relie, range, cherche sur le web, dessine. Tout s\'annule par [Ctrl]+[Z].'],
     ['tidy', 'Range, partage, exporte', 'Branche ▾ sur un node range sa branche en arbre ou la replie. Partager ouvre un salon en direct ; '
-        + 'Export importe et exporte tes cartes (Markdown, OPML, FreeMind, XMind, CSV, PDF).'],
+        + 'Importer / Exporter fait entrer et sortir tes cartes (Markdown, OPML, FreeMind, XMind, CSV, PDF).'],
 ];
 
 // Raccourcis : [touche] devient une touche en relief.
@@ -84,11 +84,14 @@ const CARDS = [
     ['Modes', 'Pensée : il pense en nodes. Profond : réflexion libre d\'abord. Auto : web, fichiers, agents et missions.'],
     ['Web, Dessin, Image', 'Les puces au-dessus de la saisie : recherche web sourcée, croquis du Gardien sur un node, image FLUX '
         + '(ou dessin si FLUX manque).'],
-    ['Pastille d\'un node', 'Gardien pour le lui envoyer, Visite pour parcourir sa branche, Amont et Aval pour étendre la sélection '
-        + 'à sa seule lignée, Branche ▾ pour ranger ou replier.'],
+    ['Pastille d\'un node', 'Branche ▾ pour ranger sa branche en arbre ou la replier ; Sélection ▾ pour sélectionner sa lignée : '
+        + 'Amont (ses parents), Aval (ses enfants) ou Tout ce qui lui est relié.'],
+    ['Visite', 'Bouton lecture du dock : la caméra parcourt la carte à partir du node sélectionné, de lien en lien, et te laisse '
+        + 'choisir à chaque embranchement.'],
     ['Pastille d\'une sélection', 'Gardien · N nodes les joint au chat ; Ordonner : la physique les éclate puis les range.'],
-    ['Importer / Exporter', 'Bouton Export du dock : une carte (Markdown, OPML, FreeMind, XMind) se pose en arbre, un tableau (CSV, Excel, JSON) '
-        + 'en nodes ; la sélection, la dimension ou les filtres repartent en CSV, Markdown, OPML, FreeMind ou PDF.'],
+    ['Importer / Exporter', 'Bouton du dock : une carte (Markdown, OPML, FreeMind, XMind) se pose en arbre, un tableau (CSV, Excel, JSON) '
+        + 'en nodes, un CSV exporté par Nodz redonne ses nodes et ses liens ; la sélection, la dimension ou les filtres repartent en CSV, '
+        + 'Markdown, OPML, FreeMind ou PDF.'],
     ['Salon', 'Bouton Partager du dock : ta dimension s\'ouvre par un lien. Curseurs et gestes en direct, tout s\'enregistre chez toi ; '
         + 'Suivre cale ta caméra sur celle d\'un autre, l\'hôte peut exclure.'],
     ['Rappels', 'Bouton Rappel d\'un node, ou « rappelle-moi vendredi 9 h… » au Gardien : compte à rebours sur le node, notification '

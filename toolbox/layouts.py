@@ -16,7 +16,7 @@ LAYOUTS = ['matrix', 'kanban', 'timeline', 'pyramid', 'tree', 'list']
 SCHEMAS = ['decision', 'family', 'organic', 'org', 'why', 'swot', 'eisenhower', 'bcg', 'ansoff', 'tows', 'm3x3', 'bmc',
            'porter', 'pestel', 'ikigai', 'smart', 'pdca', 'process', 'timeline', 'kanban', 'design', 'aida', 'maslow', 'ishikawa']
 SCHEMA_SPAN = 700  # place réservée autour d'un modèle posé
-STEP = 240  # entre deux centres de nodes (rayon 85, marge comprise)
+STEP = 300  # entre deux centres de nodes (rayon 85, marge comprise)
 MAX_NODES = 60
 MAX_ORGANIC = 80  # un raisonnement développé peut compter plus d'idées qu'un gabarit
 

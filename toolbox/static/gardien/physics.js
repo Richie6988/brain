@@ -9,8 +9,8 @@ import { dragging } from './gesture.js';
 const CHARGE = 3;        // répulsion : accélération au contact (d = ra + rb), en unités par image²
 const REACH = 5;         // au-delà de REACH × (ra + rb), deux nodes s'ignorent
 const SPRING = 0.03;     // raideur des liens
-const REST = 70;         // longueur au repos d'un lien, bord à bord
-const CONTACT = 24;      // écart bord à bord sous lequel deux nodes se poussent franchement (ils se touchent)
+const REST = 140;        // longueur au repos d'un lien, bord à bord
+const CONTACT = 50;      // écart bord à bord sous lequel deux nodes se poussent franchement (ils se touchent)
 const FIRM = 0.35;       // raideur de ce contact
 const TETHER = 0.012;    // rappel vers le lieu de naissance
 const DAMPING = 0.82;    // vitesse gardée d'une image à l'autre

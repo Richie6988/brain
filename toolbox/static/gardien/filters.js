@@ -103,6 +103,7 @@ export function createFilters({ onAttach = () => {} } = {}) {
         panel.hidden = !on;
         button.classList.toggle('on', on);
         if (on) {
+            selectedNodes.forEach(node => picked.add(node.id));  // la sélection de l'univers arrive cochée
             refresh();
             search.focus();
         } else {
