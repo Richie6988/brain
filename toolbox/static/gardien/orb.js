@@ -5,6 +5,8 @@
 // le rend compagnon. Sous automatisation (bancs du feel), il reste au coin : il ne passe jamais sous un clic de test.
 // Il ne suit pas en permanence : il s'endort (yeux clos, respiration lente) après un moment sans qu'on vienne à lui, et
 // reste où il est ; le survoler, le cliquer ou une réponse du Gardien le réveillent, il suit de nouveau un moment.
+// C'est la seule présence du Gardien : quand il travaille, une bulle à côté de l'orbe écrit sa réflexion en direct, puis
+// ce qu'il fait ; hors du coin, l'orbe vole jusqu'au node qu'il pose, et rentre quand il a fini.
 
 const KEY = 'gardien-orb';
 const SIZE = 50;
@@ -152,9 +154,48 @@ export function createOrb({ root, bubble, panel, close }) {
         }, 2500 + Math.random() * 4000);
     })();
 
+    // La bulle : sa réflexion mot à mot (les derniers mots), puis ses gestes ; elle s'efface un peu après la fin.
+    const said = document.createElement('span');
+    said.className = 'go-say';
+    bubble.append(said);
+    let text = '', home = null, quiet = 0;
+    const write = value => {
+        clearTimeout(quiet);
+        text = value;
+        said.textContent = text.length > 160 ? `…${text.slice(-159)}` : text;
+        bubble.classList.toggle('saying', !!text);
+    };
+
     apply();
     return {
         place,
+        muse(piece) { wake(); write(text.startsWith('·') ? piece.trimStart() : text + piece); },  // réflexion en flux
+        say(line) { write(`· ${line}`); },  // un geste : remplace la réflexion
+        // Au travail sur ce node : hors du coin, l'orbe y vole (et retiendra où rentrer).
+        visit(id) {
+            const node = id && document.getElementById(id);
+            if (!node || state.mode === 'dock' || drag || !panel.hidden) return;
+            const r = node.getBoundingClientRect();
+            if (!r.width || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return;
+            home ||= pos && { ...pos };
+            root.classList.add('flying');
+            pos = clamp(r.right + 8, r.top - SIZE / 2);
+            root.style.left = `${pos.x}px`;
+            root.style.top = `${pos.y}px`;
+        },
+        // Fini : la bulle s'efface, l'orbe rentre à sa place.
+        rest() {
+            quiet = setTimeout(() => {
+                write('');
+                if (home && state.mode !== 'dock') {
+                    pos = home;
+                    root.style.left = `${pos.x}px`;
+                    root.style.top = `${pos.y}px`;
+                }
+                home = null;
+                setTimeout(() => root.classList.remove('flying'), 600);
+            }, 2500);
+        },
         speak() {
             wake();
             bubble.classList.remove('speak');

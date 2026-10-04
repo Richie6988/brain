@@ -358,28 +358,6 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
 .gm-window { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 16px; margin: 10px 0 2px; padding: 8px 12px; background: #0b1220; color: #cbd5e1; border-radius: 12px; }
 .gm-window .gm-head { grid-column: 1 / -1; color: #e2e8f0; }
 
-/* Fil de suivi du Gardien : plan à venir, étape en cours, étapes faites (sous la tour de contrôle) */
-#gardien-follow {
-    position: fixed; top: 80px; left: 56px; width: 280px; padding: 10px 12px; box-sizing: border-box; pointer-events: none;
-    font: 11px 'Cascadia Code', monospace; color: #cbd5e1; background: rgba(5, 12, 23, 0.8);
-    border: 1px solid rgba(104, 72, 166, 0.55); border-radius: 14px; box-shadow: 0 0 18px rgba(104, 72, 166, 0.25);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: opacity 0.9s ease;
-}
-#gardien-follow[hidden] { display: none; }
-#gardien-follow.fade { opacity: 0; }
-#gardien-follow p { margin: 0; color: #f3ee58; display: flex; gap: 7px; }
-#gardien-follow p::before { content: ''; flex: none; width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: #1E90FF; box-shadow: 0 0 6px #1E90FF; animation: gardien-blink 1s ease-in-out infinite; }
-#gardien-follow.finished p { color: #06ffa5; }
-#gardien-follow.finished p::before { background: #06ffa5; box-shadow: none; animation: none; }
-#gardien-follow p.agent { color: #33FF99; }
-#gardien-follow p.waiting { color: #94a3b8; }
-#gardien-follow p.error { color: #FF6B6B; }
-#gardien-follow ol { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; }
-#gardien-follow ol:empty { display: none; }
-#gardien-follow ol:first-of-type li { color: #64748b; text-decoration: line-through; text-decoration-color: rgba(100, 116, 139, 0.5); }
-#gardien-follow ol:last-of-type::before { content: 'À venir'; display: block; color: #6848A6; letter-spacing: 0.06em; margin-bottom: 2px; }
-#gardien-follow ol:last-of-type li::before { content: '○ '; color: #6848A6; }
-
 /* Sélecteur de contexte (au-dessus du dock) : choisir des nodes de toutes les dimensions pour le Gardien */
 #gardien-context-button::after { content: none; }
 #gardien-context-button svg { width: 18px; height: 18px; fill: none; stroke: #eef2ff; stroke-width: 1.8; stroke-linejoin: round; }
@@ -460,8 +438,6 @@ body:has(.universe.lightmode) .gm-ring circle.high { stroke: #dc2626; }
 body:has(.universe.lightmode) .gm-hud .gm-name { color: #440852; }
 body:has(.universe.lightmode) .gm-hud .gm-bar { background: rgba(68, 8, 82, 0.1); }
 body:has(.universe.lightmode) .gm-hud .gm-bar i.ok { background: #10b981; }
-body:has(.universe.lightmode) #gardien-follow { color: #5b4a78; background: rgba(255, 255, 255, 0.9); }
-body:has(.universe.lightmode) #gardien-follow p { color: #440852; }
 body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255, 0.92); color: #440852; border-color: rgba(68, 8, 82, 0.18); }
 
 /* Fenêtre Agents & modèles */
@@ -693,23 +669,15 @@ body:has(.universe.lightmode) #gardien-toast p { background: rgba(255, 255, 255,
 .gc-choices button.on { opacity: 1; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); border-color: transparent; }
 body:has(.universe.lightmode) .gc-choices button { color: #440852; background: rgba(68, 8, 82, 0.06); }
 
-/* Présence du Gardien : son avatar glisse jusqu'au node où il travaille, avec ce qu'il fait ; il ne capte aucun geste. */
-#gardien-presence {
-    position: fixed; left: 0; top: 0; z-index: 40; display: flex; align-items: center; gap: 6px; pointer-events: none;
-    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s;
-}
-#gardien-presence[hidden] { display: flex; opacity: 0; }
-#gardien-presence i {
-    width: 22px; height: 22px; flex: none; border-radius: 50%; background: #fff url('agents.svg') no-repeat center / 65%;
-    box-shadow: 0 0 0 2px #b89af2, 0 0 14px rgba(104, 72, 166, 0.8);
-}
-#gardien-presence.working i { animation: gp-pulse 0.9s ease-in-out infinite; }
-#gardien-presence span {
-    max-width: 220px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    font: 10px 'Cascadia Code', monospace; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF);
-}
-#gardien-presence span:empty { display: none; }
-@keyframes gp-pulse { 50% { box-shadow: 0 0 0 4px #b89af2, 0 0 22px rgba(30, 144, 255, 0.9); } }
+/* Bulle de la mascotte (orb.js) : la réflexion du Gardien en direct, puis ses gestes ; elle ne prend pas la souris. */
+.go-say { position: absolute; right: calc(100% + 10px); bottom: 18px; width: max-content; max-width: min(300px, 70vw); padding: 7px 11px;
+    border-radius: 14px 14px 4px 14px; font: 11px/1.45 'Cascadia Code', monospace; color: #e9e3ff; text-align: left; white-space: normal;
+    background: rgba(20, 16, 44, 0.92); border: 1px solid rgba(184, 154, 242, 0.55); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 14px rgba(104, 72, 166, 0.35);
+    pointer-events: none; opacity: 0; transform: translateY(4px) scale(0.97); transition: opacity 0.25s, transform 0.25s; }
+#gardien-chat-button.saying .go-say { opacity: 1; transform: none; }
+#gardien-chat.open .go-say { display: none; }  /* chat ouvert : la réflexion s'y écrit déjà */
+#gardien-chat.flying { transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1), top 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+body:has(.universe.lightmode) .go-say { color: #440852; background: rgba(255, 255, 255, 0.95); border-color: rgba(104, 72, 166, 0.35); }
 
 /* Barre d'outils du node (nodebar.js), au style de la pastille du Gardien : une pilule de verre au-dessus du node
    actif, et la poignée de taille HTML. Elles remplacent les barres SVG de Nodz, gardées hors de la page (node.tools) ;
@@ -1032,25 +1000,12 @@ body:has(.universe.lightmode) .node-group[type=code] .node-text-input pre.code-o
 body.gardien-thoughts-dim .gardien-thought, body.gardien-thoughts-dim .gardien-thought-link { opacity: 0.15; transition: opacity 0.3s; }
 body.gardien-thoughts-off .gardien-thought, body.gardien-thoughts-off .gardien-thought-link { display: none !important; }  /* Nodz pose display en ligne */
 
-/* Le logo Nodz dans la pastille des jauges (en tête) : il flotte et respire, comme les anneaux qui bougent. */
-.gm-pill #brand-container { position: static !important; width: auto; transition: none; pointer-events: none; }  /* son image déborde : les gestes sur l'univers la traversent */
-.gm-pill #logo { width: 104px !important; margin: -17px -22px -17px -26px; animation: gm-logo 7s ease-in-out infinite; transform-origin: 50% 55%; }
-@keyframes gm-logo {
-    0%, 100% { transform: translateY(0) rotate(0deg); filter: drop-shadow(0 0 2px rgba(184, 154, 242, 0.5)); }
-    25% { transform: translateY(-1.5px) rotate(-3deg); filter: drop-shadow(0 0 6px rgba(30, 144, 255, 0.8)); }
-    50% { transform: translateY(0) rotate(0deg) scale(1.04); filter: drop-shadow(0 0 3px rgba(184, 154, 242, 0.6)); }
-    75% { transform: translateY(1.5px) rotate(3deg); filter: drop-shadow(0 0 6px rgba(104, 72, 166, 0.9)); }
-}
-@media (prefers-reduced-motion: reduce) { .gm-pill #logo { animation: none; } }
+/* Une seule mascotte, l'orbe du Gardien : le logo animé de Nodz n'est plus affiché. */
+#brand-container { display: none !important; }
 
 /* Vue hyperspace chargée (plus de 1 500 nodes) : le contenu en étiquette légère plutôt qu'en vignette. */
 .gardien-side-layer .gs-label { fill: #e2e8f0; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: rgba(5, 12, 23, 0.8); stroke-width: 3px; }
 body:has(.universe.lightmode) .gardien-side-layer .gs-label { fill: #440852; stroke: rgba(255, 255, 255, 0.8); }
-
-/* Le fil du Gardien dans la bande déroulante de la pastille, sous le nom du modèle : visible quand on la déplie. */
-.gm-hud #gardien-follow { position: static; width: auto; margin: 6px -2px 2px; padding: 7px 8px; border-radius: 10px;
-    background: rgba(104, 72, 166, 0.14); border-color: rgba(104, 72, 166, 0.35); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-.gm-hud:not(.open) #gardien-follow { display: none; }
 
 /* Relier en glissant (linkdrop.js) : le node touché depuis une demi-seconde s'allume, le lien se fera au relâcher. */
 .node-group.gardien-link-armed { filter: drop-shadow(0 0 6px #1E90FF) drop-shadow(0 0 14px rgba(184, 154, 242, 0.9)); animation: gardien-link-armed 0.8s ease-in-out infinite alternate; }

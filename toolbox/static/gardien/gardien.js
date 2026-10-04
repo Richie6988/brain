@@ -25,7 +25,6 @@ import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
 import { createPhysics } from './physics.js';
 import './portal.js';  // window.portalRing : l'anneau vivant des portails, que Nodz pose en créant un node
-import { createPresence } from './presence.js';
 import { createReminders } from './reminders.js';
 import { createSchemas } from './schemas.js';
 import { createSearch } from './search.js';
@@ -48,61 +47,13 @@ function say(text, kind = '') {
     return line;
 }
 
-// Fil de suivi : plan annoncé, étape en cours, étapes faites ; s'efface après la réponse. Il vit dans la bande
-// déroulante de la pastille des jauges : une demande la déplie, elle se replie après la réponse (si elle était repliée).
-const follow = (() => {
-    const card = document.createElement('aside');
-    card.id = 'gardien-follow';
-    card.setAttribute('aria-live', 'polite');
-    card.hidden = true;
-    const now = document.createElement('p');
-    const done = document.createElement('ol');
-    const next = document.createElement('ol');
-    card.append(now, done, next);
-    document.getElementById('button-container').after(card);
-    let timer = null, unfolded = false;
-    const hud = () => card.closest('.gm-hud');
-    const item = (text, className = '') => Object.assign(document.createElement('li'), { textContent: text, className });
-    return {
-        start() {
-            clearTimeout(timer);
-            if (hud() && !hud().classList.contains('open')) {
-                hud().classList.add('open');
-                unfolded = true;
-            }
-            card.hidden = false;
-            card.classList.remove('fade', 'finished');
-            now.textContent = 'Le Gardien réfléchit…';
-            done.replaceChildren();
-            next.replaceChildren();
-        },
-        plan(steps) { next.replaceChildren(...steps.map(step => item(step))); },
-        step(text, className = '') {
-            if (now.textContent && !now.classList.contains('idle') && !now.classList.contains('waiting')) done.append(item(now.textContent));
-            while (done.children.length > 3) done.firstChild.remove();
-            now.textContent = text;
-            now.className = className;
-            // L'étape prévue qui commence quitte la liste « à venir » (mots proches : relie / relier).
-            const stems = value => value.toLowerCase().split(/[^\p{L}\d]+/u).filter(w => w.length > 3).map(w => w.slice(0, 5));
-            const words = new Set(stems(text));
-            const match = [...next.children].find(li => stems(li.textContent).some(w => words.has(w)));
-            if (match) match.remove();
-        },
-        end(text) {
-            this.step(text, 'idle');
-            next.replaceChildren();
-            card.classList.add('finished');
-            timer = setTimeout(() => {
-                card.classList.add('fade');
-                timer = setTimeout(() => {
-                    card.hidden = true;
-                    if (unfolded) hud()?.classList.remove('open');
-                    unfolded = false;
-                }, 900);
-            }, 5000);
-        },
-    };
-})();
+// Fil de suivi : la mascotte le dit, dans la bulle de l'orbe (réflexion en direct, puis chaque geste) ; plus de
+// liste d'étapes dans la pastille des jauges.
+const follow = {
+    start() { chat.mascot.say('Je réfléchis…'); },
+    step(text) { chat.mascot.say(text); },
+    end(text) { chat.mascot.say(text); },
+};
 
 // Un geste commencé sur l'univers (sélection rectangle, glissé) traverse les éléments flottants du Gardien
 // (chat, pastille, lecteur de visite) : le relâcher par-dessus ne le coupe pas.
@@ -166,7 +117,6 @@ bridge.useIde(ide);  // le Codeur du Gardien y écrit et y exécute son code
 createSide({ bridge, say, filters });  // vue de côté : X = numéro de dimension, Y = Y
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
-const presence = createPresence();  // l'avatar du Gardien là où il travaille
 const timeline = createHistory({ onGesture: kind => sfx.play(kind) });  // Ctrl+Z / Ctrl+Y sur tout geste, du clavier, de la souris ou du Gardien
 // Ouvrir une dimension (portail, Entrée sur un node) : l'arpège du passage.
 const nodzNewLayer = window.createNewLayer;
@@ -329,8 +279,6 @@ button.addEventListener('mouseover', () => createTooltip('agentsButton', 'Agents
 const tower = monitor.panel('gm-hud');
 tower.head.addEventListener('click', () => library.open('library'));
 document.getElementById('button-container').after(tower.root);  // sous les popups de Nodz, comme la barre
-tower.root.querySelector('.gm-pill').prepend(document.getElementById('brand-container'));  // le logo Nodz, animé, en tête des jauges
-tower.head.after(document.getElementById('gardien-follow'));  // le fil du Gardien dans la bande déroulante, sous le modèle chargé
 
 async function loadGuardian() {
     const { agents } = await api.request('GET', 'toolbox/agents');
@@ -389,23 +337,25 @@ async function ask(node, text, attached = [], direct = !!node) {
             think.append(piece);
         };
         const context = bridge.context();
-        let doing = '';  // dernière intention annoncée : l'étiquette de l'avatar du Gardien
         const now = new Date();  // l'heure de l'humain : ses rappels (« vendredi 9 h »)
         const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} `
             + `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}, ${now.toLocaleDateString('fr-FR', { weekday: 'long' })}`;
         await api.command({ prompt: text, context: { ...context, now: stamp, mode: chat.mode(), ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
             source: direct ? 'node' : 'chat', ...(history.length && !direct ? { history } : {}) } }, (type, data) => {
-            if (type === 'thinking') thought(data);
+            if (type === 'thinking') {
+                thought(data);
+                if (chat.mode() !== 'auto') chat.mascot.muse(data.text);  // sa réflexion, en direct sur la mascotte (en Auto : du JSON brut)
+            }
             else if (type === 'stopped') stopped = true;
             else if (type === 'text' || type === 'notice') reply(type, data.text);
             else if (type === 'queued') {
                 const where = data.position === 1 ? 'Tu es le prochain : le Gardien finit une autre demande' : `En file d'attente : ${data.position}e`;
                 follow.step(where, 'waiting');
                 chat.status(where);
-            } else if (type === 'plan') follow.plan(data.steps);
+            }
             else if (type === 'timing') timing = data;
             // Intentions et gestes s'enchaînent : chaque étape s'affiche quand la page l'exécute.
-            else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); doing = data.text; });
+            else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); });
             // Note pour plus tard : annoncée dans le chat, posée dans Échanges quand l'humain l'ouvre.
             else if (type === 'note') actions = actions.then(() => { chat.add('guardian', `Note laissée dans Échanges : ${data.text}`, '', data.choices); refreshLetters(); });
             // Question à l'humain : ses choix sont des boutons dans le chat, qui s'ouvre.
@@ -414,7 +364,7 @@ async function ask(node, text, attached = [], direct = !!node) {
             else if (type === 'agent') actions = actions.then(() => follow.step(`${data.agent} ${data.role === 'image' ? 'dessine' : 'écrit'} : ${data.task}`, 'agent'));
             else if (type === 'action') {
                 actions = actions.then(() => perform(data))
-                    .then(() => presence.at(bridge.idOf(data.ref || data.target || data.source), doing))
+                    .then(() => chat.mascot.visit(bridge.idOf(data.ref || data.target || data.source)))
                     .catch(error => follow.step(error.message, 'error'));
                 if (data.op === 'create') created.push(data.ref);
                 else if (['update', 'style'].includes(data.op)) changed.push(data.ref);
@@ -457,7 +407,7 @@ async function ask(node, text, attached = [], direct = !!node) {
         reply('error', error.message);
     } finally {
         node?.classList.remove('gardien-thinking');
-        presence.leave();
+        chat.mascot.rest();
         timeline.end();
         chat.busy(false);
     }

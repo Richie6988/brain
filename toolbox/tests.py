@@ -562,7 +562,7 @@ class FitTests(SimpleTestCase):
 
         light = lean(think_schema(THINK_OPS))
         item = light['properties']['calls']['items']
-        self.assertEqual((light['required'], item['required'], item['properties']['op']['enum']), (['calls'], ['op'], THINK_OPS))
+        self.assertEqual((light['required'], item['required'], item['properties']['op']['enum']), (['reflexion', 'calls'], ['op'], THINK_OPS))
         self.assertNotIn('maxItems', light['properties']['calls'])  # 150 répétitions imbriquées dans la grammaire
         self.assertEqual(set(item['properties']), {'op'})  # le reste : JSON libre, validé par le Gardien
         self.assertIn('anyOf', item['additionalProperties'])
@@ -1524,16 +1524,17 @@ class GuardianTests(TestCase):
         final = next(a for a in self.actions() if a['op'] == 'update' and a['ref'] == 't1')
         self.assertIn('Premier pas qui se forme', final['text'])
 
-    def test_calls_are_planned_then_carried_out(self):
-        # Plan puis exécution : les think poussent pendant l'écriture ; les autres calls attendent la fin du plan,
-        # puis s'exécutent dans l'ordre ; nodes pose un lot d'un coup, chacun relié à near.
+    def test_calls_run_as_they_are_written(self):
+        # Chaque call s'exécute dès qu'il est fermé dans le flux, pendant que le modèle écrit la suite (avant : tout à la
+        # fin, 40 calls d'affilée sans rien à l'écran) ; la réflexion écrite d'abord s'affiche mot à mot ; nodes pose un
+        # lot, chacun relié à near.
         events = self.events
 
         class Streaming(ScriptedEngine):
             def chat(self, model, messages, *, json_schema=None, on_text=None, **params):
                 self.calls.append({'messages': messages})
                 self.seen = []
-                pieces = ['{"calls": [{"op": "think", "text": "Kyoto"}, {"op": "put", "ref": "new1", "text": "Temples {zen}", "near": "t1", "links": ["t1"]}',
+                pieces = ['{"reflexion": "Un voyage au Japon :', ' deux villes.", "calls": [{"op": "think", "text": "Kyoto"}, {"op": "put", "ref": "new1", "text": "Temples {zen}", "near": "t1", "links": ["t1"]}',
                           ', {"op": "think", "kind": "decision", "under": "t1", "text": "Tok', 'yo"}, {"op": "nodes", "near": "new1", "items": ["a", "b", "c"]}]}']
                 for piece in pieces:
                     on_text(piece)
@@ -1541,15 +1542,14 @@ class GuardianTests(TestCase):
                 return ''.join(pieces)
 
         engine = self.think(engine=Streaming())
-        self.assertEqual(engine.seen, [['t1'], ['t1', 't2'], ['t1', 't2']])  # rien d'autre avant la fin du plan
-        created = [a['ref'] for a in self.actions() if a['op'] == 'create']
-        self.assertEqual(created, ['t1', 't2', 'new1', 'lot1.1', 'lot1.2', 'lot1.3'])
+        self.assertEqual(engine.seen, [[], ['t1', 'new1'], ['t1', 'new1', 't2'], ['t1', 'new1', 't2', 'lot1.1', 'lot1.2', 'lot1.3']])
+        self.assertEqual(''.join(d['text'] for k, d in events if k == 'thinking'), 'Un voyage au Japon : deux villes.')
         links = [(a['source'], a['target']) for a in self.actions() if a['op'] == 'link']
         self.assertIn(('t1', 't2'), links)  # under : branche de t1
         self.assertIn(('new1', 'lot1.3'), links)
         self.assertIn('<b>✓ Tokyo</b>', next(a['text'] for a in self.actions() if a['op'] == 'update' and a['ref'] == 't2'))
         self.assertIn('Temples {zen}', next(a['text'] for a in self.actions() if a.get('ref') == 'new1' and a['op'] == 'create'))
-        self.assertIn("J'exécute mon plan : 2 calls", [d['text'] for k, d in self.events if k == 'intent'])
+        self.assertIn('Je pose 3 nodes', [d['text'] for k, d in self.events if k == 'intent'])
         self.assertEqual(self.errors(), [])
 
     def test_branches_grow_together_with_a_model_by_api(self):

@@ -159,7 +159,7 @@ Agents équipés :
 # --- Mode Pensée (par défaut dans l'univers) : Nodz est l'API de l'IA. Elle ne répond que par des calls : ses think
 # deviennent aussitôt des nodes discrets pendant qu'elle écrit ; ses autres calls forment un plan, exécuté une fois écrit.
 # Pas de chat ; l'automatisation lourde (fichiers, agents, missions) reste au mode Automatisation (boucle de handle()).
-THINK_OPS = ['think', 'put', 'nodes', 'style', 'link', 'grow', 'build', 'schema', 'explore', 'portal']
+THINK_OPS = ['think', 'put', 'nodes', 'style', 'link', 'grow', 'build', 'schema', 'explore', 'portal', 'ask']
 # L'agentique minimal du mode Pensée, par le catalogue d'outils (ceux cochés dans Agents & modèles) : modifier,
 # supprimer, aller dans les dimensions, lire (l'univers, un document, le web) avant de continuer sa pensée.
 THINK_TOOLS = ['update', 'archive', 'unlink', 'travel', 'goto', 'search_nodes', 'inventory', 'read_file',
@@ -172,6 +172,7 @@ THINK_NAMES = {'archive': 'delete', 'update': 'edit'}
 MAX_THOUGHTS = 12
 MAX_CALLS = 150  # calls d'un plan
 MAX_BATCH = 40   # nodes d'un call nodes
+REFLEXION = 500  # caractères de la réflexion qui précède les calls
 THINK_TOKENS = 4096  # un plan de 150 calls tient dans la réponse ; la longueur réglée pour le modèle prime
 THOUGHT_RADIUS = 60      # place d'une pensée (petit node sans cadre)
 SPARK_RADIUS = 45        # place d'une étincelle de la réflexion libre (mode Profond)
@@ -193,7 +194,8 @@ MUSE = ('Avant ta réponse, pense librement à voix haute, sans JSON : fragments
 # text : le genre et la place d'une pensée sont connus dès son premier mot.
 THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'radius', 'content_type', 'children', 'links',
                 'layout', 'type', 'fill', 'rows', 'cols', 'items', 'cells', 'title', 'name', 'task', 'template',
-                'query', 'url', 'path', 'save_as', 'description', 'agent', 'prompt', 'strength', 'filename', 'slides', 'markdown')
+                'query', 'url', 'path', 'save_as', 'description', 'agent', 'prompt', 'strength', 'filename', 'slides', 'markdown',
+                'choices')
 # L'IA appelle l'IA : une branche confiée à une autre instance, qui la creuse depuis sa place dans l'arbre.
 MAX_EXPLORE, MAX_DEPTH, MAX_EXPLORATIONS = 2, 2, 4  # par réponse, profondeur, par demande
 LINEAGE = 8  # nodes du chemin dans l'arbre montrés au modèle
@@ -202,12 +204,14 @@ RESULT_COLORS = ['#4D96FF', '#33FF99', '#FFD93D', '#FF6B6B', '#C77DFF', '#FF9F45
 
 
 def think_schema(ops):
-    """La réponse du mode Pensée : uniquement des calls (parmi `ops`), un plan de MAX_CALLS au plus."""
+    """La réponse du mode Pensée : sa réflexion d'abord (quelques phrases, montrées en direct à l'humain), puis ses calls
+    (parmi `ops`), un plan de MAX_CALLS au plus, exécutés un par un dès qu'ils sont écrits."""
     fields = PLAN_SCHEMA['properties']['actions']['items']['properties']
     return {
         'type': 'object',
-        'required': ['calls'],
+        'required': ['reflexion', 'calls'],
         'properties': {
+            'reflexion': {'type': 'string', 'maxLength': REFLEXION},
             'calls': {'type': 'array', 'maxItems': MAX_CALLS, 'items': {'type': 'object', 'required': ['op'], 'properties': {
                 'op': {'type': 'string', 'enum': ops},
                 'kind': {'type': 'string', 'enum': list(KINDS)},
@@ -216,6 +220,36 @@ def think_schema(ops):
         },
     }
 
+
+
+class Musing:
+    """La réflexion du mode Pensée (champ "reflexion", écrit avant les calls), caractère par caractère : ce qui s'ajoute
+    à chaque fragment du flux, pour l'afficher pendant que le modèle l'écrit."""
+
+    START = re.compile(r'"reflexion"\s*:\s*"')
+    ESCAPES = {'n': ' ', 't': ' ', '"': '"', '\\': '\\', '/': '/'}
+
+    def __init__(self):
+        self.raw, self.inside, self.done, self.escape = '', False, False, False
+
+    def feed(self, piece):
+        out = []
+        for c in piece:
+            if self.done:
+                break
+            if not self.inside:
+                self.raw += c
+                self.inside = bool(self.START.search(self.raw))
+            elif self.escape:
+                out.append(self.ESCAPES.get(c, ''))
+                self.escape = False
+            elif c == '\\':
+                self.escape = True
+            elif c == '"':
+                self.done = True
+            else:
+                out.append(c)
+        return ''.join(out)
 
 
 class ThoughtStream:
@@ -442,6 +476,7 @@ def intent(action, nodes):
     op = action.get('op')
     return {
         'ask': lambda a: 'Je te pose une question',
+        'nodes': lambda a: f"Je pose {len(a.get('items') or [])} nodes",
         'note': lambda a: 'Je te laisse une note dans Échanges',
         'grow': lambda a: f"Je fais pousser « {short(str(a.get('text', '')).strip().splitlines()[0] if str(a.get('text', '')).strip() else '')} »",
         'put': lambda a: f"J'écris {name(a.get('ref'))}" if str(a.get('ref', '')).startswith('N-') else f"Je crée « {short(a.get('text'))} »",
@@ -1586,8 +1621,11 @@ class Guardian(IaquaOps):
         self.formed, self.levels, self.whispers, self.explorations, self.gates = {}, {}, {}, [], []
         self.families = {}
         for round_ in range(MAX_READS + 1):
+            self.gathered, self.waiting_jobs, self.working_agents = [], [], agents
             raw = self.write(guardian, messages, request, depth)
             self.carry_out(agents)
+            if self.asked:
+                break  # question posée : la suite attend la réponse de l'humain
             if not self.gathered or round_ == MAX_READS:
                 break
             messages = [*messages, {'role': 'assistant', 'content': raw}, {'role': 'user', 'content': self.resume()}]
@@ -1598,11 +1636,13 @@ class Guardian(IaquaOps):
     def write(self, guardian, messages, request, depth):
         """Un appel au modèle : ses think deviennent des nodes au fil de l'écriture, ses autres calls vont au plan.
         Rend sa réponse brute."""
-        self.planned, self.seen_calls = [], set()
-        stream = ThoughtStream(len(self.formed))
+        self.planned, self.seen_calls, self.ran = [], set(), 0
+        stream, musing = ThoughtStream(len(self.formed)), Musing()
 
         def heard(piece, chances=None):
             self.emit('tick', None)  # un arrêt demandé coupe le modèle au fragment suivant, même entre deux pensées
+            if said := musing.feed(piece):  # sa réflexion, en direct : la mascotte et le chat l'écrivent mot à mot
+                self.emit('thinking', {'round': 0, 'text': said})
             moved = stream.feed(piece)
             self.overheard(stream, piece, chances)
             for (kind, index), value in moved:
@@ -1641,28 +1681,30 @@ class Guardian(IaquaOps):
         call = self.remap(self.painted({**call, 'op': internal.get(call.get('op'), call.get('op'))}))
         if call.get('op') == 'put' and str(call.get('ref', '')).startswith('new') and call.get('near'):
             self.parents.setdefault(call['ref'], call['near'])
-        (self.gates if call.get('op') in ('portal', 'travel', 'goto') else self.planned).append(call)
-        if len(self.planned) == 1 or not len(self.planned) % 10:  # la file qui grossit, sans noyer le suivi
-            self.emit('intent', {'text': f'Plan : {len(self.planned)} call{"s" if len(self.planned) > 1 else ""} en file'})
+        if call.get('op') in ('portal', 'travel', 'goto'):
+            self.gates.append(call)
+            return
+        self.planned.append(call)
+        self.run_one(call)  # tout de suite : les nodes apparaissent un par un pendant que le modèle écrit la suite
+
+    def run_one(self, call):
+        """Un call du plan, exécuté dès qu'il est écrit. Un fichier produit (présentation, document) devient un node avec
+        son lien ; le travail des agents (rédaction, code, images) attend la fin du plan."""
+        made = len(self.files)
+        self.execute([call], self.working_agents)
+        self.waiting_jobs += self.jobs
+        if call.get('op') in FILE_OPS:
+            for path, link in self.files[made:]:
+                self.attach_file(path, link, call.get('near'))
+        else:
+            self.gathered += self.reads
+        self.ran += 1
 
     def carry_out(self, agents):
-        """Le plan écrit s'exécute, call après call, dans l'ordre ; l'avancement s'affiche par dizaines. Un fichier
-        produit (présentation, document) devient un node avec son lien ; les agents (rédaction, code, images) travaillent
-        ensuite, chacun dans son node."""
-        self.gathered, jobs, total = [], [], len(self.planned)
-        if total:
-            self.emit('intent', {'text': f"J'exécute mon plan : {total} call{'s' if total > 1 else ''}"})
-        for done, call in enumerate(self.planned, 1):
-            made = len(self.files)
-            self.execute([call], agents)
-            jobs += self.jobs
-            if call.get('op') in FILE_OPS:
-                for path, link in self.files[made:]:
-                    self.attach_file(path, link, call.get('near'))
-            else:
-                self.gathered += self.reads
-            if total >= 10 and not done % 10:
-                self.emit('intent', {'text': f'Plan : {done} / {total}'})
+        """Après l'écriture : ce que le flux n'a pas encore exécuté, puis les agents, chacun dans son node."""
+        for call in self.planned[self.ran:]:
+            self.run_one(call)
+        jobs, self.waiting_jobs = self.waiting_jobs, []
         for job in jobs:  # (agent, consigne, node) ou, pour une retouche d'image, plus l'image source
             self.delegate(*job)
 

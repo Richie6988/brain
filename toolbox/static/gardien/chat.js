@@ -256,6 +256,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     showMode();
     return {
         mode: () => mode,
+        mascot: orb,  // la mascotte : sa bulle et ses vols (gardien.js)
         // role : user, guardian, notice, error ; from : d'où vient le message (node N-12…) ; choices : question
         add(role, text, from, choices) {
             if (!text) return;
