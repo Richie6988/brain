@@ -276,15 +276,19 @@ class EngineTests(TestCase):
             def load_state(self, state):
                 self.loads += 1
 
+        # Le formateur de chat de llama-cpp-python, rendu du gabarit ci-dessus : la CI n'installe pas llama.cpp.
+        render = lambda messages: SimpleNamespace(prompt=''.join(f"<|{m['role']}|>{m['content']}\n" for m in messages), added_special=False)
+        chat_format = SimpleNamespace(Jinja2ChatFormatter=lambda template, eos_token, bos_token: lambda messages: render(messages))
         engine, llm = Engine(Broker()), Hybrid()
         system = {'role': 'system', 'content': 'Tu es le Gardien.'}
-        engine._resume(llm, [system, {'role': 'user', 'content': 'yo'}])
-        engine._resume(llm, [system, {'role': 'user', 'content': 'et maintenant ?'}])
-        self.assertEqual(llm.evals, [b'<|system|>Tu es le Gardien.\n<|user|>'])  # lu une seule fois, jusqu'au message
-        self.assertEqual((llm.saves, llm.loads), (1, 2))  # puis rechargé à chaque demande
-        plain = Hybrid()
-        plain._is_hybrid = False
-        engine._resume(plain, [system])
+        with mock.patch.dict('sys.modules', {'llama_cpp.llama_chat_format': chat_format}):
+            engine._resume(llm, [system, {'role': 'user', 'content': 'yo'}])
+            engine._resume(llm, [system, {'role': 'user', 'content': 'et maintenant ?'}])
+            self.assertEqual(llm.evals, [b'<|system|>Tu es le Gardien.\n<|user|>'])  # lu une seule fois, jusqu'au message
+            self.assertEqual((llm.saves, llm.loads), (1, 2))  # puis rechargé à chaque demande
+            plain = Hybrid()
+            plain._is_hybrid = False
+            engine._resume(plain, [system])
         self.assertEqual((plain.evals, plain.loads), ([], 0))  # modèle classique : llama.cpp réutilise déjà le début
 
     def test_unload_frees_the_model_at_once(self):
