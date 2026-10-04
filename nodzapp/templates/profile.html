@@ -259,39 +259,50 @@
     <div class="profile-content">
         <span class="close-btn" onclick="closeProfile()">&times;</span> 
      
-        <h3 class="section-title">User Profile</h3>
+        <!-- En-tête : avatar à l'initiale, nom, e-mail, offre -->
+        <header class="pf-hero">
+            <span id="pf-avatar" class="pf-avatar"></span>
+            <div class="pf-who">
+                <strong id="pf-name"></strong>
+                <small id="pf-email"></small>
+            </div>
+            <span id="pf-plan" class="pf-plan"></span>
+        </header>
+
+        <h3 class="section-title">Compte</h3>
 
         <div id="userProfile">
             <div class="field-container" data-field="username">
-                <label class="field-label field1">Name:</label>
+                <label class="field-label field1">Nom</label>
                 <span id="profile_name" class="field-value field2">Guest</span>
                 <span id="edit-username" class="edit-icon icon field3">✎</span>
             </div>
             <div class="field-container" data-field="email">
-                <label class="field-label field1">Email:</label>
+                <label class="field-label field1">E-mail</label>
                 <span id="profile_email" class="field-value field2">john.doe@example.com</span>
                 <span id="edit-email" class="edit-icon icon  field3">✎</span>
             </div>
             <div class="field-container" data-field="country">
-                <label class="field-label field1">Country:</label>
+                <label class="field-label field1">Pays</label>
                 <span id="profile_country" class="field-value field2">France</span>
                 <span id="edit-country" class="edit-icon icon field3">✎</span>
             </div>
             <div class="field-container" data-field="joinedDate">
-                <label class="field-label field1">Joined Date:</label>
+                <label class="field-label field1">Membre depuis</label>
                 <span id="profile_joined_date" class="field-value field2">Today?</span>
             </div>
             <div class="field-container" data-field="CurrentPlan">
-                <label class="field-label field1">Current Plan:</label>
+                <label class="field-label field1">Offre</label>
                 <span id="profile_plan" class="field-value field2">Free</span>
             </div>
         </div>
 
         <!-- Usage Statistics Section -->
+        <h3 class="section-title">Activité</h3>
         <div class="user-stats">
             <div style="display: flex; flex-direction: column; width: 100%; height:fit-content ; grid-column: 1; margin-top: 12px;"> 
                 <h2 id="nodesKPI" class="message">524</h2>
-                <h2 class="message">NODES</h2>
+                <h2 class="message">nodes</h2>
             </div>            
             <div class="charts-container" style="grid-column: 2;display: flex; justify-content: center;">                
                 <div class="chart">
@@ -301,15 +312,15 @@
         </div>
         <br>
         <div class="field-container" data-field="Referee" style="display: flex; justify-content:center; gap: 20px;">
-            <label class="field-label" style="position:relative;">Referrees:</label>
+            <label class="field-label" style="position:relative;">Parrainages</label>
             <span id="referrerKPI" class="message">0</span>
             <div style="text-align: center; margin-top: 30px; display: flex; align-items: center; margin-bottom: 20px;">
-                <p>Invite others to join using your referral link:</p>
+                <p>Invite d'autres personnes avec ton lien de parrainage :</p>
                 <button id="copyButton" 
                         class="submit-button">
-                    Link
+                    Copier le lien
                 </button>
-                <p id="copyMessage" style="color: #663399; font-size: 14px; display: none; margin-top: 10px;">Referral link copied to clipboard!</p>
+                <p id="copyMessage" style="color: #663399; font-size: 14px; display: none; margin-top: 10px;">Lien de parrainage copié.</p>
             </div>
         </div>
 
@@ -319,29 +330,29 @@
             <div class="subscription-upgrade">
                 
                 <div class="subscription-upgrade" style="background-color: #f8f8f8; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); max-width: 600px; margin: 30px auto; font-family: 'Cascadia Code', monospace;">
-                    <p style="font-size: 24px; font-weight: bold; color: #663399; text-align: center; margin-bottom: 20px;">Level Up Your Experience with Premium Features</p>
+                    <p style="font-size: 24px; font-weight: bold; color: #663399; text-align: center; margin-bottom: 20px;">Passer à Premium</p>
                     <ul id="feedback" style="font-size: 16px; margin: 0; padding-left: 20px; color: #444;">
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Extended Server Capabilities</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">Serveur plus puissant</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Unlimited Nodes & Dimensions</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">Nodes et dimensions illimités</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">High Document Size</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">Documents volumineux</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Multi-User Access</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">Accès à plusieurs</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">New Features Coming (AI, Voice Messages, etc.)</p>
+                            <p class="field-label" style="font-weight: bold; color: #333;">Nouveautés en avant-première</p>
                         </li>
                         <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Premium Support</p> 
+                            <p class="field-label" style="font-weight: bold; color: #333;">Support prioritaire</p> 
                         </li>
                     </ul>
                     <p style="color: #663399; text-align: center; font-size: 14px; margin-top: 20px;">
-                        Your support means the world to us! Not only does it motivate us, but it helps us continue refining and polishing this gem!
+                        Ton soutien nous aide à continuer de peaufiner Nodz.
                     </p>
                 </div>
                 
@@ -350,10 +361,10 @@
                     <div class="form-group">
                         <input type="checkbox" id="agree-terms" name="agree-terms" required>
                         <span for="agree-terms">
-                            I agree to the 
-                            <a href="{% url 'terms' %}" style="color:#663399" target="_blank">Terms and Conditions</a> 
-                            and 
-                            <a href="{% url 'privacy' %}" style="color:#663399" target="_blank">Privacy Policy</a>.
+                            J'accepte les
+                            <a href="{% url 'terms' %}" style="color:#663399" target="_blank">conditions d'utilisation</a>
+                            et la
+                            <a href="{% url 'privacy' %}" style="color:#663399" target="_blank">politique de confidentialité</a>.
                         </span>
                     </div>
                     <!-- Plan Selection -->
@@ -361,16 +372,16 @@
                         <select name="plan" id="plan" class="submit-button"
                         style="background-color: #383838; width:30%; text-align: center; font-family: 'Cascadia Code', monospace; font-size: 14px; border: 1px solid #ccc; padding: 5px; border-radius: 4px;" 
                         required>
-                            <option value="free" disabled>Free</option>
-                            <option value="monthly" selected>Monthly - 9.90€</option>
-                            <option value="yearly">Yearly - 99€</option>
+                            <option value="free" disabled>Gratuit</option>
+                            <option value="monthly" selected>Mensuel · 9,90 €</option>
+                            <option value="yearly">Annuel · 99 €</option>
                         </select>
-                        <button style="width:180px;" type="submit" id="pay-button" class="submit-button">Upgrade Now</button>
+                        <button style="width:180px;" type="submit" id="pay-button" class="submit-button">Passer à Premium</button>
                     </div>     
                 </form>
             </div>
              <!-- Contact Section -->
-             <h3 class="section-title">Feedback</h3>
+             <h3 class="section-title">Ton avis</h3>
             <div class="subscription" style="display: flex; align-items: center;">    
                 <textarea id="feedback-input" type="text" style="width: 100%; min-height: 30px;"></textarea>  
                 <span id="feedback-btn"></span>
@@ -379,7 +390,7 @@
         <!-- Delete account Section -->
         <div class="subscription">
             <h3 class="section-title"></h3>      
-            <button id="delete-account" class="danger-button">Delete Account</button>
+            <button id="delete-account" class="danger-button">Supprimer le compte</button>
         </div>
         
     </div>
@@ -566,12 +577,17 @@
                 target.textContent = date_joined;
                 target = document.getElementById('profile_plan');
                 if(premium === false) {
-                    target.textContent = 'FREE';
+                    target.textContent = 'Gratuit';
                 } else {
-                    target.textContent = 'PREMIUM';
+                    target.textContent = 'Premium';
                 }
                 target = document.getElementById('nodesKPI');
                 target.textContent = nodes;
+                document.getElementById('pf-name').textContent = pseudo;
+                document.getElementById('pf-email').textContent = email;
+                document.getElementById('pf-avatar').textContent = (pseudo || '?').trim().charAt(0).toUpperCase();
+                document.getElementById('pf-plan').textContent = premium === false ? 'Gratuit' : 'Premium';
+                document.getElementById('pf-plan').classList.toggle('premium', premium !== false);
 
                 // Select the feedback input element and apply improvements
                 var feedbackInput = document.getElementById('feedback-input');
@@ -599,7 +615,7 @@
                 nodeCategoryChart = new Chart(pieCtx, {
                     type: 'doughnut',  // anneau : pas de trait du centre quand une seule catégorie
                     data: {
-                        labels: ['Text', 'Image', 'Files', 'Sketch'],  // Node categories
+                        labels: ['Texte', 'Image', 'Fichiers', 'Dessin'],  // Node categories
                         datasets: [{
                             data: [text_nodes, image_nodes, file_nodes, sketch_nodes],  
                             backgroundColor: [
@@ -626,8 +642,9 @@
                         },
                         plugins: {
                             legend: {
-                                position: 'top',
+                                position: 'right',
                                 labels: {
+                                    color: '#a89cc4',
                                     usePointStyle: true,  // Use point style for better clarity
                                     font: {
                                         size: 14,  // Modern font size for clarity
