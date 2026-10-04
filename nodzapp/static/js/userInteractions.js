@@ -341,8 +341,10 @@ function nodeUnselection(node){
     node.tools.type.style.display = 'none';
 }
 
-let paramColor = 'rgba(39, 9, 39, 0.5)';
-let paramColorLight = 'rgba(232, 232, 232, 0.5)';
+// Plus de voile sur le node sélectionné : un remplissage transparent (toujours peint : le clic au centre le prend,
+// et « fill différent de none » reste la marque d'un node aux outils ouverts).
+let paramColor = 'transparent';
+let paramColorLight = 'transparent';
 
 function showParams(nodeGroup) {    
     const typeGroup = nodeGroup.tools.type;

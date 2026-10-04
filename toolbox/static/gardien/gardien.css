@@ -17,14 +17,16 @@
     box-shadow: 0 0 14px rgba(104, 72, 166, 0.55); transition: filter 0.15s, box-shadow 0.15s;
 }
 #gardien-send .send { padding-left: 5px; }
-#gardien-send:not(.multi) :is(.send, .arrange), #gardien-send.multi :is(.branch, .pick) { display: none; }
+#gardien-send:not(.multi) .arrange, #gardien-send.multi :is(.branch, .pick, kbd) { display: none; }
 #gardien-send .arrange, #gardien-send .branch { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
 #gardien-send .pick { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
 #gardien-send button[hidden] { display: none; }
+#gardien-send kbd { font: inherit; font-size: 9px; opacity: 0.75; padding: 1px 5px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 6px; }
 #gardien-send button:hover:not(:disabled) { filter: brightness(1.12); box-shadow: 0 0 20px rgba(30, 144, 255, 0.7); }
 #gardien-send button:disabled { opacity: 0.55; cursor: progress; }
 #gardien-send i { width: 20px; height: 20px; border-radius: 50%; background: rgba(255, 255, 255, 0.92) url('agents.svg') no-repeat center / 70%; }
 @keyframes gardien-appear { from { opacity: 0; transform: scale(0.85); } }
+
 
 /* Zone de saisie du node (grab.js) : l'anneau où Nodz prend le node, dessiné par-dessus, sans prendre la souris. */
 #gardien-grab { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 3; pointer-events: none; overflow: visible; }
@@ -32,7 +34,6 @@
     filter: drop-shadow(0 0 6px rgba(30, 144, 255, 0.45)); opacity: 0; transition: opacity 0.12s ease; }
 #gardien-grab.on .band { opacity: 1; }
 body:has(.universe.lightmode) #gardien-grab .band { fill: rgba(104, 72, 166, 0.12); stroke: rgba(104, 72, 166, 0.5); }
-
 /* Chat du Gardien, en bas à droite, au-dessus du compteur de nodes hors champ du coin */
 #gardien-chat { position: fixed; right: 20px; bottom: 84px; z-index: 32; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
     font: 12px 'Cascadia Code', monospace; }

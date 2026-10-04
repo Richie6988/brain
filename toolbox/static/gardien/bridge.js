@@ -440,14 +440,15 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         // L'humain déclenche l'IA : la pastille « Gardien » près du node en cours d'écriture (ou du seul node
         // sélectionné), ou Ctrl+Entrée (Cmd+Entrée sur Mac) dans le node. Écrire, déplacer ou quitter un
         // node ne lance rien.
-        // La pastille d'un node porte Branche ▾ (ranger, replier) et Sélection ▾ (amont, aval, tout ce qui lui est relié) ;
-        // celle d'une multisélection : Gardien · N nodes et Ordonner. La Visite part du bouton du dock (gardien.js).
+        // La pastille d'un node porte Gardien (l'envoyer, comme Ctrl+Entrée), Branche ▾ (ranger, replier) et Sélection ▾
+        // (amont, aval, tout ce qui lui est relié) ; celle d'une multisélection : Gardien · N nodes et Ordonner. La Visite
+        // part du bouton du dock (gardien.js).
         watchMessages(send) {
             const textOf = node => node.children[0]?.children[0]?.innerText?.trim() || '';
             const pill = document.createElement('div');
             pill.id = 'gardien-send';
             pill.hidden = true;
-            pill.innerHTML = '<button type="button" class="send" title="Joindre ces nodes à ta prochaine demande au Gardien (chat)"><i></i><span>Gardien</span></button>'
+            pill.innerHTML = '<button type="button" class="send"><i></i><span>Gardien</span><kbd>Ctrl ↵</kbd></button>'
                 + '<button type="button" class="arrange" title="Ordonner ces nodes : ils se repoussent et se posent">Ordonner</button>'
                 + '<button type="button" class="branch" title="Branche : ranger en arbre, replier">Branche ▾</button>'
                 + '<button type="button" class="pick" title="Sélection : amont, aval ou tout ce qui est relié">Sélection ▾</button>';
@@ -501,15 +502,17 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 const r = (shape || target).getBoundingClientRect();
                 pill.style.left = `${Math.min(window.innerWidth - pill.offsetWidth - 8, r.right + 8)}px`;
                 pill.style.top = `${Math.max(8, r.top + r.height / 2 - pill.offsetHeight / 2)}px`;
-                sendButton.disabled = target.classList.contains('gardien-thinking');
+                sendButton.disabled = target.classList.contains('gardien-thinking') || (!group.length && !textOf(target));
                 requestAnimationFrame(place);  // suit le node pendant les zooms et glissés
             };
             const show = (node, nodes = []) => {
                 if (typeof admin !== 'undefined' && admin) return;  // univers d'un autre compte, en lecture
                 group = nodes;
                 pill.classList.toggle('multi', nodes.length > 1);
-                label.textContent = `Gardien · ${nodes.length} nodes`;
+                label.textContent = nodes.length > 1 ? `Gardien · ${nodes.length} nodes` : 'Gardien';
+                sendButton.title = nodes.length > 1 ? 'Joindre ces nodes à ta prochaine demande au Gardien (chat)' : 'Envoyer ce node au Gardien (Ctrl+Entrée)';
                 branchButton.hidden = nodes.length > 1 || !kin(node, 'down').length;  // une branche : des enfants
+                pickButton.hidden = nodes.length > 1 || !kin(node, 'all').length;  // rien de relié : rien à sélectionner
                 if (target === node) return;
                 const idle = !target;
                 target = node;
@@ -528,12 +531,12 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 const input = document.activeElement;
                 return input?.isContentEditable ? input.closest?.('.node-group') : null;
             };
-            // Le node en cours d'écriture ou le seul node sélectionné, s'il est relié à d'autres (sinon ses menus seraient
-            // vides) ; plusieurs nodes sélectionnés : la pastille les joint au chat.
+            // Le node en cours d'écriture ou le seul node sélectionné, s'il a du texte (Gardien) ou des liens (Branche,
+            // Sélection) ; plusieurs nodes sélectionnés : la pastille les joint au chat.
             const refresh = () => {
                 const node = editing() || (selectedNodes.length === 1 ? selectedNodes[0] : null);
                 if (!editing() && selectedNodes.length > 1) show(selectedNodes[selectedNodes.length - 1], [...selectedNodes]);
-                else if (node && kin(node, 'all').length) show(node);
+                else if (node && (textOf(node) || kin(node, 'all').length)) show(node);
                 else hide();
             };
             document.addEventListener('input', event => { if (event.target.isContentEditable) refresh(); }, true);
@@ -542,9 +545,12 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             document.addEventListener('mouseup', () => setTimeout(refresh), true);
             pill.addEventListener('mousedown', event => event.preventDefault());  // garde le focus dans le node
             sendButton.addEventListener('click', () => {
-                const nodes = group;
-                hide();
-                onAttach(nodes);
+                if (group.length > 1) {
+                    const nodes = group;
+                    hide();
+                    return onAttach(nodes);
+                }
+                if (target && !sendButton.disabled) fire(target);
             });
             // Sélection de zone : la physique de répulsion range ces nodes, les autres restent en place.
             branchButton.addEventListener('click', () => { if (target) onBranch(target, branchButton.getBoundingClientRect()); });
