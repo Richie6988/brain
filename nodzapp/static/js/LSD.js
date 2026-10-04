@@ -296,6 +296,7 @@ function displayLink(link) {
     const linkID = `L-${link.link_id}`;
     const node1 = document.getElementById(link.linkA);
     const node2 = document.getElementById(link.linkB);
+    if (!node1 || !node2) return;  // lien vers un node supprimé : ignoré, les autres liens s'affichent
     createLink(node1,node2,linkID); 
 }
 
@@ -447,6 +448,8 @@ function loadFile(nodeID, fileName, spinner, filePreview, fileContainer) {
 
 function save(nodeGroup,tunnel){
     if(admin){return}
+    if(nodeGroup.dataset.deleting){return}  // en cours de suppression : le réenregistrer le ferait revenir
+
     if(!isLoading){
         console.log(nodeGroup.id,' SAVED')
         const data = [];
@@ -629,6 +632,7 @@ function deleteNode(nodes) {
         cancelIndex = 0;
     }    
     cancelList.push(['deletion', Array.from(nodes).map(node => node.cloneNode(true))]);
+    nodes.forEach(node => { node.dataset.deleting = '1'; });  // ses liens retirés ne le réenregistrent pas
     if (quantum){
         ids.length = 0;
         cancelList[0][1].forEach(node =>{
