@@ -497,7 +497,7 @@ function nodeSizing(nodeGroup,w,h) {
             if (nodeGroup.getAttribute('shape') === 'square'){
                 reduction_factor = 2*hitboxRadius - w; 
             }                     
-        } else if (nw < nh) {
+        } else if (nw) {  // portrait, ou carrée
             foreignObject.setAttribute('width', h*nw/nh);
             foreignObject.setAttribute('height',h); 
             square.setAttribute('width', h*nw/nh); 

@@ -650,6 +650,13 @@ function createNode(x,y,id) {
     img.setAttribute("height", "100%");
     // img.style.cursor = 'pointer';
     foreignObject.appendChild(img);
+    // Image chargée après la pose du node (chargement, copie, Gardien) : le node et son cadre carré prennent ses
+    // proportions, que nodeSizing ne connaissait pas encore (l'image restait étirée en carré).
+    img.addEventListener('load', () => {
+        if (nodeGroup.getAttribute('type') !== 'image' || img.src.includes(NODZ_BASE + '/static/img/newimg')) return;
+        const side = Math.max(parseFloat(foreignObject.getAttribute('width')) || 0, parseFloat(foreignObject.getAttribute('height')) || 0);
+        if (side) nodeSizing(nodeGroup, side, side);
+    });
 
     /////////////// FILE /////////////////////
 
