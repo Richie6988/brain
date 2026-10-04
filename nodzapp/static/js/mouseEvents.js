@@ -261,13 +261,17 @@ function selectionArea(event, nodeGroup, up) {
             radius = parseFloat(Math.sqrt(2*(rect.width / 2)*(rect.width / 2)));
         }    
 
-        // Calculate the Euclidean distance from the click point to the center
-        const widthIn = event.clientX < cx+(rect.width/2) && event.clientX > cx-(rect.width/2);
-        const heightIn = event.clientY < cy+(rect.height/2) && event.clientY > cy-(rect.height/2);
+        // Comme le rond : un peu dehors (+ 10 au zoom, en mode up), un peu dedans (une bande le long du bord, 0,3 de la
+        // demi-plus-petite-dimension, toujours saisissable). Le disque du centre reste au texte, rogné au rectangle
+        // intérieur : un rectangle bas se saisit sur toute sa longueur, et plus dans le vide au-dessus ou au-dessous.
+        const margin = up ? 10 * currentZoom : 0;
+        const inset = 0.3 * Math.min(rect.width, rect.height) / 2;
+        const outer = event.clientX > rect.left - margin && event.clientX < rect.right + margin && event.clientY > rect.top - margin && event.clientY < rect.bottom + margin;
+        const inner = event.clientX > rect.left + inset && event.clientX < rect.right - inset && event.clientY > rect.top + inset && event.clientY < rect.bottom - inset;
         const dx = event.clientX - cx;
         const dy = event.clientY - cy;
         const distance = Math.sqrt(dx * dx + dy * dy)/currentZoom;
-        const test = (widthIn && heightIn && distance >= 0.5*radius) || (widthIn && heightIn && !nodeGroup.children[0].contains(event.target));
+        const test = (outer && !(inner && distance < 0.5*radius)) || (outer && !nodeGroup.children[0].contains(event.target));
 
         return (test);
 
