@@ -7,7 +7,9 @@
 // portails en arcs entre colonnes. Clic sur un node : retour dans le plan et voyage jusqu'à lui ; Échap ou le cube :
 // retour. Les nodes réels sont seulement cachés et les touches de création de Nodz bloquées : rien n'est modifié.
 // Pour rester légère, la vue ne montre des autres dimensions que leurs nodes interdimensionnels (les bouts des
-// portails) ; le pointeur au-dessus d'une colonne la montre en entier, ses nodes construits au premier passage.
+// portails), plus les NEAR nodes les plus proches du pointeur, toutes dimensions confondues : on voyage dans
+// l'hyperspace en promenant le pointeur (ou en glissant, en zoomant), les nodes s'allument autour de lui, en détail
+// les plus proches, en étiquette les autres, construits au premier passage. Un clic sur l'un y voyage.
 
 import { api } from './api.js';
 
@@ -16,6 +18,8 @@ const DURATION = 1300;
 const GAP = 40;          // entre deux nodes d'une colonne
 const COLUMN_GAP = 280;  // entre deux colonnes
 const RICH = 1500;       // au-delà, contenu en version légère (étiquette SVG, image) : la vue reste fluide
+const NEAR = 500;         // nodes des autres dimensions montrés autour du pointeur
+const DETAIL = 40;        // les plus proches d'entre eux, en détail (texte mis en forme, image, document)
 const DOCS = 12;         // aperçus de documents lus dans les autres dimensions
 const PREVIEWED = /\.(pdf|docx?|pptx?)$/i;  // documents dont le serveur garde un aperçu PDF
 const KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Shift', 'Control', 'Alt', 'Meta']);
@@ -258,7 +262,8 @@ export function createSide({ bridge, say, filters }) {
             return { layer, x, line, label, ...extents.get(layer) };
         });
         const xs = nodes.map(n => n.fx).concat(columns.map(c => c.x));
-        scene = { nodes, links, portals, columns, group, nodeLayer, linkLayer, byLayer, pivot: center.x, urls: [], open: null,
+        scene = { nodes, links, portals, columns, group, nodeLayer, linkLayer, pivot: center.x, urls: [], near: new Set(), at: null,
+            far: nodes.filter(n => !n.here && !n.gate),
             bounds: { x0: Math.min(...xs) - 200, x1: Math.max(...xs) + 200, y0: bottom, y1: top } };
         wire();
         sift();
@@ -273,40 +278,53 @@ export function createSide({ bridge, say, filters }) {
         });
     }
 
-    // Une autre dimension en entier (pointeur au-dessus de sa colonne), ou de nouveau ses seuls nodes interdimensionnels.
-    function reveal(layer) {
-        const previous = scene.open;
-        scene.open = layer;
-        [previous, layer].forEach(l => {
-            const column = l === null || l === layerNumber ? null : scene.byLayer.get(l);
-            column?.forEach(n => {
-                if (n.gate) return;
-                n.shown = l === layer;
-                if (n.shown && !n.el) n.el = scene.nodeLayer.appendChild(replica(n, column.length <= RICH));
-                if (n.el) n.el.style.display = n.shown ? '' : 'none';
-            });
+    // Les NEAR nodes les plus proches du point (x, y) de la scène s'allument, les autres s'éteignent (gardés construits).
+    function reveal(x, y) {
+        const ranked = scene.far.map(n => [(n.fx - x) ** 2 + (n.y + y) ** 2, n]).sort((a, b) => a[0] - b[0]).slice(0, NEAR);
+        const near = new Set(ranked.map(([, n]) => n));
+        scene.near.forEach(n => {
+            if (near.has(n)) return;
+            n.shown = false;
+            n.el.style.display = 'none';
         });
+        ranked.forEach(([, n], i) => {
+            const rich = i < DETAIL;
+            if (n.el && n.rich !== rich && rich) {  // passé au premier plan : sa réplique détaillée remplace l'étiquette
+                n.el.remove();
+                n.el = null;
+            }
+            if (!n.el) {
+                n.el = scene.nodeLayer.appendChild(replica(n, rich));
+                n.rich = rich;
+            }
+            n.shown = true;
+            n.el.style.display = '';
+        });
+        scene.near = near;
         wire();
         frame(1);
         sift();
         fetchDocs(scene);
     }
 
-    // Le pointeur au-dessus d'une colonne (sur toute sa hauteur) : celle-là s'ouvre.
-    let pending = 0;
-    document.addEventListener('pointermove', event => {
-        if (!scene || busy || pending) return;
+    // Le pointeur se déplace dans la scène (souris, glissé, molette) : l'hyperspace s'allume autour de lui.
+    let pending = 0, last = null;
+    function follow(event) {
+        if (event.clientX !== undefined) last = [event.clientX, event.clientY];
+        if (!scene || busy || pending || !last) return;
         pending = requestAnimationFrame(() => {
             pending = 0;
-            if (!scene || busy) return;
-            const m = scene.group.getScreenCTM();
-            if (!m) return;
-            const hit = scene.columns.find(c => c.layer !== layerNumber
-                && event.clientX >= m.a * (c.x + c.min) + m.e - 40 && event.clientX <= m.a * (c.x + c.max) + m.e + 40);
-            const layer = hit ? hit.layer : null;
-            if (layer !== scene.open) reveal(layer);
+            const m = scene?.group.getScreenCTM();
+            if (!scene || busy || !m) return;
+            const p = new DOMPoint(...last).matrixTransform(m.inverse());
+            const step = 40 / Math.max(m.a, 0.01);  // moins de 40 px d'écran : rien ne change
+            if (scene.at && Math.hypot(p.x - scene.at.x, p.y - scene.at.y) < step) return;
+            scene.at = p;
+            reveal(p.x, p.y);
         });
-    });
+    }
+    document.addEventListener('pointermove', follow);
+    document.addEventListener('wheel', follow, { passive: true });
 
     // Filtres du haut (texte, origine, période) : comme en vue standard, les nodes écartés et leurs liens s'estompent.
     function sift() {
@@ -333,6 +351,8 @@ export function createSide({ bridge, say, filters }) {
             cube.classList.add('on');
             frame(0);
             await Promise.all([animate(0, 1), bridge.frame(scene.bounds, 80)]);
+            busy = false;
+            follow({});  // allumé d'emblée autour du pointeur
         } catch (error) {
             say(`Vue de côté : ${error.message}`, 'error');
             teardown();
