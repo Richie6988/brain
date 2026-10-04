@@ -215,7 +215,7 @@ body:has(.universe.lightmode) .gc-ideas button { color: #6848A6; background: rgb
 body:has(.universe.lightmode) .gc-form { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.2); }
 body:has(.universe.lightmode) .gc-think pre { color: #6b4a7a; }
 body:has(.universe.lightmode) .gc-form textarea { color: #440852; }
-@media (max-width: 700px) { #gardien-chat { right: 12px; bottom: 76px; } }
+@media (max-width: 700px) { #gardien-chat { right: 12px; bottom: 140px; } }  /* au-dessus du dock, sur deux ou trois lignes */
 
 /* Visite interactive : lecteur au-dessus de la barre de boutons, node visité et branches proposées */
 #gardien-tour {

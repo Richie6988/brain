@@ -360,7 +360,8 @@ async function ask(node, text, attached = [], direct = !!node) {
     try {
         if (!guardian) await loadGuardian();
         if (!guardian?.enabled || !guardian.model) {
-            reply('notice', 'Le Gardien dort : donne-lui un modèle dans Agents & modèles.');
+            chat.offer('Le Gardien dort : il lui faut une IA, par API (ta clé) ou sur ta machine.', 'Choisir mon IA', () => library.open('start'));
+            if (node) say('Le Gardien dort : choisis-lui une IA dans Agents & modèles.', 'notice');
             return;
         }
         node?.classList.add('gardien-thinking');

@@ -304,6 +304,14 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
                 },
             };
         },
+        // Avertissement avec un geste pour en sortir (« Choisir mon IA ») : le bouton n'est pas gardé dans l'historique.
+        offer(text, label, run) {
+            const li = h('li', { class: 'gc-notice' }, h('p', {}, text),
+                h('div', { class: 'gc-choices' }, h('button', { type: 'button', onclick: run }, label)));
+            log.append(li);
+            log.querySelector('.gc-hint')?.remove();
+            log.scrollTop = log.scrollHeight;
+        },
         // Liens vers des nodes : items = [{ id, layer, label }].
         links(text, items) {
             if (!items.length) return;

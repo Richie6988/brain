@@ -359,6 +359,12 @@ body:has(.universe.lightmode) .dropdown-content .dropdown-item:not(.new) .icon {
     .menuBtn, #soundButton, #exportButton { width: 28px; height: 28px; margin: 0 1px; }
     #semanticsearch { min-width: 110px; }
 }
+/* Téléphone : le dock passe sur deux lignes au lieu de déborder des deux côtés (boutons du bord inaccessibles) ; pas de
+   défilement horizontal, qui rognerait la liste des dimensions ouverte depuis le dock. */
+@media (max-width: 700px) {
+    #button-container, #button-container.show { width: calc(100vw - 16px); height: auto; flex-wrap: wrap; row-gap: 6px; padding: 6px; bottom: 8px; max-width: calc(100vw - 16px); }
+    #semanticsearch { min-width: 0; flex: 1 1 120px; }
+}
 
 /* Indicateurs de coin (nodes hors de l'écran dans chaque direction) : quart de disque de verre au lieu du triangle
    plat, entrée à ressort, onde lente vers le bord tant qu'il y a des nodes par là, halo au survol, et le nombre
