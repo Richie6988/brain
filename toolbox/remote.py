@@ -33,13 +33,23 @@ def _post(model, payload, stream):
         response = requests.post(url, json=payload, headers=headers, stream=stream, timeout=TIMEOUT, allow_redirects=not guarded)
     except WebError as e:
         raise RemoteError(str(e)) from None
+    except requests.Timeout:
+        raise RemoteError(f'{model.endpoint} ne répond pas à temps : le service est surchargé ou très lent, réessaie') from None
     except requests.RequestException as e:
-        raise RemoteError(f'{model.endpoint} injoignable ({type(e).__name__})') from None
+        raise RemoteError(f'{model.endpoint} injoignable ({type(e).__name__}) : vérifie l\'adresse dans Agents & modèles, '
+                          'et que le service tourne') from None
     if response.status_code >= 400:
         detail = response.text[:300].replace('\n', ' ')
         response.close()
-        raise RemoteError(f'{model.endpoint} a refusé ({response.status_code}) : {detail}')
+        raise RemoteError(f'{model.endpoint} a refusé ({response.status_code}) : {REFUSED.get(response.status_code, detail)}')
     return response
+
+
+# Refus courants des services compatibles OpenAI, dits à l'humain (le détail technique, pour les autres codes).
+REFUSED = {401: 'clé refusée (invalide ou expirée) : change-la dans Agents & modèles, Par API',
+           403: 'clé sans accès à ce modèle',
+           404: 'adresse ou nom de modèle inconnu du service : vérifie l\'URL (souvent …/v1) et le nom exact du modèle',
+           429: 'limite atteinte (quota ou débit) : réessaie dans un moment, ou vérifie ton crédit'}
 
 
 def chances_of(choice):
