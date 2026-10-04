@@ -55,10 +55,20 @@ def gpu():
                               '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=4).stdout
         name, util, used, total, temp = [v.strip() for v in out.splitlines()[0].split(',')]
         used, total = int(used), int(total)
-        return {'name': name, 'percent': float(util), 'vram_used_mb': used, 'vram_total_mb': total,
-                'vram_percent': round(100 * used / total, 1) if total else 0.0, 'temperature': float(temp)}
     except (OSError, ValueError, IndexError, subprocess.SubprocessError):
         return None
+    vram = round(100 * used / total, 1) if total else 0.0
+    # Portables, WSL, certaines cartes : utilisation ou température « [N/A] ». La VRAM suffit au placement des couches ;
+    # sans elle, le modèle partait tout entier sur CPU.
+    return {'name': name, 'percent': number(util, vram), 'vram_used_mb': used, 'vram_total_mb': total,
+            'vram_percent': vram, 'temperature': number(temp, None)}
+
+
+def number(text, default):
+    try:
+        return float(text)
+    except ValueError:
+        return default
 
 
 def disk():

@@ -26,7 +26,7 @@ from graph.models import AIRun
 from nodzapp.models import Link, Node
 
 from . import broker as priorities
-from . import drawing, imaging, layouts, perception, prompts, tools, web, workspace
+from . import drawing, imaging, layouts, monitor, perception, prompts, tools, web, workspace
 from .iaqua import IaquaOps
 from .engine import EngineUnavailable
 from .errors import PlanError
@@ -993,8 +993,14 @@ class Guardian(IaquaOps):
         placement = (getattr(self.engine, 'placement', {}) or {}).get(guardian.model.pk) or {}
         if placement.get('fits', True):
             return None
-        return {'model_gb': round(placement['model_mb'] / 1024, 1), 'free_gb': round(placement['ram_free_mb'] / 1024, 1),
+        hint = {'model_gb': round(placement['model_mb'] / 1024, 1), 'free_gb': round(placement['ram_free_mb'] / 1024, 1),
                 'advice_gb': round(max(0.5, placement['ram_free_mb'] * 0.6 / 1024), 1)}
+        if not placement.get('gpu_offload') and monitor.gpu():  # une carte NVIDIA, mais llama.cpp compilé sans CUDA
+            hint['no_cuda'] = True
+        elif placement.get('vram_free_mb', 0) > 1024:  # le conseil vise la carte graphique : un modèle qui y tient entier
+            hint['vram_gb'] = round(placement['vram_free_mb'] / 1024, 1)
+            hint['advice_gb'] = round(max(hint['advice_gb'], (placement['vram_free_mb'] - 1100) / 1024), 1)
+        return hint
 
     def op_schema(self, action, agents):
         if action.get('type') not in layouts.SCHEMAS:

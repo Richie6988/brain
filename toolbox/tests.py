@@ -510,6 +510,17 @@ class FitTests(SimpleTestCase):
         roomy, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 16384}, vram=24000, size_mb=5600)
         self.assertEqual((roomy['n_gpu_layers'], roomy['n_ctx'], summary['ctx_capped']), (-1, 16384, False))  # la place y est
 
+    def test_gpu_read_when_nvidia_smi_says_not_available(self):
+        # Portables, WSL : utilisation et température « [N/A] ». La VRAM est lue quand même : sans elle, le modèle
+        # partait tout entier sur CPU (GPU à 30 %, seulement pour la lecture du prompt).
+        from . import monitor
+
+        run = SimpleNamespace(stdout='NVIDIA GeForce RTX 3060 Laptop GPU, [N/A], 512, 6144, [N/A]\n')
+        with mock.patch.object(monitor.shutil, 'which', return_value='/usr/bin/nvidia-smi'), \
+                mock.patch.object(monitor.subprocess, 'run', return_value=run):
+            gpu = monitor.gpu()
+        self.assertEqual((gpu['vram_total_mb'] - gpu['vram_used_mb'], gpu['percent'], gpu['temperature']), (5632, 8.3, None))
+
     def test_lean_grammar_keeps_structure(self):
         from .engine import lean
         from .guardian import THINK_OPS, think_schema

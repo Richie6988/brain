@@ -421,9 +421,13 @@ async function ask(node, text, attached = [], direct = !!node) {
             + `${timing.speed ? ` · ${timing.speed} jetons/s` : ''}`);
         // Le modèle ne tient pas dans la RAM libre : il relit le disque à chaque mot écrit, c'est là que part le temps.
         const go = n => String(n).replace('.', ',');
-        if (timing?.memory) chat.add('guardian', `Je suis lent parce que mon modèle (${go(timing.memory.model_gb)} Go) ne tient pas dans `
-            + `la mémoire libre (${go(timing.memory.free_gb)} Go) : je relis le disque à chaque mot. Donne-moi un modèle d'environ `
-            + `${go(timing.memory.advice_gb)} Go ou moins dans Agents & modèles (un 3B ou un 1.5B en Q4), ou branche un modèle par API : `
+        const m = timing?.memory;
+        if (m?.no_cuda) chat.add('guardian', `Je tourne sur le processeur : une carte NVIDIA est là, mais llama-cpp-python est compilé `
+            + 'sans CUDA. Agents & modèles, Bibliothèque : « Compiler avec CUDA », et j\'écrirai bien plus vite.', 'mémoire');
+        else if (m) chat.add('guardian', `Je suis lent parce que mon modèle (${go(m.model_gb)} Go) ne tient ni dans la mémoire libre `
+            + `(${go(m.free_gb)} Go)${m.vram_gb ? ` ni dans la carte graphique (${go(m.vram_gb)} Go libres)` : ''} : je relis le disque `
+            + `à chaque mot. Donne-moi un modèle d'environ ${go(m.advice_gb)} Go ou moins dans Agents & modèles`
+            + `${m.vram_gb ? ', il tiendra entier sur la carte graphique' : ' (un 3B ou un 1.5B en Q4)'}, ou branche un modèle par API : `
             + 'j\'écrirai bien plus vite.', 'mémoire');
         if (!stopped) sfx.play('done');
     } catch (error) {
