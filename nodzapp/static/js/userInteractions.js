@@ -249,13 +249,13 @@ window.addEventListener('click', function(event) {
             popup.className = 'popup'; 
             const message = document.createElement('div');
             message.className = 'smallmessage';          
-            message.textContent = `Open external link?`;
+            message.textContent = `Ouvrir ce lien externe ?`;
             popup.appendChild(message);
             const buttonContainer = document.createElement('div');
             buttonContainer.className = 'popupbutton-container'; 
             buttonContainer.style.justifyContent = 'center';
             const confirmButton = document.createElement('span');
-            confirmButton.textContent = 'CONFIRM';
+            confirmButton.textContent = 'Ouvrir';
             confirmButton.style.fontSize = '10px';
             confirmButton.className = 'submit-button'; 
             confirmButton.style.padding = '5px';

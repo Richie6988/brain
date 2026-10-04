@@ -3,7 +3,7 @@
 //   node tests/feel/feel.mjs             rejoue le scénario et compare à reference.json (tolérance 1e-3)
 //   --scenario navigation                 Tab, flèches, focus au double-clic (reference-navigation.json)
 // Prérequis : serveur Nodz sur NODZ_URL (défaut http://127.0.0.1:8001). Chaque exécution passe par
-// GUEST, qui crée un compte neuf et vide : le scénario part toujours du même état.
+// INVITÉ (#guestButton), qui crée un compte neuf et vide : le scénario part toujours du même état.
 import { chromium } from 'playwright';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -47,7 +47,7 @@ const step = async (name, action) => {
 };
 
 await page.goto(`${BASE}${PAGE}`);
-await page.getByText('GUEST', { exact: true }).click();
+await page.click('#guestButton');
 await page.waitForTimeout(3500);
 
 // Le double-clic crée un node sous la souris (Espace, lui, crée au centre de la vue) ; le clic à vide sort du mode

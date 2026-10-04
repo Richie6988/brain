@@ -109,6 +109,16 @@ const follow = (() => {
 svg.addEventListener('mousedown', () => document.body.classList.add('gardien-gesture'), true);
 window.addEventListener('mouseup', () => requestAnimationFrame(() => document.body.classList.remove('gardien-gesture')), true);
 
+// Échap ferme la fenêtre de Nodz ouverte au-dessus de l'univers (galerie de modèles, profil, export, smileys,
+// calendrier), comme les panneaux du Gardien ; avant, la galerie restait ouverte et couvrait le dock.
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const open = [...document.querySelectorAll('.overlay')].filter(o => o.style.display && o.style.display !== 'none').pop();
+    if (!open) return;
+    open.style.display = 'none';
+    overlay = false;
+});
+
 // Chat et filtres n'apparaissent qu'une fois connecté (LOGIN ou GUEST de Nodz).
 const signedIn = setInterval(() => {
     if (typeof isLoggedIn === 'undefined' || !isLoggedIn) return;
@@ -118,13 +128,14 @@ const signedIn = setInterval(() => {
     api.request('POST', 'toolbox/warm', { mode: chat.mode() }).catch(() => {});
     refreshLetters();  // notes du Gardien en attente dans Échanges
     reminders.refresh();
+    dimensions.refresh();
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
     guide.welcome();  // première visite : le guide s'ouvre
 }, 400);
 
 const joined = node => ({ id: node.id, text: (node.children[0]?.children[0]?.innerText || '').trim() });  // node joint au chat
 const filters = createFilters({ onAttach: items => chat.attach(items) });  // sélecteur de contexte au-dessus du dock
-createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
+const dimensions = createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createGrab();  // zone de saisie du node allumée au survol
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change

@@ -38,7 +38,7 @@ function updateProgress() {
     progressText.textContent = `${progress}%`;
   } else {
     exportBtn.disabled = false;
-    exportBtn.textContent = 'Save';
+    exportBtn.textContent = 'Enregistrer';
 
     setTimeout(() => {
       loaderContainer.style.display = 'none';

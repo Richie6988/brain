@@ -101,7 +101,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         + 'du serveur ; installer des modèles locaux est réservé au compte administrateur (créé ou promu par ', h('code', {}, 'manage.py bootstrap --email … --password …'), ').');
     const notice = h('p', { class: 'gl-notice', role: 'status' });
     tabs.forEach(([key]) => { panels[key] = h('section', { class: 'gl-panel', dataset: { panel: key } }); });
-    const windowEl = h('div', { class: 'gl-window', role: 'dialog', 'aria-label': 'Agents et modèles' },
+    const windowEl = h('div', { class: 'gl-window', role: 'dialog', tabindex: '-1', 'aria-label': 'Agents et modèles' },
         h('header', {}, h('h2', {}, 'Agents & modèles'), nav, h('button', { type: 'button', class: 'gl-close', title: 'Fermer', onclick: close }, 'Fermer')),
         monitor, machineLine, readOnly, notice, Object.values(panels));
     const modal = h('div', { class: 'gl-modal', hidden: true, onmousedown: event => { if (event.target === modal) close(); } }, windowEl);
@@ -884,6 +884,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
     // Sans clé : « Choisir mon IA » tant que le Gardien n'a pas de modèle, sinon l'onglet laissé.
     function open(key) {
         modal.hidden = false;
+        if (!windowEl.contains(document.activeElement)) windowEl.focus({ preventScroll: true });  // Échap et la saisie restent à la fenêtre, pas à Nodz derrière
         refresh().then(() => {
             if (key) tab = key;
             else if (!state.agents.find(a => a.role === 'orchestrator')?.model) tab = 'start';

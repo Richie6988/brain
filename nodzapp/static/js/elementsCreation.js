@@ -270,7 +270,7 @@ function createNode(x,y,id) {
                         popup.className = 'popup'; 
                         const message = document.createElement('div');
                         message.className = 'smallmessage';                         
-                        message.textContent = `Please select a valid image file\n(PNG, JPG, GIF, or SVG)`;
+                        message.textContent = `Choisis une image valide\n(PNG, JPG, GIF ou SVG)`;
                         message.style.whiteSpace = 'pre-line';                      
                         popup.appendChild(message);
                         document.body.appendChild(popup);
@@ -1009,7 +1009,7 @@ function createNode(x,y,id) {
             const message = document.createElement('div');
             message.className = 'smallmessage';   
             message.style.marginBottom = '0px';       
-            message.textContent = `Paste content cannot exceed 1000 characters`;
+            message.textContent = `Un collage ne peut pas dépasser 1000 caractères`;
             popup.appendChild(message);
             document.body.appendChild(popup);
             popup.addEventListener('wheel', function(event) {

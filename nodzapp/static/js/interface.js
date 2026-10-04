@@ -311,7 +311,7 @@ function generateInvite(nodeIds) {
                 buttonContainer.className = 'popupbutton-container'; 
                 buttonContainer.style.justifyContent = 'center';
                 const copyButton = document.createElement('span');
-                copyButton.textContent = 'COPY';
+                copyButton.textContent = 'Copier le lien';
                 copyButton.className = 'popupbutton confirm'; 
                 copyButton.style.fontSize = '10px';
                 copyButton.className = 'submit-button'; 
@@ -326,7 +326,7 @@ function generateInvite(nodeIds) {
                     // Use the Clipboard API if available for modern browsers
                     if (navigator.clipboard) {
                         navigator.clipboard.writeText(inviteLink).then(() => {
-                            message.textContent = "Link copied to clipboard!"; 
+                            message.textContent = "Lien copié."; 
                             setTimeout(closePopup, 1000);
                         }).catch(err => {
                             console.error('Failed to copy text: ', err);
@@ -339,7 +339,7 @@ function generateInvite(nodeIds) {
                         area.select();
                         document.execCommand('copy');
                         area.remove();
-                        message.textContent = "Link copied to clipboard!";
+                        message.textContent = "Lien copié.";
                         setTimeout(closePopup, 1000);
                     }
                 });
@@ -380,7 +380,7 @@ document.getElementById('exportButton').addEventListener('mousedown', function()
         const exportation = document.getElementById('export');
         exportation.style.display = 'flex';
         exportation.children[0].scrollTop = 0; 
-        exportBtn.textContent = 'Export';
+        exportBtn.textContent = 'Exporter';
         nodesToExport = selectedNodes;
         templatesToExport = selectedTemplates
 
@@ -934,7 +934,7 @@ function login() {
 
     const message = document.createElement('div');
     message.className = 'message';   
-    message.textContent = `Welcome to Nod-Z`;
+    message.textContent = `Bienvenue dans Nod-Z`;
     message.style.marginBottom = '30px';
     message.style.color = '#5753b996';
     message.style.textShadow = `
@@ -955,7 +955,7 @@ function login() {
     buttonContainer.className = 'popupbutton-container'; 
     const loginButton = document.createElement('button');
     loginButton.id = 'loginButton';
-    loginButton.textContent = 'LOGIN';
+    loginButton.textContent = 'CONNEXION';
     loginButton.className = 'submit-button log-button';  
     loginButton.style.padding = '5px';
     
@@ -971,7 +971,8 @@ function login() {
     buttonContainer.appendChild(loginButton);
 
     const guestButton = document.createElement('button');
-    guestButton.textContent = 'GUEST';
+    guestButton.id = 'guestButton';
+    guestButton.textContent = 'INVITÉ';
     guestButton.className = 'submit-button log-button secondary'; 
     guestButton.style.padding = '5px';
 

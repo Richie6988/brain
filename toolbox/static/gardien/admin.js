@@ -24,7 +24,7 @@ export function createAdmin({ say }) {
     const nav = h('nav', { class: 'gl-tabs' });
     const notice = h('p', { class: 'gl-notice', role: 'status' });
     const body = h('div', { class: 'ga-body' });
-    const windowEl = h('div', { class: 'gl-window ga-window', role: 'dialog' },
+    const windowEl = h('div', { class: 'gl-window ga-window', role: 'dialog', tabindex: '-1' },
         h('header', {}, title, nav, h('button', { type: 'button', class: 'gl-close', onclick: close }, 'Fermer')), notice, body);
     const modal = h('div', { class: 'gl-modal', hidden: true, onmousedown: event => { if (event.target === modal) close(); } }, windowEl);
     modal.addEventListener('keydown', event => {
@@ -276,6 +276,7 @@ export function createAdmin({ say }) {
         users = null;
         journal.entries = null;
         modal.hidden = false;
+        if (!windowEl.contains(document.activeElement)) windowEl.focus({ preventScroll: true });  // Échap et la saisie restent à la fenêtre, pas à Nodz derrière
         show(mode === 'users' ? 'users' : 'activity');
     }
     function close() {

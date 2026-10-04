@@ -104,13 +104,13 @@ trash.addEventListener('click', () => {
     popup.style.zIndex = 1000;
     const message = document.createElement('div');
     message.className = 'smallmessage';          
-    message.textContent = `Are you sure? Deleting this dimension is permanent.`;
+    message.textContent = `Supprimer cette dimension ? C'est définitif : ses nodes seront effacés.`;
     popup.appendChild(message);
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'popupbutton-container'; 
     buttonContainer.style.justifyContent = 'center';
     const confirmButton = document.createElement('span');
-    confirmButton.textContent = 'CONFIRM';
+    confirmButton.textContent = 'Supprimer définitivement';
     confirmButton.style.fontSize = '10px';
     confirmButton.className = 'submit-button'; 
     confirmButton.style.padding = '5px';

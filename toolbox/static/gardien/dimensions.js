@@ -98,6 +98,7 @@ export function createDimensions() {
     });
 
     async function refresh() {
+        if (typeof isLoggedIn === 'undefined' || !isLoggedIn) return;  // avant la connexion : rien à lire
         try {
             ({ pinned, counts } = await api.request('GET', 'toolbox/dimensions'));
         } catch {
@@ -105,5 +106,5 @@ export function createDimensions() {
         }
         if (typeof selectedLayer !== 'undefined' && selectedLayer) renderLayers();
     }
-    refresh();
+    return { refresh };
 }

@@ -421,8 +421,8 @@ def letters(request, body):
     """Correspondance du Gardien (dimension « Échanges ») : GET donne ses notes et celles à poser ; POST enregistre où
     elles ont été posées ({root: N-3, posted: {id de note: N-12}}), pour relire les réponses reliées."""
     guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
-    if guardian is None:
-        return JsonResponse({'error': 'pas de Gardien'}, status=404)
+    if guardian is None:  # compte tout neuf (invité) : ses agents naissent à la première ouverture d'Agents & modèles
+        return JsonResponse({'letters': [], 'root': None, 'unread': 0})
     notes = list(guardian.brain.get('letters') or [])
     universe = dict(guardian.brain.get('universe') or {})
     if request.method == 'POST':
