@@ -441,11 +441,13 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 + '<button type="button" class="up" title="Sélectionner aussi tous ses parents, de lien en lien">▲ Amont</button>'
                 + '<button type="button" class="down" title="Sélectionner aussi tous ses enfants, de lien en lien">▼ Aval</button>';
             const [sendButton, visitButton, arrangeButton, upButton, downButton] = pill.children;
-            // Les nodes reliés à `node` en remontant (parents : Node1 → Node2 = node) ou en descendant, de proche en proche.
+            // Les nodes reliés à `node` en remontant (parents : Node1 → Node2 = node) ou en descendant, de proche en proche,
+            // par les seuls liens visibles : un node masqué par les filtres coupe la chaîne (sinon les nodes au-delà
+            // semblaient pris sans lien).
             const kin = (node, up) => {
                 const [from, to] = up ? ['Node2', 'Node1'] : ['Node1', 'Node2'];
                 const found = new Set([node.id]), queue = [node.id];
-                const links = [...document.querySelectorAll('.link')];
+                const links = [...document.querySelectorAll('.link:not(.gardien-filtered)')];
                 while (queue.length) {
                     const id = queue.shift();
                     links.forEach(link => {
@@ -527,13 +529,15 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 hide();
                 onArrange(nodes);
             });
-            // Étendre la sélection au node et à tous ses parents (ou enfants) : la pastille passe en multisélection.
+            // Sélectionner le node et tous ses parents (ou enfants), rien d'autre : une sélection précédente est
+            // remplacée ; la pastille passe en multisélection.
             const extend = up => {
                 if (!target) return;
                 const node = target;
                 if (document.activeElement?.isContentEditable) document.activeElement.blur();
-                if (!selectedNodes.includes(node)) nodeSelection(node);
-                kin(node, up).forEach(n => { if (!selectedNodes.includes(n)) nodeSelection(n); });
+                const family = [node, ...kin(node, up)];
+                [...selectedNodes].forEach(n => { if (!family.includes(n)) nodeUnselection(n); });
+                family.forEach(n => { if (!selectedNodes.includes(n)) nodeSelection(n); });
                 refresh();
             };
             upButton.addEventListener('click', () => extend(true));
