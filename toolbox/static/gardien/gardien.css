@@ -1199,7 +1199,17 @@ li.soon .gr-left { color: #ffb454; }
 #gardien-room .gsal-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 #gardien-room .gsal-people:empty { display: none; }
 #gardien-room .gsal-people li { display: flex; align-items: center; gap: 8px; }
-#gardien-room .gsal-people i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+#gardien-room .gsal-people i { width: 22px; height: 22px; border-radius: 50%; flex: none; display: grid; place-items: center; color: #050c17; background: var(--gsal-color); }
+#gardien-room .gsal-people i svg, .gsal-cursor span i svg { width: 70%; height: 70%; }
+/* Moi : avatar et pseudo, avant d'ouvrir ou de rejoindre un salon et pendant. */
+#gardien-room .gsal-me { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(184, 154, 242, 0.2); }
+#gardien-room .gsal-avatars { display: flex; flex-wrap: wrap; gap: 4px; }
+#gardien-room .gsal-avatars button { width: 28px; height: 28px; padding: 0 !important; display: grid; place-items: center; border-radius: 50% !important;
+    color: var(--gsal-color); background: rgba(255, 255, 255, 0.05) !important; border: 1px solid rgba(184, 154, 242, 0.25) !important; }
+#gardien-room .gsal-avatars button svg { width: 16px; height: 16px; }
+#gardien-room .gsal-avatars button[aria-checked=true] { color: #050c17; background: var(--gsal-color) !important; border-color: var(--gsal-color) !important; box-shadow: 0 0 10px var(--gsal-color); }
+#gardien-room .gsal-name { padding: 7px 10px; font: inherit; color: #e2e8f0; background: #0b1220; border: 1px solid #1e293b; border-radius: 8px; }
+#gardien-room .gsal-name:focus { outline: none; border-color: #b89af2; }
 #gardien-room .gsal-people span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #gardien-room .gsal-people button { padding: 3px 8px !important; font-size: 11px !important; }
 #gardien-room .gsal-actions { display: flex; gap: 6px; justify-content: flex-end; }
@@ -1207,11 +1217,14 @@ li.soon .gr-left { color: #ffb454; }
 .gsal-cursor { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 2px; transition: transform 0.08s linear; }
 .gsal-cursor[hidden] { display: none; }
 .gsal-cursor svg { width: 14px; height: 18px; fill: var(--gsal-color); stroke: rgba(5, 12, 23, 0.8); stroke-width: 1.2; filter: drop-shadow(0 0 4px var(--gsal-color)); }
-.gsal-cursor span { margin-top: 12px; padding: 1px 6px; font: 11px 'Cascadia Code', monospace; color: #050c17; background: var(--gsal-color); border-radius: 6px; white-space: nowrap; }
+.gsal-cursor span { margin-top: 12px; padding: 1px 6px; display: flex; align-items: center; gap: 4px; font: 11px 'Cascadia Code', monospace; color: #050c17; background: var(--gsal-color); border-radius: 6px; white-space: nowrap; }
+.gsal-cursor span i { width: 13px; height: 13px; display: grid; place-items: center; }
+.gsal-cursor span i:empty { display: none; }
+.gsal-cursor span b { font-weight: 600; }
 #shareButton.gardien-room-live { box-shadow: 0 0 0 2px #33FF99, 0 0 12px rgba(51, 255, 153, 0.5); }
 #shareButton.gardien-room-live::before { content: attr(data-count); position: absolute; top: -4px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; font: 10px/15px 'Cascadia Code', monospace; color: #050c17; background: #33FF99; border-radius: 8px; text-align: center; }
 body:has(.universe.lightmode) #gardien-room { color: #440852; background: rgba(255, 255, 255, 0.94); }
-body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #gardien-room .gsal-link input { color: #440852; background: #fff; }
+body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #gardien-room .gsal-link input, body:has(.universe.lightmode) #gardien-room .gsal-name { color: #440852; background: #fff; }
 
 /* Branches (branches.js) : descendants repliés cachés (!important : en déplaçant la vue, Nodz pose display:block sur
    chaque node à l'écran), pastille +N pour déplier, menu Branche de la pastille d'un node. */

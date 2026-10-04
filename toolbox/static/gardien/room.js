@@ -4,11 +4,26 @@
 // autres et les enregistre dans son univers ; un invité n'écrit jamais rien sur le serveur pendant le salon, ni dans
 // son propre univers. Le serveur relaie et signe chaque message de son auteur (toolbox/rooms.py). Tout ce qui vient
 // d'un autre compte est nettoyé avant d'entrer dans la page (texte du node, couleur, image, dessin).
+// Chacun choisit son pseudo et son avatar (gardés dans ce navigateur) : le serveur les nettoie et garde seul l'identité
+// du compte et la marque d'hôte.
 
 import { api } from './api.js';
 
 const BASE = document.documentElement.dataset.base || '';
 const COLORS = ['#FF6B6B', '#FFD93D', '#33FF99', '#4D96FF', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5'];
+// Avatars du salon : une couleur et un dessin chacun (la liste est aussi celle du serveur, rooms.AVATARS).
+const AVATARS = {
+    fox: ['Renard', '#FF9F45', '<path d="M4 5l4 4h8l4-4-1 9-7 6-7-6z"/><circle cx="9.5" cy="12" r=".8"/><circle cx="14.5" cy="12" r=".8"/>'],
+    owl: ['Chouette', '#C77DFF', '<circle cx="8.5" cy="11" r="3"/><circle cx="15.5" cy="11" r="3"/><path d="M5 6l3 2M19 6l-3 2M11 15l1 2 1-2"/>'],
+    cat: ['Chat', '#4DD4C6', '<path d="M5 4l3 5h8l3-5v10a7 6 0 0 1-14 0z"/><path d="M9 13h.01M15 13h.01M10 16l2 1 2-1"/>'],
+    bot: ['Robot', '#4D96FF', '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M10 16h4"/>'],
+    star: ['Étoile', '#FFD93D', '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'],
+    leaf: ['Feuille', '#33FF99', '<path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15z"/><path d="M5 19l8-8"/>'],
+    wave: ['Vague', '#7FB3FF', '<path d="M3 14c3-4 6-4 9 0s6 4 9 0M3 9c3-4 6-4 9 0s6 4 9 0"/>'],
+    flame: ['Flamme', '#FF6B6B', '<path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 3-7 1 2 2 3 3 3 0-3 0-5 0-7z"/>'],
+};
+const glyph = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${(AVATARS[key] || AVATARS.star)[2]}</svg>`;
+const PROFILE = 'gardien-room-profile';
 const BLOCK = 10000;  // plage d'identifiants de nodes et de liens propre à chaque invité : pas de collision
 const TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'SPAN', 'FONT', 'DIV', 'P', 'BR', 'UL', 'OL', 'LI', 'A',
     'CODE', 'PRE', 'H1', 'H2', 'H3', 'SUB', 'SUP', 'BLOCKQUOTE', 'HR']);
@@ -50,6 +65,12 @@ const drawing = value => {
 
 export function createRoom({ bridge, say }) {
     let socket = null, me = null, room = null, role = null, applying = 0, layer = null, following = null, moving = false;
+    // Mon pseudo et mon avatar : choisis une fois, gardés dans ce navigateur (vide : le nom du compte).
+    let profile = { name: '', avatar: Object.keys(AVATARS)[Math.floor(Math.random() * 8)] };
+    try {
+        profile = { ...profile, ...JSON.parse(localStorage.getItem(PROFILE) || '{}') };
+    } catch { /* stockage indisponible : un avatar au hasard pour cette visite */ }
+    const colorOf = who => AVATARS[who.avatar]?.[1] || COLORS[who.id % COLORS.length];
     let hostLayer = null;  // chez un invité : la dimension de l'hôte (son numéro), celle de toutes les vues du salon
     const here = () => (role === 'member' ? hostLayer : layerNumber);
     const people = new Map();  // id du compte → { name, host, color, cursor, at, view }
@@ -228,16 +249,21 @@ export function createRoom({ bridge, say }) {
         if (!people.has(who.id)) {
             const cursor = document.createElement('div');
             cursor.className = 'gsal-cursor';
-            const color = COLORS[who.id % COLORS.length];
-            cursor.style.setProperty('--gsal-color', color);
-            cursor.innerHTML = '<svg viewBox="0 0 16 20" aria-hidden="true"><path d="M1 1l14 9-6.5 1.5L5.5 19z"/></svg><span></span>';
-            cursor.lastChild.textContent = who.name;
+            cursor.innerHTML = '<svg viewBox="0 0 16 20" aria-hidden="true"><path d="M1 1l14 9-6.5 1.5L5.5 19z"/></svg><span><i></i><b></b></span>';
             cursor.hidden = true;
             overlay.append(cursor);
-            people.set(who.id, { ...who, color, cursor });
-            render();
+            people.set(who.id, { ...who, cursor });
         }
-        return people.get(who.id);
+        const person = people.get(who.id);
+        if (!person.color || person.name !== who.name || person.avatar !== who.avatar) dress(Object.assign(person, who, { color: colorOf(who) }));
+        return person;
+    }
+    // Pseudo, avatar et couleur sur le curseur et dans la liste (un « profile » les change en route).
+    function dress(person) {
+        person.cursor.style.setProperty('--gsal-color', person.color);
+        person.cursor.querySelector('i').innerHTML = person.avatar ? glyph(person.avatar) : '';
+        person.cursor.querySelector('b').textContent = person.name;
+        render();
     }
     function forget(id) {
         people.get(id)?.cursor.remove();
@@ -316,6 +342,7 @@ export function createRoom({ bridge, say }) {
         const person = meet(who);
         if (!person) return;
         if (m.t === 'join') say(`${who.name} entre dans le salon.`);
+        else if (m.t === 'profile') render();  // meet() a déjà repris son pseudo et son avatar
         else if (m.t === 'hello') {
             send({ t: 'view', ...view(), layer: here() });  // il nous voit aussitôt
             if (role === 'host' && !who.host) share(who.id);
@@ -342,7 +369,8 @@ export function createRoom({ bridge, say }) {
 
     function connect(token) {
         const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-        socket = new WebSocket(`${scheme}://${location.host}${BASE}/ws/room/${encodeURIComponent(token)}/`);
+        const chosen = new URLSearchParams({ name: profile.name, avatar: profile.avatar });
+        socket = new WebSocket(`${scheme}://${location.host}${BASE}/ws/room/${encodeURIComponent(token)}/?${chosen}`);
         socket.addEventListener('message', event => {
             try {
                 receive(JSON.parse(event.data));
@@ -372,25 +400,55 @@ export function createRoom({ bridge, say }) {
     panel.id = 'gardien-room';
     panel.hidden = true;
     panel.innerHTML = '<header><b>Salon</b><span class="gsal-where"></span><button type="button" class="gsal-x" title="Fermer">×</button></header>'
+        + '<div class="gsal-me"><div class="gsal-avatars" role="radiogroup" aria-label="Mon avatar"></div>'
+        + '<input class="gsal-name" maxlength="24" placeholder="Mon pseudo (sinon le nom du compte)" aria-label="Mon pseudo"></div>'
         + '<p class="gsal-intro">Ouvre cette dimension à d\'autres : ils voient ton univers, vos curseurs et chaque geste en direct, et peuvent l\'éditer. Tout s\'enregistre chez toi.</p>'
         + '<div class="gsal-link"><input readonly aria-label="Lien du salon"><button type="button" class="gsal-copy">Copier le lien</button></div>'
         + '<ul class="gsal-people"></ul>'
         + '<div class="gsal-actions"><button type="button" class="gsal-open">Ouvrir un salon</button><button type="button" class="gsal-end">Fermer le salon</button><button type="button" class="gsal-leave">Quitter le salon</button></div>';
     document.body.append(panel);
     const $ = selector => panel.querySelector(selector);
+    // Choisir son avatar et son pseudo : gardés ici, envoyés au salon s'il est ouvert.
+    function choose(changes) {
+        profile = { ...profile, ...changes };
+        try {
+            localStorage.setItem(PROFILE, JSON.stringify(profile));
+        } catch { /* stockage indisponible : le choix vaut pour cette visite */ }
+        if (me) {
+            me = { ...me, avatar: profile.avatar, name: profile.name.trim().replace(/\s+/g, ' ').slice(0, 24) || me.name };
+            send({ t: 'profile', name: profile.name, avatar: profile.avatar });
+        }
+        render();
+    }
+    $('.gsal-avatars').append(...Object.entries(AVATARS).map(([key, [label, color]]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.avatar = key;
+        button.title = label;
+        button.setAttribute('role', 'radio');
+        button.style.setProperty('--gsal-color', color);
+        button.innerHTML = glyph(key);
+        button.addEventListener('click', () => choose({ avatar: key }));
+        return button;
+    }));
+    $('.gsal-name').value = profile.name;
+    $('.gsal-name').addEventListener('change', event => choose({ name: event.target.value }));
+    $('.gsal-name').addEventListener('keydown', event => { if (event.key === 'Enter') event.target.blur(); });
     const link = () => room && `${location.origin}${BASE}/universe?room=${encodeURIComponent(room.token)}`;
     function render() {
         const live = !!socket, host = role !== 'member';
-        $('.gsal-where').textContent = !room ? '' : host ? ` · ${layers.find(l => l.id === layerNumber)?.name || ''}` : ` de ${room.host || ''}${layer ? ` · ${layer}` : ''}`;
+        const hostName = [...people.values()].find(p => p.host)?.name || room?.host || '';  // son pseudo dès qu'il est là
+        $('.gsal-where').textContent = !room ? '' : host ? ` · ${layers.find(l => l.id === layerNumber)?.name || ''}` : ` de ${hostName}${layer ? ` · ${layer}` : ''}`;
         $('.gsal-intro').hidden = live || !host;
         $('.gsal-link').hidden = !live || !host;
         $('.gsal-link input').value = link() || '';
         $('.gsal-open').hidden = live || !host;
         $('.gsal-end').hidden = !live || !host;
         $('.gsal-leave').hidden = host;
+        panel.querySelectorAll('.gsal-avatars button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.avatar === profile.avatar)));
         const list = $('.gsal-people');
         list.replaceChildren();
-        if (live && me) list.append(row({ ...me, color: '#e2e8f0' }, true));
+        if (live && me) list.append(row({ ...me, color: colorOf(me) }, true));
         people.forEach((p, id) => list.append(row({ ...p, id })));
         const button = byId('shareButton');
         button?.classList.toggle('gardien-room-live', live);
@@ -399,7 +457,8 @@ export function createRoom({ bridge, say }) {
     function row(p, self = false) {
         const item = document.createElement('li');
         const dot = document.createElement('i');
-        dot.style.background = p.color;
+        dot.style.setProperty('--gsal-color', p.color);
+        dot.innerHTML = p.avatar ? glyph(p.avatar) : '';
         const name = document.createElement('span');
         name.textContent = `${p.name}${p.host ? ' · hôte' : ''}${self ? ' (toi)' : ''}`;
         item.append(dot, name);

@@ -1,20 +1,38 @@
 """Salons multijoueur (room.js) : un relais WebSocket par salon. Le serveur n'écrit rien dans les univers : le
 navigateur de l'hôte applique et enregistre les gestes des invités. Il vérifie l'accès (compte connecté, salon ouvert,
 pas exclu), signe chaque message de l'identité de son auteur (jamais celle qu'il prétend) et réserve à l'hôte l'état
-de l'univers, l'exclusion et la fermeture.
+de l'univers, l'exclusion et la fermeture. Chacun choisit son pseudo et son avatar (au branchement, puis par « profile ») :
+le serveur nettoie le pseudo, n'accepte qu'un avatar de la liste, et garde seul l'identifiant et la marque d'hôte.
 """
+
+import re
+from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from .models import Room
 
-RELAYED = {'hello', 'state', 'save', 'delete', 'type', 'cursor', 'view', 'kick', 'close'}
+RELAYED = {'hello', 'state', 'save', 'delete', 'type', 'cursor', 'view', 'kick', 'close', 'profile'}
 HOST_ONLY = {'state', 'kick', 'close'}
+
+
+AVATARS = {'fox', 'owl', 'cat', 'bot', 'star', 'leaf', 'wave', 'flame'}  # dessinés par room.js
+NAME = 24
 
 
 def display_name(user):
     return (user.username or user.email.split('@')[0])[:40]
+
+
+def pseudo(value, fallback):
+    """Pseudo choisi : sans caractère de contrôle, espaces resserrés, NAME caractères au plus ; vide, celui du compte."""
+    text = ' '.join(re.sub(r'[\x00-\x1f\x7f]', '', str(value or '')).split())[:NAME]
+    return text or fallback
+
+
+def avatar(value):
+    return value if value in AVATARS else None
 
 
 @database_sync_to_async
@@ -48,7 +66,9 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
         if room is None:
             return await self.close(code=4403)
         self.room_id, self.host = room.pk, room.host_id == user.pk
-        self.who = {'id': user.pk, 'name': display_name(user), 'host': self.host}
+        chosen = parse_qs(self.scope.get('query_string', b'').decode())
+        self.who = {'id': user.pk, 'name': pseudo((chosen.get('name') or [''])[0], display_name(user)), 'host': self.host,
+                    'avatar': avatar((chosen.get('avatar') or [''])[0])}
         self.group = f'room_{room.pk}'
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.accept()
@@ -70,6 +90,9 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
             await ban(self.room_id, content['user'])
         elif kind == 'close':
             await shut(self.room_id)
+        elif kind == 'profile':  # nouveau pseudo ou avatar : la signature suit, le message ne porte rien d'autre
+            self.who = {**self.who, 'name': pseudo(content.get('name'), self.who['name']), 'avatar': avatar(content.get('avatar'))}
+            content = {'t': 'profile'}
         await self.share(content)
 
     async def share(self, content):

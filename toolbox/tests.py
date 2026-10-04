@@ -2991,13 +2991,13 @@ class RoomTests(TransactionTestCase):
         self.host = NodzUser.objects.create_user(email='hote@nodz.local', password='pw-123456', username='Hote')
         self.guest = NodzUser.objects.create_user(email='invite@nodz.local', password='pw-123456', username='Invite')
 
-    def connect(self, token, user):
+    def connect(self, token, user, query=''):
         from channels.routing import URLRouter
         from channels.testing import WebsocketCommunicator
 
         from nodzapp.routing import websocket_urlpatterns
 
-        socket = WebsocketCommunicator(URLRouter(websocket_urlpatterns), f'/ws/room/{token}/')
+        socket = WebsocketCommunicator(URLRouter(websocket_urlpatterns), f'/ws/room/{token}/{query}')
         socket.scope['user'] = user
         return socket
 
@@ -3047,3 +3047,30 @@ class RoomTests(TransactionTestCase):
 
         async_to_sync(scenario)()
         self.assertEqual(Room.objects.get().banned, [self.guest.pk])
+
+    def test_pseudo_and_avatar_are_chosen_but_signed_by_the_server(self):
+        from asgiref.sync import async_to_sync
+
+        from .models import Room
+
+        room = Room.objects.create(host=self.host, name='Atelier')
+
+        async def scenario():
+            host = self.connect(room.token, self.host)
+            await host.connect()
+            await host.receive_json_from()  # welcome
+            guest = self.connect(room.token, self.guest, '?name=%20Zo%C3%A9%0A%20la%20%20brave&avatar=fox')
+            await guest.connect()
+            me = (await guest.receive_json_from())['me']
+            self.assertEqual((me['name'], me['avatar'], me['host']), ('Zoé la brave', 'fox', False))  # contrôle retiré, espaces resserrés
+            self.assertEqual((await host.receive_json_from())['from']['name'], 'Zoé la brave')
+            # Changer de profil : un avatar inconnu est refusé, un pseudo trop long coupé, l'hôte ne s'usurpe pas.
+            await guest.send_json_to({'t': 'profile', 'name': 'Hote' + 'x' * 40, 'avatar': '<img>', 'host': True, 'data': 'rien'})
+            changed = await host.receive_json_from()
+            self.assertEqual(changed, {'t': 'profile', 'from': {'id': self.guest.pk, 'name': ('Hote' + 'x' * 40)[:24], 'host': False, 'avatar': None}})
+            await guest.send_json_to({'t': 'profile', 'name': '   ', 'avatar': 'owl'})  # pseudo vide : il garde le sien
+            self.assertEqual((await host.receive_json_from())['from']['name'], ('Hote' + 'x' * 40)[:24])
+            await guest.disconnect()
+            await host.disconnect()
+
+        async_to_sync(scenario)()
