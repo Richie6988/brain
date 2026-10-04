@@ -56,9 +56,9 @@ svg.addEventListener('dblclick', (event) => {
             if (nodeCounter !== 0){
                 color = getRandomColor();
             }            
-            node = createNode(event.clientX,event.clientY);
-            focusNode(node,false);
+            node = createNode(event.clientX,event.clientY);  // sous le pointeur, la vue ne bouge pas
             CurrentNode(node);
+            event.stopImmediatePropagation();  // le double-clic de focus (mouseEvents.js) ne recentre pas le node qui naît
         }       
     }      
 });

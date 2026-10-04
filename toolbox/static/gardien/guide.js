@@ -20,7 +20,7 @@ const PRESENTATION = [
 ];
 
 const MOUSE = [
-    ['Double-clic dans le vide', 'Créer un node'],
+    ['Double-clic dans le vide', 'Créer un node sous le pointeur'],
     ['Double-clic sur un node', 'Le centrer et zoomer dessus'],
     ['Clic sur un node', 'Le sélectionner ; un second clic pour écrire dedans'],
     ['Glisser un node', 'Le déplacer, avec toute la sélection'],
@@ -36,7 +36,7 @@ const MOUSE = [
 ];
 
 const KEYBOARD = [
-    ['Espace', 'Créer un node sous le pointeur ; un node sélectionné : un enfant relié ; plusieurs : les relier'],
+    ['Espace', 'Créer un node au centre de la vue ; un node sélectionné : un enfant relié sous le pointeur ; plusieurs : les relier'],
     ['Entrée', 'Ouvrir un portail : le node sélectionné part dans une nouvelle dimension'],
     ['Tab', 'Saut de zoom : vue d\'ensemble, puis retour'],
     ['Flèches', 'Déplacer la vue'],

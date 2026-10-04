@@ -136,9 +136,10 @@ document.addEventListener('keydown', function(event) {
         } 
 
     } else if (!isTyping && event.key === ' '){
+        // Sans node sélectionné : au centre de la vue (le double-clic, lui, crée sous le pointeur)
         event.preventDefault();   
         color = getRandomColor(); 
-        newNode = createNode(mouseX,mouseY);
+        newNode = createNode(centerX,centerY);
     }
 });
 

@@ -50,11 +50,12 @@ await page.goto(`${BASE}${PAGE}`);
 await page.getByText('GUEST', { exact: true }).click();
 await page.waitForTimeout(3500);
 
-// Espace crée un node sous la souris ; le clic à vide sort du mode saisie du node précédent.
+// Le double-clic crée un node sous la souris (Espace, lui, crée au centre de la vue) ; le clic à vide sort du mode
+// saisie du node précédent.
 const create = async () => {
     for (const [x, y] of [[420, 330], [760, 300], [600, 520]]) {
         await page.mouse.click(x, y);
-        await page.keyboard.press(' ');
+        await page.mouse.dblclick(x, y);
         await page.waitForTimeout(300);
     }
     await page.mouse.click(1200, 740);
