@@ -46,10 +46,10 @@ def kv_bytes_per_token(info, quant_factor=1.0):
 
 
 def free_memory():
-    """(VRAM libre en Mo ou 0, RAM disponible en Mo)."""
+    """(VRAM libre en Mo, None si aucune carte n'a pu être lue ; RAM disponible en Mo)."""
     gpu = monitor.gpu()
     ram = monitor.memory()
-    vram = (gpu['vram_total_mb'] - gpu['vram_used_mb']) if gpu else 0
+    vram = (gpu['vram_total_mb'] - gpu['vram_used_mb']) if gpu else None
     return vram, (ram['total_mb'] - ram['used_mb']) if ram else 0
 
 
@@ -63,21 +63,26 @@ def resolve(path, options, gpu_offload=True, chosen=()):
     factor = 0.5 if options.get('type_k') == 8 else 0.25 if options.get('type_k') == 2 else 1.0
     kv_mb = kv_bytes_per_token(info, factor) / 1024 ** 2
     vram, ram = free_memory()
-    if not gpu_offload:
-        vram = 0  # llama-cpp-python compilé sans CUDA : tout sur CPU
+    # llama-cpp-python compilé avec CUDA mais carte illisible (nvidia-smi absent du service, refusé) : le GPU d'abord,
+    # tout dessus ; si la carte ne suffit pas, le moteur recharge avec moins de couches. Avant, une VRAM inconnue valait
+    # zéro et le modèle partait entier sur CPU (le GPU ne servait qu'à lire le prompt).
+    unknown = vram is None and bool(gpu_offload)
+    vram = 0 if vram is None or not gpu_offload else vram  # sans CUDA : tout sur CPU
     out = dict(options)
     gl = options.get('n_gpu_layers', 'auto')
     if gl == 'max':
         gl = -1
     elif gl == 'auto':
-        if not vram or not layers:
+        if unknown and layers:
+            gl = -1
+        elif not vram or not layers:
             gl = 0
         else:
             fit = int((vram - OVERHEAD_MB - WORK_CTX * kv_mb) / per_layer) if per_layer else 0
             gl = -1 if fit >= layers else max(0, fit)
     out['n_gpu_layers'] = gl
     on_gpu = layers if gl == -1 else min(gl, layers)
-    gpu = bool(on_gpu and vram)
+    gpu = bool(on_gpu and (vram or unknown))
     trained = info.get('context_length') or 4096
     weights_ram = size_mb - (on_gpu * per_layer if gpu else 0)  # la part du modèle qui reste en RAM
     spare = ram * 0.9 - weights_ram - COMPUTE_MB  # RAM pour le cache KV une fois le modèle chargé
@@ -88,17 +93,17 @@ def resolve(path, options, gpu_offload=True, chosen=()):
         if 'n_batch' not in chosen:
             out['n_batch'] = min(out.get('n_batch') or 512, 512)
     capped = False
-    if gpu and on_gpu >= layers and isinstance(out.get('n_ctx'), int) and kv_mb:  # tout sur GPU : le contexte s'y loge
+    if gpu and not unknown and on_gpu >= layers and isinstance(out.get('n_ctx'), int) and kv_mb:  # tout sur GPU : le contexte s'y loge
         room = int((vram - OVERHEAD_MB - on_gpu * per_layer) / kv_mb) // 1024 * 1024
         if out['n_ctx'] > max(room, MIN_AUTO_CTX):
             out['n_ctx'], capped = max(room, MIN_AUTO_CTX), True
     if options.get('n_ctx', 'auto') == 'auto':
-        budget = vram - OVERHEAD_MB - on_gpu * per_layer if gpu else spare  # le cache suit les couches
+        budget = (WORK_CTX * kv_mb if unknown else vram - OVERHEAD_MB - on_gpu * per_layer) if gpu else spare  # le cache suit les couches
         tokens = int(budget / kv_mb) if kv_mb else trained
         ceiling = MAX_AUTO_CTX if gpu else MAX_AUTO_CTX_CPU
         out['n_ctx'] = max(min(MIN_AUTO_CTX, trained), min(trained, ceiling, tokens // 1024 * 1024))
     need = weights_ram + COMPUTE_MB + (0 if gpu else out['n_ctx'] * kv_mb)
     summary = {'gpu_layers': on_gpu, 'layers': layers, 'n_ctx': out['n_ctx'], 'vram_free_mb': int(vram),
                'ram_free_mb': int(ram), 'gpu_offload': gpu_offload, 'model_mb': int(size_mb), 'need_mb': int(need),
-               'kv_q8': out.get('type_k') == 8, 'fits': not ram or need <= ram * 0.95, 'ctx_capped': capped}
+               'kv_q8': out.get('type_k') == 8, 'fits': not ram or need <= ram * 0.95, 'ctx_capped': capped, 'vram_unknown': unknown}
     return out, summary

@@ -174,13 +174,21 @@ class Engine:
             tries.append(plain)
         if plain.get('flash_attn'):
             tries.append({**plain, 'flash_attn': False})
+        # La carte ne suffit pas (VRAM inconnue, tout tenté sur le GPU, ou estimation trop juste) : moins de couches
+        # sur le GPU, la moitié puis le quart, avant le CPU seul.
+        placed = self.placement[model.pk]
+        layers = placed.get('layers') or 0
+        if resolved.get('n_gpu_layers') and layers:
+            tries += [{**tries[-1], 'n_gpu_layers': n} for n in dict.fromkeys((layers // 2, layers // 4, 0))]
         for options in tries:
             try:
                 llm = self.factory(model_path=model.path, verbose=False, **options)
-            except ValueError as e:  # « Failed to create llama_context »
+            except ValueError as e:  # « Failed to create llama_context », « Failed to load model » (mémoire GPU)
                 error = e
                 continue
-            self.placement[model.pk]['kv_q8'] = options.get('type_k') == 8
+            placed['kv_q8'] = options.get('type_k') == 8
+            if options.get('n_gpu_layers') != resolved.get('n_gpu_layers'):
+                placed['gpu_layers'] = options['n_gpu_layers']
             return llm
         raise EngineUnavailable(f'{model} ne se charge pas ({error}) : réduis le contexte dans ses réglages') from None
 

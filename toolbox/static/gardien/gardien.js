@@ -433,7 +433,7 @@ async function ask(node, text, attached = [], direct = !!node) {
         const m = timing?.memory;
         if (m?.no_cuda) chat.add('guardian', `Je tourne sur le processeur : une carte NVIDIA est là, mais llama-cpp-python est compilé `
             + 'sans CUDA. Agents & modèles, Bibliothèque : « Compiler avec CUDA », et j\'écrirai bien plus vite.', 'mémoire');
-        else if (m) chat.add('guardian', `Je suis lent parce que mon modèle (${go(m.model_gb)} Go) ne tient ni dans la mémoire libre `
+        else if (m) chat.add('guardian', `Je suis lent parce que mon modèle (${go(m.model_gb)} Go) ne tient ${m.vram_gb ? 'ni' : 'pas'} dans la mémoire libre `
             + `(${go(m.free_gb)} Go)${m.vram_gb ? ` ni dans la carte graphique (${go(m.vram_gb)} Go libres)` : ''} : je relis le disque `
             + `à chaque mot. Donne-moi un modèle d'environ ${go(m.advice_gb)} Go ou moins dans Agents & modèles`
             + `${m.vram_gb ? ', il tiendra entier sur la carte graphique' : ' (un 3B ou un 1.5B en Q4)'}, ou branche un modèle par API : `

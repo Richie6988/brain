@@ -335,6 +335,22 @@ class EngineTests(TestCase):
         self.assertNotIn('type_k', loaded)
         self.assertFalse(loaded['flash_attn'])
 
+    def test_load_moves_layers_off_a_full_gpu(self):
+        from . import fit
+
+        class SmallCard(FakeLlama):  # la carte ne prend que 14 couches sur 28
+            def __init__(self, **kwargs):
+                if kwargs.get('n_gpu_layers') == -1 or kwargs.get('n_gpu_layers', 0) > 14:
+                    raise ValueError('Failed to load model from file')
+                super().__init__(**kwargs)
+
+        engine = Engine(Broker(), factory=SmallCard)
+        engine._watch = lambda: None
+        with mock.patch.object(fit, 'resolve', return_value=({'n_gpu_layers': -1, 'n_ctx': 8192}, {'layers': 28, 'gpu_layers': 28})):
+            self.assertEqual(engine.chat(self.model, [{'role': 'user', 'content': 'x'}]), 'Bonjour')
+        self.assertEqual(FakeLlama.instances[-1].kwargs['n_gpu_layers'], 14)  # la moitié, pas tout sur CPU
+        self.assertEqual(engine.placement[self.model.pk]['gpu_layers'], 14)
+
     def test_stop_is_per_user_and_chat_preempts_background(self):
         from .broker import BACKGROUND
         from .engine import acting_for
@@ -515,15 +531,30 @@ class FitTests(SimpleTestCase):
         self.assertEqual((roomy['n_gpu_layers'], roomy['n_ctx'], summary['ctx_capped']), (-1, 16384, False))  # la place y est
 
     def test_gpu_read_when_nvidia_smi_says_not_available(self):
-        # Portables, WSL : utilisation et température « [N/A] ». La VRAM est lue quand même : sans elle, le modèle
-        # partait tout entier sur CPU (GPU à 30 %, seulement pour la lecture du prompt).
+        # Portables, WSL : utilisation et température « [N/A] », ou refusées par le pilote. La VRAM est lue à part : sans
+        # elle, le modèle partait tout entier sur CPU (GPU à 30 %, seulement pour la lecture du prompt).
         from . import monitor
 
-        run = SimpleNamespace(stdout='NVIDIA GeForce RTX 3060 Laptop GPU, [N/A], 512, 6144, [N/A]\n')
-        with mock.patch.object(monitor.shutil, 'which', return_value='/usr/bin/nvidia-smi'), \
-                mock.patch.object(monitor.subprocess, 'run', return_value=run):
+        answers = {'name,memory.used,memory.total': 'NVIDIA GeForce RTX 3060 Laptop GPU, 512, 6144\n',
+                   'utilization.gpu,temperature.gpu': '[N/A], [N/A]\n'}
+        run = lambda args, **kw: SimpleNamespace(stdout=answers[args[1].split('=')[1]])
+        with mock.patch.object(monitor.shutil, 'which', return_value='/usr/bin/nvidia-smi'), mock.patch.object(monitor.subprocess, 'run', run):
             gpu = monitor.gpu()
         self.assertEqual((gpu['vram_total_mb'] - gpu['vram_used_mb'], gpu['percent'], gpu['temperature']), (5632, 8.3, None))
+        answers['utilization.gpu,temperature.gpu'] = 'Field "temperature.gpu" is not a valid field to query.\n'
+        with mock.patch.object(monitor.shutil, 'which', return_value=None), mock.patch.object(monitor.Path, 'is_file', return_value=True), \
+                mock.patch.object(monitor.subprocess, 'run', run):
+            gpu = monitor.gpu()  # hors du PATH (WSL : /usr/lib/wsl/lib), et un champ refusé
+        self.assertEqual((gpu['vram_total_mb'], gpu['percent']), (6144, 8.3))
+
+    def test_cuda_with_an_unreadable_card_tries_the_gpu_first(self):
+        # llama-cpp-python compilé avec CUDA, carte illisible : tout sur le GPU (avant : zéro couche, tout sur CPU).
+        from . import fit
+
+        out, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=None, ram=4500)
+        self.assertEqual((out['n_gpu_layers'], out['n_ctx'], summary['vram_unknown'], summary['fits']), (-1, 8192, True, True))
+        cpu, summary = self.resolve({'n_gpu_layers': 'auto', 'n_ctx': 'auto'}, vram=None, ram=4500, offload=False)
+        self.assertEqual((cpu['n_gpu_layers'], summary['vram_unknown'], summary['fits']), (0, False, False))  # sans CUDA : la RAM décide
 
     def test_lean_grammar_keeps_structure(self):
         from .engine import lean

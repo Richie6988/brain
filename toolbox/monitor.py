@@ -47,19 +47,35 @@ def memory():
         return None
 
 
+# nvidia-smi hors du PATH du service : WSL le range dans /usr/lib/wsl/lib, Windows dans System32.
+SMI_PLACES = ('/usr/lib/wsl/lib/nvidia-smi', '/usr/bin/nvidia-smi', r'C:\Windows\System32\nvidia-smi.exe')
+
+
+def smi():
+    return shutil.which('nvidia-smi') or next((p for p in SMI_PLACES if Path(p).is_file()), None)
+
+
+def query(command, fields):
+    out = subprocess.run([command, f'--query-gpu={fields}', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=4).stdout
+    return [v.strip() for v in out.splitlines()[0].split(',')]
+
+
 def gpu():
-    if not shutil.which('nvidia-smi'):
+    command = smi()
+    if not command:
         return None
+    # La mémoire seule d'abord : un champ que le pilote refuse (température, utilisation sur certains portables ou sous
+    # WSL) faisait échouer toute la lecture, la VRAM comptait pour zéro et le modèle partait entier sur CPU.
     try:
-        out = subprocess.run(['nvidia-smi', '--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu',
-                              '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=4).stdout
-        name, util, used, total, temp = [v.strip() for v in out.splitlines()[0].split(',')]
+        name, used, total = query(command, 'name,memory.used,memory.total')
         used, total = int(used), int(total)
     except (OSError, ValueError, IndexError, subprocess.SubprocessError):
         return None
     vram = round(100 * used / total, 1) if total else 0.0
-    # Portables, WSL, certaines cartes : utilisation ou température « [N/A] ». La VRAM suffit au placement des couches ;
-    # sans elle, le modèle partait tout entier sur CPU.
+    try:
+        util, temp = query(command, 'utilization.gpu,temperature.gpu')
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        util = temp = ''
     return {'name': name, 'percent': number(util, vram), 'vram_used_mb': used, 'vram_total_mb': total,
             'vram_percent': vram, 'temperature': number(temp, None)}
 

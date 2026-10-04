@@ -571,6 +571,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
             h('div', { class: 'gl-params' }, kv('TTL', `${c.ttl} min`), kv('FLASH', c.flash_attn ? 'ON' : 'OFF', c.flash_attn ? 'on' : 'off'),
                 kv('MMAP', yes(c.use_mmap)), kv('MLOCK', yes(c.use_mlock)), c.random_seed === false ? kv('GRAINE', 'fixe') : null),
             differs ? h('small', { class: 'gl-hint' }, `Enregistré : contexte ${c.n_ctx}, couches GPU ${c.n_gpu_layers}`) : null,
+            p?.vram_unknown ? h('small', { class: 'gl-hint' }, 'Carte graphique illisible (nvidia-smi) : tout tenté sur le GPU, moins de couches si elle refuse') : null,
             // Des couches restées sur le CPU : chaque jeton les attend. Un clic les met toutes sur le GPU (rechargement).
             p && p.layers && p.gpu_layers < p.layers && p.vram_free_mb ? h('button', { type: 'button', class: 'gl-primary', ...guard(),
                 title: 'Toutes les couches sur le GPU : le contexte se réduit s\'il le faut', onclick: () => act(async () => {
