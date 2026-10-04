@@ -132,7 +132,7 @@ body:has(.universe.lightmode) {
     background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,
                 linear-gradient(currentColor, currentColor) center / 2px 100% no-repeat;
 }
-.dropdown-content .dropdown-item:not(.new) .icon { background: url('../img/edit.svg') center / contain no-repeat; }
+.dropdown-content .dropdown-item:not(.new) .icon { background: url('../img/edit-light.svg') center / contain no-repeat; }
 
 /* Renommer une dimension */
 #edit-modal { background: rgba(5, 12, 23, 0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
@@ -178,93 +178,101 @@ body:has(.universe.lightmode) {
 .close-btn { color: var(--nz-card-title); }
 .close-btn:hover { background: rgba(104, 72, 166, 0.3); transform: rotate(90deg); }
 
-/* --- Profil */
-
+/* --- Profil : une fenêtre comme le Guide et Agents & modèles (gl-window du Gardien) : ivoire, encre prune, fond flouté,
+   en-tête (avatar à l'initiale, nom, e-mail, offre), onglets en pastilles (Compte, Activité, Premium, Ton avis),
+   « Fermer » en pastille. Les styles en ligne de l'ancien profil sont neutralisés ici. */
+#profile { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); background: rgba(5, 8, 18, 0.45); }
 #profile .profile-content {
-    border-radius: 18px; border: 1px solid var(--nz-card-line); background: var(--nz-card); color: var(--nz-card-text); box-shadow: var(--nz-card-shadow);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    position: relative; width: min(860px, 92vw); max-width: none; height: auto; min-height: min(460px, 80vh); max-height: 86vh; padding: 18px 22px 22px; box-sizing: border-box;
+    background: #fbfaff; color: #333; border: 1px solid rgba(68, 8, 82, 0.2); border-radius: 22px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    font: 12px 'Cascadia Code', monospace; backdrop-filter: none;
 }
-#profile .section-title { color: var(--nz-card-title); border-bottom: 1px solid var(--nz-field-line); }
-#profile .field-container { align-items: center; padding: 6px 0; border-bottom: 1px solid var(--nz-field-line); }
-#profile .field-label { color: var(--nz-card-title); font-weight: 600; }
-#profile .edit-icon.icon { font-size: 0; width: 16px; height: 16px; cursor: pointer; opacity: 0.6; background: url('../img/edit-light.svg') center / contain no-repeat; }
-#profile .edit-icon.icon:hover { opacity: 1; }
-
-/* Profil en cartes : identité, activité (nodes et graphique), parrainage, Premium, avis */
-#profile .profile-content { width: min(920px, 92vw); max-width: none; padding: 26px 30px; box-sizing: border-box; }
-#profile .section-title { margin: 22px 0 12px; font-size: 1.15rem; letter-spacing: 0.02em; }
-#profile .section-title:first-of-type { margin-top: 0; font-size: 1.4rem; }
-#profile #userProfile, #profile .user-stats, #profile [data-field="Referee"], #profile .subscription {
-    background: var(--nz-inner); border: 1px solid var(--nz-field-line); border-radius: 14px; padding: 10px 18px; margin-bottom: 14px;
-}
-#profile #userProfile .field-container { grid-template-columns: 150px 1fr 24px; justify-items: start; gap: 12px; padding: 9px 0; }
-#profile #userProfile .field-container:last-child { border-bottom: none; }
-#profile .field-value { font-size: 0.95rem; color: var(--nz-card-text); }
-#profile .user-stats { grid-template: none; grid-template-columns: 220px 1fr; align-items: center; gap: 12px; padding: 16px 18px; }
-#profile .user-stats .message { margin: 0; }
-#profile #nodesKPI { font-size: 3.4rem; line-height: 1; background: linear-gradient(135deg, #6848A6, #1E90FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
-#profile #nodesKPI + .message { font-size: 0.8rem; letter-spacing: 0.3em; color: #8a7aa8; }
-#profile .chart { max-width: 300px !important; margin: 0 auto; }
-#profile [data-field="Referee"] { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: space-between !important; gap: 12px !important; }
-#profile [data-field="Referee"] > div { margin: 0 !important; gap: 12px; }
-#profile [data-field="Referee"] p { margin: 0; }
-#profile #referrerKPI { font-size: 1.6rem; color: #6848A6; margin: 0; }
-#profile .subscription-upgrade > .subscription-upgrade {
-    background: var(--nz-inner) !important; box-shadow: none !important; border: 1px solid var(--nz-card-line); max-width: none !important; margin: 6px 0 14px !important;
-}
-#profile .subscription-upgrade > .subscription-upgrade > p:first-child { font-size: 1.2rem !important; }
-/* Profil modernisé : en-tête (avatar à l'initiale, nom, e-mail, offre), sections titrées, activité en tuile, Premium en
-   grille de fonctions, champs sombres, suppression du compte discrète. */
-#profile .pf-hero { display: flex; align-items: center; gap: 18px; padding: 6px 4px 22px; margin-bottom: 8px; border-bottom: 1px solid var(--nz-field-line); }
-#profile .pf-avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-size: 1.9rem; font-weight: 700; color: #fff;
+#profile .close-btn { position: absolute; top: 18px; right: 22px; width: auto; height: auto; padding: 4px 12px; border-radius: 12px; font: 11px 'Cascadia Code', monospace;
+    color: #440852; background: ivory; border: 1px solid #c9b8e0; transform: none; }
+#profile .close-btn:hover { background: ivory; box-shadow: 0 -2px 6px #f0c8f3a9; transform: none; }
+#profile .pf-hero { display: flex; align-items: center; gap: 14px; padding: 0 90px 14px 0; }
+#profile .pf-avatar { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-size: 1.3rem; font-weight: 700; color: #fff;
     background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 32%), radial-gradient(circle at 50% 60%, #6848A6, #3b2a7a 45%, #1E90FF);
-    box-shadow: inset 0 -6px 14px rgba(30, 144, 255, 0.5), 0 0 22px rgba(104, 72, 166, 0.45); }
-#profile .pf-who { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
-#profile .pf-who strong { font-size: 1.5rem; letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--nz-card-text); }
-#profile .pf-who small { color: #8a7aa8; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; }
-#profile .pf-plan { flex: none; padding: 5px 14px; border-radius: 999px; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase;
-    color: #b89af2; border: 1px solid rgba(184, 154, 242, 0.5); background: rgba(104, 72, 166, 0.15); }
-#profile .pf-plan.premium { color: #fff; border-color: transparent; background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 14px rgba(30, 144, 255, 0.45); }
-#profile .section-title, #profile .section-title:first-of-type { margin: 22px 0 10px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.22em; color: #8a7aa8; border: 0; padding: 0; }
-#profile .user-stats { grid-template-columns: 180px 1fr; padding: 10px 18px; }
-#profile .user-stats .chart { max-width: 360px !important; max-height: 190px; margin-top: 0; }
-#profile .user-stats canvas { max-height: 190px; }
-#profile .subscription:has(> #delete-account) { background: none; border: 0; padding: 0; margin: 0; }
-#profile .subscription:has(> #delete-account) .section-title { display: none; }
-#profile .subscription-upgrade > .subscription-upgrade { padding: 18px 20px !important; }
-#profile .subscription-upgrade > .subscription-upgrade > p:first-child { text-align: left !important; margin-bottom: 12px !important;
-    background: linear-gradient(135deg, #b89af2, #1E90FF); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
-#profile #feedback { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; padding: 0 !important; }
-#profile #feedback li { list-style: none !important; margin: 0 !important; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--nz-field-line); }
-#profile #feedback li p { margin: 0 !important; color: var(--nz-card-text) !important; font-weight: 500 !important; font-size: 0.85rem; }
-#profile #feedback li p::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; vertical-align: middle;
-    background: #33FF99; box-shadow: 0 0 6px #33FF99; }
-#profile .subscription-upgrade > .subscription-upgrade > p:last-child { text-align: left !important; color: #8a7aa8 !important; margin: 14px 0 0 !important; }
-#profile #feedback-input { background: var(--nz-inner) !important; color: var(--nz-card-text); border: 1px solid var(--nz-field-line) !important; font: inherit !important; }
-#profile #feedback-input:focus { outline: none; border-color: #b89af2 !important; box-shadow: 0 0 0 3px rgba(184, 154, 242, 0.15); }
-#profile .danger-button { position: static; margin: 6px auto 0; width: auto; padding: 8px 16px; border: 1px solid transparent; color: #8a7aa8; font: inherit; font-size: 0.8rem; }
-#profile .danger-button:hover:enabled { border-color: rgba(229, 57, 53, 0.6); background: rgba(229, 57, 53, 0.12); color: #ff8a80; box-shadow: none; transform: none; }
-@media (max-width: 600px) { #profile .user-stats { grid-template-columns: 1fr; } #profile .pf-hero { flex-wrap: wrap; } }
-#profile #feedback { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px 18px; padding: 0 !important; }
-#profile #feedback li { list-style: none !important; margin: 0 !important; }
-#profile #feedback li p { margin: 0; font-size: 0.9rem; }
-#profile #feedback li p::before {  /* coche dessinée, sans emoji */
-    content: ''; display: inline-block; width: 5px; height: 10px; margin: 0 10px 2px 2px;
-    border: solid #0f9f6e; border-width: 0 2px 2px 0; transform: rotate(45deg);
-}
-#profile #plan { width: auto !important; border-radius: 999px !important; padding: 8px 16px !important; background: #2b2438 !important; }
+    box-shadow: inset 0 -5px 12px rgba(30, 144, 255, 0.45), 0 4px 14px rgba(104, 72, 166, 0.35); }
+#profile .pf-who { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+#profile .pf-who strong { font-size: 17px; color: #440852; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#profile .pf-who small { color: #6848A6; overflow: hidden; text-overflow: ellipsis; }
+#profile .pf-plan { flex: none; padding: 3px 12px; border-radius: 12px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #6848A6; border: 1px solid #c9b8e0; }
+#profile .pf-plan.premium { color: ivory; background: #440852; border-color: #440852; }
+#profile .pf-tabs { display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid #ece4f6; }
+#profile .pf-tabs button { font: 11px 'Cascadia Code', monospace; color: #440852; background: ivory; border: 1px solid #c9b8e0; border-radius: 12px; padding: 4px 10px; cursor: pointer; }
+#profile .pf-tabs button:hover { box-shadow: 0 -2px 6px #f0c8f3a9; }
+#profile .pf-tabs button.active { background: #440852; color: ivory; border-color: #440852; }
+#profile .pf-notice { margin: -6px 0 10px; color: #0f9f6e; font-size: 11px; }
+#profile .pf-notice.error { color: #c0392b; }
+#profile [data-pf-tab][hidden] { display: none !important; }
+#profile .section-title { display: none; }  /* l'onglet porte le titre */
+
+/* Compte */
+#profile #userProfile { border: 1px solid #ece4f6; border-radius: 14px; padding: 4px 16px; background: #fff; }
+#profile .field-container { display: grid; grid-template-columns: 150px 1fr 24px; align-items: center; justify-items: start; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f1ebf8; }
+#profile #userProfile .field-container:last-child { border-bottom: none; }
+#profile .field-label { color: #6848A6; font-weight: 600; font-size: 12px; }
+#profile .field-value { color: #333; font-size: 12px; }
+#profile .edit-icon.icon { font-size: 0; width: 16px; height: 16px; cursor: pointer; opacity: 0.55; background: url('../img/edit-light.svg') center / contain no-repeat; }
+#profile .edit-icon.icon:hover { opacity: 1; }
+#profile #userProfile input { font: 12px 'Cascadia Code', monospace !important; color: #440852; background: ivory; border: 1px solid #c9b8e0; border-radius: 10px; padding: 5px 10px; width: min(320px, 100%); }
+#profile #userProfile input:focus { outline: none; border-color: #6848A6; box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.15); }
+#profile .subscription:has(> #delete-account) { margin-top: 18px; text-align: center; }
+#profile .danger-button { position: static; margin: 0 auto; width: auto; padding: 4px 12px; border-radius: 12px; border: 1px solid transparent; background: none;
+    font: 11px 'Cascadia Code', monospace; color: #8a7aa8; }
+#profile .danger-button:hover:enabled { border-color: #e8a6a6; background: #fff1f1; color: #c0392b; box-shadow: none; transform: none; }
+
+/* Activité : le nombre de nodes, leur répartition, le parrainage */
+#profile .user-stats { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 12px; border: 1px solid #ece4f6; border-radius: 14px; padding: 14px 18px; background: #fff; }
+#profile .user-stats .message { margin: 0; }
+#profile #nodesKPI { font-size: 3rem; line-height: 1; color: #440852; }
+#profile #nodesKPI + .message { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: #6848A6; }
+#profile .user-stats .chart { max-width: 360px !important; max-height: 200px; margin: 0 auto; }
+#profile .user-stats canvas { max-height: 200px; }
+#profile .user-stats.pf-empty { grid-template-columns: 1fr; text-align: center; }
+#profile .user-stats.pf-empty .charts-container { display: none !important; }
+#profile .user-stats.pf-empty::after { content: 'Aucun node pour l\'instant : double-clic dans l\'univers pour commencer.'; color: #888; }
+#profile [data-field="Referee"] { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: space-between !important; gap: 12px !important;
+    margin-top: 12px; border: 1px solid #ece4f6; border-radius: 14px; padding: 10px 16px; background: #fff; }
+#profile [data-field="Referee"] > div { margin: 0 !important; gap: 12px; }
+#profile [data-field="Referee"] p { margin: 0; color: #333; }
+#profile #referrerKPI { font-size: 1.4rem; color: #440852; margin: 0; }
+#profile .submit-button { font: 11px 'Cascadia Code', monospace; color: ivory; background: #440852; border: 1px solid #440852; border-radius: 12px; padding: 5px 12px; cursor: pointer; }
+#profile .submit-button:hover { box-shadow: 0 -2px 6px #f0c8f3a9; }
+
+/* Premium */
+#profile .subscription-upgrade { background: transparent; color: #333; margin: 0; }
+#profile .subscription-upgrade > .subscription-upgrade { background: #fff !important; box-shadow: none !important; border: 1px solid #ece4f6; border-radius: 14px !important;
+    max-width: none !important; margin: 0 0 14px !important; padding: 16px 18px !important; }
+#profile .subscription-upgrade > .subscription-upgrade > p:first-child { font-size: 15px !important; text-align: left !important; color: #440852 !important; margin: 0 0 12px !important; }
+#profile .subscription-upgrade > .subscription-upgrade > p:last-child { text-align: left !important; color: #6848A6 !important; font-size: 11px !important; margin: 12px 0 0 !important; }
+#profile #feedback { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; padding: 0 !important; margin: 0; }
+#profile #feedback li { list-style: none !important; margin: 0 !important; padding: 8px 12px; border-radius: 10px; border: 1px solid #f1ebf8; background: #fbfaff; }
+#profile #feedback li p { margin: 0 !important; color: #333 !important; font-weight: 500 !important; font-size: 12px; }
+#profile #feedback li p::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; vertical-align: middle; background: #0f9f6e; }
+#profile .subscription-upgrade .form-group { color: #333; }
+#profile .subscription-upgrade a { color: #6848A6 !important; }
+#profile #plan { width: auto !important; font: 11px 'Cascadia Code', monospace !important; color: #440852 !important; background: ivory !important; border: 1px solid #c9b8e0 !important; border-radius: 12px !important; padding: 5px 12px !important; }
 #profile #pay-button { width: auto !important; margin-left: 10px; }
-#profile #feedback-input { border: 1px solid var(--nz-field-line) !important; border-radius: 12px; padding: 10px 12px; font: 13px 'Cascadia Code', monospace; resize: vertical;
-    background: var(--nz-field) !important; color: var(--nz-card-text); }
-#profile .subscription-upgrade { background: transparent; color: var(--nz-card-text); }
-#profile .subscription-upgrade p, #profile #feedback li p { color: var(--nz-card-text) !important; }
-#profile .subscription-upgrade > .subscription-upgrade > p:first-child { background: var(--nz-gradient); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
-#profile .subscription-upgrade a { color: #1E90FF; }
-#profile #feedback-input:focus { outline: none; border-color: #6848A6; box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.15); }
-#profile .danger-button { position: static; margin: 0 auto; border-radius: 999px; }
+
+/* Ton avis */
+#profile .subscription[data-pf-tab="avis"] { gap: 10px; border: 1px solid #ece4f6; border-radius: 14px; padding: 12px 14px; background: #fff; }
+#profile #feedback-input { min-height: 120px !important; font: 12px/1.5 'Cascadia Code', monospace !important; color: #333; background: #fbfaff !important; border: 1px solid #c9b8e0 !important; border-radius: 12px !important; }
+#profile #feedback-input:focus { outline: none; border-color: #6848A6 !important; box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.15) !important; }
+
+/* Confirmations et e-mail (créées par profile.html) : petites fenêtres au même style */
+.mail-popup { background: #fbfaff !important; color: #333 !important; border: 1px solid rgba(68, 8, 82, 0.2) !important; border-radius: 16px !important;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45) !important; font: 12px 'Cascadia Code', monospace; gap: 10px; padding: 16px 18px !important; width: 280px !important; }
+.mail-popup.error { border-color: #e8a6a6 !important; }
+.mail-popup .smallmessage { font-size: 12px; line-height: 1.5; color: #333; }
+.mail-popup .submit-button { background: #440852 !important; color: ivory !important; border-radius: 12px !important; font: 11px 'Cascadia Code', monospace !important; padding: 5px 12px !important; }
+.mail-popup.error .submit-button { background: #c0392b !important; }
+.code-input { border: 1px solid #c9b8e0 !important; border-radius: 10px !important; background: ivory !important; color: #440852; font-size: 14px !important; }
 @media (max-width: 700px) {
     #profile .user-stats { grid-template-columns: 1fr; }
-    #profile #userProfile .field-container { grid-template-columns: 110px 1fr 20px; }
+    #profile .field-container { grid-template-columns: 110px 1fr 20px; }
+    #profile .pf-hero { padding-right: 70px; }
 }
 
 /* --- Node : barres d'outils et poignée de taille, au style du Gardien. Aucune taille ni position changée :

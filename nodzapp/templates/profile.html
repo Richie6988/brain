@@ -257,7 +257,7 @@
 
 <div id="profile" class="overlay">
     <div class="profile-content">
-        <span class="close-btn" onclick="closeProfile()">&times;</span> 
+        <span class="close-btn" onclick="closeProfile()">Fermer</span> 
      
         <!-- En-tête : avatar à l'initiale, nom, e-mail, offre -->
         <header class="pf-hero">
@@ -268,10 +268,18 @@
             </div>
             <span id="pf-plan" class="pf-plan"></span>
         </header>
+        <!-- Onglets, comme le Guide et Agents & modèles -->
+        <nav class="pf-tabs">
+            <button type="button" data-tab="compte" class="active">Compte</button>
+            <button type="button" data-tab="activite">Activité</button>
+            <button type="button" data-tab="premium">Premium</button>
+            <button type="button" data-tab="avis">Ton avis</button>
+        </nav>
+        <p id="pf-notice" class="pf-notice" hidden></p>
 
-        <h3 class="section-title">Compte</h3>
+        <h3 class="section-title" data-pf-tab="compte">Compte</h3>
 
-        <div id="userProfile">
+        <div id="userProfile" data-pf-tab="compte">
             <div class="field-container" data-field="username">
                 <label class="field-label field1">Nom</label>
                 <span id="profile_name" class="field-value field2">Guest</span>
@@ -298,8 +306,8 @@
         </div>
 
         <!-- Usage Statistics Section -->
-        <h3 class="section-title">Activité</h3>
-        <div class="user-stats">
+        <h3 class="section-title" data-pf-tab="activite">Activité</h3>
+        <div class="user-stats" data-pf-tab="activite">
             <div style="display: flex; flex-direction: column; width: 100%; height:fit-content ; grid-column: 1; margin-top: 12px;"> 
                 <h2 id="nodesKPI" class="message">524</h2>
                 <h2 class="message">nodes</h2>
@@ -311,7 +319,7 @@
             </div>
         </div>
         <br>
-        <div class="field-container" data-field="Referee" style="display: flex; justify-content:center; gap: 20px;">
+        <div class="field-container" data-field="Referee" data-pf-tab="activite" style="display: flex; justify-content:center; gap: 20px;">
             <label class="field-label" style="position:relative;">Parrainages</label>
             <span id="referrerKPI" class="message">0</span>
             <div style="text-align: center; margin-top: 30px; display: flex; align-items: center; margin-bottom: 20px;">
@@ -327,7 +335,7 @@
 
         <!-- Subscription Section -->
         <div class="subscription">                         
-            <div class="subscription-upgrade">
+            <div class="subscription-upgrade" data-pf-tab="premium">
                 
                 <div class="subscription-upgrade" style="background-color: #f8f8f8; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); max-width: 600px; margin: 30px auto; font-family: 'Cascadia Code', monospace;">
                     <p style="font-size: 24px; font-weight: bold; color: #663399; text-align: center; margin-bottom: 20px;">Passer à Premium</p>
@@ -381,14 +389,14 @@
                 </form>
             </div>
              <!-- Contact Section -->
-             <h3 class="section-title">Ton avis</h3>
-            <div class="subscription" style="display: flex; align-items: center;">    
+             <h3 class="section-title" data-pf-tab="avis">Ton avis</h3>
+            <div class="subscription" data-pf-tab="avis" style="display: flex; align-items: center;">    
                 <textarea id="feedback-input" type="text" style="width: 100%; min-height: 30px;"></textarea>  
                 <span id="feedback-btn"></span>
             </div>
         </div>
         <!-- Delete account Section -->
-        <div class="subscription">
+        <div class="subscription" data-pf-tab="compte">
             <h3 class="section-title"></h3>      
             <button id="delete-account" class="danger-button">Supprimer le compte</button>
         </div>
@@ -399,6 +407,22 @@
                 
 
     <script>
+        // Onglets du profil, et messages dans la fenêtre (à la place des alertes du navigateur).
+        function pfTab(name) {
+            document.querySelectorAll('#profile .pf-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+            document.querySelectorAll('#profile [data-pf-tab]').forEach(el => { el.hidden = el.dataset.pfTab !== name; });
+        }
+        document.querySelectorAll('#profile .pf-tabs button').forEach(b => b.addEventListener('click', () => pfTab(b.dataset.tab)));
+        pfTab('compte');
+        function pfNotice(text, error) {
+            const notice = document.getElementById('pf-notice');
+            notice.textContent = text;
+            notice.classList.toggle('error', !!error);
+            notice.hidden = false;
+            clearTimeout(pfNotice.timer);
+            pfNotice.timer = setTimeout(() => { notice.hidden = true; }, 5000);
+        }
+
         function closeProfile() {
             const profile = document.getElementById('profile');
             profile.style.display = 'none';
@@ -436,7 +460,7 @@
                 if (data.status === 'success') {
                     const feedback_input = document.getElementById("feedback-input");                     
                     feedback_input.classList.add('thanks'); 
-                    feedback_input.value = 'THANK YOU!'; 
+                    feedback_input.value = 'Merci !'; 
                     setTimeout(() => {
                         document.getElementById("feedback-input").value = ''; 
                         feedback_input.classList.remove('thanks') 
@@ -447,7 +471,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while submitting the feedback.');
+                pfNotice('Ton avis n\'a pas pu être envoyé, réessaie plus tard.', true);
             });
         });
 
@@ -458,7 +482,7 @@
             // bye.className = 'popup'; 
             const message = document.createElement('div');
             message.className = 'smallmessage';          
-            message.textContent = `Are you sure? Deleting account is permanent.`;
+            message.textContent = `Supprimer ton compte ? C'est définitif : tes nodes et tes dimensions seront effacés.`;
             bye.appendChild(message);
             const buttonContainer = document.createElement('div');
             bye.classList.add('mail-popup');
@@ -466,7 +490,7 @@
             // buttonContainer.className = 'popupbutton-container'; 
             buttonContainer.style.justifyContent = 'center';
             const confirmButton = document.createElement('button');
-            confirmButton.textContent = 'CONFIRM';
+            confirmButton.textContent = 'Supprimer définitivement';
             confirmButton.style.fontSize = '10px';
             confirmButton.className = 'submit-button'; 
             confirmButton.style.padding = '5px';
@@ -583,6 +607,7 @@
                 }
                 target = document.getElementById('nodesKPI');
                 target.textContent = nodes;
+                document.querySelector('#profile .user-stats').classList.toggle('pf-empty', !Number(nodes));  // pas de graphique vide
                 document.getElementById('pf-name').textContent = pseudo;
                 document.getElementById('pf-email').textContent = email;
                 document.getElementById('pf-avatar').textContent = (pseudo || '?').trim().charAt(0).toUpperCase();
@@ -790,7 +815,7 @@
                         const mailPopup = document.createElement('div');
                         mailPopup.classList.add('mail-popup');
                         mailPopup.classList.add('error');
-                        mailPopup.textContent = 'Invalid email address';
+                        mailPopup.textContent = 'Adresse e-mail invalide';
                         
                         // Append the mail popup to the DOM
                         document.body.appendChild(mailPopup);
@@ -807,14 +832,14 @@
                         mailPopup.classList.add('mail-popup'); 
                         const mailMessage = document.createElement('div');
                         mailMessage.id = 'mailMessage';
-                        mailMessage.textContent = 'Sending validation code...';                       
+                        mailMessage.textContent = 'Envoi du code de validation…';                       
                         isTyping = true;
 
                         // Create the code input field
                         const codeInput = document.createElement('input');
                         codeInput.id = 'codeInput';
                         codeInput.type = 'text'; 
-                        codeInput.placeholder = 'Validation Code';
+                        codeInput.placeholder = 'Code reçu par e-mail';
                         codeInput.classList.add('code-input'); 
                         
                         // Add event listener to only allow numeric input
@@ -825,7 +850,7 @@
 
                         // Create a submit button
                         const submitButton = document.createElement('button');
-                        submitButton.textContent = 'Submit';
+                        submitButton.textContent = 'Valider';
                         submitButton.classList.add('submit-button'); 
 
                         mailPopup.appendChild(mailMessage);
@@ -874,7 +899,7 @@
             const result = await response.json();
             
             if (result.status === 'Validation code sent') {
-                document.getElementById('mailMessage').textContent = 'Enter the validation code sent to your email address';
+                document.getElementById('mailMessage').textContent = 'Saisis le code reçu par e-mail';
             } 
         }
 
@@ -884,9 +909,9 @@
             const code = document.getElementById('codeInput').value;
 
             if (!code) {
-                document.getElementById('mailMessage').textContent = 'Please enter the validation code.';
+                document.getElementById('mailMessage').textContent = 'Saisis le code de validation.';
                 setTimeout(() => {
-                    document.getElementById('mailMessage').textContent = 'Enter the validation code sent to your email address';
+                    document.getElementById('mailMessage').textContent = 'Saisis le code reçu par e-mail';
                 }, 3000);
                 return;
             }
@@ -909,7 +934,7 @@
                 saveProfile({'email': email});                          
                 return true;
             } else if (result.error === 'This email is already used') { 
-                document.getElementById('mailMessage').textContent = 'This email is already used';
+                document.getElementById('mailMessage').textContent = 'Cette adresse est déjà utilisée';
                 return false;   
                 
             } else {
@@ -1023,7 +1048,7 @@
 
             const data = await response.json();
             if (data.error) {
-                alert('Error creating payment: ' + data.error);
+                pfNotice('Paiement impossible : ' + data.error, true);
                 return;
             }
 
@@ -1041,9 +1066,9 @@
             });
 
             if (error) {
-                alert('Payment failed: ' + error.message);
+                pfNotice('Paiement refusé : ' + error.message, true);
             } else {
-                alert('Payment successful!');
+                pfNotice('Paiement accepté : bienvenue en Premium.');
             }
         });
 
