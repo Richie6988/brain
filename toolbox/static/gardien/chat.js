@@ -1,4 +1,4 @@
-// Chat du Gardien, en bas à droite : une bulle qui s'ouvre sur la conversation. On y écrit au Gardien
+// Chat du Gardien : l'orbe du Gardien (orb.js) s'ouvre sur la conversation, collée à lui. On y écrit au Gardien
 // sans passer par un node ; ses réponses s'y affichent et ses actions se jouent dans l'univers. Les
 // échanges lancés depuis un node (pastille, Ctrl+Entrée) y apparaissent aussi. Des nodes peuvent être
 // joints au prochain message (multisélection) : le Gardien lit leur texte complet pour cette demande
@@ -8,6 +8,7 @@
 // source et ne répond que dans l'univers ; Automatisation : l'ancien Gardien agentique (web, fichiers, agents, missions).
 
 import { h } from './library.js';
+import { createOrb } from './orb.js';
 
 const KEY = 'gardien-chat';
 const MODE_KEY = 'gardien-mode';
@@ -116,9 +117,10 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Gardien', onclick: () => {
         if (mode !== 'auto' && !working && selection().length > 1) onSend('Pense à partir de ces nodes.', [], true);
         else toggle();
-    } }, h('i', {}), h('b', { hidden: true }));
+    } }, h('span', { class: 'go-body' }, h('i', { class: 'go-eye' }), h('i', { class: 'go-eye' })), h('b', { hidden: true }));
     const root = h('div', { id: 'gardien-chat' }, panel, bubble);
     document.body.append(root);
+    const orb = createOrb({ root, bubble, panel, close: () => toggle(false) });
 
     // Un clic ailleurs (univers, barre, autre fenêtre) referme la conversation ; la pastille, qui y joint des
     // nodes, la rouvre aussitôt.
@@ -167,6 +169,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
             unread = 0;
             badge();
             log.scrollTop = log.scrollHeight;
+            orb.place();
             input.focus();
         }
     }
@@ -262,6 +265,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
             log.append(line(entry));
             log.querySelector('.gc-hint')?.remove();
             log.scrollTop = log.scrollHeight;
+            if (role === 'guardian') orb.speak();
             if (panel.hidden && role !== 'user') {
                 unread += 1;
                 badge();

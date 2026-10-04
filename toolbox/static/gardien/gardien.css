@@ -30,21 +30,39 @@
 /* Chat du Gardien, en bas à droite, au-dessus du compteur de nodes hors champ du coin */
 #gardien-chat { position: fixed; right: 20px; bottom: 84px; z-index: 32; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
     font: 12px 'Cascadia Code', monospace; }
+/* Orbe du Gardien (orb.js) : sphère de verre violet → bleu, deux yeux qui suivent le pointeur. Il respire au repos,
+   tourbillonne quand le Gardien réfléchit, pulse quand il répond. Libre, il flotte en fixed et le chat se colle à lui. */
+#gardien-chat.free { right: auto; bottom: auto; }
+#gardien-chat.free .gc-panel { position: fixed; }
 #gardien-chat-button {
-    position: relative; width: 50px; height: 50px; border-radius: 13px; cursor: pointer; border: 1.5px solid rgba(184, 154, 242, 0.85);
-    background: linear-gradient(135deg, rgba(104, 72, 166, 0.6), rgba(30, 144, 255, 0.35));
-    box-shadow: inset 0 0 14px rgba(30, 144, 255, 0.5), 0 0 16px rgba(104, 72, 166, 0.5);
-    transition: transform 0.35s cubic-bezier(0.65, 0, 0.35, 1), box-shadow 0.2s, border-color 0.2s;
+    position: relative; width: 50px; height: 50px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; background: none;
+    touch-action: none; transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1); animation: go-breathe 4.2s ease-in-out infinite;
 }
-#gardien-chat-button:hover { border-color: #1E90FF; transform: perspective(220px) rotateX(14deg) rotateY(-18deg) translateY(-2px);
-    box-shadow: inset 0 0 18px rgba(30, 144, 255, 0.7), 0 0 22px rgba(30, 144, 255, 0.6); }
-#gardien-chat-button i { position: absolute; inset: 12px; background: url('agents.svg') no-repeat center / contain;
-    filter: brightness(0) invert(1) drop-shadow(0 0 3px rgba(184, 154, 242, 0.9)); }
+#gardien-chat-button:hover { transform: scale(1.08); }
+#gardien-chat-button:active { transform: scale(0.94); }
+.go-body {
+    position: absolute; inset: 0; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 9px;
+    background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 30%),
+        radial-gradient(circle at 50% 60%, #6848A6 0%, #3b2a7a 45%, #1E90FF 100%);
+    box-shadow: inset 0 -6px 14px rgba(30, 144, 255, 0.55), inset 0 4px 10px rgba(184, 154, 242, 0.5), 0 0 18px rgba(104, 72, 166, 0.6),
+        0 6px 18px rgba(0, 0, 0, 0.35);
+}
+/* Le tourbillon : un dégradé conique qui ne se voit qu'en réflexion. */
+.go-body::before { content: ''; position: absolute; inset: -30%; opacity: 0; transition: opacity 0.4s;
+    background: conic-gradient(from 0deg, transparent, rgba(51, 255, 153, 0.5), transparent 35%, rgba(184, 154, 242, 0.6), transparent 70%); }
+.go-eye { position: relative; width: 7px; height: 11px; border-radius: 50%; background: #f8fbff;
+    box-shadow: 0 0 6px #fff, 0 0 12px rgba(51, 255, 153, 0.8); transition: transform 0.12s ease-out, height 0.08s; }
+#gardien-chat-button.blink .go-eye { height: 2px; }
 #gardien-chat-button b { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px;
     font-size: 10px; line-height: 18px; color: #fff; background: #FF6B6B; }
 #gardien-chat-button b[hidden] { display: none; }
-#gardien-chat.busy #gardien-chat-button { animation: gardien-blink 1.2s ease-in-out infinite; }
-#gardien-chat.open #gardien-chat-button { box-shadow: none; }
+#gardien-chat.busy .go-body::before { opacity: 1; animation: go-swirl 1.6s linear infinite; }
+#gardien-chat.busy #gardien-chat-button { animation: go-breathe 1.2s ease-in-out infinite; }
+#gardien-chat-button.speak .go-body { animation: go-speak 0.7s ease-out; }
+@keyframes go-breathe { 50% { transform: translateY(-3px) scale(1.04); } }
+@keyframes go-swirl { to { transform: rotate(360deg); } }
+@keyframes go-speak { 0% { box-shadow: 0 0 0 0 rgba(51, 255, 153, 0.8); } 100% { box-shadow: 0 0 0 18px rgba(51, 255, 153, 0); } }
+@media (prefers-reduced-motion: reduce) { #gardien-chat-button, .go-body::before { animation: none !important; } }
 .gc-panel {
     width: min(380px, calc(100vw - 32px)); height: min(560px, 72vh); display: flex; flex-direction: column; color: #e2e8f0;
     border: 1px solid transparent; border-radius: 22px;
@@ -60,12 +78,12 @@
 .gc-panel header > div:not(.gc-mode) { display: flex; flex-direction: column; flex: 1; gap: 1px; min-width: 0; }
 .gc-panel header strong { letter-spacing: 0.04em; }
 /* Avatar : tuile de verre comme les icônes du dock ; elle respire quand le Gardien réfléchit. */
-.gc-avatar {
-    position: relative; width: 34px; height: 34px; border-radius: 10px; border: 1.5px solid rgba(184, 154, 242, 0.8);
-    background: linear-gradient(135deg, rgba(104, 72, 166, 0.6), rgba(30, 144, 255, 0.35));
-    box-shadow: inset 0 0 10px rgba(30, 144, 255, 0.5), 0 0 12px rgba(104, 72, 166, 0.45);
+.gc-avatar {  /* le même orbe, en petit, avec ses yeux */
+    position: relative; flex: none; width: 32px; height: 32px; border-radius: 50%;
+    background: radial-gradient(ellipse 2.5px 4px at 38% 50%, #fff 90%, transparent), radial-gradient(ellipse 2.5px 4px at 62% 50%, #fff 90%, transparent),
+        radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 30%), radial-gradient(circle at 50% 60%, #6848A6, #3b2a7a 45%, #1E90FF);
+    box-shadow: inset 0 -4px 10px rgba(30, 144, 255, 0.5), 0 0 12px rgba(104, 72, 166, 0.45);
 }
-.gc-avatar::after { content: ''; position: absolute; inset: 7px; background: url('agents.svg') no-repeat center / contain; filter: brightness(0) invert(1) drop-shadow(0 0 3px #b89af2); }
 #gardien-chat.busy .gc-avatar { animation: gc-breathe 1.4s ease-in-out infinite; }
 @keyframes gc-breathe { 50% { box-shadow: inset 0 0 16px rgba(30, 144, 255, 0.9), 0 0 20px rgba(30, 144, 255, 0.7); } }
 .gc-state { display: inline-flex; align-items: center; gap: 5px; color: #94a3b8; font-size: 10px; }
