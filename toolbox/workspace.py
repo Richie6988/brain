@@ -167,33 +167,99 @@ def export_path(user, filename, suffix):
     return resolve(user, f"exports/{name if name.endswith(suffix) else name + suffix}")
 
 
-def pptx(user, filename, title, slides):
+# --- modèles de documents de l'utilisateur (bibliothèque du Rédacteur) : ses fichiers pptx, docx, xlsx, pdf, rangés
+# dans « modeles » de son espace ; un document généré « dans son style » part de l'un d'eux.
+
+TEMPLATE_DIR = 'modeles'
+TEMPLATE_KINDS = ('.pptx', '.docx', '.xlsx', '.pdf')
+TEMPLATE_MAX = 20 * 1024 * 1024
+
+
+def templates(user):
+    folder = resolve(user, TEMPLATE_DIR)
+    if not folder.is_dir():
+        return []
+    return [{'name': p.stem, 'kind': p.suffix[1:], 'size': p.stat().st_size}
+            for p in sorted(folder.iterdir()) if p.is_file() and p.suffix.lower() in TEMPLATE_KINDS]
+
+
+def save_template(user, filename, data):
+    stem, dot, ext = str(filename or '').rpartition('.')
+    ext = f'.{ext.lower()}'
+    name = re.sub(r'[^\w\- ]+', '', stem if dot else '').strip()[:60]
+    if ext not in TEMPLATE_KINDS or not name:
+        raise WorkspaceError('modèle : un fichier .pptx, .docx, .xlsx ou .pdf, avec un nom')
+    if len(data) > TEMPLATE_MAX:
+        raise WorkspaceError('modèle : 20 Mo au plus')
+    folder = resolve(user, TEMPLATE_DIR)
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in folder.glob(f'{name}.*'):  # un nom, un modèle : le nouveau remplace l'ancien
+        old.unlink()
+    (folder / f'{name}{ext}').write_bytes(data)
+    return name
+
+
+def template_path(user, name, kind):
+    """Le fichier du modèle `name` de ce type, ou None (pas de modèle : document par défaut)."""
+    if not name:
+        return None
+    path = resolve(user, f'{TEMPLATE_DIR}/{name}.{kind}')
+    if not path.is_file():
+        raise WorkspaceError(f'modèle de document introuvable : {name} ({kind})')
+    return path
+
+
+def delete_template(user, name):
+    for path in resolve(user, TEMPLATE_DIR).glob(f'{re.sub(r"[^\w\- ]+", "", str(name))}.*'):
+        path.unlink()
+
+
+def pptx(user, filename, title, slides, template=None):
     from pptx import Presentation
     from pptx.util import Pt
 
-    deck = Presentation()
+    source = template_path(user, template, 'pptx')
+    deck = Presentation(str(source)) if source else Presentation()
+    if source:  # le modèle donne thème, polices et mises en page ; ses diapositives d'exemple partent
+        listing = deck.slides._sldIdLst
+        for slide in list(listing):
+            deck.part.drop_rel(slide.rId)
+            listing.remove(slide)
+    layout = lambda i: deck.slide_layouts[min(i, len(deck.slide_layouts) - 1)]
     if title:
-        cover = deck.slides.add_slide(deck.slide_layouts[0])
-        cover.shapes.title.text = title
+        cover = deck.slides.add_slide(layout(0))
+        if cover.shapes.title is not None:
+            cover.shapes.title.text = title
     for slide in slides or []:
-        page = deck.slides.add_slide(deck.slide_layouts[1])
-        page.shapes.title.text = str(slide.get('title', ''))
-        body = page.placeholders[1].text_frame
+        page = deck.slides.add_slide(layout(1))
+        if page.shapes.title is not None:
+            page.shapes.title.text = str(slide.get('title', ''))
+        holders = [p for p in page.placeholders if p.placeholder_format.idx != 0]
+        if not holders:
+            continue
+        body = holders[0].text_frame
         lines = slide.get('bullets') or [line for line in str(slide.get('body', '')).split('\n') if line.strip()]
         for i, line in enumerate(lines):
             paragraph = body.paragraphs[0] if i == 0 else body.add_paragraph()
             paragraph.text = str(line)
-            paragraph.font.size = Pt(20)
+            if not source:
+                paragraph.font.size = Pt(20)  # avec un modèle, ses tailles priment
     target = export_path(user, filename, '.pptx')
     target.parent.mkdir(parents=True, exist_ok=True)
     deck.save(target)
     return relative(user, target)
 
 
-def docx(user, filename, title, markdown):
+def docx(user, filename, title, markdown, template=None):
     from docx import Document
 
-    document = Document()
+    source = template_path(user, template, 'docx')
+    document = Document(str(source)) if source else Document()
+    if source:  # styles, en-têtes et pieds de page du modèle ; son contenu d'exemple part
+        body = document.element.body
+        for child in list(body):
+            if not child.tag.endswith('sectPr'):
+                body.remove(child)
     if title:
         document.add_heading(title, 0)
     for line in (markdown or '').split('\n'):
@@ -201,12 +267,74 @@ def docx(user, filename, title, markdown):
         if heading:
             document.add_heading(heading.group(2), len(heading.group(1)))
         elif re.match(r'\s*[-*]\s+', line):
-            document.add_paragraph(re.sub(r'^\s*[-*]\s+', '', line), style='List Bullet')
+            styles = {s.name for s in document.styles}
+            document.add_paragraph(re.sub(r'^\s*[-*]\s+', '', line), style='List Bullet' if 'List Bullet' in styles else None)
         elif line.strip():
             document.add_paragraph(line)
     target = export_path(user, filename, '.docx')
     target.parent.mkdir(parents=True, exist_ok=True)
     document.save(target)
+    return relative(user, target)
+
+
+def xlsx(user, filename, title, rows, template=None):
+    """Un classeur : `rows` (listes de cellules) écrites à la suite du modèle (ses en-têtes et styles gardés)."""
+    from openpyxl import Workbook, load_workbook
+
+    source = template_path(user, template, 'xlsx')
+    book = load_workbook(str(source)) if source else Workbook()
+    sheet = book.active
+    if title and not source:
+        sheet.title = str(title)[:31]
+    filled = source and any(cell.value is not None for row in sheet.iter_rows() for cell in row)
+    start = sheet.max_row + 1 if filled else 1  # sous les en-têtes du modèle
+    for r, row in enumerate(rows or [], start):
+        for c, value in enumerate(row if isinstance(row, list) else [row], 1):
+            sheet.cell(row=r, column=c, value=value if isinstance(value, (int, float)) else str(value))
+    target = export_path(user, filename, '.xlsx')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    book.save(target)
+    return relative(user, target)
+
+
+def pdf(user, filename, title, markdown, template=None):
+    """Un PDF : le texte (titres #, listes -) mis en page ; avec un modèle, chaque page est posée sur sa première page
+    (papier à en-tête, fond, logo)."""
+    import io
+
+    from PyPDF2 import PdfReader, PdfWriter
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import ListFlowable, Paragraph, SimpleDocTemplate, Spacer
+    from xml.sax.saxutils import escape
+
+    styles = getSampleStyleSheet()
+    flow = [Paragraph(escape(title), styles['Title'])] if title else []
+    for line in (markdown or '').split('\n'):
+        heading = re.match(r'(#{1,3})\s+(.*)', line)
+        if heading:
+            flow.append(Paragraph(escape(heading.group(2)), styles[f'Heading{len(heading.group(1))}']))
+        elif re.match(r'\s*[-*]\s+', line):
+            flow.append(ListFlowable([Paragraph(escape(re.sub(r'^\s*[-*]\s+', '', line)), styles['BodyText'])], bulletType='bullet'))
+        elif line.strip():
+            flow.append(Paragraph(escape(line), styles['BodyText']))
+        else:
+            flow.append(Spacer(1, 6))
+    buffer = io.BytesIO()
+    SimpleDocTemplate(buffer, pagesize=A4, topMargin=90, bottomMargin=70).build(flow or [Spacer(1, 1)])
+    content = PdfReader(io.BytesIO(buffer.getvalue()))
+    writer = PdfWriter()
+    source = template_path(user, template, 'pdf')
+    for page in content.pages:
+        if source:
+            background = PdfReader(str(source)).pages[0]
+            background.merge_page(page)
+            page = background
+        writer.add_page(page)
+    target = export_path(user, filename, '.pdf')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, 'wb') as out:
+        writer.write(out)
     return relative(user, target)
 
 

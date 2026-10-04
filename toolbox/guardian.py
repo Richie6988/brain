@@ -163,8 +163,8 @@ THINK_OPS = ['think', 'put', 'nodes', 'style', 'link', 'grow', 'build', 'schema'
 # supprimer, aller dans les dimensions, lire (l'univers, un document, le web) avant de continuer sa pensée.
 THINK_TOOLS = ['update', 'archive', 'unlink', 'travel', 'goto', 'search_nodes', 'inventory', 'read_file',
                'templates', 'template_save', 'web_search', 'web_fetch',
-               'delegate', 'generate_image', 'edit_image', 'generate_pptx', 'generate_docx']
-FILE_OPS = ('generate_pptx', 'generate_docx')  # le fichier devient un node avec son lien (pas un tour de lecture)
+               'delegate', 'generate_image', 'edit_image', 'generate_pptx', 'generate_docx', 'generate_xlsx', 'generate_pdf']
+FILE_OPS = ('generate_pptx', 'generate_docx', 'generate_xlsx', 'generate_pdf')  # le fichier devient un node avec son lien (pas un tour de lecture)
 MAX_READS = 2  # tours de lecture d'une pensée : ce qu'elle a lu lui revient, elle continue
 # Noms des commandes pour le modèle : les mots qu'on emploie (« delete », « edit »), pas ceux du catalogue.
 THINK_NAMES = {'archive': 'delete', 'update': 'edit'}
@@ -622,10 +622,17 @@ class Guardian(IaquaOps):
             *(['Nodes cités hors de cette dimension :', *perception.lines(away)] if away else []),
             *(['Nodes joints d\'autres dimensions (contexte choisi par l\'humain) :', *perception.lines(joined)] if joined else []),
             *(['Outils pour cette demande :', guide] if guide else []),  # aiguillage : ceux que ses mots appellent
+            *([self.document_templates()] if self.document_templates() else []),
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
             *([f'Node source : {self.source}'] if self.source else []),
             *([f"Où tu en es dans l'arbre : {' → '.join(path)} (ici)"] if len(path := self.lineage(self.source)) > 1 else []),
         ])
+
+    def document_templates(self):
+        """Les modèles de documents de l'utilisateur (bibliothèque du Rédacteur) : le style dans lequel il écrit."""
+        saved = workspace.templates(self.user)
+        return ('Modèles de documents de l\'humain (template des generate_*, pour écrire dans son style) : '
+                + ', '.join(f"{t['name']} ({t['kind']})" for t in saved)) if saved else ''
 
     def dimensions(self):
         """Les dimensions de l'univers, avec leur nombre de nodes : l'IA sait où elle est et ce qui existe ailleurs."""

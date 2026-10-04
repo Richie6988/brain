@@ -573,6 +573,59 @@ class ToolboxApiTests(TestCase):
         self.client.force_login(self.user)
         self.assertEqual(self.client.delete(f"/api/v1/toolbox/gallery?id={model['id']}").json()['models'], [])
 
+    def test_document_templates(self):
+        import io
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from docx import Document
+        from openpyxl import Workbook, load_workbook
+        from pptx import Presentation
+        from PyPDF2 import PdfReader
+        from reportlab.pdfgen import canvas
+
+        from . import workspace
+
+        with self.settings(WORKSPACE_DIR=tempfile.mkdtemp()):
+            deck = Presentation()
+            deck.slides.add_slide(deck.slide_layouts[1]).shapes.title.text = 'Exemple à retirer'
+            buffer = io.BytesIO()
+            deck.save(buffer)
+            r = self.client.post('/api/v1/toolbox/documents', {'file': SimpleUploadedFile('maison.pptx', buffer.getvalue()), 'name': 'Pitch'})
+            self.assertEqual(r.json()['templates'], [{'name': 'Pitch', 'kind': 'pptx', 'size': len(buffer.getvalue())}])
+            bad = self.client.post('/api/v1/toolbox/documents', {'file': SimpleUploadedFile('virus.exe', b'MZ')})
+            self.assertEqual(bad.status_code, 400)
+            path = workspace.pptx(self.user, 'pitch', 'Mon café', [{'title': 'Concept', 'bullets': ['Torréfié maison']}], 'Pitch')
+            made = Presentation(str(workspace.resolve(self.user, path)))
+            self.assertEqual([s.shapes.title.text for s in made.slides], ['Mon café', 'Concept'])  # l'exemple du modèle est parti
+
+            styled = Document()
+            styled.add_paragraph('Contenu d\'exemple')
+            styled.sections[0].header.paragraphs[0].text = 'En-tête maison'
+            buffer = io.BytesIO()
+            styled.save(buffer)
+            workspace.save_template(self.user, 'Rapport.docx', buffer.getvalue())
+            doc = Document(str(workspace.resolve(self.user, workspace.docx(self.user, 'r', 'Bilan', '# Partie\n- point', 'Rapport'))))
+            self.assertNotIn('Contenu d\'exemple', [p.text for p in doc.paragraphs])
+            self.assertEqual(doc.sections[0].header.paragraphs[0].text, 'En-tête maison')  # le style de l'humain reste
+
+            book = Workbook()
+            book.active.append(['Poste', 'Montant'])
+            buffer = io.BytesIO()
+            book.save(buffer)
+            workspace.save_template(self.user, 'Budget.xlsx', buffer.getvalue())
+            sheet = load_workbook(str(workspace.resolve(self.user, workspace.xlsx(self.user, 'b', '', [['Loyer', 900]], 'Budget')))).active
+            self.assertEqual([[c.value for c in row] for row in sheet.iter_rows()], [['Poste', 'Montant'], ['Loyer', 900]])
+
+            buffer = io.BytesIO()
+            letter = canvas.Canvas(buffer)
+            letter.drawString(40, 800, 'EN-TETE MAISON')
+            letter.save()
+            workspace.save_template(self.user, 'Lettre.pdf', buffer.getvalue())
+            pages = PdfReader(str(workspace.resolve(self.user, workspace.pdf(self.user, 'l', 'Devis', 'Texte du devis', 'Lettre')))).pages
+            self.assertIn('EN-TETE MAISON', pages[0].extract_text())
+            self.assertIn('Devis', pages[0].extract_text())
+            self.assertEqual(self.client.delete('/api/v1/toolbox/documents?name=Pitch').json()['templates'][0]['name'], 'Budget')
+
     def test_model_and_agent_params(self):
         model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf', status=LocalModel.Status.READY)
         url = f'/api/v1/toolbox/models/{model.id}'

@@ -203,9 +203,17 @@ TOOLS = [
      'doc': '{"op":"git","action":"status"} : status, diff (path facultatif), log, commit (message, files facultatif) dans l\'espace de travail.'},
     # --- Documents et e-mail
     {'op': 'generate_docx', 'category': 'Documents et e-mail', 'source': IAQUA, 'iaqua': 'generate_docx', 'read': True, 'label': 'Document Word',
-     'doc': '{"op":"generate_docx","filename":"rapport","title":"...","markdown":"# Titre\\n- point"} : .docx téléchargeable ; donne le lien.'},
+     'doc': '{"op":"generate_docx","filename":"rapport","title":"...","markdown":"# Titre\\n- point","template":"<modèle docx>"} : .docx '
+            'téléchargeable ; template : un modèle de documents de l\'utilisateur (son style), facultatif.'},
+    {'op': 'generate_xlsx', 'category': 'Documents et e-mail', 'source': NODZ, 'label': 'Classeur Excel', 'read': True,
+     'doc': '{"op":"generate_xlsx","filename":"budget","title":"...","rows":[["Poste","Montant"],["Loyer",900]],"template":"<modèle xlsx>"} : '
+            '.xlsx téléchargeable ; avec un modèle, les lignes s\'ajoutent sous ses en-têtes.'},
+    {'op': 'generate_pdf', 'category': 'Documents et e-mail', 'source': NODZ, 'label': 'PDF', 'read': True,
+     'doc': '{"op":"generate_pdf","filename":"devis","title":"...","markdown":"# Titre\\n- point","template":"<modèle pdf>"} : .pdf '
+            'téléchargeable ; avec un modèle, chaque page est posée sur sa première page (papier à en-tête).'},
     {'op': 'generate_pptx', 'category': 'Documents et e-mail', 'source': IAQUA, 'iaqua': 'generate_pptx', 'read': True, 'label': 'Présentation',
-     'doc': '{"op":"generate_pptx","filename":"pitch","title":"...","slides":[{"title":"...","bullets":["..."]}]} : .pptx téléchargeable ; donne le lien.'},
+     'doc': '{"op":"generate_pptx","filename":"pitch","title":"...","slides":[{"title":"...","bullets":["..."]}],"template":"<modèle pptx>"} : '
+            '.pptx téléchargeable ; avec un modèle, son thème, ses polices et ses mises en page.'},
     {'op': 'send_email', 'category': 'Documents et e-mail', 'source': IAQUA, 'iaqua': 'send_email', 'label': 'Envoyer un e-mail',
      'doc': '{"op":"send_email","subject":"...","body":"..."} : à l\'adresse de l\'utilisateur (un administrateur peut préciser "to").'},
     # --- Images

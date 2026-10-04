@@ -296,6 +296,25 @@ def gallery(request, body):
     return JsonResponse({'models': prefs.gallery})
 
 
+@api('GET', 'POST', 'DELETE')
+def documents(request, body):
+    """Bibliothèque de modèles de documents du Rédacteur : liste, dépôt (multipart, champ file), retrait (?name=)."""
+    try:
+        if request.method == 'POST':
+            upload = request.FILES.get('file')
+            if upload is None:
+                raise ChangeError('fichier attendu (champ file)')
+            if upload.size > workspace.TEMPLATE_MAX:
+                raise ChangeError('modèle : 20 Mo au plus')
+            name = request.POST.get('name', '').strip()  # nom choisi, avec l'extension du fichier déposé
+            workspace.save_template(request.user, f"{name}.{upload.name.rsplit('.', 1)[-1]}" if name else upload.name, upload.read())
+        elif request.method == 'DELETE':
+            workspace.delete_template(request.user, request.GET.get('name', ''))
+    except workspace.WorkspaceError as e:
+        raise ChangeError(str(e)) from None
+    return JsonResponse({'templates': workspace.templates(request.user)})
+
+
 @api('GET', 'POST')
 def cuda_build(request, body):
     """Compilation de llama-cpp-python avec CUDA (deploy/cuda.sh) et redémarrage de Nodz : administrateur."""

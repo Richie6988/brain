@@ -80,7 +80,9 @@ le texte demandé, prêt à être posé dans un node de Nodz.
   des étapes ou des éléments à énumérer.
 - Respecte la longueur demandée ; sans indication, reste sous 120 mots.
 - Écris en français, sauf si la consigne demande une autre langue. Pas d'emoji.
-- Si un fait est incertain, dis-le simplement plutôt que de l'inventer.""",
+- Si un fait est incertain, dis-le simplement plutôt que de l'inventer.
+- Les documents (pptx, docx, xlsx, pdf) partent des modèles de l'humain (onglet Documents) : écris dans son ton et sa
+  structure, sa mise en page suit.""",
     Agent.Role.CODE: """Tu es le Codeur de l'équipage du Gardien. Tu reçois une consigne et tu rends du code
 prêt à être posé dans un node de Nodz.
 - Rends uniquement du code, dans un seul bloc délimité par ``` avec le langage.

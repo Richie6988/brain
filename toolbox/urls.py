@@ -18,6 +18,7 @@ urlpatterns = [
     path('cuda', api.cuda_build),
     path('dimensions', api.dimensions),
     path('gallery', api.gallery),
+    path('documents', api.documents),
     path('search', api.search),
     path('side', api.side),
     path('nodes/meta', api.node_meta),

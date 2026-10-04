@@ -3,7 +3,7 @@
 // serveur (import des .gguf déjà copiés) et Hugging Face (recherche filtrée, choix du fichier,
 // téléchargements suivis). Consulter est ouvert à tous ; changer le serveur est réservé au staff.
 
-import { api } from './api.js';
+import { api, endpoint } from './api.js';
 
 const tb = {
     status: () => api.request('GET', 'toolbox/status'),
@@ -92,7 +92,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
     const hf = { q: '', pipeline: '', sort: 'downloads', quant: '', min_b: '', max_b: '', results: null, repo: null, files: null, error: '' };
 
     const panels = {};
-    const tabs = [['start', 'Choisir mon IA'], ['agents', 'Agents'], ['tools', 'Outils'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face'], ['api', 'Par API']];
+    const tabs = [['start', 'Choisir mon IA'], ['agents', 'Agents'], ['tools', 'Outils'], ['docs', 'Documents'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face'], ['api', 'Par API']];
     const nav = h('nav', { class: 'gl-tabs' }, tabs.map(([key, label]) =>
         h('button', { type: 'button', dataset: { tab: key }, onclick: () => show(key) }, label)));
     const machineLine = h('p', { class: 'gl-machine' });
@@ -156,7 +156,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
     function render() {
         nav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         Object.entries(panels).forEach(([key, panel]) => { panel.hidden = key !== tab; });
-        ({ start: renderStart, agents: renderAgents, tools: renderTools, library: renderLibrary, server: renderServer, hub: renderHub, api: renderApi })[tab]();
+        ({ start: renderStart, docs: renderDocs, agents: renderAgents, tools: renderTools, library: renderLibrary, server: renderServer, hub: renderHub, api: renderApi })[tab]();
     }
 
     function show(key) {
@@ -164,6 +164,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
         render();
         if (key === 'server') loadServerFiles();
         if (key === 'tools') loadTools();
+        if (key === 'docs') loadDocs();
         if (key === 'hub' && !hf.results) hubSearch();
     }
 
@@ -635,6 +636,48 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
             h('p', {}, 'Voici ce qui convient à cette machine, en un clic :'), h('p', { class: 'gl-empty' }, 'Analyse de la machine…'));
         panels.library.replaceChildren(box);
         await recommend(box);
+    }
+
+    // --- Documents : la bibliothèque de modèles du Rédacteur (pptx, docx, xlsx, pdf de l'utilisateur, pour son style).
+
+    let docs = null;
+    async function loadDocs() {
+        try {
+            docs = (await api.request('GET', 'toolbox/documents')).templates;
+            render();
+        } catch (error) {
+            report(error);
+        }
+    }
+    function renderDocs() {
+        if (!docs) return panels.docs.replaceChildren(h('p', { class: 'gl-empty' }, 'Chargement des modèles…'));
+        const file = h('input', { type: 'file', accept: '.pptx,.docx,.xlsx,.pdf' });
+        const name = h('input', { type: 'text', placeholder: 'nom du modèle (facultatif)', maxlength: 60 });
+        const add = h('button', { type: 'button', class: 'gl-primary' }, 'Ajouter le modèle');
+        add.addEventListener('click', () => act(async () => {
+            if (!file.files[0]) throw new Error('choisis un fichier .pptx, .docx, .xlsx ou .pdf');
+            const form = new FormData();
+            form.append('file', file.files[0]);
+            if (name.value.trim()) form.append('name', name.value.trim());
+            const csrf = decodeURIComponent((document.cookie.match(/(?:^|;\s*)nodz_csrftoken=([^;]+)/) || [])[1] || '');
+            const response = await fetch(endpoint('toolbox/documents'), { method: 'POST', body: form, credentials: 'same-origin', headers: { 'X-CSRFToken': csrf } });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || response.statusText);
+            docs = data.templates;
+        }, 'Modèle ajouté : le Rédacteur et le Gardien s\'en servent pour écrire dans ton style'));
+        const kinds = { pptx: '📊 PowerPoint', docx: '📄 Word', xlsx: '📗 Excel', pdf: '📕 PDF' };
+        panels.docs.replaceChildren(
+            h('p', { class: 'gl-hint' }, 'Tes modèles de documents : une présentation, un rapport, un tableau, un papier à en-tête. ',
+                'Quand le Gardien ou le Rédacteur produit un document, il part du modèle qui convient : thème, polices, mises en page, ',
+                'en-têtes et pieds de page restent les tiens.'),
+            h('div', { class: 'gl-api-form' }, h('label', { class: 'gl-field' }, h('span', {}, 'Fichier'), file),
+                h('label', { class: 'gl-field' }, h('span', {}, 'Nom'), name), add),
+            docs.length ? h('div', { class: 'gl-list' }, docs.map(t => h('div', { class: 'gl-row' },
+                h('span', { class: 'gl-badge' }, kinds[t.kind] || t.kind), h('span', { class: 'gl-name' }, t.name), h('span', { class: 'gl-size' }, gb(t.size)),
+                confirmButton('Retirer', async () => {
+                    docs = (await api.request('DELETE', `toolbox/documents?${new URLSearchParams({ name: t.name })}`)).templates;
+                }, { disabled: false, title: '' }))))
+                : h('p', { class: 'gl-empty' }, 'Aucun modèle pour le moment.'));
     }
 
     // --- Choisir mon IA : 1. une IA externe par API ou 2. un modèle sur cette machine, puis 3. ses outils.

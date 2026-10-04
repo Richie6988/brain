@@ -589,16 +589,30 @@ class IaquaOps:
     # --- documents et e-mail
 
     def op_generate_pptx(self, action, agents):
-        path = self.workspace_call(workspace.pptx, action.get('filename'), action.get('title', ''), action.get('slides') or [])
+        path = self.workspace_call(workspace.pptx, action.get('filename'), action.get('title', ''), action.get('slides') or [],
+                                   action.get('template'))
+        return self.produced(path, 'Présentation créée')
+
+    def produced(self, path, label):
+        """Un document généré : posé en node avec son lien de téléchargement."""
         self.files.append((path, self.link_to(path)))
-        self.read('Présentation créée', f'{path} : {self.link_to(path)} (donne ce lien à l\'utilisateur)')
+        self.read(label, f'{path} : {self.link_to(path)} (donne ce lien à l\'utilisateur)')
         return None
 
+    def op_generate_xlsx(self, action, agents):
+        path = self.workspace_call(workspace.xlsx, action.get('filename'), action.get('title', ''), action.get('rows') or [],
+                                   action.get('template'))
+        return self.produced(path, 'Classeur créé')
+
+    def op_generate_pdf(self, action, agents):
+        path = self.workspace_call(workspace.pdf, action.get('filename'), action.get('title', ''),
+                                   action.get('markdown') or action.get('content', ''), action.get('template'))
+        return self.produced(path, 'PDF créé')
+
     def op_generate_docx(self, action, agents):
-        path = self.workspace_call(workspace.docx, action.get('filename'), action.get('title', ''), action.get('markdown') or action.get('content', ''))
-        self.files.append((path, self.link_to(path)))
-        self.read('Document créé', f'{path} : {self.link_to(path)} (donne ce lien à l\'utilisateur)')
-        return None
+        path = self.workspace_call(workspace.docx, action.get('filename'), action.get('title', ''),
+                                   action.get('markdown') or action.get('content', ''), action.get('template'))
+        return self.produced(path, 'Document créé')
 
     def op_send_email(self, action, agents):
         recipients = [r.strip() for r in str(action.get('to') or self.user.email).split(',') if r.strip()]
