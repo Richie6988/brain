@@ -1,7 +1,9 @@
-// Agents et modèles : portage du ModelLoader de SquidMind dans Nodz. Quatre onglets : Agents,
-// Bibliothèque (colonnes Gardien / Agents / Image, glisser-déposer, fiches modèles), Fichiers du
-// serveur (import des .gguf déjà copiés) et Hugging Face (recherche filtrée, choix du fichier,
-// téléchargements suivis). Consulter est ouvert à tous ; changer le serveur est réservé au staff.
+// Agents et modèles : portage du ModelLoader de SquidMind dans Nodz, dans une fenêtre sombre à barre latérale.
+// Cinq sections : Mon IA (état du Gardien, choix rapide API ou machine), Agents (modèle, actif, consignes), Modèles
+// (Installés en colonnes Gardien / Agents / Image avec glisser-déposer, Hugging Face, Par API, Fichiers du serveur),
+// Outils (interrupteurs et recherche) et Documents. Les réglages d'un modèle se font en clair (mémoire de conversation,
+// où il tourne, combien de temps il reste chargé), le détail technique replié dessous. Consulter est ouvert à tous ;
+// changer le serveur est réservé au staff.
 
 import { api, endpoint } from './api.js';
 
@@ -54,6 +56,25 @@ const PIPELINES = [
 const SORTS = [['downloads', 'Téléchargements'], ['trending', 'Tendance'], ['likes', "J'aime"], ['created', 'Date de sortie'], ['recent', 'Récents']];
 const QUANTS = [['', 'Toute quantisation'], ['Q4', 'Q4'], ['Q5', 'Q5'], ['Q8', 'Q8'], ['F16', 'F16'], ['IQ', 'IQ (iMatrix)']];
 const SIZES = [['', '', 'Toutes'], ['', '1.5', '≤ 1B'], ['1.5', '4', '1–3B'], ['4', '9', '4–8B'], ['9', '15', '9–14B'], ['15', '', '15B +']];
+// Barre latérale : les cinq sections, et les sous-onglets de Modèles (les clés d'onglet restent celles d'avant :
+// open('library'), open('hub'), open('start') continuent de marcher).
+const icon = path => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+const SECTIONS = [
+    ['start', 'Mon IA', 'Ce qui fait tourner ton Gardien, et comment en changer.', icon('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>')],
+    ['agents', 'Agents', 'Chaque agent, son modèle et ses consignes.', icon('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M15.5 14.3A5 5 0 0 1 21 19"/>')],
+    ['models', 'Modèles', 'Les modèles installés, et où en trouver d\'autres.', icon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9zM9 1.5V4M15 1.5V4M9 20v2.5M15 20v2.5M1.5 9H4M1.5 15H4M20 9h2.5M20 15h2.5"/>')],
+    ['tools', 'Outils', 'Ce que le Gardien a le droit de faire.', icon('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>')],
+    ['docs', 'Documents', 'Tes modèles de documents, pour qu\'il écrive dans ton style.', icon('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>')],
+];
+const MODEL_TABS = [['library', 'Installés'], ['hub', 'Hugging Face'], ['api', 'Par API'], ['server', 'Fichiers du serveur']];
+const sectionOf = key => (MODEL_TABS.some(([k]) => k === key) ? 'models' : key);
+const ROLES = { orchestrator: 'Chef d\'orchestre', text: 'Écriture', code: 'Code', image: 'Images' };
+const AVATARS = {
+    orchestrator: icon('<path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/>'),
+    text: icon('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+    code: icon('<path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/>'),
+    image: icon('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/>'),
+};
 const CAPS = {
     vision: ['VISION', '#0f9f6e'], tools: ['OUTILS', '#c47a00'], chat: ['CHAT', '#1E90FF'], code: ['CODE', '#00a383'],
     embed: ['EMBED', '#64748b'], image: ['IMAGE', '#6848A6'], audio: ['AUDIO', '#b8447a'], reason: ['RÉFLEXION', '#c2417f'],
@@ -87,27 +108,40 @@ const quantColor = q => (/Q8|Q6/.test(q) ? '#0f9f6e' : /Q[45]/.test(q) ? '#1E90F
 export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome = () => {} } = {}) {
     let state = { staff: false, machine: {}, engine: false, loaded: null, agents: [], models: [], paramSpec: [] };
     let tab = 'agents';
+    let modelTab = 'library';  // dernier sous-onglet de Modèles
     let tuning = null;  // modèle dont les réglages sont ouverts (panneau pleine largeur)
     let poll = null;
     const hf = { q: '', pipeline: '', sort: 'downloads', quant: '', min_b: '', max_b: '', results: null, repo: null, files: null, error: '' };
 
     const panels = {};
-    const tabs = [['start', 'Choisir mon IA'], ['agents', 'Agents'], ['tools', 'Outils'], ['docs', 'Documents'], ['library', 'Bibliothèque'], ['server', 'Fichiers du serveur'], ['hub', 'Hugging Face'], ['api', 'Par API']];
-    const nav = h('nav', { class: 'gl-tabs' }, tabs.map(([key, label]) =>
-        h('button', { type: 'button', dataset: { tab: key }, onclick: () => show(key) }, label)));
+    const nav = h('nav', { class: 'ga-nav' }, SECTIONS.map(([key, label]) => {
+        const button = h('button', { type: 'button', dataset: { section: key }, onclick: () => show(key === 'models' ? modelTab : key) });
+        button.innerHTML = SECTIONS.find(([k]) => k === key)[3];
+        button.append(h('span', {}, label));
+        return button;
+    }));
+    const seg = h('div', { class: 'ga-seg', role: 'tablist' }, MODEL_TABS.map(([key, label]) =>
+        h('button', { type: 'button', role: 'tab', dataset: { tab: key }, onclick: () => show(key) }, label)));
+    const title = h('h3', {}), subtitle = h('p', {});
     const machineLine = h('p', { class: 'gl-machine' });
     const readOnly = h('p', { class: 'gl-warning', hidden: true },
-        'Compte invité ou non administrateur : tu branches ta propre IA par API (onglet Par API, avec ta clé) et tu choisis parmi les modèles '
+        'Compte invité ou non administrateur : tu branches ta propre IA par API (Modèles, Par API, avec ta clé) et tu choisis parmi les modèles '
         + 'du serveur ; installer des modèles locaux est réservé au compte administrateur (créé ou promu par ', h('code', {}, 'manage.py bootstrap --email … --password …'), ').');
     const notice = h('p', { class: 'gl-notice', role: 'status' });
-    tabs.forEach(([key]) => { panels[key] = h('section', { class: 'gl-panel', dataset: { panel: key } }); });
-    const windowEl = h('div', { class: 'gl-window', role: 'dialog', tabindex: '-1', 'aria-label': 'Agents et modèles' },
-        h('header', {}, h('h2', {}, 'Agents & modèles'), nav, h('button', { type: 'button', class: 'gl-close', title: 'Fermer', onclick: close }, 'Fermer')),
-        monitor, machineLine, readOnly, notice, Object.values(panels));
+    [...SECTIONS.map(([key]) => key).filter(key => key !== 'models'), ...MODEL_TABS.map(([key]) => key)]
+        .forEach(key => { panels[key] = h('section', { class: 'gl-panel', dataset: { panel: key } }); });
+    const windowEl = h('div', { class: 'gl-window ga-window', role: 'dialog', tabindex: '-1', 'aria-label': 'Agents et modèles' },
+        h('aside', { class: 'ga-side' }, h('h2', {}, 'Agents & modèles'), nav, h('div', { class: 'ga-machine' }, monitor, machineLine)),
+        h('div', { class: 'ga-main' },
+            h('header', { class: 'ga-head' }, h('div', {}, title, subtitle), h('button', { type: 'button', class: 'ga-x', title: 'Fermer (Échap)', onclick: close }, '×')),
+            seg, readOnly, h('div', { class: 'ga-body' }, Object.values(panels)), notice));
     const modal = h('div', { class: 'gl-modal', hidden: true, onmousedown: event => { if (event.target === modal) close(); } }, windowEl);
     modal.addEventListener('keydown', event => {
         event.stopPropagation();  // la saisie ne déclenche pas les raccourcis de Nodz
         if (event.key === 'Escape') close();
+    });
+    modal.addEventListener('mousedown', event => {  // un menu ⋯ ouvert se ferme au clic ailleurs
+        windowEl.querySelectorAll('.ga-more[open]').forEach(menu => { if (!menu.contains(event.target)) menu.open = false; });
     });
     document.body.append(modal);
 
@@ -154,13 +188,20 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
     }
 
     function render() {
-        nav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        const section = sectionOf(tab);
+        const [, label, sub] = SECTIONS.find(([k]) => k === section);
+        title.textContent = label;
+        subtitle.textContent = sub;
+        nav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.section === section));
+        seg.hidden = section !== 'models';
+        seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
         Object.entries(panels).forEach(([key, panel]) => { panel.hidden = key !== tab; });
         ({ start: renderStart, docs: renderDocs, agents: renderAgents, tools: renderTools, library: renderLibrary, server: renderServer, hub: renderHub, api: renderApi })[tab]();
     }
 
     function show(key) {
         tab = key;
+        if (sectionOf(key) === 'models') modelTab = key;
         render();
         if (key === 'server') loadServerFiles();
         if (key === 'tools') loadTools();
@@ -171,14 +212,15 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
     // --- Agents
 
     function renderAgents() {
-        panels.agents.replaceChildren(...state.agents.map(agent => {
+        const ordered = [...state.agents].sort((a, b) => (b.role === 'orchestrator') - (a.role === 'orchestrator'));
+        panels.agents.replaceChildren(h('div', { class: 'ga-agents' }, ordered.map(agent => {
             // L'Illustrateur prend un modèle d'image, les autres un modèle de texte.
             const ready = state.models.filter(m => m.status === 'ready' && m.kind === (agent.role === 'image' ? 'image' : 'text'));
             const select = h('select', { 'aria-label': `Modèle de ${agent.name}` },
                 h('option', { value: '' }, agent.role === 'image' ? 'Aucun modèle d\'image' : 'Aucun modèle'),
                 ready.map(m => h('option', { value: m.id, selected: m.id === agent.model }, m.label || m.filename)));
             select.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { model: select.value || null }), `${agent.name} : modèle changé`));
-            const enabled = h('input', { type: 'checkbox', checked: agent.enabled });
+            const enabled = h('input', { type: 'checkbox', checked: agent.enabled, 'aria-label': `${agent.name} actif` });
             enabled.addEventListener('change', () => act(() => tb.updateAgent(agent.id, { enabled: enabled.checked })));
             // Les consignes par défaut s'affichent telles quelles ; les garder inchangées n'enregistre rien. Le Gardien : son
             // prompt système entier, exactement celui qu'il reçoit (agent.prompt).
@@ -203,22 +245,24 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
                 act(() => tb.updateAgent(agent.id, { params: collect(sampling) }), `${agent.name} : échantillonnage enregistré`);
             });
             reset.addEventListener('click', () => act(() => tb.updateAgent(agent.id, { system_prompt: '' }), `${agent.name} : consignes par défaut`));
-            return h('article', { class: `gl-agent ${agent.role === 'orchestrator' ? 'is-guardian' : ''}` },
-                h('div', { class: 'gl-agent-head' },
-                    h('div', {}, h('strong', {}, agent.name), h('span', { class: 'gl-role' }, agent.role), h('small', {}, agent.description)),
-                    h('label', { class: 'gl-switch', title: 'Actif' }, enabled, 'actif')),
-                select,
-                agent.role === 'orchestrator' ? h('button', { type: 'button', class: 'gl-primary', onclick: onOpenHome,
+            const avatar = h('span', { class: 'ga-avatar', 'aria-hidden': 'true' });
+            avatar.innerHTML = AVATARS[agent.role] || AVATARS.text;
+            const guardian = agent.role === 'orchestrator';
+            return h('article', { class: `gl-agent ${guardian ? 'is-guardian' : ''} ${agent.enabled ? '' : 'is-off'}` },
+                h('div', { class: 'gl-agent-head' }, avatar,
+                    h('div', {}, h('strong', {}, agent.name), h('span', { class: 'gl-role' }, ROLES[agent.role] || agent.role), h('small', {}, agent.description)),
+                    h('label', { class: 'gl-switch', title: agent.enabled ? 'Actif : clic pour le couper' : 'Coupé : clic pour l\'activer' }, enabled, h('i', {}))),
+                h('label', { class: 'ga-field' }, h('span', {}, 'Modèle'), select),
+                guardian ? h('div', { class: 'gl-actions' }, h('button', { type: 'button', class: 'gl-primary', onclick: onOpenHome,
                     title: 'Sa dimension : Âme, Identité, Utilisateur, Mémoire, Compétences, Outils, Rêves, Échanges ; ce qui y manque est reposé' },
-                    'Ouvrir sa dimension Gardien') : null,
-                agent.role === 'orchestrator' ? doctor() : null,
+                    'Ouvrir sa dimension Gardien'), doctor()) : null,
                 h('details', {}, h('summary', {}, agent.system_prompt ? 'Consignes (personnalisées)' : 'Consignes'), prompt,
                     agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement. '
                         + 'Ses consignes vivent dans sa dimension Gardien, groupe Âme : ce qui y est écrit remplace ce champ à la demande suivante.') : null,
                     h('div', { class: 'gl-actions' }, keep, reset, status)),
-                h('details', {}, h('summary', {}, Object.keys(agent.params || {}).length ? 'Échantillonnage (propre à cet agent)' : 'Échantillonnage'),
+                h('details', {}, h('summary', {}, Object.keys(agent.params || {}).length ? 'Créativité et longueur (propres à cet agent)' : 'Créativité et longueur'),
                     h('p', { class: 'gl-hint' }, "Vide = réglages du modèle. Ces valeurs priment pour cet agent."), sampling));
-        }));
+        })));
     }
 
     // Diagnostic : ce qu'une vraie demande au Gardien rencontrera, étape par étape (essai réel du modèle).
@@ -260,21 +304,38 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
             act(() => tb.updateAgent(toolbox.guardian, { tools_allowed: all ? [] : [...on] }), 'Outils du Gardien enregistrés').then(loadTools);
         };
         const categories = [...new Set(toolbox.tools.map(t => t.category))];
+        // Recherche : masque les outils qui ne correspondent pas (sans redessiner : la saisie garde le focus).
+        const search = h('input', { type: 'search', class: 'ga-search', placeholder: 'Chercher un outil (web, image, fichier…)', 'aria-label': 'Chercher un outil' });
+        search.addEventListener('input', () => {
+            const q = search.value.trim().toLowerCase();
+            panels.tools.querySelectorAll('.gl-toolgroup').forEach(group => {
+                const tools = [...group.querySelectorAll('.gl-tool')];
+                tools.forEach(t => { t.hidden = Boolean(q) && !t.dataset.find.includes(q); });
+                group.hidden = tools.every(t => t.hidden);
+                if (q) group.open = true;
+            });
+        });
         panels.tools.replaceChildren(
-            h('p', { class: 'gl-hint' }, `${on.size} outils actifs sur ${toolbox.tools.length}. Un outil coupé disparaît des consignes du Gardien et lui est refusé.`),
-            ...categories.map(category => h('section', { class: 'gl-toolgroup' }, h('h3', {}, category),
-                toolbox.tools.filter(t => t.category === category).map(t => {
+            h('div', { class: 'ga-toolbar' }, search, h('span', { class: 'ga-count' }, `${on.size} actifs sur ${toolbox.tools.length}`)),
+            h('p', { class: 'gl-hint' }, 'Un outil coupé disparaît des consignes du Gardien et lui est refusé.'),
+            ...categories.map(category => {
+                const list = toolbox.tools.filter(t => t.category === category);
+                const active = list.filter(t => on.has(t.op)).length;
+                return h('details', { class: 'gl-toolgroup', open: true }, h('summary', {}, category, h('span', { class: 'ga-count' }, `${active} / ${list.length}`)),
+                list.map(t => {
                     const [source, color] = SOURCES[t.source];
-                    const locked = !toolbox.guardian || !t.available;  // outil administrateur non autorisé ici
+                    const locked = !toolbox.guardian || !t.available || t.always;  // outil administrateur non autorisé ici, ou toujours permis
                     const box = h('input', { type: 'checkbox', checked: on.has(t.op), disabled: locked,
-                        title: t.available ? '' : 'Compte administrateur et GUARDIAN_SHELL=1 dans .env' });
+                        title: t.always ? 'Toujours permis : il lui faut pour te parler et lire ses outils'
+                            : t.available ? '' : 'Compte administrateur et GUARDIAN_SHELL=1 dans .env' });
                     box.addEventListener('change', () => { if (box.checked) on.add(t.op); else on.delete(t.op); save(); });
-                    return h('label', { class: `gl-tool ${on.has(t.op) ? '' : 'off'}` }, box,
+                    return h('label', { class: `gl-tool ${on.has(t.op) ? '' : 'off'}`, dataset: { find: `${t.label} ${t.op} ${t.doc}`.toLowerCase() } }, h('span', { class: 'gl-switch' }, box, h('i', {})),
                         h('div', {}, h('strong', {}, t.label), h('code', {}, t.op), t.read ? h('span', { class: 'gl-cap' }, 'LECTURE') : null,
                             t.admin ? h('span', { class: 'gl-badge heavy', title: 'Exécute du code sur le serveur' }, 'ADMIN') : null,
                             h('small', {}, t.doc.replace(/^\{[^}]*\}\s*:\s*/, ''))),
                         h('span', { class: 'gl-cap', style: `color:${color};border-color:${color}55;background:${color}14`, title: t.iaqua ? `iAqua : ${t.iaqua}` : '' }, source));
-                }))),
+                }));
+            }),
             toolbox.shell ? null : h('p', { class: 'gl-hint' }, 'Outils ADMIN (shell, Python, outils forgés, MCP) : réservés au compte administrateur, '
                 + 'après GUARDIAN_SHELL=1 dans le .env du serveur.'));
     }
@@ -491,10 +552,29 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
         const advanced = h('details', { class: 'gl-advanced' }, h('summary', {}, 'Avancé (multi-GPU, cache KV, RoPE)'), paramFields(['Avancé'], saved));
         const sampling = h('details', { class: 'gl-advanced' }, h('summary', {}, 'Échantillonnage'), paramFields(['Échantillonnage'], saved));
         const status = h('span', { class: 'gl-status' });
+        // En clair : trois choix qui remplissent les vrais champs (repliés dans « Réglages avancés »).
+        const ttlInput = number('ttl', cfg.ttl, 0, 10080, '720 (0 = jamais)');
+        const choices = [];
+        const choice = (label, hint, options, read, write) => {
+            const buttons = options.map(([value, text]) => h('button', { type: 'button', dataset: { value }, onclick: () => { write(value); show(); } }, text));
+            choices.push(() => buttons.forEach(b => b.classList.toggle('on', b.dataset.value === read())));
+            return h('div', { class: 'ga-choice' }, h('div', {}, h('b', {}, label), h('small', {}, hint)), h('div', { class: 'ga-seg' }, buttons));
+        };
+        const simple = h('div', { class: 'ga-simple' },
+            choice('Mémoire de conversation', 'Combien de texte il garde en tête à la fois. Plus grand : plus de mémoire prise.',
+                [['auto', 'Auto'], ['4096', '4 k'], ['8192', '8 k'], ['16384', '16 k'], ['32768', '32 k']],
+                () => ctx.value.trim().toLowerCase() || 'auto', value => { ctx.value = value; }),
+            choice('Où il tourne', 'La carte graphique est bien plus rapide ; Auto en met le plus possible.',
+                [['0', 'Processeur'], ['auto', 'Auto'], ['max', 'Carte graphique']],
+                () => gpu.value.trim().toLowerCase() || 'auto', value => { gpu.value = value; }),
+            choice('Garder chargé', 'Après ce temps sans demande, la mémoire est libérée (il se recharge au besoin).',
+                [['10', '10 min'], ['120', '2 h'], ['720', '12 h'], ['0', 'Toujours']],
+                () => ttlInput.value.trim() || String(cfg.ttl ?? 720), value => { ttlInput.value = value; }));
         const form = h('form', { class: 'gl-load' },
             h('p', { class: 'gl-hint' }, m.loaded ? 'Enregistre les réglages : ils s\'appliquent au prochain chargement (le modèle se recharge à la prochaine demande).'
                 : 'Réglages de chargement : le modèle se charge plus tard, automatiquement, à la première demande.'),
-            box,
+            simple, box,
+            h('details', { class: 'gl-advanced' }, h('summary', {}, 'Réglages avancés'), h('div', { class: 'gl-load' },
             row('Contexte', ctx),
             row('Couches GPU', gpu, slider ? h('div', { class: 'gl-gpu-quick' },
                 h('button', { type: 'button', onclick: () => setGpu('0') }, 'CPU'), slider,
@@ -508,9 +588,9 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
             row('Garder en mémoire (mlock)', check('use_mlock', cfg.use_mlock, 'Épingler en RAM/VRAM (jamais en swap)')),
             row('Threads CPU', number('n_threads', saved.n_threads, 1, 256, `auto (${cfg.n_threads}, cœurs physiques)`)),
             row('Batch', number('n_batch', saved.n_batch, 32, 8192, 'auto (1024)')),
-            row('Libérer après (min)', number('ttl', cfg.ttl, 0, 10080, '720 (0 = jamais)')),
+            row('Libérer après (min)', ttlInput),
             row('Graine aléatoire', check('random_seed', cfg.random_seed, 'Activer (sinon réponses reproductibles)')),
-            advanced, sampling, cudaNotice(),
+            advanced, sampling)), cudaNotice(),
             h('footer', { class: 'gl-actions' }, status,
                 h('button', { type: 'button', onclick: () => act(() => tb.updateModel(m.id, { params: {} }), 'Réglages d\'iAqua par défaut') }, 'Tout par défaut'),
                 h('button', { type: 'button', onclick: closeTuning }, 'Annuler'),
@@ -520,6 +600,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
             const g = gpu.value.trim().toLowerCase();
             const e = estimate(m, ctx.value.trim().toLowerCase(), g, form.elements.type_k?.value || 'f16');
             if (slider) slider.value = e.onGpu;
+            choices.forEach(update => update());
             const auto = ['', 'auto'].includes(ctx.value.trim().toLowerCase()) && ['', 'auto'].includes(g);
             const [speed, level] = auto && m.placement ? ['Auto : le partage retenu au dernier chargement', 'ok']
                 : auto ? ['Auto : Nodz choisit le partage au chargement (recommandé)', 'ok']
@@ -575,19 +656,20 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
         return h('section', { class: 'gl-tuning' }, h('h3', {}, `Réglages de ${m.label || m.filename}`), form);
     }
 
-    // Fiche comme iAqua : réglages effectifs (valeurs retenues au chargement quand le modèle est en mémoire),
-    // puis l'activité depuis le chargement.
+    // Fiche d'un modèle, en clair : mémoire de conversation, où il tourne, combien de temps il reste chargé, puis son
+    // activité (le détail technique est dans Réglages).
+    const kilo = n => (n >= 1000 ? `${Math.round(n / 1024)} k` : String(n));
+    const kept = ttl => (Number(ttl) === 0 ? 'toujours chargé' : Number(ttl) >= 60 ? `libéré après ${Math.round(ttl / 60)} h` : `libéré après ${ttl} min`);
     function loadRows(m) {
         const c = m.config || {};
         const p = m.loaded && m.placement;
-        const kv = (label, value, cls = '') => h('span', {}, `${label} `, h('b', { class: cls }, String(value)));
-        const yes = v => (v ? 'oui' : 'non');
-        const gpuShown = p ? `${p.gpu_layers}/${p.layers || '?'}` : c.n_gpu_layers;
+        const chip = (text, cls = '') => h('span', { class: `ga-chip ${cls}` }, text);
+        const ctx = p ? p.n_ctx : c.n_ctx;
+        const where = p ? (!p.gpu_layers ? ['CPU seul', 'warn'] : p.gpu_layers >= p.layers ? ['tout sur GPU', 'ok'] : [`GPU ${p.gpu_layers}/${p.layers} couches`, ''])
+            : String(c.n_gpu_layers) === '0' ? ['CPU seul', 'warn'] : String(c.n_gpu_layers) === 'max' ? ['tout sur GPU', 'ok'] : ['GPU auto', ''];
         const differs = p && (String(c.n_ctx) !== String(p.n_ctx) || !['auto', 'max'].includes(String(c.n_gpu_layers)) && Number(c.n_gpu_layers) !== p.gpu_layers);
         const stats = m.stats;
-        return [h('div', { class: 'gl-params' }, kv('CTX', p ? p.n_ctx : c.n_ctx), kv('COUCHES GPU', gpuShown), kv('THREADS', c.n_threads), kv('BATCH', c.n_batch)),
-            h('div', { class: 'gl-params' }, kv('TTL', `${c.ttl} min`), kv('FLASH', c.flash_attn ? 'ON' : 'OFF', c.flash_attn ? 'on' : 'off'),
-                kv('MMAP', yes(c.use_mmap)), kv('MLOCK', yes(c.use_mlock)), c.random_seed === false ? kv('GRAINE', 'fixe') : null),
+        return [h('div', { class: 'gl-params' }, chip(`mémoire ${/^\d+$/.test(String(ctx)) ? kilo(Number(ctx)) : 'auto'}`), chip(...where), chip(kept(c.ttl ?? 720))),
             differs ? h('small', { class: 'gl-hint' }, `Enregistré : contexte ${c.n_ctx}, couches GPU ${c.n_gpu_layers}`) : null,
             p?.vram_unknown ? h('small', { class: 'gl-hint' }, 'Carte graphique illisible (nvidia-smi) : tout tenté sur le GPU, moins de couches si elle refuse') : null,
             // Des couches restées sur le CPU : chaque jeton les attend. Un clic les met toutes sur le GPU (rechargement).
@@ -596,11 +678,9 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
                     await tb.updateModel(m.id, { params: { ...m.params, n_gpu_layers: 'max' } });
                     await tb.modelAction(m.id, 'unload');
                 }, 'Toutes les couches iront sur le GPU au prochain message') }, `Tout sur le GPU (${p.layers - p.gpu_layers} couches sur CPU)`) : null,
-            stats ? h('div', { class: 'gl-params gl-runtime' }, kv('CHARGÉ', ago(stats.loaded_at)), kv('DERNIER USAGE', ago(stats.last_used)),
-                kv('REQUÊTES', stats.requests), kv('JETONS', stats.tokens >= 1000 ? `${(stats.tokens / 1000).toFixed(1)} k` : stats.tokens)) : null,
-            stats?.last ? h('div', { class: 'gl-params gl-runtime', title: 'Dernier appel : lecture du prompt (attente du premier mot), puis génération' },
-                kv('PROMPT', `${stats.last.prompt_tokens ?? '?'} j`), kv('1ER MOT', `${stats.last.wait_s} s`),
-                kv('VITESSE', stats.last.speed ? `${stats.last.speed} j/s` : '?')) : null];
+            stats ? h('small', { class: 'gl-runtime' }, `Chargé ${ago(stats.loaded_at)} · ${stats.requests} demande${stats.requests > 1 ? 's' : ''} · `
+                + `${stats.tokens >= 1000 ? `${(stats.tokens / 1000).toFixed(1)} k` : stats.tokens} jetons`
+                + (stats.last ? ` · dernière réponse : premier mot en ${stats.last.wait_s} s${stats.last.speed ? `, ${stats.last.speed} jetons/s` : ''}` : '')) : null];
     }
 
     function modelCard(m) {
@@ -614,7 +694,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
                 h('div', {}, h('strong', { title: m.filename }, m.label || m.filename), m.label ? h('small', {}, m.filename) : null, rename),
                 h('span', { class: 'gl-size' }, gb(m.size))),
             h('div', { class: 'gl-badges' },
-                m.loaded ? h('span', { class: 'gl-badge loaded' }, 'EN MÉMOIRE') : null,
+                m.loaded ? h('span', { class: 'gl-badge loaded' }, 'en mémoire') : null,
                 h('span', { class: 'gl-cap', style: `color:${quantColor(m.quant)}` }, m.quant || '?'),
                 nameCaps(m).map(capPill)),
             m.agents.length ? h('small', { class: 'gl-used' }, `Utilisé par ${m.agents.join(', ')}`) : null,
@@ -622,13 +702,15 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
             m.kind === 'text' ? loadRows(m) : h('div', { class: 'gl-params' }, summary(cfg)),
             h('div', { class: 'gl-actions' },
                 m.kind === 'text' && categoryOf(m) !== 'guardian'
-                    ? h('button', { type: 'button', onclick: () => moveTo(m.id, 'guardian') }, 'Pour le Gardien') : null,
+                    ? h('button', { type: 'button', class: 'gl-primary', onclick: () => moveTo(m.id, 'guardian') }, 'Pour le Gardien') : null,
                 h('button', { type: 'button', ...guard(), onclick: () => { tuning = tuning === m.id ? null : m.id; render(); } }, 'Réglages'),
-                h('button', { type: 'button', ...guard(), onclick: () => { rename.hidden = false; rename.focus(); } }, 'Renommer'),
-                h('button', { type: 'button', ...guard(), onclick: () => moveTo(m.id, m.kind === 'image' ? 'agents' : 'image') },
-                    m.kind === 'image' ? '→ Texte' : '→ Image'),
-                m.loaded ? h('button', { type: 'button', ...guard(), onclick: () => act(() => tb.modelAction(m.id, 'unload'), 'Mémoire libérée') }, 'Décharger') : null,
-                confirmButton('Retirer', () => tb.removeModel(m.id, false), { title: 'Retire de la bibliothèque, garde le fichier' })));
+                // Le reste, plus rare, dans le menu ⋯ (il se ferme au clic ailleurs).
+                h('details', { class: 'ga-more' }, h('summary', { title: 'Plus' }, '⋯'), h('div', {},
+                    h('button', { type: 'button', ...guard(), onclick: () => { rename.hidden = false; rename.focus(); } }, 'Renommer'),
+                    h('button', { type: 'button', ...guard(), onclick: () => moveTo(m.id, m.kind === 'image' ? 'agents' : 'image') },
+                        m.kind === 'image' ? 'Classer en modèle de texte' : 'Classer en modèle d\'image'),
+                    m.loaded ? h('button', { type: 'button', ...guard(), onclick: () => act(() => tb.modelAction(m.id, 'unload'), 'Mémoire libérée') }, 'Libérer la mémoire') : null,
+                    confirmButton('Retirer de la bibliothèque', () => tb.removeModel(m.id, false), { title: 'Le fichier reste sur le serveur' })))));
         card.addEventListener('dragstart', event => {
             event.dataTransfer.setData('text/plain', m.id);
             card.classList.add('dragging');
@@ -684,7 +766,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
             if (!response.ok) throw new Error(data.error || response.statusText);
             docs = data.templates;
         }, 'Modèle ajouté : le Rédacteur et le Gardien s\'en servent pour écrire dans ton style'));
-        const kinds = { pptx: '📊 PowerPoint', docx: '📄 Word', xlsx: '📗 Excel', pdf: '📕 PDF' };
+        const kinds = { pptx: 'PowerPoint', docx: 'Word', xlsx: 'Excel', pdf: 'PDF' };
         panels.docs.replaceChildren(
             h('p', { class: 'gl-hint' }, 'Tes modèles de documents : une présentation, un rapport, un tableau, un papier à en-tête. ',
                 'Quand le Gardien ou le Rédacteur produit un document, il part du modèle qui convient : thème, polices, mises en page, ',
@@ -699,28 +781,30 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
                 : h('p', { class: 'gl-empty' }, 'Aucun modèle pour le moment.'));
     }
 
-    // --- Choisir mon IA : 1. une IA externe par API ou 2. un modèle sur cette machine, puis 3. ses outils.
+    // --- Mon IA : l'état du Gardien, puis les deux façons de lui donner une IA (par API, sur cette machine), et ses outils.
 
     function renderStart() {
         const guardian = state.agents.find(a => a.role === 'orchestrator');
         const current = guardian?.model && state.models.find(m => m.id === guardian.model);
         const local = h('div', { class: 'gl-step-recs' }, h('p', { class: 'gl-empty' }, 'Analyse de la machine…'));
-        const step = (number, title, text, ...rest) => h('section', { class: 'gl-step' }, h('b', { class: 'gl-step-n' }, number),
-            h('div', {}, h('h3', {}, title), h('p', {}, text), ...rest));
+        const [where, level] = !current ? ['sans IA : il dort', 'off'] : current.endpoint ? ['par API', 'ok']
+            : current.loaded ? ['sur cette machine, en mémoire', 'ok'] : ['sur cette machine, chargé à la première demande', 'ok'];
+        const option = (title, text, ...rest) => h('section', { class: 'ga-option' }, h('h4', {}, title), h('p', {}, text), ...rest);
         panels.start.replaceChildren(
-            h('p', { class: 'gl-step-now' }, current ? `Ton Gardien utilise ${current.label || current.filename}${current.endpoint ? ' (par API)' : ' (sur cette machine)'}.`
-                : 'Ton Gardien n\'a pas encore d\'IA : choisis-en une.'),
-            step('1', 'Une IA externe, par API', 'OpenAI, Mistral, Groq, OpenRouter… font tourner un grand modèle à ta place. Tu donnes ta clé : '
-                + 'elle reste sur le serveur Nodz et ne sert qu\'à toi.',
-            h('button', { type: 'button', class: 'gl-primary', onclick: () => show('api') }, 'Brancher une API')),
-            step('2', 'Sur ta machine', `${machineLine.textContent}. Un modèle local tourne sans connexion ni clé. `
-                + (state.staff ? 'Recommandés pour cette machine :' : 'Installer un modèle est réservé à l\'administrateur du serveur ; sur ton ordinateur, c\'est toi.'),
-            local, h('button', { type: 'button', onclick: () => show('hub') }, 'Chercher sur Hugging Face')),
-            step('3', 'Ses outils', 'Automatisation (mode Auto du chat) : il appelle des fonctions pour mener une mission, web, fichiers, images, '
-                + 'présentations, documents, agents. Agentique (modes Pensée et Profond) : il planifie et agit dans l\'univers, crée, relie, '
-                + 'range, supprime, voyage entre dimensions.',
-            h('div', { class: 'gl-step-actions' }, h('button', { type: 'button', onclick: () => show('tools') }, 'Choisir ses outils'),
-                h('button', { type: 'button', onclick: () => show('agents') }, 'Ses agents'))));
+            h('div', { class: `ga-now ${level}` }, h('span', { class: 'ga-dot' }),
+                h('div', {}, h('small', {}, 'Ton Gardien'), h('strong', {}, current ? current.label || current.filename : 'Pas encore d\'IA'), h('span', {}, where)),
+                guardian ? h('button', { type: 'button', onclick: () => show('agents') }, 'Ses agents') : null),
+            h('div', { class: 'ga-options' },
+                option('Par API', 'OpenAI, Mistral, Groq, OpenRouter, ou ton Ollama : un grand modèle tourne ailleurs. Ta clé reste sur le serveur Nodz et ne sert qu\'à toi.',
+                    h('button', { type: 'button', class: 'gl-primary', onclick: () => show('api') }, 'Brancher une API')),
+                option('Sur cette machine', `${machineLine.textContent}. Sans connexion ni clé. `
+                    + (state.staff ? 'Recommandés ici :' : 'Installer un modèle est réservé à l\'administrateur du serveur.'),
+                local, h('button', { type: 'button', onclick: () => show('hub') }, 'Chercher sur Hugging Face'))),
+            h('div', { class: 'ga-option ga-wide' }, h('h4', {}, 'Ce qu\'il a le droit de faire'),
+                h('p', {}, 'Mode Pensée : il crée, relie, range et voyage dans l\'univers. Mode Auto : il mène des missions avec le web, des fichiers, '
+                    + 'des images, des présentations et ses agents.'),
+                h('div', { class: 'gl-actions' }, h('button', { type: 'button', onclick: () => show('tools') }, 'Choisir ses outils'),
+                    h('button', { type: 'button', onclick: onOpenHome }, 'Ouvrir sa dimension Gardien'))));
         recommend(local, false);
     }
 

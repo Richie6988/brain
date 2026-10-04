@@ -370,7 +370,7 @@ def pack(request, body, key):
 def tool_list(request, body):
     """Catalogue des outils du Gardien (Nodz et iAqua), ceux activés pour l'utilisateur, et les non portés."""
     guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
-    return JsonResponse({'tools': [{**t, 'available': tools.available(t['op'], request.user)} for t in tools.TOOLS],
+    return JsonResponse({'tools': [{**t, 'available': tools.available(t['op'], request.user), 'always': t['op'] in tools.ALWAYS} for t in tools.TOOLS],
                          'enabled': tools.enabled(guardian, request.user) if guardian else [],
                          'guardian': str(guardian.id) if guardian else None, 'shell': settings.GUARDIAN_SHELL})
 

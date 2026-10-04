@@ -284,13 +284,16 @@ def available(op, user):
     return not BY_OP[op].get('admin') or bool(user and user.is_staff and settings.GUARDIAN_SHELL)
 
 
+# Toujours permis, même avec une liste d'outils cochés d'avant : lire le répertoire d'outils (open, tool_help), parler à
+# l'humain (ask, note) et écrire un node comme il le lit (put). Leur interrupteur est verrouillé dans Agents & modèles.
+ALWAYS = ('open', 'tool_help', 'ask', 'put', 'note')
+
+
 def enabled(agent, user):
     """Opérations permises au Gardien : celles cochées (tools_allowed), sinon celles actives par défaut."""
     allowed = [op for op in dict.fromkeys(RENAMED.get(op, op) for op in agent.tools_allowed or []) if op in BY_OP]
     ops = allowed or [t['op'] for t in TOOLS if t.get('default', not t.get('admin'))]
-    # tool_help, ask et note (parler à l'humain) et put (écrire un node comme il le lit) restent toujours permis, même avec
-    # une liste d'outils cochés d'avant.
-    return [op for op in ops if available(op, user)] + [op for op in ('open', 'tool_help', 'ask', 'put', 'note') if op not in ops]
+    return [op for op in ops if available(op, user)] + [op for op in ALWAYS if op not in ops]
 
 
 def usage(op, docs=None):
