@@ -35,25 +35,8 @@ def looping(text, tail=600):
     return False
 
 
+CHECKPOINTS = 3  # prompts système dont l'état est gardé (Gardien, ses modes, un agent)
 
-CHANCES = 5  # jetons envisagés gardés à chaque pas
-
-
-def chances_reader(llm, into):
-    """Lecteur des jetons envisagés, pour llama.cpp : appelé avant chaque tirage avec les logits du pas (sans garder
-    ceux de toute la fenêtre, qui pèseraient des Go), il note les plus probables et leur probabilité."""
-    import numpy as np
-    from llama_cpp import LogitsProcessorList
-
-    def read(input_ids, scores):
-        top = np.argpartition(scores, -CHANCES)[-CHANCES:]
-        shifted = scores - scores.max()
-        total = float(np.exp(shifted).sum())
-        into.append(sorted(((llm.detokenize([int(t)]).decode('utf-8', 'ignore'), float(np.exp(shifted[t])) / total) for t in top),
-                           key=lambda chance: -chance[1]))
-        return scores
-
-    return LogitsProcessorList([read])
 
 ANY = {'anyOf': [{'type': t} for t in ('string', 'number', 'boolean', 'array', 'object', 'null')]}
 
@@ -113,6 +96,7 @@ class Engine:
         self._lock = threading.Lock()
         self.stats = {}  # id du LocalModel → {loaded_at, last_used, requests, tokens}
         self.prefixes = {}  # id du LocalModel chargé → empreinte du dernier prompt système lu (réutilisé par llama.cpp)
+        self.checkpoints = collections.OrderedDict()  # empreinte d'un prompt système → état du modèle juste après l'avoir lu
         self._watcher = None
         # Arrêt dur : llama.cpp consulte ce drapeau entre deux calculs (lecture du prompt comprise), le flux entre deux jetons.
         self._abort = threading.Event()
@@ -218,6 +202,7 @@ class Engine:
             close()
         gc.collect()
         self.prefixes.clear()
+        self.checkpoints.clear()
         self._loaded = self._options = None
 
     @contextmanager
@@ -308,18 +293,56 @@ class Engine:
                                         'augmente le contexte dans les réglages du modèle, ou réduis la conversation')
             wanted = options.get('max_tokens')
             options['max_tokens'] = room if not wanted or wanted < 0 else min(wanted, room)
-        chances = collections.deque()  # ce que le modèle envisageait, jeton après jeton (lu avant chaque tirage)
-        if on_token:
-            options['logits_processor'] = chances_reader(llm, chances)
+        # Les jetons envisagés (mots presque dits) ne sont lus que par API, où ils arrivent avec la réponse : en local, ce
+        # serait un passage en Python sur tout le vocabulaire à chaque jeton, pendant lequel le GPU attend.
+        self._resume(llm, messages)
         started = time.monotonic()
         stream = llm.create_chat_completion(messages=messages, stream=True, **options)
 
         def pieces():
             for chunk in stream:
                 piece = chunk['choices'][0]['delta'].get('content') or ''
-                yield (piece, chances.popleft() if piece and chances else None) if on_token else piece
+                yield (piece, None) if on_token else piece
 
         return self._collect(model, stream, pieces(), messages, json_schema, on_text, prompt_tokens, started, on_token)
+
+    def _prefix_tokens(self, llm, system):
+        """Les jetons du prompt formaté jusqu'au début du message de l'humain, comme llama-cpp-python les produira (même
+        gabarit de chat, même découpage) ; None si le gabarit est inconnu."""
+        template = (getattr(llm, 'metadata', None) or {}).get('tokenizer.chat_template')
+        if not template:
+            return None
+        from llama_cpp.llama_chat_format import Jinja2ChatFormatter
+
+        text = lambda token: llm._model.token_get_text(token) if token != -1 else ''
+        mark = '\u2063NODZ\u2063'
+        result = Jinja2ChatFormatter(template=template, eos_token=text(llm.token_eos()), bos_token=text(llm.token_bos()))(
+            messages=[system, {'role': 'user', 'content': mark}])
+        if mark not in result.prompt:
+            return None
+        return llm.tokenize(result.prompt.split(mark)[0].encode('utf-8'), add_bos=not result.added_special, special=True)
+
+    def _resume(self, llm, messages):
+        """Point de reprise des modèles hybrides et récurrents (Qwen3.5, Qwen3-Next, Mamba…) : leur état ne se tronque pas,
+        llama.cpp relirait donc tout le prompt à chaque demande. On garde l'état juste après le prompt système et on le
+        recharge : seule la suite (univers, demande) est lue. Un prompt qui ne commence pas pareil est relu en entier."""
+        if not (getattr(llm, '_is_hybrid', False) or getattr(llm, '_is_recurrent', False)):
+            return  # les autres modèles : llama.cpp réutilise déjà le début commun
+        if not messages or messages[0].get('role') != 'system':
+            return
+        key = hash(messages[0]['content'])
+        state = self.checkpoints.get(key)
+        if state is None:
+            tokens = self._prefix_tokens(llm, messages[0])
+            if not tokens:
+                return
+            llm.reset()
+            llm.eval(tokens)
+            state = self.checkpoints[key] = llm.save_state()
+            while len(self.checkpoints) > CHECKPOINTS:
+                self.checkpoints.popitem(last=False)
+        self.checkpoints.move_to_end(key)
+        llm.load_state(state)
 
     def _collect(self, model, stream, pieces, messages, json_schema, on_text, prompt_tokens, started, on_token=None):
         """Lit le flux (local ou distant) : fragments vers on_text (ou on_token, avec les jetons envisagés), arrêt

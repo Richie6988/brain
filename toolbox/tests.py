@@ -253,6 +253,40 @@ class EngineTests(TestCase):
         engine.unload()  # le modèle rechargé devra tout relire
         self.assertTrue(engine.prefill(self.model, system))
 
+    def test_hybrid_models_resume_after_the_system_prompt(self):
+        class Hybrid:
+            _is_hybrid = True
+            metadata = {'tokenizer.chat_template': '{% for m in messages %}<|{{ m.role }}|>{{ m.content }}\n{% endfor %}'}
+            _model = mock.Mock(token_get_text=lambda token: '</s>')
+
+            def __init__(self):
+                self.evals, self.loads, self.saves = [], 0, 0
+
+            token_eos = token_bos = lambda self: 2
+            tokenize = lambda self, data, add_bos, special: list(data)
+            reset = lambda self: None
+
+            def eval(self, tokens):
+                self.evals.append(bytes(tokens))
+
+            def save_state(self):
+                self.saves += 1
+                return 'état'
+
+            def load_state(self, state):
+                self.loads += 1
+
+        engine, llm = Engine(Broker()), Hybrid()
+        system = {'role': 'system', 'content': 'Tu es le Gardien.'}
+        engine._resume(llm, [system, {'role': 'user', 'content': 'yo'}])
+        engine._resume(llm, [system, {'role': 'user', 'content': 'et maintenant ?'}])
+        self.assertEqual(llm.evals, [b'<|system|>Tu es le Gardien.\n<|user|>'])  # lu une seule fois, jusqu'au message
+        self.assertEqual((llm.saves, llm.loads), (1, 2))  # puis rechargé à chaque demande
+        plain = Hybrid()
+        plain._is_hybrid = False
+        engine._resume(plain, [system])
+        self.assertEqual((plain.evals, plain.loads), ([], 0))  # modèle classique : llama.cpp réutilise déjà le début
+
     def test_unload_frees_the_model_at_once(self):
         class Closing(FakeLlama):
             closed = 0
