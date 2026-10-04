@@ -31,11 +31,12 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     try {
         mode = ['auto', 'deep'].includes(localStorage.getItem(MODE_KEY)) ? localStorage.getItem(MODE_KEY) : 'think';
     } catch { /* stockage indisponible : mode Pensée */ }
-    let history = [];
+    let history = [], persist = true;
     try {
         history = JSON.parse(localStorage.getItem(KEY) || '[]');
     } catch { /* stockage indisponible : conversation vide */ }
     const store = () => {
+        if (!persist) return;  // invité : la conversation ne survit pas à sa visite
         try {
             localStorage.setItem(KEY, JSON.stringify(history.slice(-KEEP)));
         } catch { /* stockage indisponible */ }
@@ -336,6 +337,15 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
             statusText.textContent = on ? 'le Gardien écrit' : '';
         },
         open: () => toggle(true),
+        // Entrée en invité : conversation neuve, gardée en mémoire seulement (ni celle de l'invité précédent, ni celle
+        // du compte de ce navigateur, qui reste enregistrée pour lui).
+        guest() {
+            persist = false;
+            history = [];
+            unread = 0;
+            badge();
+            render();
+        },
         // Nodes joints (pastille, sélecteur de contexte) : [{ id, text }], de toutes les dimensions.
         attach(items) {
             attached = items;
