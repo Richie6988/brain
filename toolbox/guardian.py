@@ -26,7 +26,7 @@ from graph.models import AIRun
 from nodzapp.models import Link, Node
 
 from . import broker as priorities
-from . import drawing, imaging, layouts, monitor, perception, prompts, reminders, tools, web, workspace
+from . import drawing, home, imaging, layouts, monitor, perception, prompts, reminders, tools, web, workspace
 from .iaqua import IaquaOps
 from .engine import EngineUnavailable
 from .errors import PlanError
@@ -137,7 +137,7 @@ de caméra guident l'utilisateur. Il t'écrit dans un node (le node message) ; t
 Simple question : `plan` et `actions` vides, `say` répond. `say` s'écrit dans un node relié au message : au passé
 (« J'ai relié… »), jamais « je vais ». Nodes existants : identifiant N-12 ; nouveaux : new1, new2...
 Tu lis chaque node comme un objet JSON (texte, liens, auteur, position) et l'écris pareil : put.
-Pour plus tard (idée, rappel, question pas urgente) : note, que l'humain lit dans la dimension Échanges ; à trancher
+Pour plus tard (idée, rappel, question pas urgente) : note, que l'humain lit dans sa dimension Gardien (Échanges) ; à trancher
 tout de suite : ask. Texte des nodes mis en forme : **gras**, *italique*, __souligné__, [#FF6B6B]couleur[/],
 ^^grand^^, ^^^très grand^^^, ,,petit,, ; emojis bienvenus.
 Exemples (imite leur forme) :
@@ -410,7 +410,7 @@ def brain_text(agent):
     templates = brain.get('templates') or {}
     lines = ['Cerveau du Gardien', '(réécrit par le Gardien ; ses souvenirs sont dans le node Mémoire)', '',
              f"Gabarits gardés : {', '.join(f'{name} ({t.get('layout')})' for name, t in templates.items()) or 'aucun'}"]
-    lines += [f'{key} : {json.dumps(value, ensure_ascii=False)[:300]}' for key, value in brain.items() if key not in ('universe', 'templates', 'letters')]
+    lines += [f'{key} : {json.dumps(value, ensure_ascii=False)[:300]}' for key, value in brain.items() if key not in ('universe', 'templates', 'letters', 'home', 'dreams', 'dreamt')]
     return '\n'.join(lines)
 
 
@@ -660,7 +660,7 @@ class Guardian(IaquaOps):
             'Nodes (un objet par node ; sans "par", écrit par l\'humain ; "par": "moi" = créé par toi ; "plus": caractères non montrés) :',
             *(perception.lines(view) or ['(aucun)']),
             *talk,  # après les nodes, qui changent peu : seule la fin du message est relue
-            *(['Correspondance (dimension Échanges) :', *self.letters] if self.letters else []),
+            *(['Correspondance (Échanges de la dimension Gardien) :', *self.letters] if self.letters else []),
             'Sélection : ' + (', '.join(self.selection) or 'aucune'),
             *([self.dimensions()] if self.layers else []),
             *(['Nodes cités hors de cette dimension :', *perception.lines(away)] if away else []),
@@ -758,8 +758,8 @@ class Guardian(IaquaOps):
         return None
 
     def op_note(self, action, agents):
-        """Une note pour plus tard (correspondance) : gardée dans son cerveau, posée dans la dimension « Échanges »
-        quand l'humain l'ouvre ; ses réponses (nodes reliés à la note) reviennent au Gardien à chaque demande."""
+        """Une note pour plus tard (correspondance) : gardée dans son cerveau, posée sous Échanges dans la dimension
+        « Gardien » quand l'humain y entre ; ses réponses (nodes reliés à la note) reviennent au Gardien à chaque demande."""
         text = str(action.get('text') or '').strip()[:1500]
         if not text:
             raise PlanError('note vide (text)')
@@ -773,16 +773,16 @@ class Guardian(IaquaOps):
         return None
 
     def correspondence(self):
-        """Réponses de l'humain aux notes posées dans « Échanges » : les nodes reliés à une note (hors la racine)."""
+        """Réponses de l'humain aux notes posées dans « Échanges » : les nodes reliés à une note (hors les groupes)."""
         letters = [l for l in (self.guardian.brain.get('letters') or []) if l.get('node')] if self.guardian else []
         if not letters:
             return []
-        root = (self.guardian.brain.get('universe') or {}).get('exchanges')
+        roots = {(self.guardian.brain.get('universe') or {}).get('exchanges'), *((home.mapping(self.guardian) or {}).get('groups') or {}).values()}
         by_note = {l['node']: l for l in letters}
         replies = {}
         for a, b in Link.objects.filter(user=self.user, archive=False).filter(Q(linkA__in=by_note) | Q(linkB__in=by_note)).values_list('linkA', 'linkB'):
             for note, other in ((a, b), (b, a)):
-                if note in by_note and other not in by_note and other != root:
+                if note in by_note and other not in by_note and other not in roots:
                     replies.setdefault(note, set()).add(other)
         texts = dict(Node.objects.filter(user=self.user, archive=False, node_id__in=[node_id(r) for rs in replies.values() for r in rs])
                      .values_list('node_id', 'text_content'))
@@ -1124,9 +1124,13 @@ class Guardian(IaquaOps):
             self.sync_memory()
         return None
 
+    def home_ref(self, key):
+        """Node de l'univers qui porte `key` (memory, brain) : celui de la dimension Gardien, sinon de l'ancienne."""
+        return (home.mapping(self.guardian) or self.guardian.brain.get('universe') or {}).get(key)
+
     def sync_memory(self):
         """Réécrit le node « Mémoire » de l'univers ; à l'écran tout de suite s'il est dans la dimension affichée."""
-        ref = (self.guardian.brain.get('universe') or {}).get('memory')
+        ref = self.home_ref('memory')
         text = 'Mémoire du Gardien\n' + '\n'.join(f'- {fact}' for fact in self.guardian.memory)
         if ref in self.nodes:
             self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(text)})
@@ -1135,7 +1139,7 @@ class Guardian(IaquaOps):
 
     def sync_brain(self):
         """Réécrit le node « Cerveau » de l'univers (gabarits, champs du cerveau)."""
-        ref = (self.guardian.brain.get('universe') or {}).get('brain')
+        ref = self.home_ref('brain')
         if ref in self.nodes:
             self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(brain_text(self.guardian))})
         elif ref:
@@ -1296,6 +1300,27 @@ class Guardian(IaquaOps):
             'Modèles prêts : ' + (', '.join(f'{m.filename} ({m.kind})' for m in models) or 'aucun'),
         ])
 
+    def read_home(self, guardian):
+        """La dimension Gardien (home.py), relue à chaque demande : l'âme devient ses consignes, les nodes de Mémoire sa
+        mémoire, un node d'outil supprimé coupe l'outil, un node d'outil réécrit change son mode d'emploi. Renvoie ce
+        qu'elle dit (ou None si elle n'est pas posée)."""
+        state = home.read(self.user, guardian)
+        if state is None:
+            return None
+        fields = []
+        if state['groups'].get('memory') and state['memory'][-MAX_MEMORY:] != guardian.memory:
+            guardian.memory, fields = state['memory'][-MAX_MEMORY:], fields + ['memory']
+        if state['groups'].get('soul') and home.soul(state) != (guardian.system_prompt or ''):
+            guardian.system_prompt, fields = home.soul(state), fields + ['system_prompt']
+        if fields:
+            guardian.save(update_fields=fields)
+        for op, text in state['tools'].items():
+            if text is None:
+                self.allowed = [o for o in self.allowed if o not in (op, THINK_NAMES.get(op))]
+            elif text:
+                self.docs[op] = text
+        return state
+
     def read_universe(self, guardian):
         """Le Gardien installé dans l'univers : le node « Prompt système » donne ses consignes, le node d'un
         outil son mode d'emploi ; un node d'outil supprimé coupe l'outil. Renvoie les consignes (ou None)."""
@@ -1443,12 +1468,15 @@ class Guardian(IaquaOps):
         le modèle réutilise sa lecture du début d'une demande à l'autre."""
         guardian = self.guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
         self.allowed = tools.enabled(guardian, self.user) if guardian else []
-        guidelines = self.read_universe(guardian) if guardian else None
+        state = self.read_home(guardian) if guardian else None
+        guidelines = ('\n\n'.join(filter(None, [prompts.AUTOMATION, home.soul(state)])) if state
+                      else self.read_universe(guardian) if guardian else None)
         if guardian is None or guardian.model is None:
             raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
         roster = '\n'.join(f'- {a.name} ({a.role}) : {a.description}' for a in agents.values()
                            if a.role != Agent.Role.ORCHESTRATOR and a.model_id) or '(aucun agent équipé)'
         memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
+        memory = '\n'.join(filter(None, [home.profile(state), memory]))
         return (SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
                 .replace('{guidelines}', guidelines or prompts.AUTOMATION))
 
@@ -1478,6 +1506,30 @@ class Guardian(IaquaOps):
                     raise PlanError(f"demande trop longue pour le contexte de son modèle ({e}) : augmente le contexte "
                                     'dans Agents & modèles, ou prends moins de nodes') from None
                 self.emit('intent', {'text': 'Mon contexte est plein : je regarde moins de nodes…'})
+
+    def dream(self, history):
+        """Rêve, après une période calme : le modèle relit les derniers échanges (envoyés par la page) et ce qu'il sait,
+        et propose des souvenirs et des idées, gardés en attente pour la dimension Gardien (groupe Rêves). Rien n'entre
+        en mémoire sans l'humain. Renvoie les rêves ajoutés."""
+        guardian = next((a for a in self.agents().values() if a.role == Agent.Role.ORCHESTRATOR), None)
+        if guardian is None or guardian.model is None:
+            raise EngineUnavailable("le Gardien n'a pas de modèle")
+        turns = [f"{'Humain' if h.get('role') == 'user' else 'Toi'} : {' '.join(str(h.get('text') or '').split())[:400]}"
+                 for h in (history or [])[-20:] if isinstance(h, dict) and h.get('text')]
+        if not turns:
+            return []
+        state = home.read(self.user, guardian)
+        pending = [d['text'] for d in (guardian.brain or {}).get('dreams') or []]
+        known = '\n'.join(filter(None, [home.profile(state), 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else '',
+                                         'Rêves déjà proposés :\n' + '\n'.join(f'- {d}' for d in pending) if pending else '']))
+        messages = [{'role': 'system', 'content': home.DREAM_PROMPT},
+                    {'role': 'user', 'content': f"{known or 'Tu ne sais encore rien de lui.'}\n\nDerniers échanges :\n" + '\n'.join(turns)}]
+        raw = self.engine.chat(guardian.model, messages, json_schema=home.DREAM_SCHEMA, priority=priorities.BACKGROUND,
+                               owner='gardien:rêve', temperature=0.7, max_tokens=600)
+        items = home.dream_items(raw, [*guardian.memory, *pending])
+        if items:
+            home.keep_dreams(guardian, items)
+        return items
 
     def warm(self, mode='auto'):
         """Préchauffage : le modèle du Gardien lit son prompt système en arrière-plan (sur CPU, plusieurs minutes pour
@@ -1512,7 +1564,9 @@ class Guardian(IaquaOps):
             raise EngineUnavailable("le Gardien n'a pas de modèle : choisis-en un dans la bibliothèque d'agents")
         self.allowed = think_ops(guardian)
         self.allowed += [op for op, name in THINK_NAMES.items() if name in self.allowed]  # delete s'exécute en archive
+        state = self.read_home(guardian)
         memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
+        memory = '\n'.join(filter(None, [home.profile(state), memory]))
         saved = self.templates()
         if saved:
             memory = f"{memory}\nTes gabarits gardés : {', '.join(saved)}".strip()

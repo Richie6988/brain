@@ -22,7 +22,7 @@ TOOLS = [
             'N\'ajoute pas d\'autre action avec elle.'},
     {'op': 'note', 'category': 'Dialogue', 'source': NODZ, 'label': 'Laisser une note (correspondance)',
      'doc': '{"op":"note","text":"J\'ai remarqué que…","choices":["Oui","Plus tard"]} : une note pour plus tard, posée dans la '
-            'dimension Échanges ; l\'humain y répond dans un node relié, et tu lis sa réponse aux demandes suivantes.'},
+            'dimension Gardien, sous Échanges ; l\'humain y répond dans un node relié, et tu lis sa réponse aux demandes suivantes.'},
     # --- Rappels : une date sur un node, que la page compte à rebours et notifie à l'échéance
     {'op': 'remind', 'category': 'Rappels', 'source': NODZ, 'label': 'Poser, déplacer ou retirer un rappel',
      'doc': '{"op":"remind","ref":"N-12","at":"2026-10-09 09:00"} : rappel sur un node, à l\'heure de l\'humain (AAAA-MM-JJ HH:MM, '

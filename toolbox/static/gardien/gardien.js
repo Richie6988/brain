@@ -19,6 +19,7 @@ import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
 import { createGrab } from './grab.js';
 import { createGuide } from './guide.js';
+import { createHome } from './home.js';
 import { createHistory } from './history.js';
 import { createLabels } from './labels.js';
 import { createLibrary } from './library.js';
@@ -82,7 +83,7 @@ const signedIn = setInterval(() => {
     clearInterval(signedIn);
     // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
     api.request('POST', 'toolbox/warm', { mode: chat.mode() }).catch(() => {});
-    refreshLetters();  // notes du Gardien en attente dans Échanges
+    guardianHome.ensure().catch(() => {});  // dimension Gardien posée d'office ; notes et rêves en attente
     reminders.refresh();
     dimensions.refresh();
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
@@ -182,109 +183,9 @@ function clickNode(node, high) {
     else if (node.getAttribute('type') === 'code') ide.open(node).catch(error => say(`IDE : ${error.message}`, 'error'));
 }
 
-// Le Gardien dans l'univers : dimension « Gardien » avec le node Prompt système, le node Outils, un node par
-// famille puis un node par outil (nom, rôle, comment l'appeler). Le Gardien relit ces nodes à chaque demande.
-const escape = text => text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
-const PALETTE = ['#4D96FF', '#33FF99', '#FF6B6B', '#FFD93D', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5', '#9BE15D', '#7FB3FF', '#FFB3C6', '#B8F2E6', '#E0AAFF', '#FFE066'];
-
-async function installBrain() {
-    const map = await api.request('GET', 'toolbox/brain-map');
-    const placed = map.universe || {};
-    say('Le Gardien s\'installe dans la dimension « Gardien »…', 'guide');
-    await bridge.enterDimension('Gardien');
-    const here = id => (id && document.getElementById(id) ? id : null);  // pièce déjà posée dans cette dimension
-    const make = async (ref, x, y, text, tint, shape = 'circle') => {
-        await bridge.perform({ op: 'create', ref, x, y, text: text.split('\n').map(escape).join('<br>'), color: tint, shape });
-        return bridge.idOf(ref);
-    };
-    const link = (source, target) => bridge.perform({ op: 'link', source, target });
-    const saved = {};
-    // En arbre : Prompt système à gauche, Outils au centre, une famille par ligne suivie de ses outils.
-    // Aucun lien parfaitement horizontal : le dégradé d'un lien de Nodz ne s'y affiche pas.
-    let prompt = here(placed.prompt);
-    if (!prompt) {
-        const categories = [...new Set(map.tools.map(t => t.category))];
-        const ROW = 950;
-        const top = ((categories.length - 1) * ROW) / 2;
-        prompt = saved.prompt = await make('brain-prompt', -3200, 400, `Prompt système\n\n${map.guidelines}`, '#f3ee58', 'square');
-        await make('brain-tools', 0, 0, 'Outils du Gardien', '#6848A6');
-        await link(prompt, 'brain-tools');
-        saved.tools = {};
-        for (const [k, category] of categories.entries()) {
-            const cy = top - k * ROW + 140;
-            const tint = PALETTE[k % PALETTE.length];
-            const cref = `brain-cat-${k}`;
-            await make(cref, 1500, cy, category, tint);
-            await link('brain-tools', cref);
-            for (const [i, tool] of map.tools.filter(t => t.category === category).entries()) {
-                const ref = `brain-tool-${tool.op}`;
-                saved.tools[tool.op] = await make(ref, 2500 + i * 800, cy + (i % 2 ? -220 : 220), `${tool.op}\n${tool.label}\n\n${tool.usage}`, tint);
-                await link(i ? `brain-tool-${map.tools.filter(t => t.category === category)[i - 1].op}` : cref, ref);
-            }
-        }
-    }
-    // Mémoire (un souvenir par ligne, relue à chaque demande) et Cerveau (réécrit par le Gardien), sous le prompt.
-    if (!here(placed.memory)) {
-        saved.memory = await make('brain-memory', -4300, -900, `Mémoire du Gardien\n${map.memory.map(fact => `- ${fact}`).join('\n')}`, '#33FF99', 'square');
-        await link(prompt, saved.memory);
-    }
-    if (!here(placed.brain)) {
-        saved.brain = await make('brain-state', -2000, -1200, map.brain, '#C77DFF', 'square');
-        await link(prompt, saved.brain);
-    }
-    await api.request('POST', 'toolbox/brain-map', saved);
-    filters.mark([saved.prompt, saved.memory, saved.brain, ...Object.values(saved.tools || {})].filter(Boolean), 'ai');
-    await bridge.perform({ op: 'overview', text: 'Le Gardien est dans l\'univers : réécris ses nodes pour changer ses consignes, ses outils et sa mémoire.' });
-}
-
-// Correspondance : la dimension « Échanges ». Les notes du Gardien pas encore posées y deviennent des nodes, en
-// spirale autour d'une racine ; l'humain répond dans un node relié à une note, que le Gardien relit ensuite.
-async function refreshLetters() {
-    try {
-        chat.unread((await api.request('GET', 'toolbox/letters')).unread);
-    } catch { /* pas encore de Gardien */ }
-}
-
-async function openExchanges() {
-    const data = await api.request('GET', 'toolbox/letters');
-    await bridge.enterDimension('Échanges');
-    const here = id => (id && document.getElementById(id) ? id : null);
-    const saved = { posted: {} };
-    let root = here(data.root);
-    if (!root) {
-        await bridge.perform({ op: 'create', ref: 'exchanges-root', x: 0, y: 0, color: '#6848A6', shape: 'square',
-            text: '<b>Échanges</b><br>Les notes du Gardien : réponds dans un node relié à la note.' });
-        root = saved.root = bridge.idOf('exchanges-root');
-    }
-    const at = document.getElementById(root);
-    const [ox, oy] = [parseFloat(at.getAttribute('x')) || 0, parseFloat(at.getAttribute('y')) || 0];
-    let k = data.letters.filter(l => here(l.node)).length;
-    for (const letter of data.letters.filter(l => !here(l.node))) {
-        const angle = 0.4 + k * 0.95, radius = 420 + 90 * k++;  // spirale : les plus récentes plus loin
-        const choices = letter.choices?.length ? `<br><i>${letter.choices.map(escape).join(' / ')}</i>` : '';
-        await bridge.perform({ op: 'create', ref: `letter-${letter.id}`, x: Math.round(ox + radius * Math.cos(angle)), y: Math.round(oy + radius * Math.sin(angle)),
-            text: `<font size="2">${escape(letter.at)}</font><br>${letter.html}${choices}`, color: '#1E90FF' });
-        await bridge.perform({ op: 'link', source: root, target: `letter-${letter.id}` });
-        saved.posted[letter.id] = bridge.idOf(`letter-${letter.id}`);
-    }
-    await api.request('POST', 'toolbox/letters', saved);
-    filters.mark(Object.values(saved.posted), 'ai');
-    chat.unread(0);
-    await bridge.perform({ op: 'overview', text: Object.keys(saved.posted).length ? 'Les notes du Gardien : réponds dans un node relié.' : 'Aucune nouvelle note.' });
-}
-
-// Bouton « Mémoire » du chat : voyage jusqu'au node Mémoire du Gardien (l'installe s'il manque).
-async function showMemory() {
-    const map = await api.request('GET', 'toolbox/brain-map');
-    const ref = map.universe?.memory;
-    const gardien = layers.find(l => l.name.toLowerCase() === 'gardien');
-    if (!ref || !gardien) return installBrain();
-    await bridge.perform({ op: 'goto', ref, layer: gardien.id, zoom: 1.2, text: 'Sa mémoire : un souvenir par ligne, à réécrire ou effacer.' });
-}
-
 const monitor = createMonitor({ onSignedOut: message => say(message, 'error') });
 const library = createLibrary({
-    onInstallBrain: () => { library.close(); installBrain().catch(error => say(error.message, 'error')); },
+    onOpenHome: () => { library.close(); guardianHome.open().catch(error => say(error.message, 'error')); },
     monitor: monitor.panel('gm-window').root,
     onChange: state => {
         guardian = state.agents.find(a => a.role === 'orchestrator') || null;
@@ -377,7 +278,7 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
             // Intentions et gestes s'enchaînent : chaque étape s'affiche quand la page l'exécute.
             else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); });
             // Note pour plus tard : annoncée dans le chat, posée dans Échanges quand l'humain l'ouvre.
-            else if (type === 'note') actions = actions.then(() => { chat.add('guardian', `Note laissée dans Échanges : ${data.text}`, '', data.choices); refreshLetters(); });
+            else if (type === 'note') actions = actions.then(() => { chat.add('guardian', `Note laissée dans la dimension Gardien (Échanges) : ${data.text}`, '', data.choices); guardianHome.refresh(); });
             // Question à l'humain : ses choix sont des boutons dans le chat, qui s'ouvre.
             else if (type === 'ask') actions = actions.then(() => { chat.add('guardian', data.text, '', data.choices); chat.open(); if (node) say(data.text, 'text'); });
             else if (type === 'error') actions = actions.then(() => { follow.step(data.message, 'error'); chat.add('error', data.message); });
@@ -430,6 +331,7 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
         chat.mascot.rest();
         timeline.end();
         chat.busy(false);
+        guardianHome.heard();  // une période calme commence : il rêvera après
     }
 }
 
@@ -445,10 +347,10 @@ const chat = createChat({
         chat.status('Arrêt demandé : le Gardien s\'arrête à son prochain mot…');
         api.request('POST', 'toolbox/command/stop').catch(error => chat.add('error', error.message));
     },
-    onMemory: () => showMemory().catch(error => chat.add('error', error.message)),
+    onHome: () => guardianHome.open().catch(error => say(error.message, 'error')),
     onGoto: (ref, layer) => bridge.perform({ op: 'goto', ref, layer }).catch(() => say(`${ref} n'existe plus`, 'error')),
-    onExchanges: () => openExchanges().catch(error => say(error.message, 'error')),
 });
+const guardianHome = createHome({ bridge, say, filters, chat, branches });  // dimension Gardien : ses clés, réglées en réécrivant ses nodes
 
 
 // Une fois par navigateur, au premier node écrit : comment parler au Gardien.

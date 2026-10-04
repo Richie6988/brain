@@ -10,6 +10,7 @@
 const KEY = 'gardien-folds';
 const GAP_X = 160;   // entre le bord d'un node et le bord de ses enfants
 const GAP_Y = 46;    // entre deux sous-arbres voisins
+const SAVE_GAP = 40; // ms entre deux enregistrements d'un rangement
 const TRANSFORM = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
@@ -103,16 +104,29 @@ export function glide(spots, duration = 450) {
             moving.forEach(({ node, from, to }) => move(node, from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k));
             links.forEach(id => { const link = byId(id); if (link) updateLink(link); });
             if (k < 1) return requestAnimationFrame(frame);
-            moving.forEach(({ node }) => save(node));
-            resolve();
+            // Enregistrés un à un, pas en rafale (un serveur peut refuser des connexions) ; l'écart reste sous celui
+            // qui clôt un geste dans l'historique : un seul Ctrl+Z.
+            moving.reduce((queue, { node }) => queue.then(() => { save(node); return new Promise(r => setTimeout(r, SAVE_GAP)); }),
+                Promise.resolve()).then(resolve);
         };
         requestAnimationFrame(frame);
     });
 }
 
 export function arrange(rootNode) {
-    const root = tree(rootNode.id);
-    const spots = layout(root, { x: parseFloat(rootNode.getAttribute('x')), y: parseFloat(rootNode.getAttribute('y')) }, id => half(byId(id)));
+    // Une branche repliée compte pour son seul node ; ses descendants cachés le suivent d'un bloc.
+    const hidden = id => byId(id).classList.contains('gardien-folded');
+    const full = tree(rootNode.id);
+    const visible = t => ({ ...t, kids: t.kids.filter(k => !hidden(k.id)).map(visible) });
+    const spots = layout(visible(full), { x: parseFloat(rootNode.getAttribute('x')), y: parseFloat(rootNode.getAttribute('y')) }, id => half(byId(id)));
+    const at = id => ({ x: parseFloat(byId(id).getAttribute('x')), y: parseFloat(byId(id).getAttribute('y')) });
+    const carry = (t, shift) => t.kids.forEach(k => {
+        const here = at(k.id);
+        const own = hidden(k.id) ? shift : { x: spots.get(k.id).x - here.x, y: spots.get(k.id).y - here.y };
+        if (hidden(k.id)) spots.set(k.id, { x: here.x + shift.x, y: here.y + shift.y });
+        carry(k, own);
+    });
+    carry(full, { x: 0, y: 0 });
     spots.delete(rootNode.id);
     return glide(spots);
 }
@@ -243,6 +257,7 @@ export function createBranches({ say }) {
             menu.hidden = false;
         },
         hasBranch: node => children(node.id).length > 0,
+        fold: node => { if (!folded().has(node.id)) toggle(node); },  // replier sans jamais déplier
         apply,
     };
 }

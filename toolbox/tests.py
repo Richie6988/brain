@@ -1407,10 +1407,10 @@ class GuardianTests(TestCase):
         self.assertEqual([d for k, d in self.events if k == 'note'],
                          [{'id': 1, 'text': "J'ai vu trois nodes vides : je les range ?", 'choices': ['Oui', 'Plus tard']}])
         self.client.force_login(self.user)
-        data = self.client.get('/api/v1/toolbox/letters').json()
-        self.assertEqual((data['unread'], data['letters'][0]['node']), (1, None))
-        data = self.client.post('/api/v1/toolbox/letters', {'root': 'N-10', 'posted': {'1': 'N-11'}}, content_type='application/json').json()
-        self.assertEqual((data['unread'], data['root']), (0, 'N-10'))
+        data = self.client.get('/api/v1/toolbox/home').json()
+        self.assertEqual((data['unread'], data['letters'][0]['id']), (1, 1))
+        data = self.client.post('/api/v1/toolbox/home', {'groups': {'exchanges': 'N-10'}, 'letters': {'1': 'N-11'}}, content_type='application/json').json()
+        self.assertEqual((data['unread'], data['home']['groups']), (0, {'exchanges': 'N-10'}))
         layer = Layer.objects.create(user=self.user, layer_id=5, layer_name='Échanges')
         for number, text in ((10, 'Échanges'), (11, 'la note'), (12, 'Oui, range-les')):
             Node.objects.create(user=self.user, node_id=number, layer=layer, text_content=text)
@@ -1418,7 +1418,7 @@ class GuardianTests(TestCase):
         Link.objects.create(user=self.user, link_id=2, linkA='N-11', linkB='N-12', layer=layer)
         engine = self.run_guardian(json.dumps({'plan': [], 'say': 'Ok.', 'actions': []}))
         prompt = engine.calls[0]['messages'][1]['content']
-        self.assertIn('Correspondance (dimension Échanges) :', prompt)
+        self.assertIn('Correspondance (Échanges de la dimension Gardien) :', prompt)
         self.assertIn("Ta note N-11 (« J'ai vu trois nodes vides : je les range ? ») → l'humain a répondu : Oui, range-les", prompt)
 
     def think(self, *replies, context=None, request='organise', engine=None):
@@ -2855,41 +2855,83 @@ class IaquaToolsTests(TestCase):
         engine = self.run_guardian([{'op': 'open', 'path': 'outils/rien'}])
         self.assertIn('adresse inconnue', self.errors()[-1])
 
-    def test_memory_and_brain_live_in_the_universe(self):
-        from nodzapp.models import Layer, Node
+    def home(self, groups, texts, links, **extra):
+        """Une dimension Gardien posée : nodes (numéro → texte), liens (a, b), groupes (clé → numéro de leur node)."""
+        from nodzapp.models import Layer, Link, Node
 
         layer = Layer.objects.create(user=self.user, layer_id=3, layer_name='Gardien')
-        memory = Node.objects.create(user=self.user, node_id=53, layer=layer, text_content='Mémoire du Gardien<br>- Richard aime Kyoto<br>- vélo le dimanche')
-        brain = Node.objects.create(user=self.user, node_id=54, layer=layer, text_content='Cerveau du Gardien')
-        self.client.post('/api/v1/toolbox/brain-map', {'prompt': 'N-50', 'tools': {'create_task': 'N-51'}}, content_type='application/json')
-        r = self.client.post('/api/v1/toolbox/brain-map', {'memory': 'N-53', 'brain': 'N-54'}, content_type='application/json')
-        self.assertEqual(r.json()['universe'], {'prompt': 'N-50', 'memory': 'N-53', 'brain': 'N-54', 'tools': {'create_task': 'N-51'}})  # ajouté, rien d'écrasé
+        nodes = {n: Node.objects.create(user=self.user, node_id=n, layer=layer, text_content=t) for n, t in {60: 'Gardien', **texts}.items()}
+        for i, (a, b) in enumerate([*((60, hub) for hub in groups.values()), *links], start=1):
+            Link.objects.create(user=self.user, link_id=i, linkA=f'N-{a}', linkB=f'N-{b}', layer=layer)
+        body = {'layer': 3, 'root': 'N-60', 'groups': {k: f'N-{n}' for k, n in groups.items()}, **extra}
+        self.assertEqual(self.client.post('/api/v1/toolbox/home', body, content_type='application/json').status_code, 200)
+        return nodes
+
+    def test_memory_and_brain_live_in_the_guardian_dimension(self):
+        nodes = self.home({'memory': 61, 'skills': 62}, {61: 'Mémoire', 62: 'Compétences',
+                          53: 'Mémoire du Gardien<br>- Richard aime Kyoto<br>- vélo le dimanche', 54: 'Cerveau du Gardien'},
+                          [(61, 53), (54, 62)], memory='N-53', brain='N-54')
         engine = self.run_guardian([{'op': 'remember', 'text': 'Prépare un voyage en mai'},
                                     {'op': 'template_save', 'name': 'retro', 'layout': 'kanban', 'cols': ['Bien', 'Mieux']}])
         system = engine.calls[0]['messages'][0]['content']
         self.assertIn('- Richard aime Kyoto', system)  # écrit à la main dans le node : c'est sa mémoire
-        memory.refresh_from_db()
-        brain.refresh_from_db()
-        self.assertEqual(memory.text_content, 'Mémoire du Gardien<br>- Richard aime Kyoto<br>- vélo le dimanche<br>- Prépare un voyage en mai')
-        self.assertIn('Gabarits gardés : retro (kanban)', brain.text_content)
-        self.assertEqual(self.client.get('/api/v1/toolbox/brain-map').json()['memory'][-1], 'Prépare un voyage en mai')
+        self.assertNotIn('Cerveau du Gardien', system)  # le node des gabarits n'est pas une compétence à suivre
+        nodes[53].refresh_from_db()
+        nodes[54].refresh_from_db()
+        self.assertEqual(nodes[53].text_content, 'Mémoire du Gardien<br>- Richard aime Kyoto<br>- vélo le dimanche<br>- Prépare un voyage en mai')
+        self.assertIn('Gabarits gardés : retro (kanban)', nodes[54].text_content)
+        self.assertEqual(self.client.get('/api/v1/toolbox/home').json()['seed']['memory'][-1], 'Prépare un voyage en mai')
 
-    def test_guardian_reads_its_universe_nodes(self):
-        from nodzapp.models import Layer, Node
+    def test_guardian_reads_its_groups(self):
+        from nodzapp.models import Node
 
-        layer = Layer.objects.create(user=self.user, layer_id=3, layer_name='Gardien')
-        Node.objects.create(user=self.user, node_id=50, layer=layer, text_content='Prompt système<br><br>Tu parles comme un capitaine.')
-        Node.objects.create(user=self.user, node_id=51, layer=layer, text_content='create_task<br>Mon mode d&#x27;emploi à moi')
-        Node.objects.create(user=self.user, node_id=52, layer=layer, text_content='archive', archive=True)
-        r = self.client.post('/api/v1/toolbox/brain-map', {'prompt': 'N-50', 'tools': {'create_task': 'N-51', 'archive': 'N-52', 'nope': 'N-9'}},
-                             content_type='application/json')
-        self.assertEqual(r.json()['saved'], 2)
+        self.home({'soul': 61, 'identity': 62, 'user': 63, 'memory': 64, 'skills': 65, 'tools': 66, 'dreams': 67},
+                  {61: 'Âme', 62: 'Identité', 63: 'Utilisateur', 64: 'Mémoire', 65: 'Compétences', 66: 'Outils', 67: 'Rêves',
+                   70: 'Tu parles comme un capitaine.', 71: 'Nom : Barbe', 72: 'Richard, architecte', 73: 'Revue : liste Bien / Mieux',
+                   74: 'create_task<br>Mon mode d&#x27;emploi à moi', 75: 'archive', 76: 'Richard préfère le matin', 77: 'Une idée en l\'air'},
+                  [(61, 70), (71, 62), (63, 72), (65, 73), (66, 74), (66, 75), (67, 76), (76, 64), (67, 77)],
+                  tools={'create_task': 'N-74', 'archive': 'N-75', 'nope': 'N-9'})
+        Node.objects.filter(node_id=75).update(archive=True)  # son node supprimé : l'outil est coupé
         engine = self.run_guardian([{'op': 'tool_help', 'names': ['create_task']}, {'op': 'archive', 'ref': 'N-1'}])
         system = engine.calls[0]['messages'][0]['content']
-        self.assertIn('Tu parles comme un capitaine.', system)
+        for text in ('Tu parles comme un capitaine.', 'Nom : Barbe', 'Richard, architecte', '- Revue : liste Bien / Mieux',
+                     '- Richard préfère le matin'):  # le rêve relié à Mémoire est devenu un souvenir
+            self.assertIn(text, system)
+        self.assertNotIn("Une idée en l'air", system)  # un rêve en attente n'est pas lu
         self.assertIn("Mon mode d'emploi à moi", self.reads(engine))
-        self.assertIn('outil désactivé', self.errors()[0])  # son node a été supprimé
-        self.assertTrue(self.client.get('/api/v1/toolbox/brain-map').json()['installed'])
+        self.assertIn('outil désactivé', self.errors()[0])
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        self.assertEqual((guardian.system_prompt, guardian.memory), ('Tu parles comme un capitaine.', ['Richard préfère le matin']))
+        self.assertEqual(guardian.brain['home']['tools'], {'create_task': 'N-74', 'archive': 'N-75'})  # outil inconnu écarté
+
+    def test_think_mode_reads_the_guardian_dimension(self):
+        from .guardian import Guardian
+
+        self.home({'soul': 61, 'user': 63}, {61: 'Âme', 63: 'Utilisateur', 70: 'Réponds en anglais.', 72: 'Richard, architecte'},
+                  [(61, 70), (63, 72)])
+        engine = ScriptedEngine(json.dumps({'calls': [{'op': 'think', 'text': 'Une idée'}]}))
+        Guardian(self.user, engine, lambda k, d: None).handle('organise', {**self.CONTEXT, 'mode': 'think'})
+        system = engine.calls[0]['messages'][0]['content']
+        self.assertIn('Réponds en anglais.', system)
+        self.assertIn("Ce que tu sais de l'humain :\nRichard, architecte", system)
+
+    def test_dreams_wait_in_the_guardian_dimension(self):
+        from .guardian import Guardian
+
+        self.home({'dreams': 67}, {67: 'Rêves'}, [])
+        Agent.objects.filter(owner=self.user, role=Agent.Role.ORCHESTRATOR).update(memory=['Richard aime Kyoto'])
+        engine = ScriptedEngine(json.dumps({'dreams': [{'kind': 'souvenir', 'text': 'Richard prépare un salon en mai'},
+                                                       {'kind': 'souvenir', 'text': 'richard aime kyoto'},  # déjà su
+                                                       {'kind': 'idée', 'text': 'Relier le salon au budget'}]}))
+        items = Guardian(self.user, engine, lambda k, d: None).dream([{'role': 'user', 'text': 'je prépare un salon en mai'}])
+        self.assertEqual([i['text'] for i in items], ['Richard prépare un salon en mai', 'Relier le salon au budget'])
+        self.assertIn('je prépare un salon en mai', engine.calls[0]['messages'][1]['content'])
+        data = self.client.get('/api/v1/toolbox/home').json()
+        self.assertEqual((data['unread'], [d['kind'] for d in data['dreams']]), (2, ['souvenir', 'idée']))
+        data = self.client.post('/api/v1/toolbox/home', {'dreams': {'1': 'N-80'}}, content_type='application/json').json()
+        self.assertEqual([d['id'] for d in data['dreams']], [2])  # posé : il n'attend plus
+        self.assertEqual(self.client.post('/api/v1/toolbox/dream', {'history': [{'role': 'user', 'text': 'x'}]},
+                                          content_type='application/json').json(), {'dreaming': False})  # rêvé à l'instant
 
 
 class DoctorTests(TestCase):

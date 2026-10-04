@@ -84,7 +84,7 @@ const capPill = cap => {
 };
 const quantColor = q => (/Q8|Q6/.test(q) ? '#0f9f6e' : /Q[45]/.test(q) ? '#1E90FF' : /Q[23]/.test(q) ? '#c47a00' : /IQ/.test(q) ? '#6848A6' : '#64748b');
 
-export function createLibrary({ onChange = () => {}, monitor = null, onInstallBrain = () => {} } = {}) {
+export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome = () => {} } = {}) {
     let state = { staff: false, machine: {}, engine: false, loaded: null, agents: [], models: [], paramSpec: [] };
     let tab = 'agents';
     let tuning = null;  // modèle dont les réglages sont ouverts (panneau pleine largeur)
@@ -208,13 +208,13 @@ export function createLibrary({ onChange = () => {}, monitor = null, onInstallBr
                     h('div', {}, h('strong', {}, agent.name), h('span', { class: 'gl-role' }, agent.role), h('small', {}, agent.description)),
                     h('label', { class: 'gl-switch', title: 'Actif' }, enabled, 'actif')),
                 select,
-                agent.role === 'orchestrator' ? h('button', { type: 'button', class: 'gl-primary', onclick: onInstallBrain,
-                    title: 'Crée ou complète la dimension Gardien : Prompt système, Mémoire, Cerveau, Outils, un node par outil avec son mode d\'emploi' },
-                    'Installer / compléter le Gardien dans l\'univers') : null,
+                agent.role === 'orchestrator' ? h('button', { type: 'button', class: 'gl-primary', onclick: onOpenHome,
+                    title: 'Sa dimension : Âme, Identité, Utilisateur, Mémoire, Compétences, Outils, Rêves, Échanges ; ce qui y manque est reposé' },
+                    'Ouvrir sa dimension Gardien') : null,
                 agent.role === 'orchestrator' ? doctor() : null,
                 h('details', {}, h('summary', {}, agent.system_prompt ? 'Consignes (personnalisées)' : 'Consignes'), prompt,
                     agent.role === 'orchestrator' ? h('p', { class: 'gl-hint' }, 'Le format de réponse et la liste des outils du Gardien sont ajoutés automatiquement. '
-                        + 'Une fois le Gardien installé dans l\'univers, ses consignes se lisent et se réécrivent dans le node « Prompt système ».') : null,
+                        + 'Ses consignes vivent dans sa dimension Gardien, groupe Âme : ce qui y est écrit remplace ce champ à la demande suivante.') : null,
                     h('div', { class: 'gl-actions' }, keep, reset, status)),
                 h('details', {}, h('summary', {}, Object.keys(agent.params || {}).length ? 'Échantillonnage (propre à cet agent)' : 'Échantillonnage'),
                     h('p', { class: 'gl-hint' }, "Vide = réglages du modèle. Ces valeurs priment pour cet agent."), sampling));

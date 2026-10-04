@@ -390,16 +390,21 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         // Se rend dans la dimension `name` (créée si besoin, comme le bouton « New dimension » de Nodz) et y reste.
         async enterDimension(name) {
             const target = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
-            if (target && target.id === layerNumber) return;
-            if (target) {
-                load(target.id);
-            } else {
-                createNewLayer();
-                await wait(80);
-                layerNameInput.value = name;
-                saveLayerName();
-            }
+            return target ? this.enterLayer(target.id) : this.newDimension(name);
+        },
+        async enterLayer(id) {
+            if (id === layerNumber) return;
+            load(id);
             await waitLoaded();
+        },
+        // Une dimension neuve, même si une autre porte déjà ce nom ; renvoie son numéro.
+        async newDimension(name) {
+            createNewLayer();
+            await wait(80);
+            layerNameInput.value = name;
+            saveLayerName();
+            await waitLoaded();
+            return layerNumber;
         },
         // Contexte envoyé au Gardien : ce que la page montre, en coordonnées de Nodz.
         context() {

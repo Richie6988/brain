@@ -25,7 +25,7 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Layer, Link, Node
 
-from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, reminders as reminder_store, remote, tools, workspace
+from . import cuda, fit, gguf, home as homes, hub, iaqua, imaging, monitor, params as model_params, prompts, reminders as reminder_store, remote, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable, acting_for
@@ -401,51 +401,76 @@ def marks(request, body):
 
 
 @api('GET', 'POST')
-def brain_map(request, body):
-    """Le Gardien dans l'univers : GET donne ce qu'il faut poser (consignes, mémoire, cerveau, outils par famille)
-    et les nodes déjà posés ; POST enregistre les nodes créés ({prompt, memory, brain: N-12, tools: {op: N-40}}),
-    ajoutés à ceux déjà là, pour que le Gardien les relise."""
-    from .guardian import brain_text
+def home_view(request, body):
+    """La dimension « Gardien » (home.py) : GET donne ce qu'il faut y poser (groupes et leurs textes de départ, outils
+    par famille, notes et rêves en attente) et ce qui y est déjà ; POST enregistre ce que la page a posé
+    ({layer, root, groups: {clé: N-3}, memory, brain, tools: {op: N-40}, letters: {id: N-12}, dreams: {id: N-13}}),
+    ajouté à ce qui était là."""
+    from .guardian import brain_text, text_html
 
-    guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
-    if guardian is None:
-        return JsonResponse({'error': 'pas de Gardien'}, status=404)
-    mapping = dict(guardian.brain.get('universe') or {})
-    if request.method == 'POST':
-        for key in ('prompt', 'memory', 'brain'):
-            if body.get(key):
-                mapping[key] = str(body[key])
-        mapping['tools'] = {**mapping.get('tools', {}), **{op: str(n) for op, n in (body.get('tools') or {}).items() if op in tools.BY_OP}}
-        guardian.brain = {**guardian.brain, 'universe': mapping}
-        guardian.save(update_fields=['brain'])
-        return JsonResponse({'saved': len(mapping['tools']), 'universe': mapping})
-    ops = tools.enabled(guardian, request.user)
-    return JsonResponse({'guidelines': guardian_prompt(guardian), 'installed': bool(mapping), 'universe': mapping,
-                         'memory': guardian.memory, 'brain': brain_text(guardian),
-                         'tools': [{'op': t['op'], 'label': t['label'], 'category': t['category'], 'usage': t['doc']}
-                                   for t in tools.TOOLS if t['op'] in ops]})
-
-
-@api('GET', 'POST')
-def letters(request, body):
-    """Correspondance du Gardien (dimension « Échanges ») : GET donne ses notes et celles à poser ; POST enregistre où
-    elles ont été posées ({root: N-3, posted: {id de note: N-12}}), pour relire les réponses reliées."""
     guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
     if guardian is None:  # compte tout neuf (invité) : ses agents naissent à la première ouverture d'Agents & modèles
-        return JsonResponse({'letters': [], 'root': None, 'unread': 0})
-    notes = list(guardian.brain.get('letters') or [])
-    universe = dict(guardian.brain.get('universe') or {})
+        return JsonResponse({'error': 'pas de Gardien'}, status=404)
+    brain = dict(guardian.brain or {})
+    notes, dreams = list(brain.get('letters') or []), list(brain.get('dreams') or [])
     if request.method == 'POST':
-        posted = {str(k): str(v) for k, v in (body.get('posted') or {}).items() if str(v).startswith('N-')}
-        notes = [{**n, 'node': posted.get(str(n['id']), n.get('node'))} for n in notes]
-        if str(body.get('root') or '').startswith('N-'):
-            universe['exchanges'] = str(body['root'])
-        guardian.brain = {**guardian.brain, 'letters': notes, 'universe': universe}
+        ref = lambda value: str(value) if str(value or '').startswith('N-') else None
+        placed = dict(brain.get('home') or {})
+        if isinstance(body.get('layer'), int):
+            placed['layer'] = body['layer']
+        for key in ('root', 'memory', 'brain'):
+            if ref(body.get(key)):
+                placed[key] = ref(body[key])
+        placed['groups'] = {**placed.get('groups', {}), **{k: ref(v) for k, v in (body.get('groups') or {}).items() if k in homes.KEYS and ref(v)}}
+        placed['tools'] = {**placed.get('tools', {}), **{op: ref(v) for op, v in (body.get('tools') or {}).items() if op in tools.BY_OP and ref(v)}}
+        posted = lambda items, key: [{**i, 'node': ref((body.get(key) or {}).get(str(i['id']))) or i.get('node')} for i in items]
+        notes, dreams = posted(notes, 'letters'), posted(dreams, 'dreams')
+        guardian.brain = {**brain, 'home': placed, 'letters': notes, 'dreams': dreams}
         guardian.save(update_fields=['brain'])
-    from .guardian import text_html
+    ops = tools.enabled(guardian, request.user)
+    waiting = [n for n in notes if not n.get('node')], [d for d in dreams if not d.get('node')]
+    return JsonResponse({
+        'home': homes.mapping(guardian),
+        'seed': {'groups': [{'key': k, 'label': label, 'hint': hint} for k, label, hint in homes.GROUPS],
+                 'soul': guardian.system_prompt or homes.SOUL, 'identity': homes.IDENTITY, 'user': homes.USER, 'skill': homes.SKILL,
+                 'memory': guardian.memory, 'brain': brain_text(guardian),
+                 'tools': [{'op': t['op'], 'label': t['label'], 'category': t['category'], 'usage': t['doc']} for t in tools.TOOLS if t['op'] in ops]},
+        'letters': [{**n, 'html': text_html(n['text'])} for n in waiting[0]],
+        'dreams': waiting[1],
+        'unread': len(waiting[0]) + len(waiting[1]),
+    })
 
-    return JsonResponse({'letters': [{**n, 'html': text_html(n['text'])} for n in notes], 'root': universe.get('exchanges'),
-                         'unread': sum(1 for n in notes if not n.get('node'))})
+
+_dreaming = set()  # utilisateurs dont le Gardien rêve en ce moment
+DREAM_EVERY = 1800  # secondes au moins entre deux rêves
+
+
+@api('POST')
+def dream(request, body):
+    """Rêve du Gardien après une période calme (la page l'envoie avec les derniers échanges du chat) : en arrière-plan,
+    au plus une fois par DREAM_EVERY ; les rêves attendent dans la dimension Gardien (groupe Rêves)."""
+    user = request.user
+    guardian = Agent.objects.filter(owner=user, role=Agent.Role.ORCHESTRATOR).first()
+    history = body.get('history') if isinstance(body.get('history'), list) else []
+    if (guardian is None or not homes.mapping(guardian) or user.pk in _dreaming or not history
+            or time.time() - (guardian.brain or {}).get('dreamt', 0) < DREAM_EVERY):
+        return JsonResponse({'dreaming': False})
+
+    def work():
+        try:
+            with acting_for(user.pk):
+                Guardian(user, engine, lambda kind, data: None).dream(history)
+        except (EngineUnavailable, BrokerTimeout):
+            pass  # pas de modèle, ou file trop longue : il rêvera une autre fois
+        except Exception:
+            logger.exception('rêve du Gardien')
+        finally:
+            _dreaming.discard(user.pk)
+            connection.close()
+
+    _dreaming.add(user.pk)
+    threading.Thread(target=work, daemon=True).start()
+    return JsonResponse({'dreaming': True})
 
 
 MAX_SHEET_ROWS, MAX_SHEET_COLUMNS = 2000, 40

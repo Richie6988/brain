@@ -35,7 +35,7 @@ const TOOLS = [
 const SLASH = /^\/(web|dessin|draw|image|img)\b\s*([\s\S]*)$/i;
 const SLASH_TOOLS = { web: 'web', dessin: 'draw', draw: 'draw', image: 'image', img: 'image' };
 
-export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {}, onMode = () => {} }) {
+export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGoto = () => {}, onMode = () => {} }) {
     let mode = 'think';
     try {
         mode = ['auto', 'deep'].includes(localStorage.getItem(MODE_KEY)) ? localStorage.getItem(MODE_KEY) : 'think';
@@ -98,12 +98,11 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     }
     // La sélection change (clic, rectangle, Ctrl+A, amont / aval) : le contexte suit, chat ouvert.
     ['mouseup', 'keyup'].forEach(type => document.addEventListener(type, () => setTimeout(() => { if (!panel.hidden) renderTray(); }), true));
-    // Correspondance : les notes que le Gardien a laissées, posées dans la dimension « Échanges » à l'ouverture.
-    const exchanges = h('button', { type: 'button', class: 'gc-exchanges', title: 'Notes du Gardien (dimension Échanges) : réponds dans un node relié',
-        onclick: () => { toggle(false); onExchanges(); } }, 'Échanges');
-    // Mémoire, Échanges, Effacer : dans le menu ⋯ de l'en-tête (il s'allume quand des notes attendent).
+    // Sa dimension Gardien (âme, mémoire, outils, rêves, échanges) : ses notes et rêves en attente s'y posent à l'arrivée.
+    const exchanges = h('button', { type: 'button', class: 'gc-exchanges', title: 'Sa dimension : âme, ce qu\'il sait de toi, mémoire, outils, rêves, échanges',
+        onclick: () => { toggle(false); onHome(); } }, 'Dimension Gardien');
+    // Dimension Gardien, Effacer : dans le menu ⋯ de l'en-tête (il s'allume quand des notes ou des rêves attendent).
     const menu = h('div', { class: 'gc-menu', hidden: true },
-        h('button', { type: 'button', title: 'Voir la mémoire du Gardien dans l\'univers (dimension Gardien)', onclick: () => { toggle(false); onMemory(); } }, 'Mémoire'),
         exchanges,
         h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: () => { menu.hidden = true; clear(); } }, 'Effacer'));
     const more = h('button', { type: 'button', class: 'gc-more', title: 'Plus', onclick: () => { menu.hidden = !menu.hidden; } }, '⋯');
@@ -348,9 +347,9 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         recent(n = 6) {
             return history.filter(e => e.role === 'user' || e.role === 'guardian').slice(-n).map(({ role, text }) => ({ role, text }));
         },
-        // Notes du Gardien pas encore posées dans Échanges.
+        // Notes et rêves du Gardien pas encore posés dans sa dimension.
         unread(count) {
-            exchanges.textContent = count ? `Échanges · ${count}` : 'Échanges';
+            exchanges.textContent = count ? `Dimension Gardien · ${count}` : 'Dimension Gardien';
             exchanges.classList.toggle('on', !!count);
             more.classList.toggle('on', !!count);
         },

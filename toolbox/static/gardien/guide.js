@@ -77,6 +77,11 @@ const SHORTCUTS = [
 ];
 
 const CARDS = [
+    ['Dimension Gardien', 'Sa maison, posée d\'office : Âme, Identité, Utilisateur, Mémoire, Compétences, Outils, Rêves, Échanges. '
+        + 'Il y relit ses clés à chaque demande : réécris un node, ajoute-en un relié sous un groupe ou supprime-le pour le régler. '
+        + 'Menu ⋯ du chat : Dimension Gardien.'],
+    ['Rêves', 'Après un moment calme, il relit vos derniers échanges et propose des souvenirs et des idées sous Rêves. '
+        + 'Relie un rêve à Mémoire pour qu\'il le garde, supprime-le sinon : rien n\'entre en mémoire sans toi.'],
     ['Choisir ton IA', 'Agents & modèles, la pastille du HUD en haut : une IA externe par API avec ta clé, ou un modèle local depuis '
         + 'Hugging Face, recommandé selon ta machine. Ses outils et ses agents se règlent au même endroit.'],
     ['Chat', 'La bulle en bas à droite. Les nodes sélectionnés partent d\'eux-mêmes en contexte, × les retire. Avec deux nodes ou plus, '
