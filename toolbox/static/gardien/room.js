@@ -50,6 +50,8 @@ const drawing = value => {
 
 export function createRoom({ bridge, say }) {
     let socket = null, me = null, room = null, role = null, applying = 0, layer = null, following = null, moving = false;
+    let hostLayer = null;  // chez un invité : la dimension de l'hôte (son numéro), celle de toutes les vues du salon
+    const here = () => (role === 'member' ? hostLayer : layerNumber);
     const people = new Map();  // id du compte → { name, host, color, cursor, at, view }
     const slots = new Map();   // id d'un invité → son rang (sa plage d'identifiants)
     const byId = id => document.getElementById(id);
@@ -181,7 +183,7 @@ export function createRoom({ bridge, say }) {
         if (!slots.has(to) && to) slots.set(to, slots.size + 1);
         const top = Math.max(Number(nodeCounter) || 0, Number(linkCounter) || 0);
         send({
-            t: 'state', to, base: to ? top + BLOCK * slots.get(to) : undefined, view: view(),
+            t: 'state', to, base: to ? top + BLOCK * slots.get(to) : undefined, view: view(), layer: layerNumber,
             dimension: layers.find(l => l.id === layerNumber)?.name || '',
             nodes: [...universe.querySelectorAll('.node-group')].map(describe),
             links: [...universe.querySelectorAll('.link')].map(l => ({ linkid: parseInt(l.id.slice(2), 10), linkA: l.getAttribute('Node1'), linkB: l.getAttribute('Node2') })),
@@ -195,8 +197,12 @@ export function createRoom({ bridge, say }) {
         });
         if (m.base) nodeCounter = linkCounter = m.base;
         layer = m.dimension;
+        hostLayer = m.layer;
         render();
-        if (m.view) bridge.frame(m.view, 0);
+        // Nouvelle dimension : on suit toujours la même personne (sa dernière vue dans cette dimension), sinon la vue de l'hôte.
+        const leader = people.get(following);
+        if (leader?.view && leader.layer === hostLayer) follow(leader.view);
+        else if (m.view) bridge.frame(m.view, 0);
     }
 
     // --- présence : curseurs nommés, vues (pour « suivre »)
@@ -244,14 +250,14 @@ export function createRoom({ bridge, say }) {
         send({ t: 'cursor', x: Math.round(x), y: Math.round(y) });
     });
     setInterval(() => {
-        if (!socket) return;
-        const v = view(), key = JSON.stringify(Object.values(v).map(Math.round));
-        if (key !== lastView) send({ t: 'view', ...v });
-        lastView = key;
-        if (role === 'host' && layer !== null && layer !== layerNumber && !isLoading) {  // l'hôte change de dimension : le salon le suit
+        if (!socket || isLoading) return;  // pendant un chargement de dimension, la vue ne veut rien dire
+        if (role === 'host' && layer !== null && layer !== layerNumber) {  // l'hôte change de dimension : le salon le suit
             layer = layerNumber;
-            share();
+            share();  // l'état d'abord, puis la vue : on ne suit jamais quelqu'un dans une dimension qu'on n'a pas
         }
+        const v = view(), key = JSON.stringify([...Object.values(v).map(Math.round), here()]);
+        if (key !== lastView) send({ t: 'view', ...v, layer: here() });
+        lastView = key;
     }, 700);
     // La caméra rejoint la dernière vue reçue ; une vue arrivée pendant le travelling est jouée juste après.
     let next = null;
@@ -297,7 +303,7 @@ export function createRoom({ bridge, say }) {
         if (!person) return;
         if (m.t === 'join') say(`${who.name} entre dans le salon.`);
         else if (m.t === 'hello') {
-            send({ t: 'view', ...view() });  // il nous voit aussitôt
+            send({ t: 'view', ...view(), layer: here() });  // il nous voit aussitôt
             if (role === 'host' && !who.host) share(who.id);
         } else if (m.t === 'leave') {
             say(who.host ? "L'hôte a quitté le salon : tes gestes ne seront plus enregistrés." : `${who.name} quitte le salon.`);
@@ -311,7 +317,9 @@ export function createRoom({ bridge, say }) {
         } else if (m.t === 'cursor') person.at = { x: number(m.x), y: number(m.y) };
         else if (m.t === 'view') {
             person.view = { x0: number(m.x0), x1: number(m.x1), y0: number(m.y0), y1: number(m.y1) };
-            if (following === who.id) follow(person.view);
+            person.layer = m.layer;
+            // Seulement dans la même dimension ; sinon l'état de la nouvelle dimension arrive et la caméra le rejoindra.
+            if (following === who.id && person.layer === here()) follow(person.view);
         } else if (m.t === 'kick') {
             if (m.user === me.id) end('Tu as été exclu du salon.');
             else forget(m.user);
@@ -389,7 +397,7 @@ export function createRoom({ bridge, say }) {
             look.classList.toggle('on', following === p.id);
             look.addEventListener('click', () => {
                 following = following === p.id ? null : p.id;
-                if (following && p.view) follow(p.view);
+                if (following && p.view && p.layer === here()) follow(p.view);
                 render();
             });
             item.append(look);
@@ -459,7 +467,9 @@ export function createRoom({ bridge, say }) {
                     role = found.mine ? 'host' : 'member';
                     if (role === 'member') {
                         // Dans un salon, la dimension est celle de l'hôte : changer de dimension attend la sortie du salon.
-                        window.load = () => say("Dans un salon, la dimension est celle de l'hôte : quitte le salon pour revenir chez toi.");
+                        // Toutes les portes : liste des dimensions, nouvelle dimension, portail, voyage.
+                        const stay = () => say("Dans un salon, la dimension est celle de l'hôte : quitte le salon pour revenir chez toi.");
+                        window.load = window.onLayerSelect = window.createNewLayer = stay;
                         quietly(rebootUniverse);
                         say(`Salon de ${found.host} : connexion…`);
                     }
