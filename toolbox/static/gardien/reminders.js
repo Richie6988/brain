@@ -51,31 +51,35 @@ export function createReminders({ bridge, say, sfx }) {
     };
     const key = item => `${item.id}@${iso(item.at)}`;
     const textOf = node => (node.children[0]?.children[0]?.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 80) || '(node vide)';
-    const layerName = () => (typeof layers !== 'undefined' && layers.find(l => l.id === layerNumber)?.name) || String(layerNumber);
+    // Nodz tient la dimension ouverte tantôt en nombre, tantôt en texte : comparée en nombre, sinon un rappel venait deux fois.
+    const current = () => Number(layerNumber);
+    const here = item => Number(item.layer) === current();
+    const layerName = () => (typeof layers !== 'undefined' && layers.find(l => Number(l.id) === current())?.name) || String(layerNumber);
 
     // --- La liste : la base pour les autres dimensions, la page pour celle-ci.
     function local() {
         return [...document.querySelectorAll('.node-group[notification]')].map(node => {
             const at = fromNodz(node.getAttribute('notification'));
-            return at && { id: node.id, layer: layerNumber, dimension: layerName(), at, text: textOf(node) };
+            return at && { id: node.id, layer: current(), dimension: layerName(), at, text: textOf(node) };
         }).filter(Boolean);
     }
     function merge(stored) {
-        items = [...stored.filter(r => r.layer !== layerNumber).map(r => ({ ...r, at: fromIso(r.at) })).filter(r => r.at), ...local()]
+        const mine = local(), seen = new Set(mine.map(r => r.id));  // un node, un rappel : la page prime sur la base
+        items = [...stored.filter(r => !here(r) && !seen.has(r.id)).map(r => ({ ...r, at: fromIso(r.at) })).filter(r => r.at), ...mine]
             .sort((a, b) => a.at - b.at);
         paint();
     }
     let loading = null;
     function refresh() {
         loading ||= api.request('GET', 'toolbox/reminders').then(data => merge(data.reminders || []))
-            .catch(() => merge(items.filter(r => r.layer !== layerNumber).map(r => ({ ...r, at: iso(r.at) }))))
+            .catch(() => merge(items.filter(r => !here(r)).map(r => ({ ...r, at: iso(r.at) }))))
             .finally(() => { loading = null; });
         return loading;
     }
 
     // --- Poser, déplacer, retirer : dans la page (comme le calendrier de Nodz) ou en base.
     async function set(item, date) {
-        const node = item.layer === layerNumber && document.getElementById(item.id);
+        const node = here(item) && document.getElementById(item.id);
         if (node) {
             node.setAttribute('notification', date ? nodz(date) : '');
             node.tools?.type?.children[6]?.children[0]?.setAttribute('src', `${NODZ_BASE}/static/img/${date ? 'notification' : 'calendar'}.svg`);
@@ -92,7 +96,7 @@ export function createReminders({ bridge, say, sfx }) {
         if (stored) return refresh();
         const node = document.getElementById(bridge.idOf(ref));
         if (!node) throw new Error(`remind : ${ref} n'est pas dans cette dimension`);
-        return set({ id: node.id, layer: layerNumber }, at ? fromIso(at) : null);
+        return set({ id: node.id, layer: current() }, at ? fromIso(at) : null);
     });
 
     // --- Compte à rebours sur les nodes de la dimension ouverte.
@@ -117,11 +121,11 @@ export function createReminders({ bridge, say, sfx }) {
     }
     function paint() {
         const now = Date.now();
-        const here = items.filter(r => r.layer === layerNumber && document.getElementById(r.id));
-        badges.replaceChildren(...here.map(r => h('span', {
+        const shown = items.filter(r => here(r) && document.getElementById(r.id));
+        badges.replaceChildren(...shown.map(r => h('span', {
             class: `gr-badge${r.at - now < 0 ? ' due' : r.at - now < SOON ? ' soon' : ''}`, dataset: { id: r.id }, title: when(r.at),
         }, countdown(r.at, now))));
-        if (!frame && here.length) frame = requestAnimationFrame(place);
+        if (!frame && shown.length) frame = requestAnimationFrame(place);
         const due = items.filter(r => r.at <= now).length;
         bell.dataset.count = due;
         bell.classList.toggle('gr-has', items.length > 0);

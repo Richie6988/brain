@@ -210,6 +210,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **GPU ignoré quand nvidia-smi répond « [N/A] »** : sur portable, WSL ou certaines cartes, nvidia-smi donne l'utilisation ou la température « [N/A] » ; la lecture échouait en entier, la VRAM comptait pour zéro et le modèle partait tout entier sur CPU (le GPU ne servait qu'à la lecture du prompt, vers 30 %). La VRAM est maintenant lue quand même ; l'utilisation manquante est remplacée par l'occupation de la VRAM, la température est omise. Le message de lenteur du Gardien dit la vraie cause : llama-cpp-python compilé sans CUDA alors qu'une carte NVIDIA est là (« Compiler avec CUDA »), ou un modèle trop gros pour la RAM et la carte graphique, avec la taille qui tiendrait entière sur la carte.
 
+**Rappels en double** : Nodz tient la dimension ouverte tantôt en nombre, tantôt en texte ; le même rappel venait alors deux fois (une par la base, une par la page, parfois « (node vide) »), avec deux cartes à l'échéance. Dimension comparée en nombre, et un node n'a qu'un rappel (la page prime sur la base).
+
 **Erreurs d'un modèle par API en clair** : au lieu de « injoignable (ConnectionError) » ou du texte brut du service, le Gardien dit quoi faire : vérifier l'adresse, clé refusée (401), sans accès (403), adresse ou nom de modèle inconnu (404), limite atteinte (429), service trop lent.
 
 **Audit de l'interface (2)** : sans IA, le Gardien ne se contente plus de « Le Gardien dort » : le chat propose « Choisir mon IA », qui ouvre directement l'onglet de choix d'Agents & modèles. Sur téléphone, le dock débordait des deux côtés de l'écran (boutons du bord inaccessibles) : il passe sur plusieurs lignes, toute la largeur, et l'orbe du Gardien se pose au-dessus.
