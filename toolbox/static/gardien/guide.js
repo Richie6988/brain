@@ -62,6 +62,8 @@ const GARDIEN = [
     ['Filtre des pensées', 'Bouton du menu : pensées visibles, estompées ou masquées'],
     ['Code', 'Un node de type code s\'exécute ; reliés, les nodes de code forment une chaîne et un node de sortie se recalcule'],
     ['Agents & modèles', 'Pastille du HUD : choisir l\'IA, ses outils et ses agents'],
+    ['Rappels', 'Bouton Rappel d\'un node (calendrier), ou « rappelle-moi vendredi 9 h… » au Gardien. Compte à rebours au-dessus du node, '
+        + 'notification à l\'échéance ; la cloche du dock les liste tous (report, retrait, voyage)'],
 ];
 
 const table = rows => h('dl', { class: 'gg-list' }, rows.flatMap(([key, text]) => [h('dt', {}, key), h('dd', {}, text)]));

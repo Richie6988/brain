@@ -21,6 +21,7 @@ urlpatterns = [
     path('documents', api.documents),
     path('search', api.search),
     path('side', api.side),
+    path('reminders', api.reminders),
     path('nodes/meta', api.node_meta),
     path('run', api.run_code),
     path('images/<str:name>', api.image),

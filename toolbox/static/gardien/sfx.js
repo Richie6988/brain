@@ -112,6 +112,9 @@ export function createSfx() {
         undo() { tone({ type: 'triangle', from: hz(9), to: hz(2), decay: 0.12, gain: 0.35 }); },
         redo() { tone({ type: 'triangle', from: hz(2), to: hz(9), decay: 0.12, gain: 0.35 }); },
         arrange() { breath({ from: 300, to: 3200, decay: 0.45, gain: 0.35 }); },
+        remind() {  // carillon : trois notes de cloche, deux fois
+            [0, 0.5].forEach(at => [12, 16, 19].forEach((st, i) => tone({ type: 'sine', from: hz(st), attack: 0.004, decay: 0.7, gain: 0.45, at: at + i * 0.09 })));
+        },
         done() {  // accord doux : le Gardien a fini
             [0, 4, 7].forEach((s, i) => tone({ type: 'triangle', from: hz(s), attack: 0.03, decay: 0.9, gain: 0.28, at: i * 0.04 }));
         },

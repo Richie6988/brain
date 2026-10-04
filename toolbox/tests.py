@@ -1207,6 +1207,35 @@ class GuardianTests(TestCase):
         self.assertEqual(goto, [{'op': 'goto', 'ref': 'N-45', 'layer': 2, 'text': 'Ton budget'}])
         self.assertIn('search_nodes', self.errors()[0])
 
+    def test_reminders_on_page_in_base_and_new_node(self):
+        from nodzapp.models import Layer, Node
+
+        from .guardian import Guardian
+
+        far = Layer.objects.create(user=self.user, layer_id=2, layer_name='Budget')
+        Node.objects.create(user=self.user, node_id=45, layer=far, text_content='Payer la facture', notification='01-11-2030 10:00')
+        plan = {'plan': [], 'say': 'C\'est noté.', 'actions': [
+            {'op': 'remind', 'ref': 'N-1', 'at': '2030-10-09 9h'},
+            {'op': 'remind', 'ref': 'N-45', 'at': ''},
+            {'op': 'remind', 'text': 'Appeler Paul', 'at': '2030-10-10T14:30'},
+            {'op': 'remind', 'ref': 'N-1', 'at': 'vendredi'},
+        ]}
+        engine = ScriptedEngine(json.dumps({'plan': [], 'say': '', 'actions': [{'op': 'reminders'}]}), json.dumps(plan))
+        Guardian(self.user, engine, lambda kind, data: self.events.append((kind, data))).handle(
+            'rappelle-moi vendredi', {**self.CONTEXT, 'now': '2030-10-07 08:15, lundi'})
+        prompt = engine.calls[0]['messages'][1]['content']
+        self.assertIn("Maintenant (heure de l'humain) : 2030-10-07 08:15, lundi", prompt)
+        self.assertIn('{"op":"remind"', prompt)  # le mode d'emploi arrive avec la demande (aiguillage « rappel »)
+        reads = '\n'.join(m['content'] for m in engine.calls[1]['messages'] if m['role'] == 'user')
+        self.assertIn('N-45 (dimension Budget) : 2030-11-01 10:00, Payer la facture', reads)
+        reminders = [a for a in self.actions() if a['op'] in ('remind', 'create')]
+        self.assertEqual(reminders[0], {'op': 'remind', 'ref': 'N-1', 'at': '2030-10-09T09:00'})  # sur la page : la page le pose
+        self.assertEqual(reminders[1], {'op': 'remind', 'ref': 'N-45', 'at': '', 'stored': True})  # autre dimension : en base
+        self.assertEqual(Node.objects.get(node_id=45).notification, '')
+        self.assertEqual((reminders[2]['op'], reminders[2]['text']), ('create', 'Appeler Paul'))  # node rappel créé
+        self.assertEqual(reminders[3], {'op': 'remind', 'ref': reminders[2]['ref'], 'at': '2030-10-10T14:30'})
+        self.assertIn('date illisible', self.errors()[0])
+
     def test_the_guardian_follows_the_conversation_and_reads_cited_nodes(self):
         # Il suit la conversation (derniers échanges du chat) et lit en entier les nodes cités, sans outil de lecture ;
         # le contexte est listé dans l'ordre des identifiants (stable d'une demande à l'autre : cache de llama.cpp).
@@ -2293,6 +2322,36 @@ class SideViewTests(TestCase):
         self.assertEqual(data['links'], [['N-1', 'N-2']])
         self.assertEqual(data['portals'], [['N-1', 'N-3']])
         self.assertEqual([layer['name'] for layer in data['layers']], ['Home', 'Loin'])
+
+
+class RemindersTests(TestCase):
+    def test_list_all_dimensions_set_move_and_clear(self):
+        from nodzapp.models import Layer, Node
+
+        from . import reminders
+
+        user = NodzUser.objects.create_user(email='rappel@nodz.local', password='pw-123456')
+        other = NodzUser.objects.create_user(email='autre@nodz.local', password='pw-123456')
+        home, far = Layer.objects.create(user=user, layer_name='Home'), Layer.objects.create(user=user, layer_name='Projets')
+        Node.objects.create(user=user, layer=home, node_id=1, text_content='<b>Appeler</b> Paul', notification='09-10-2030 09:00')
+        Node.objects.create(user=user, layer=far, node_id=2, text_content='Rendre le rapport', notification='01-02-2031 14:30')  # au-delà d'une semaine
+        Node.objects.create(user=user, layer=far, node_id=3, text_content='Sans rappel')
+        Node.objects.create(user=user, layer=far, node_id=4, text_content='Abîmé', notification='bientôt')
+        Node.objects.create(user=other, layer=Layer.objects.create(user=other, layer_name='X'), node_id=5, notification='09-10-2030 08:00')
+        self.client.force_login(user)
+        data = self.client.get('/api/v1/toolbox/reminders').json()['reminders']
+        self.assertEqual([(r['id'], r['layer'], r['dimension'], r['at'], r['text']) for r in data],
+                         [('N-1', 1, 'Home', '2030-10-09T09:00', 'Appeler Paul'), ('N-2', 2, 'Projets', '2031-02-01T14:30', 'Rendre le rapport')])
+        moved = self.client.post('/api/v1/toolbox/reminders', {'ref': 'N-3', 'at': '2030-12-24 18h'}, content_type='application/json')
+        self.assertEqual(Node.objects.get(user=user, node_id=3).notification, '24-12-2030 18:00')
+        self.assertEqual(len(moved.json()['reminders']), 3)
+        self.client.post('/api/v1/toolbox/reminders', {'ref': 'N-1', 'at': None}, content_type='application/json')
+        self.assertEqual(Node.objects.get(user=user, node_id=1).notification, '')
+        refused = self.client.post('/api/v1/toolbox/reminders', {'ref': 'N-5', 'at': '2030-10-09 09:00'}, content_type='application/json')
+        self.assertEqual(refused.status_code, 400)  # le node d'un autre compte
+        self.assertEqual(Node.objects.get(node_id=5).notification, '09-10-2030 08:00')
+        self.assertEqual(self.client.post('/api/v1/toolbox/reminders', {'ref': 'N-3', 'at': 'vendredi'}, content_type='application/json').status_code, 400)
+        self.assertEqual(reminders.parse('2030-10-09').hour, 9)  # sans heure : 9 h
 
 
 class AdminConsoleTests(TestCase):

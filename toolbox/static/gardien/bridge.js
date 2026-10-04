@@ -379,6 +379,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         },
         cut,
         idOf: ref => refs.get(ref) || ref,  // identifiant Nodz (N-12) d'une référence du Gardien
+        define: (op, fn) => { tools[op] = fn; },  // op exécutée par un autre module (remind : reminders.js)
         // Se rend dans la dimension `name` (créée si besoin, comme le bouton « New dimension » de Nodz) et y reste.
         async enterDimension(name) {
             const target = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
@@ -416,7 +417,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             if (!tool) return;
             const needs = [action.ref, action.source, action.target].filter(Boolean);
             const missing = needs.find(r => !nodeOf(r));
-            if (missing && !['create', 'goto'].includes(action.op)) throw new Error(`${action.op} : ${missing} n'est pas dans cette dimension`);
+            if (missing && !['create', 'goto', 'remind'].includes(action.op)) throw new Error(`${action.op} : ${missing} n'est pas dans cette dimension`);
             const id = take;
             await tool(action);
             if (action.text && ['focus', 'overview', 'travel', 'goto'].includes(action.op) && id === take) {

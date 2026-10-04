@@ -26,7 +26,7 @@ from graph.models import AIRun
 from nodzapp.models import Link, Node
 
 from . import broker as priorities
-from . import drawing, imaging, layouts, monitor, perception, prompts, tools, web, workspace
+from . import drawing, imaging, layouts, monitor, perception, prompts, reminders, tools, web, workspace
 from .iaqua import IaquaOps
 from .engine import EngineUnavailable
 from .errors import PlanError
@@ -466,6 +466,9 @@ def intent(action, nodes):
         'create_agent': lambda a: f"Je crée l'agent {a.get('name')}",
         'update_agent': lambda a: f"Je règle l'agent {a.get('agent')}",
         'remember': lambda a: f"Je retiens : {short(a.get('text'), 60)}",
+        'remind': lambda a: (f"Je retire le rappel de {name(a.get('ref'))}" if not a.get('at')
+                             else f"Je pose un rappel ({str(a.get('at')).replace('T', ' ')}) sur " + (name(a.get('ref')) if a.get('ref') else f"« {short(a.get('text'))} »")),
+        'reminders': lambda a: 'Je relis tes rappels',
         'forget': lambda a: f"J'oublie ce qui parle de « {short(a.get('text'))} »",
         'inventory': lambda a: 'Je fais l\'inventaire des dimensions, agents et modèles',
         'search_nodes': lambda a: f"Je cherche « {short(a.get('query'))} » dans tes nodes",
@@ -536,6 +539,7 @@ class Guardian(IaquaOps):
         if not isinstance(context, dict):
             raise PlanError('contexte invalide')
         view = context.get('view') or {}
+        self.now = ' '.join(str(context.get('now') or '').split())[:40]  # date et heure de l'humain : ses rappels
         center = (_number(view.get('x')), _number(view.get('y')))
         nodes = [n for n in context.get('nodes') or [] if isinstance(n, dict) and str(n.get('id', '')).startswith('N-')]
         selection = [str(i) for i in context.get('selection') or []]
@@ -623,6 +627,7 @@ class Guardian(IaquaOps):
             *(['Nodes joints d\'autres dimensions (contexte choisi par l\'humain) :', *perception.lines(joined)] if joined else []),
             *(['Outils pour cette demande :', guide] if guide else []),  # aiguillage : ceux que ses mots appellent
             *([self.document_templates()] if self.document_templates() else []),
+            *([f"Maintenant (heure de l'humain) : {self.now}"] if self.now and any(w in tools.fold(request) for w in tools.HINTS['rappels']) else []),
             f'Message écrit dans le node {self.origin} : {request}' if self.origin else f'Demande : {request}',
             *([f'Node source : {self.source}'] if self.source else []),
             *([f"Où tu en es dans l'arbre : {' → '.join(path)} (ici)"] if len(path := self.lineage(self.source)) > 1 else []),
@@ -1155,6 +1160,36 @@ class Guardian(IaquaOps):
         except web.WebError as e:
             raise PlanError(str(e)) from None
         self.reads.append(f'Page {url} :\n{text}')
+        return None
+
+    def op_remind(self, action, agents):
+        """Rappel sur un node de la page (la page le pose et le sauve), d'une autre dimension (écrit en base), ou sur
+        un node rappel créé pour lui (text sans ref). at vide : retiré."""
+        try:
+            when = reminders.parse(action['at']) if action.get('at') else None
+        except reminders.ReminderError as e:
+            raise PlanError(str(e)) from None
+        at = when.strftime('%Y-%m-%dT%H:%M') if when else ''
+        ref = str(action.get('ref') or '')
+        if not ref:
+            if not action.get('text'):
+                raise PlanError('rappel sans node : donne ref, ou text pour créer le node rappel')
+            ref = f'auto{len(self.nodes) + 1}'
+            self.emit('action', self.op_create({'ref': ref, 'text': action['text'], 'near': action.get('near')}, agents))
+        if ref in self.nodes:
+            return {'op': 'remind', 'ref': ref, 'at': at}
+        try:
+            reminders.put(self.user, ref, when)  # autre dimension : en base, la page relit la liste
+        except reminders.ReminderError as e:
+            raise PlanError(str(e)) from None
+        return {'op': 'remind', 'ref': ref, 'at': at, 'stored': True}
+
+    def op_reminders(self, action, agents):
+        items = reminders.listing(self.user)
+        for r in items:
+            self.found[r['id']] = r['layer']
+        self.reads.append('Rappels de l\'humain :\n' + ('\n'.join(
+            f"{r['id']} (dimension {r['dimension']}) : {r['at'].replace('T', ' ')}, {r['text']}" for r in items[:30]) or 'aucun'))
         return None
 
     def op_goto(self, action, agents):

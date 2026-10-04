@@ -26,6 +26,7 @@ import { createPending } from './pending.js';
 import { createPhysics } from './physics.js';
 import './portal.js';  // window.portalRing : l'anneau vivant des portails, que Nodz pose en créant un node
 import { createPresence } from './presence.js';
+import { createReminders } from './reminders.js';
 import { createSchemas } from './schemas.js';
 import { createSearch } from './search.js';
 import { createSfx } from './sfx.js';
@@ -116,6 +117,7 @@ const signedIn = setInterval(() => {
     // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
     api.request('POST', 'toolbox/warm', { mode: chat.mode() }).catch(() => {});
     refreshLetters();  // notes du Gardien en attente dans Échanges
+    reminders.refresh();
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
     guide.welcome();  // première visite : le guide s'ouvre
 }, 400);
@@ -144,6 +146,7 @@ const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node 
             + `confie-le au Codeur (delegate, ref ${node.id}).`, [], true));
     } });
 const fixed = new Set();  // nodes de code déjà renvoyés une fois au Gardien pour correction
+const reminders = createReminders({ bridge, say, sfx });  // rappels : compte à rebours, notifications, panneau de la cloche
 const tour = createTour({ bridge, say });
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
@@ -375,7 +378,10 @@ async function ask(node, text, attached = [], direct = !!node) {
         };
         const context = bridge.context();
         let doing = '';  // dernière intention annoncée : l'étiquette de l'avatar du Gardien
-        await api.command({ prompt: text, context: { ...context, mode: chat.mode(), ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
+        const now = new Date();  // l'heure de l'humain : ses rappels (« vendredi 9 h »)
+        const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} `
+            + `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}, ${now.toLocaleDateString('fr-FR', { weekday: 'long' })}`;
+        await api.command({ prompt: text, context: { ...context, now: stamp, mode: chat.mode(), ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
             source: direct ? 'node' : 'chat', ...(history.length && !direct ? { history } : {}) } }, (type, data) => {
             if (type === 'thinking') thought(data);
             else if (type === 'stopped') stopped = true;

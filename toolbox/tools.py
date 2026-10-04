@@ -23,6 +23,15 @@ TOOLS = [
     {'op': 'note', 'category': 'Dialogue', 'source': NODZ, 'label': 'Laisser une note (correspondance)',
      'doc': '{"op":"note","text":"J\'ai remarqué que…","choices":["Oui","Plus tard"]} : une note pour plus tard, posée dans la '
             'dimension Échanges ; l\'humain y répond dans un node relié, et tu lis sa réponse aux demandes suivantes.'},
+    # --- Rappels : une date sur un node, que la page compte à rebours et notifie à l'échéance
+    {'op': 'remind', 'category': 'Rappels', 'source': NODZ, 'label': 'Poser, déplacer ou retirer un rappel',
+     'doc': '{"op":"remind","ref":"N-12","at":"2026-10-09 09:00"} : rappel sur un node, à l\'heure de l\'humain (AAAA-MM-JJ HH:MM, '
+            'calculée depuis « Maintenant ») ; le node compte à rebours et l\'humain est notifié à l\'échéance. Sans node qui '
+            'convienne : "text":"Appeler Paul" sans ref crée le node rappel. "at":"" retire le rappel. Un node d\'une autre '
+            'dimension se cite par son N- (reminders ou search_nodes le donne).'},
+    {'op': 'reminders', 'category': 'Rappels', 'source': NODZ, 'read': True, 'label': 'Lister les rappels',
+     'doc': '{"op":"reminders"} : tous les rappels de l\'humain, toutes dimensions, du plus proche au plus lointain, '
+            'avec leur node et leur échéance.'},
     # --- Nodes
     {'op': 'put', 'category': 'Nodes', 'source': NODZ, 'label': 'Écrire un node (objet complet)',
      'doc': '{"op":"put","ref":"new1","near":"N-3","text":"...","color":"#4D96FF","shape":"square","links":["N-3"],"children":["a","b"]} : '
@@ -335,7 +344,7 @@ def prompt(ops, docs=None):
 # Aiguillage : les mots d'une demande (sans accents, en minuscules) qui appellent un dossier d'outils. Local et
 # instantané : le Gardien reçoit les modes d'emploi de ce dont il a besoin, sans appel au modèle pour les choisir.
 HINTS = {
-    'dialogue': ('plus tard', 'rappelle-moi', 'note'),
+    'dialogue': ('plus tard', 'note'),
     'nodes': ('node', 'supprim', 'efface', 'couleur', 'forme', 'carre', 'cercle', 'nettoie', 'vide', 'renomme', 'carte mentale'),
     'liens': ('reli', 'lien', 'connect', 'portail', 'dimension'),
     'navigation': ('montre', 'visite', 'emmene', 'va a', 'va sur', 'zoom', 'focus', 'guide', 'vue d', 'ou est'),
@@ -345,7 +354,8 @@ HINTS = {
     'memoire': ('retiens', 'souviens', 'memoire', 'oublie', 'rappelle-toi', 'mes preferences'),
     'lecture': ('cherche', 'trouve', 'retrouve', 'document', 'lis ', 'inventaire', 'combien'),
     'web': ('web', 'internet', 'google', 'site', 'en ligne', 'actualite', 'url', 'http'),
-    'taches': ('tache', 'todo', 'a faire', 'planifie', 'chaque jour', 'tous les', 'rappel'),
+    'taches': ('tache', 'todo', 'a faire', 'planifie', 'chaque jour', 'tous les'),
+    'rappels': ('rappel', 'rappelle-moi', 'echeance', 'noublie', "n'oublie", 'alarme', 'deadline', 'previens', 'rendez-vous', 'rdv'),
     'projets': ('projet', 'mission', 'objectif', 'feuille de route'),
     'competences': ('competence', 'skill', 'savoir-faire'),
     'fichiers': ('fichier', 'git', 'depot', 'enregistre dans'),

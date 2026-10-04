@@ -25,7 +25,7 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Layer, Link, Node
 
-from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, remote, tools, workspace
+from . import cuda, fit, gguf, hub, iaqua, imaging, monitor, params as model_params, prompts, reminders as reminder_store, remote, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable, acting_for
@@ -174,6 +174,19 @@ def node_meta(request, body):
         origin, author = by.get(marks.get(node_id), ('human', me))
         nodes[f'N-{node_id}'] = {'created': created.isoformat(), 'modified': modified.isoformat(), 'origin': origin, 'author': author}
     return JsonResponse({'nodes': nodes})
+
+
+@api('GET', 'POST')
+def reminders(request, body):
+    """Rappels de toutes les dimensions (GET) ; POST {ref, at} pose ou déplace le rappel d'un node, at vide le retire.
+    L'heure est celle de l'humain (le calendrier de Nodz l'écrit ainsi)."""
+    if request.method == 'POST':
+        try:
+            when = reminder_store.parse(body.get('at')) if body.get('at') else None
+            reminder_store.put(request.user, body.get('ref'), when)
+        except reminder_store.ReminderError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'reminders': reminder_store.listing(request.user)})
 
 
 SIDE_NODES = 4000  # nodes au plus dans la vue de côté
