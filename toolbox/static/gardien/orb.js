@@ -3,6 +3,8 @@
 // pointeur à distance quand celui-ci s'éloigne (il l'attend quand on s'en approche, pour se laisser cliquer) ; un clic
 // ouvre le chat collé à lui, donc là où l'on est. Glissé, il reste où on le pose ; un double-clic le range au coin ou
 // le rend compagnon. Sous automatisation (bancs du feel), il reste au coin : il ne passe jamais sous un clic de test.
+// Il ne suit pas en permanence : il s'endort (yeux clos, respiration lente) après un moment sans qu'on vienne à lui, et
+// reste où il est ; le survoler, le cliquer ou une réponse du Gardien le réveillent, il suit de nouveau un moment.
 
 const KEY = 'gardien-orb';
 const SIZE = 50;
@@ -10,6 +12,7 @@ const GAP = 12;          // entre l'orbe et le chat
 const OFFSET = 46;       // l'orbe se tient en bas à droite du pointeur
 const NEAR = 150;        // pointeur plus près : l'orbe l'attend
 const EASE = 0.08;       // part du chemin faite à chaque image
+const AWAKE = 25000;     // ms de suivi après un réveil, puis il s'endort
 
 export function createOrb({ root, bubble, panel, close }) {
     let state = { mode: navigator.webdriver ? 'dock' : 'follow' };
@@ -17,7 +20,19 @@ export function createOrb({ root, bubble, panel, close }) {
         state = { ...state, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
     } catch { /* stockage indisponible */ }
     const eyes = [...bubble.querySelectorAll('.go-eye')];
-    let pos = null, target = null, pointer = null, frame = 0, drag = null, moved = false;
+    let pos = null, target = null, pointer = null, frame = 0, drag = null, moved = false, awake = false, nap = 0;
+    function sleep() {
+        awake = false;
+        bubble.classList.add('asleep');
+        eyes.forEach(eye => { eye.style.transform = ''; });
+    }
+    function wake() {
+        awake = true;
+        bubble.classList.remove('asleep');
+        clearTimeout(nap);
+        nap = setTimeout(sleep, AWAKE);
+    }
+    sleep();  // il attend qu'on vienne à lui
 
     const store = () => {
         try {
@@ -71,7 +86,7 @@ export function createOrb({ root, bubble, panel, close }) {
     }
 
     function look() {
-        if (!pointer) return;
+        if (!pointer || !awake) return;
         const r = bubble.getBoundingClientRect();
         const dx = pointer.x - (r.left + r.width / 2), dy = pointer.y - (r.top + r.height / 2);
         const d = Math.hypot(dx, dy) || 1, k = Math.min(3.5, d / 40);
@@ -91,7 +106,7 @@ export function createOrb({ root, bubble, panel, close }) {
             }
             return;
         }
-        if (state.mode !== 'follow' || event.buttons || !pos) return;  // pas pendant un glissé de l'univers
+        if (state.mode !== 'follow' || !awake || event.buttons || !pos) return;  // endormi, ou glissé de l'univers
         const c = { x: pos.x + SIZE / 2, y: pos.y + SIZE / 2 };
         if (Math.hypot(pointer.x - c.x, pointer.y - c.y) < NEAR) return;  // il attend qu'on le clique
         target = clamp(pointer.x + OFFSET - SIZE / 2, pointer.y + OFFSET - SIZE / 2);
@@ -99,7 +114,9 @@ export function createOrb({ root, bubble, panel, close }) {
     });
 
     // Glisser l'orbe : il reste où on le pose (le clic qui suit n'ouvre pas le chat).
+    bubble.addEventListener('pointerenter', wake);
     bubble.addEventListener('pointerdown', event => {
+        wake();
         if (event.button !== 0) return;
         const r = bubble.getBoundingClientRect();
         drag = { x: event.clientX, y: event.clientY, dx: event.clientX - r.left, dy: event.clientY - r.top };
@@ -139,6 +156,7 @@ export function createOrb({ root, bubble, panel, close }) {
     return {
         place,
         speak() {
+            wake();
             bubble.classList.remove('speak');
             void bubble.offsetWidth;  // relance l'animation
             bubble.classList.add('speak');

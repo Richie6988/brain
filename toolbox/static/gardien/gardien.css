@@ -60,6 +60,13 @@ body:has(.universe.lightmode) #gardien-grab path { fill: rgba(104, 72, 166, 0.12
 .go-eye { position: relative; width: 7px; height: 11px; border-radius: 50%; background: #f8fbff;
     box-shadow: 0 0 6px #fff, 0 0 12px rgba(51, 255, 153, 0.8); transition: transform 0.12s ease-out, height 0.08s; }
 #gardien-chat-button.blink .go-eye { height: 2px; }
+/* Endormi : yeux clos, respiration lente, un « z » qui monte ; il ne suit plus le pointeur. */
+#gardien-chat-button.asleep .go-eye { height: 2px; box-shadow: 0 0 4px rgba(255, 255, 255, 0.6); }
+#gardien-chat-button.asleep { animation-duration: 7s; }
+#gardien-chat-button.asleep::after { content: 'z'; position: absolute; top: -6px; right: 2px; font: 700 12px 'Cascadia Code', monospace; color: #b89af2;
+    animation: go-z 2.6s ease-in-out infinite; pointer-events: none; }
+@keyframes go-z { 0% { opacity: 0; transform: translate(0, 6px) scale(0.7); } 40% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -12px) scale(1.15); } }
+#gardien-chat.busy #gardien-chat-button.asleep::after { display: none; }
 #gardien-chat-button b { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px;
     font-size: 10px; line-height: 18px; color: #fff; background: #FF6B6B; }
 #gardien-chat-button b[hidden] { display: none; }
