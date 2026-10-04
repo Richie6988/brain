@@ -210,6 +210,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **GPU ignoré quand nvidia-smi répond « [N/A] »** : sur portable, WSL ou certaines cartes, nvidia-smi donne l'utilisation ou la température « [N/A] » ; la lecture échouait en entier, la VRAM comptait pour zéro et le modèle partait tout entier sur CPU (le GPU ne servait qu'à la lecture du prompt, vers 30 %). La VRAM est maintenant lue quand même ; l'utilisation manquante est remplacée par l'occupation de la VRAM, la température est omise. Le message de lenteur du Gardien dit la vraie cause : llama-cpp-python compilé sans CUDA alors qu'une carte NVIDIA est là (« Compiler avec CUDA »), ou un modèle trop gros pour la RAM et la carte graphique, avec la taille qui tiendrait entière sur la carte.
 
+**Salon : nodes verrouillés protégés** : seul l'hôte supprime un node verrouillé. Chez un invité, Suppr est refusé sur place ; chez l'hôte, une suppression venue d'un autre est ignorée (le node et ses liens restent, son auteur les reçoit de nouveau).
+
 **Salon : suivre à travers les dimensions** : chaque vue porte sa dimension ; quand l'hôte change de dimension, l'état de la nouvelle part avant sa vue, et qui le suit y arrive à l'endroit où il regarde (avant : la caméra partait vers des coordonnées de l'ancienne dimension). Un invité ne peut plus sortir de la dimension du salon par la liste des dimensions ou « nouvelle dimension ».
 
 **Démarrage de Daphne réparé** : `nodz/asgi.py` initialise Django avant d'importer les consumers (le salon importait ses modèles trop tôt : « settings are not configured »).

@@ -148,12 +148,26 @@ export function createRoom({ bridge, say }) {
         }
     }
 
-    function remove(data) {
+    // Un node verrouillé ne se supprime que par l'hôte : chez l'hôte, la suppression venue d'un autre est ignorée (le
+    // node et ses liens restent, son auteur les reçoit de nouveau) ; chez un invité, elle est refusée sur place.
+    const locked = node => node?.getAttribute('lock') === '1';
+    let erase = nodes => deleteNode(nodes);  // la vraie suppression de Nodz (un invité remplace deleteNode)
+    function remove(data, sender) {
         if (!Array.isArray(data)) return;
+        if (role === 'host' && !sender?.host) {
+            const kept = data.filter(d => d && 'id' in d).map(d => byId(`N-${parseInt(d.id, 10)}`)).filter(locked);
+            if (kept.length) {
+                const ties = new Set(kept.flatMap(n => JSON.parse(n.getAttribute('links') || '[]')).map(id => parseInt(id.slice(2), 10)));
+                data = data.filter(d => !(d && (kept.some(n => n.id === `N-${parseInt(d.id, 10)}`) || ties.has(parseInt(d.linkid, 10)))));
+                kept.forEach(n => send({ t: 'save', to: sender.id, data: [describe(n), ...JSON.parse(n.getAttribute('links') || '[]').map(byId).filter(Boolean)
+                    .map(l => ({ linkid: parseInt(l.id.slice(2), 10), linkA: l.getAttribute('Node1'), linkB: l.getAttribute('Node2') }))] }));
+                say(`${sender.name} voulait supprimer un node verrouillé : il reste.`);
+            }
+        }
         applying += 1;
         try {
             const nodes = data.filter(d => d && 'id' in d).map(d => byId(`N-${parseInt(d.id, 10)}`)).filter(n => n?.classList.contains('node-group'));
-            if (nodes.length) deleteNode(nodes);
+            if (nodes.length) erase(nodes);
             else data.filter(d => d && 'linkid' in d).map(d => byId(`L-${parseInt(d.linkid, 10)}`)).filter(Boolean).forEach(deleteLink);
             // Chez l'hôte, la suppression est aussi enregistrée telle quelle : un lien déjà retiré de la page (node
             // reposé entre-temps) n'aurait sinon jamais été archivé.
@@ -310,7 +324,7 @@ export function createRoom({ bridge, say }) {
             forget(who.id);
         } else if (m.t === 'state' && role === 'member') settle(m);
         else if (m.t === 'save') apply(m.data, who.host);
-        else if (m.t === 'delete') remove(m.data);
+        else if (m.t === 'delete') remove(m.data, who);
         else if (m.t === 'type') {
             const input = byId(String(m.id))?.children[0]?.children[0];
             if (input && input !== document.activeElement && input.closest('.node-group')) input.innerHTML = clean(m.html);
@@ -470,6 +484,13 @@ export function createRoom({ bridge, say }) {
                         // Toutes les portes : liste des dimensions, nouvelle dimension, portail, voyage.
                         const stay = () => say("Dans un salon, la dimension est celle de l'hôte : quitte le salon pour revenir chez toi.");
                         window.load = window.onLayerSelect = window.createNewLayer = stay;
+                        const original = window.deleteNode;
+                        erase = original;
+                        window.deleteNode = nodes => {
+                            const free = [...nodes].filter(n => !locked(n));
+                            if (free.length < nodes.length) say("Node verrouillé : seul l'hôte peut le supprimer.");
+                            if (free.length) original(free);
+                        };
                         quietly(rebootUniverse);
                         say(`Salon de ${found.host} : connexion…`);
                     }
