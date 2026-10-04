@@ -18,7 +18,7 @@
 }
 #gardien-send .send { padding-left: 5px; }
 #gardien-send.multi .visit, #gardien-send.multi kbd, #gardien-send:not(.multi) .arrange, #gardien-send:not(.multi) .csv { display: none; }
-#gardien-send .arrange, #gardien-send .csv { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
+#gardien-send .arrange, #gardien-send .csv, #gardien-send .branch { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
 #gardien-send .visit, #gardien-send .up, #gardien-send .down { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
 #gardien-send.multi .up, #gardien-send.multi .down, #gardien-send button[hidden] { display: none; }
 #gardien-send button:hover:not(:disabled) { filter: brightness(1.12); box-shadow: 0 0 20px rgba(30, 144, 255, 0.7); }
@@ -1138,3 +1138,21 @@ li.soon .gr-left { color: #ffb454; }
 #shareButton.gardien-room-live::before { content: attr(data-count); position: absolute; top: -4px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; font: 10px/15px 'Cascadia Code', monospace; color: #050c17; background: #33FF99; border-radius: 8px; text-align: center; }
 body:has(.universe.lightmode) #gardien-room { color: #440852; background: rgba(255, 255, 255, 0.94); }
 body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #gardien-room .gsal-link input { color: #440852; background: #fff; }
+
+/* Branches (branches.js) : descendants repliés cachés, pastille +N pour déplier, menu Branche de la pastille d'un node. */
+.node-group.gardien-folded, .link.gardien-folded { display: none; }
+#gardien-folds { position: fixed; inset: 0; z-index: 25; pointer-events: none; }
+#gardien-folds .gf-badge { position: absolute; left: 0; top: 0; pointer-events: auto; min-width: 26px; height: 20px; padding: 0 7px; cursor: pointer;
+    font: 600 11px 'Cascadia Code', monospace; color: #050c17; background: #b89af2; border: 0; border-radius: 10px; box-shadow: 0 0 10px rgba(184, 154, 242, 0.6); }
+#gardien-folds .gf-badge:hover { background: #33FF99; }
+#gardien-folds .gf-badge[hidden] { display: none; }
+#gardien-branch { position: fixed; z-index: 46; display: grid; gap: 4px; min-width: 180px; padding: 8px; box-sizing: border-box;
+    font: 12px 'Cascadia Code', monospace; color: #e2e8f0; background: rgba(5, 12, 23, 0.92); border: 1px solid rgba(104, 72, 166, 0.55);
+    border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+#gardien-branch[hidden] { display: none; }
+#gardien-branch button { text-align: left; padding: 6px 10px; font: inherit; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+#gardien-branch button:hover { background: rgba(104, 72, 166, 0.45); }
+#gardien-branch small { margin: 4px 10px 0; color: #94a3b8; font-size: 10px; letter-spacing: 0.06em; }
+body:has(.universe.lightmode) #gardien-branch { color: #440852; background: rgba(255, 255, 255, 0.96); }
+.gx-formats button { text-align: left; }
+

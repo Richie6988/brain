@@ -7,6 +7,7 @@
 
 import { createAdmin } from './admin.js';
 import { api } from './api.js';
+import { createBranches } from './branches.js';
 import { createBridge } from './bridge.js';
 import { createChat } from './chat.js';
 import { createCorners } from './corners.js';
@@ -88,7 +89,8 @@ const signedIn = setInterval(() => {
 }, 400);
 
 const joined = node => ({ id: node.id, text: (node.children[0]?.children[0]?.innerText || '').trim() });  // node joint au chat
-const filters = createFilters({ onAttach: items => chat.attach(items), onImport: () => dataset.pick() });  // sélecteur de contexte au-dessus du dock
+const branches = createBranches({ say, download });  // replier, ranger en arbre, exporter Markdown / OPML / FreeMind
+const filters = createFilters({ onAttach: items => chat.attach(items), onImport: () => dataset.pick(), mapExports: () => branches.exportItems() });  // sélecteur de contexte au-dessus du dock
 const dimensions = createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createGrab();  // zone de saisie du node allumée au survol
@@ -102,6 +104,7 @@ createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
     onExport: nodes => download(`nodz-selection-${stamp()}.csv`, toCsv(nodes.map(describe))),
+    onBranch: (node, anchor) => branches.open(node, anchor),
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node),
     onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); sfx.play('arrange'); physics.arrange(nodes); },
     // Le code du Codeur échoue : le Gardien le reprend une fois (pas de boucle de corrections).

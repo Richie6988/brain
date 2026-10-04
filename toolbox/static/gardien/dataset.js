@@ -1,10 +1,12 @@
-// Données tabulaires. Export : des nodes (sélection, ou ceux que les filtres gardent) en CSV, ouvert tel quel par
+// Cartes des autres outils (Markdown, texte indenté, OPML, FreeMind / Freeplane, XMind) : un arbre posé tel quel,
+// rangé de gauche à droite (branches.js). Données tabulaires. Export : des nodes (sélection, ou ceux que les filtres gardent) en CSV, ouvert tel quel par
 // Excel (séparateur « ; », BOM UTF-8). Import automatique : un dataset (CSV, TSV, JSON, Excel) devient un arbre de
 // nodes sans réglage : la colonne du libellé et, s'il y en a une, la colonne de regroupement sont devinées ; chaque
 // ligne devient un node (son libellé en gras, quelques autres colonnes dessous), rangé autour de son groupe, les
 // groupes autour d'un node racine au nom du fichier.
 
 import { endpoint } from './api.js';
+import { arrange, layout } from './branches.js';
 
 const MAX_ROWS = 500;     // nodes posés au plus par import
 const SHOWN_FIELDS = 3;   // colonnes affichées sous le libellé
@@ -172,16 +174,118 @@ export async function plant(rows, title, { bridge, center }) {
     return { refs, label, group, total: rows.length, placed: taken.length };
 }
 
+// --- cartes (arbres)
+
+const OUTLINE = /\.(md|markdown|txt|opml|mm|xmind)$/i;
+const MAX_TOPICS = 800;
+const clean = text => String(text || '').replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)').replace(/(\*\*|__|`)/g, '').replace(/\s+/g, ' ').trim();
+
+// Markdown (titres, listes) ou texte indenté (tabulations ou espaces) : la profondeur de chaque ligne fait l'arbre.
+export function parseIndented(text, markdown) {
+    const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim() && !/^\s*(---|```|<!--)/.test(l));
+    const headings = lines.map(l => l.match(/^(#{1,6})\s/)?.[1].length).filter(Boolean);
+    const top = headings.length ? Math.min(...headings) : 1;
+    const spaces = lines.map(l => l.match(/^( +)\S/)?.[1].length).filter(Boolean);
+    const unit = spaces.length ? Math.min(...spaces) : 2;
+    let base = 0;  // profondeur sous le dernier titre, où se rangent listes et paragraphes
+    const items = lines.map(l => {
+        const heading = markdown && l.match(/^(#{1,6})\s+(.*)$/);
+        if (heading) {
+            base = heading[1].length - top + 1;
+            return { depth: base - 1, text: clean(heading[2]) };
+        }
+        const indent = l.match(/^[\t ]*/)[0].replace(/\t/g, ' '.repeat(unit)).length;
+        const bullet = l.trim().replace(/^([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/, '');
+        return { depth: (markdown ? base : 0) + Math.round(indent / unit), text: clean(bullet) };
+    });
+    return nest(items);
+}
+
+// Une liste à plat {depth, text} devient un arbre {text, kids} ; plusieurs racines : une racine commune.
+function nest(items) {
+    const root = { text: '', kids: [] }, stack = [{ depth: -1, node: root }];
+    items.filter(i => i.text).forEach(({ depth, text }) => {
+        while (stack.length > 1 && stack[stack.length - 1].depth >= depth) stack.pop();
+        const node = { text, kids: [] };
+        stack[stack.length - 1].node.kids.push(node);
+        stack.push({ depth, node });
+    });
+    return root.kids.length === 1 ? root.kids[0] : root;
+}
+
+function parseXml(text, tag, label) {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error('fichier XML illisible');
+    const walk = el => ({ text: clean(label(el)), kids: [...el.children].filter(c => c.tagName === tag).map(walk) });
+    const start = tag === 'outline' ? doc.querySelector('body') : doc.documentElement;
+    const kids = [...(start?.children || [])].filter(c => c.tagName === tag).map(walk);
+    return kids.length === 1 ? kids[0] : { text: doc.querySelector('head > title')?.textContent || '', kids };
+}
+const freemindText = el => el.getAttribute('TEXT') || [...el.children].find(c => c.tagName === 'richcontent')?.textContent || '';
+
+// L'arbre d'un fichier de carte. XMind (une archive) est lu par le serveur.
+export async function readOutline(file) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.xmind')) {
+        const form = new FormData();
+        form.append('file', file);
+        const response = await fetch(endpoint('toolbox/outline'), { method: 'POST', body: form, credentials: 'same-origin',
+            headers: { 'X-CSRFToken': (document.cookie.match(/(?:^|;\s*)nodz_csrftoken=([^;]+)/) || [])[1] || '' } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'fichier XMind illisible');
+        return data.tree;
+    }
+    const text = await file.text();
+    if (name.endsWith('.opml')) return parseXml(text, 'outline', el => el.getAttribute('text') || el.getAttribute('title') || '');
+    if (name.endsWith('.mm')) return parseXml(text, 'node', freemindText);
+    return parseIndented(text, /\.(md|markdown)$/.test(name));
+}
+
+// L'arbre posé autour du centre de la vue, puis rangé avec la vraie taille de ses nodes.
+export async function plantTree(root, title, { bridge, center }) {
+    if (!root.text) root.text = title;
+    let count = 0;
+    const tag = (t, depth = 0) => {
+        if (count >= MAX_TOPICS) return null;
+        t.id = `ot-${count++}`;
+        t.depth = depth;
+        t.kids = t.kids.map(k => tag(k, depth + 1)).filter(Boolean);
+        return t;
+    };
+    tag(root);
+    const spots = layout(root, center, () => ({ w: 90, h: 45 }));
+    const walk = async (t, parent) => {
+        const p = spots.get(t.id);
+        await bridge.perform({ op: 'create', ref: t.id, x: Math.round(p.x), y: Math.round(p.y),
+            text: t.depth ? escape(t.text.slice(0, 300)) : `<b>${escape(t.text.slice(0, 300))}</b>`,
+            color: COLORS[Math.min(t.depth, COLORS.length - 1)], shape: t.depth < 2 ? 'square' : undefined });
+        if (parent) await bridge.perform({ op: 'link', source: parent, target: t.id });
+        for (const k of t.kids) await walk(k, t.id);
+    };
+    await walk(root, null);
+    const rootNode = document.getElementById(bridge.idOf(root.id));
+    if (rootNode) await arrange(rootNode);
+    return { refs: [...spots.keys()], placed: count };
+}
+
 // Import d'un dataset (« Importer un dataset » des Filtres) : choisir un fichier, l'arbre se pose, la caméra le cadre.
 // Pas de bouton de plus dans le dock : il en changerait la largeur, et le dock est la zone des gestes de l'univers.
 export function createDataset({ bridge, say, onDone = () => {} }) {
-    const picker = Object.assign(document.createElement('input'), { type: 'file', accept: '.csv,.tsv,.txt,.json,.xlsx,.xlsm', hidden: true });
+    const picker = Object.assign(document.createElement('input'), { type: 'file', hidden: true,
+        accept: '.csv,.tsv,.json,.xlsx,.xlsm,.md,.markdown,.txt,.opml,.mm,.xmind' });
     document.body.append(picker);
     picker.addEventListener('change', async () => {
         const file = picker.files[0];
         picker.value = '';
         if (!file) return;
         try {
+            if (OUTLINE.test(file.name)) {  // une carte : son arbre tel quel
+                const root = await readOutline(file);
+                say(`Import de la carte ${file.name}…`);
+                const done = await plantTree(root, file.name.replace(/\.[^.]+$/, ''), { bridge, center: bridge.center() });
+                say(`${done.placed} nodes posés, rangés en arbre${done.placed >= MAX_TOPICS ? ` (${MAX_TOPICS} au plus)` : ''}.`);
+                return onDone(done.refs);
+            }
             const rows = await readRows(file);
             if (!rows.length) return say(`${file.name} : aucune ligne lue.`, 'error');
             say(`Import de ${file.name} : ${Math.min(rows.length, MAX_ROWS)} nodes…`);

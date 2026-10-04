@@ -13,7 +13,7 @@ const SHOWN = 40;  // nodes affichés par dimension (les plus récents d'abord, 
 const CHARS_PER_TOKEN = 3.5;
 const fold = text => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export function createFilters({ onAttach = () => {}, onImport = () => {} } = {}) {
+export function createFilters({ onAttach = () => {}, onImport = () => {}, mapExports = () => [] } = {}) {
     const state = { text: '', off: new Set(), lo: 0, hi: STEPS, basis: 'modified', order: -1 };
     let nodes = {};  // N-12 → {origin, created, modified, layer, text} (serveur, toutes les dimensions)
     let authors = [{ key: 'ai', label: 'IA' }, { key: 'me', label: 'Moi' }];
@@ -85,7 +85,12 @@ export function createFilters({ onAttach = () => {}, onImport = () => {} } = {})
     const join = chip('Joindre au Gardien', () => attach(), { className: 'gx-join' });
     const csv = chip('Exporter CSV', () => exportCsv(), { title: 'Les nodes cochés, sinon tous ceux que les filtres gardent, dans un fichier CSV' });
     const load = chip('Importer un dataset', () => { toggle(false); onImport(); }, { title: 'CSV, TSV, JSON ou Excel : une ligne = un node, rangés par groupe, dans cette dimension' });
-    panel.append(head, columns, make('div', { className: 'gx-foot' }, count, load, all, none, csv, join));
+    // Exporter la carte : toute la dimension ouverte, en arbre (Markdown, OPML, FreeMind), pour XMind, MindNode, Obsidian…
+    const formats = make('div', { className: 'gx-pop gx-formats', hidden: true });
+    const map = chip('Exporter la carte ▾', () => { formats.replaceChildren(...mapExports()); formats.hidden = !formats.hidden; },
+        { className: 'gx-drop', title: 'La dimension ouverte, en arbre : Markdown, OPML ou FreeMind (.mm)' });
+    formats.addEventListener('click', () => { formats.hidden = true; });
+    panel.append(head, columns, make('div', { className: 'gx-foot' }, count, load, all, none, csv, make('span', { className: 'gx-wrap' }, map, formats), join));
     document.body.append(panel);
     document.addEventListener('mousedown', event => {
         if (!menu.contains(event.target) && event.target !== who) menu.hidden = true;

@@ -475,6 +475,52 @@ def dataset(request, body):
     return JsonResponse({'rows': [dict(zip(head, map(text, (list(row) + [None] * width)[:width]))) for row in raw[1:]]})
 
 
+MAX_TOPICS = 2000
+
+
+def _xmind_tree(archive):
+    """L'arbre de la première feuille d'un fichier XMind : XMind 8 et plus récent (content.json), ou l'ancien format
+    (content.xml) ; {text, kids}, 2000 sujets au plus."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    count = [0]
+
+    def topic(text, kids):
+        count[0] += 1
+        return {'text': str(text or '')[:500], 'kids': kids if count[0] < MAX_TOPICS else []}
+
+    with zipfile.ZipFile(archive) as zf:
+        names = set(zf.namelist())
+        if 'content.json' in names:
+            def walk(t):
+                return topic(t.get('title'), [walk(k) for k in ((t.get('children') or {}).get('attached') or [])][:MAX_TOPICS])
+            sheets = json.loads(zf.read('content.json'))
+            return walk((sheets[0] if isinstance(sheets, list) else sheets)['rootTopic'])
+        root = ElementTree.fromstring(zf.read('content.xml'))
+        local = lambda el: el.tag.rsplit('}', 1)[-1]
+
+        def walk_xml(el):
+            title = next((c.text for c in el if local(c) == 'title'), '')
+            kids = [t for c in el if local(c) == 'children' for topics in c if local(topics) == 'topics'
+                    and topics.get('type', 'attached') == 'attached' for t in topics if local(t) == 'topic']
+            return topic(title, [walk_xml(k) for k in kids][:MAX_TOPICS])
+        first = next(el for el in root.iter() if local(el) == 'topic')
+        return walk_xml(first)
+
+
+@api('POST')
+def outline(request, body):
+    """Carte XMind envoyée pour l'import (dataset.js) : son arbre, rien n'est gardé sur le serveur."""
+    upload = request.FILES.get('file')
+    if upload is None or upload.size > 20 * 1024 * 1024:
+        raise ChangeError('fichier XMind requis (20 Mo au plus)')
+    try:
+        return JsonResponse({'tree': _xmind_tree(upload)})
+    except Exception as e:  # archive abîmée, format inconnu : la raison à l'humain
+        raise ChangeError(f'fichier XMind illisible : {type(e).__name__}') from None
+
+
 @api('GET', 'POST', 'DELETE')
 def rooms(request, body):
     """Le salon de l'humain (un seul à la fois) : GET le rend s'il est ouvert, POST l'ouvre (ou le renomme), DELETE

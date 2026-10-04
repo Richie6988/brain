@@ -1,0 +1,254 @@
+// Branches d'une carte. Une branche : un node et tout ce qui descend de lui par ses liens (Node1 → Node2, comme Aval).
+// - Replier : ses descendants et leurs liens disparaissent, une pastille « +N » à côté du node les rappelle (un clic
+//   déplie) ; l'état reste dans ce navigateur, par dimension, et revient à chaque chargement.
+// - Ranger en arbre : de gauche à droite, chaque niveau dans sa colonne, chaque sous-arbre dans sa bande, animé ; les
+//   positions sont enregistrées d'un coup (un seul Ctrl+Z).
+// - Exporter : Markdown, OPML, FreeMind (.mm), que lisent XMind, MindNode, MindMeister, Obsidian, Workflowy…
+// Tout se fait à partir de la page : les nodes et les liens de la dimension ouverte.
+
+const KEY = 'gardien-folds';
+const GAP_X = 110;   // entre le bord d'un node et le bord de ses enfants
+const GAP_Y = 26;    // entre deux sous-arbres voisins
+const TRANSFORM = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
+const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+
+const byId = id => document.getElementById(id);
+const nodes = () => [...universe.querySelectorAll('.node-group')];
+const textOf = node => (node.children[0]?.children[0]?.innerText || '').trim();
+
+// Demi-largeur et demi-hauteur d'un node, en unités de l'univers (rectangle : son cadre ; sinon son cercle).
+export function half(node) {
+    if (node.getAttribute('shape') === 'square') {
+        const box = node.children[2];
+        return { w: (parseFloat(box.getAttribute('width')) || 120) / 2, h: (parseFloat(box.getAttribute('height')) || 120) / 2 };
+    }
+    const r = parseFloat(node.children[1]?.getAttribute('r')) || 60;
+    return { w: r, h: r };
+}
+
+// Enfants d'un node : les nodes au bout de ses liens sortants, dans l'ordre de la carte (de haut en bas, puis de
+// gauche à droite), pas dans celui des liens.
+function children(id) {
+    const at = child => [-parseFloat(byId(child).getAttribute('y')), parseFloat(byId(child).getAttribute('x'))];
+    return [...universe.querySelectorAll('.link')].filter(l => l.getAttribute('Node1') === id).map(l => l.getAttribute('Node2'))
+        .filter(child => byId(child)?.classList.contains('node-group'))
+        .sort((a, b) => { const [ya, xa] = at(a), [yb, xb] = at(b); return ya - yb || xa - xb; });
+}
+
+// L'arbre d'une branche : { id, text, kids } ; un node déjà rencontré n'y figure qu'une fois (cycles, parents multiples).
+export function tree(rootId, seen = new Set()) {
+    seen.add(rootId);
+    const kids = children(rootId).filter(id => !seen.has(id)).map(id => { seen.add(id); return id; });
+    return { id: rootId, text: textOf(byId(rootId)), kids: kids.map(id => tree(id, seen)) };
+}
+
+export function descendants(rootId) {
+    const all = [];
+    const walk = t => t.kids.forEach(k => { all.push(k.id); walk(k); });
+    walk(tree(rootId));
+    return all;
+}
+
+// Toute la dimension : les racines (aucun lien entrant), puis ce qui resterait (cycles sans racine).
+export function forest() {
+    const entering = new Set([...universe.querySelectorAll('.link')].map(l => l.getAttribute('Node2')));
+    const seen = new Set(), roots = [];
+    [...nodes().filter(n => !entering.has(n.id)), ...nodes()].forEach(node => {
+        if (!seen.has(node.id)) roots.push(tree(node.id, seen));
+    });
+    return roots;
+}
+
+// Positions d'un arbre rangé de gauche à droite autour de `origin` (la racine reste où elle est). `size(id)` : demi-
+// largeur et demi-hauteur. y vers le haut, comme Nodz.
+export function layout(root, origin, size) {
+    const band = t => (t.band = Math.max(2 * size(t.id).h + GAP_Y, t.kids.reduce((sum, k) => sum + band(k), 0)));
+    band(root);
+    const spots = new Map();
+    const put = (t, x, top) => {  // top : haut de la bande du sous-arbre (y vers le bas)
+        spots.set(t.id, { x, down: top + t.band / 2 });
+        let y = top + (t.band - t.kids.reduce((sum, k) => sum + k.band, 0)) / 2;
+        t.kids.forEach(k => {
+            put(k, x + size(t.id).w + GAP_X + size(k.id).w, y);
+            y += k.band;
+        });
+    };
+    put(root, origin.x, 0);
+    const shift = spots.get(root.id).down;
+    return new Map([...spots].map(([id, p]) => [id, { x: p.x, y: origin.y - (p.down - shift) }]));
+}
+
+function move(node, x, y) {
+    const match = (node.getAttribute('transform') || '').match(TRANSFORM);
+    if (!match) return;
+    const dx = x - parseFloat(node.getAttribute('x')), dy = y - parseFloat(node.getAttribute('y'));
+    node.setAttribute('transform', `translate(${(parseFloat(match[1]) + dx).toFixed(3)}, ${(parseFloat(match[2]) - dy).toFixed(3)}) scale(${match[3]})`);
+    node.setAttribute('x', x);
+    node.setAttribute('y', y);
+}
+
+// Les nodes glissent vers leurs places, les liens suivent ; puis chacun est enregistré.
+export function glide(spots, duration = 450) {
+    const moving = [...spots].map(([id, to]) => ({ node: byId(id), to })).filter(m => m.node)
+        .map(m => ({ ...m, from: { x: parseFloat(m.node.getAttribute('x')), y: parseFloat(m.node.getAttribute('y')) } }));
+    const links = new Set(moving.flatMap(m => JSON.parse(m.node.getAttribute('links') || '[]')));
+    return new Promise(resolve => {
+        const start = performance.now();
+        const frame = now => {
+            const k = ease(Math.min(1, (now - start) / duration));
+            moving.forEach(({ node, from, to }) => move(node, from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k));
+            links.forEach(id => { const link = byId(id); if (link) updateLink(link); });
+            if (k < 1) return requestAnimationFrame(frame);
+            moving.forEach(({ node }) => save(node));
+            resolve();
+        };
+        requestAnimationFrame(frame);
+    });
+}
+
+export function arrange(rootNode) {
+    const root = tree(rootNode.id);
+    const spots = layout(root, { x: parseFloat(rootNode.getAttribute('x')), y: parseFloat(rootNode.getAttribute('y')) }, id => half(byId(id)));
+    spots.delete(rootNode.id);
+    return glide(spots);
+}
+
+// --- export
+
+const xml = text => String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const line = text => text.replace(/\s*\n\s*/g, ' ');
+
+export function toMarkdown(roots) {
+    const out = [];
+    const walk = (t, depth) => {
+        out.push(depth ? `${'  '.repeat(depth - 1)}- ${line(t.text) || '(vide)'}` : `# ${line(t.text) || '(vide)'}`);
+        t.kids.forEach(k => walk(k, depth + 1));
+    };
+    roots.forEach((r, i) => { if (i) out.push(''); walk(r, 0); });
+    return out.join('\n') + '\n';
+}
+
+export function toOpml(roots, title) {
+    const walk = (t, pad) => (t.kids.length
+        ? `${pad}<outline text="${xml(line(t.text))}">\n${t.kids.map(k => walk(k, `${pad}  `)).join('')}${pad}</outline>\n`
+        : `${pad}<outline text="${xml(line(t.text))}"/>\n`);
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0">\n  <head><title>${xml(title)}</title></head>\n  <body>\n${roots.map(r => walk(r, '    ')).join('')}  </body>\n</opml>\n`;
+}
+
+export function toFreemind(roots, title) {
+    const walk = (t, pad) => (t.kids.length
+        ? `${pad}<node TEXT="${xml(line(t.text))}">\n${t.kids.map(k => walk(k, `${pad}  `)).join('')}${pad}</node>\n`
+        : `${pad}<node TEXT="${xml(line(t.text))}"/>\n`);
+    const top = roots.length === 1 ? roots : [{ text: title, kids: roots }];
+    return `<map version="1.0.1">\n${top.map(r => walk(r, '  ')).join('')}</map>\n`;
+}
+
+export const FORMATS = [
+    ['Markdown', 'md', 'text/markdown', (roots) => toMarkdown(roots)],
+    ['OPML', 'opml', 'text/x-opml', (roots, title) => toOpml(roots, title)],
+    ['FreeMind', 'mm', 'application/x-freemind', (roots, title) => toFreemind(roots, title)],
+];
+
+// --- replier
+
+export function createBranches({ say, download }) {
+    let folds = {};
+    try {
+        folds = JSON.parse(localStorage.getItem(KEY) || '{}');
+    } catch { /* stockage indisponible : les replis vivent le temps de la page */ }
+    const keep = () => {
+        try {
+            localStorage.setItem(KEY, JSON.stringify(folds));
+        } catch { /* stockage indisponible */ }
+    };
+    const here = () => String(layerNumber);
+    const folded = () => new Set(folds[here()] || []);
+
+    const layer = document.createElement('div');
+    layer.id = 'gardien-folds';
+    document.body.append(layer);
+
+    // Masque les descendants des nodes repliés de la dimension ouverte ; une pastille +N pour chacun.
+    function apply() {
+        const roots = [...folded()].filter(id => byId(id));
+        const hidden = new Set(roots.flatMap(descendants));
+        roots.forEach(id => hidden.delete(id));  // un node replié dans une branche repliée garde sa propre pastille
+        nodes().forEach(node => node.classList.toggle('gardien-folded', hidden.has(node.id)));
+        universe.querySelectorAll('.link').forEach(link => link.classList.toggle('gardien-folded',
+            hidden.has(link.getAttribute('Node1')) || hidden.has(link.getAttribute('Node2'))));
+        layer.replaceChildren(...roots.filter(id => !hidden.has(id)).map(id => {
+            const badge = Object.assign(document.createElement('button'), { type: 'button', className: 'gf-badge',
+                textContent: `+${descendants(id).length}`, title: 'Déplier la branche' });
+            badge.dataset.node = id;
+            badge.addEventListener('click', () => toggle(byId(id)));
+            return badge;
+        }));
+    }
+    (function track() {  // les pastilles suivent leurs nodes (zoom, glissé)
+        layer.querySelectorAll('.gf-badge').forEach(badge => {
+            const node = byId(badge.dataset.node);
+            const box = node && (node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1]).getBoundingClientRect();
+            badge.hidden = !box?.width;
+            if (box?.width) badge.style.transform = `translate(${(box.right + 4).toFixed(1)}px, ${(box.top + box.height / 2 - 10).toFixed(1)}px)`;
+        });
+        requestAnimationFrame(track);
+    })();
+    // Un chargement de dimension (ou des nodes qui arrivent) : les replis de cette dimension reviennent.
+    // (un node témoin qui n'est plus dans la page : la dimension a été rechargée, ses nodes sont tout neufs).
+    let seen = '', witness = null;
+    setInterval(() => {
+        if (typeof layerNumber === 'undefined' || isLoading) return;
+        const now = `${layerNumber}:${universe.querySelectorAll('.node-group').length}:${universe.querySelectorAll('.link').length}`;
+        if (now !== seen || (witness && !witness.isConnected)) apply();
+        seen = now;
+        witness = universe.querySelector('.node-group');
+    }, 300);
+
+    function toggle(node) {
+        const set = folded();
+        if (set.has(node.id)) set.delete(node.id); else set.add(node.id);
+        folds[here()] = [...set];
+        keep();
+        apply();
+    }
+
+    // Menu « Branche » de la pastille d'un node.
+    const menu = document.createElement('div');
+    menu.id = 'gardien-branch';
+    menu.hidden = true;
+    document.body.append(menu);
+    document.addEventListener('mousedown', event => { if (!menu.contains(event.target)) menu.hidden = true; }, true);
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') menu.hidden = true; });
+    const item = (label, title, run) => Object.assign(document.createElement('button'), { type: 'button', textContent: label, title,
+        onclick: () => { menu.hidden = true; run(); } });
+
+    function exportItems(roots, name) {
+        return FORMATS.map(([label, ext, type, write]) => item(label, `Exporter en .${ext}`,
+            () => download(`${name}.${ext}`, write(roots, name), `${type};charset=utf-8`)));
+    }
+    const fileName = text => (text || 'nodz').replace(/[\\/:*?"<>|\n]+/g, ' ').trim().slice(0, 60) || 'nodz';
+
+    return {
+        // Le menu d'une branche, ouvert sous `anchor` (DOMRect du bouton de la pastille).
+        open(node, anchor) {
+            const count = descendants(node.id).length;
+            const isFolded = folded().has(node.id);
+            const root = tree(node.id);
+            menu.replaceChildren(
+                item('Ranger en arbre', 'Ses descendants se rangent de gauche à droite, niveau par niveau (Ctrl+Z annule)', () => {
+                    if (isFolded) toggle(node);
+                    arrange(node).then(() => say(`Branche rangée : ${count} node${count > 1 ? 's' : ''}.`));
+                }),
+                item(isFolded ? `Déplier (+${count})` : `Replier (${count})`, isFolded ? 'Montrer ses descendants' : 'Cacher ses descendants (une pastille +N les rappelle)', () => toggle(node)),
+                Object.assign(document.createElement('small'), { textContent: 'Exporter la branche' }),
+                ...exportItems([root], fileName(root.text)));
+            menu.style.left = `${Math.min(innerWidth - 190, anchor.left)}px`;
+            menu.style.top = `${anchor.bottom + 6}px`;
+            menu.hidden = false;
+        },
+        hasBranch: node => children(node.id).length > 0,
+        // Toute la dimension, pour le menu « Exporter la carte » des Filtres.
+        exportItems: () => exportItems(forest(), fileName(layers.find(l => l.id === layerNumber)?.name || 'carte')),
+        apply,
+    };
+}

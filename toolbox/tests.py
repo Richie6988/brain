@@ -2280,6 +2280,31 @@ class DatasetTests(TestCase):
         self.assertEqual(r.status_code, 400)
 
 
+class OutlineTests(TestCase):
+    def test_xmind_new_and_legacy(self):
+        import io
+        import zipfile
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        def archive(name, content):
+            data = io.BytesIO()
+            with zipfile.ZipFile(data, 'w') as zf:
+                zf.writestr(name, content)
+            return SimpleUploadedFile('carte.xmind', data.getvalue())
+
+        self.client.force_login(NodzUser.objects.create_user(email='o@nodz.local', password='pw-123456'))
+        sheet = [{'rootTopic': {'title': 'Projet', 'children': {'attached': [{'title': 'Budget'}, {'title': 'Équipe', 'children': {'attached': [{'title': 'Alice'}]}}]}}}]
+        r = self.client.post('/api/v1/toolbox/outline', {'file': archive('content.json', json.dumps(sheet))})
+        self.assertEqual(r.json()['tree'], {'text': 'Projet', 'kids': [{'text': 'Budget', 'kids': []},
+                                            {'text': 'Équipe', 'kids': [{'text': 'Alice', 'kids': []}]}]})
+        legacy = ('<xmap-content xmlns="urn:xmind:xmap:xmlns:content:2.0"><sheet><topic><title>Racine</title><children>'
+                  '<topics type="attached"><topic><title>Idée</title></topic></topics></children></topic></sheet></xmap-content>')
+        r = self.client.post('/api/v1/toolbox/outline', {'file': archive('content.xml', legacy)})
+        self.assertEqual(r.json()['tree'], {'text': 'Racine', 'kids': [{'text': 'Idée', 'kids': []}]})
+        self.assertEqual(self.client.post('/api/v1/toolbox/outline', {'file': SimpleUploadedFile('x.xmind', b'nope')}).status_code, 400)
+
+
 class DimensionsTests(TestCase):
     def test_pinned_dimensions_and_counts(self):
         from nodzapp.models import Layer, Node
