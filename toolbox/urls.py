@@ -16,6 +16,7 @@ urlpatterns = [
     path('agents/<uuid:agent_id>', api.agent_detail),
     path('packs/<str:key>', api.pack),
     path('cuda', api.cuda_build),
+    path('sd', api.sd_build),
     path('dimensions', api.dimensions),
     path('gallery', api.gallery),
     path('documents', api.documents),

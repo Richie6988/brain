@@ -17,7 +17,7 @@ from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_
 
 from nodzapp.models import NodzUser
 
-from . import api, hub
+from . import api, drawing, hub
 from .broker import AGENT, BACKGROUND, CHAT, Broker, BrokerTimeout
 from .engine import Engine, EngineUnavailable
 from .models import Agent, LocalModel
@@ -1429,6 +1429,27 @@ class GuardianTests(TestCase):
             request, {**(context or self.CONTEXT), 'mode': 'think'})
         return engine
 
+    def test_chat_tools_force_the_command(self):
+        """Puces du chat : Dessin n'offre que draw (le Gardien trace lui-même sur un canvas) ; Web cherche d'abord et
+        donne les résultats avec la demande."""
+        from . import web
+
+        sketch = json.dumps({'strokes': [{'points': [[10, 10], [200, 200]]}]})
+        engine = self.think(json.dumps({'reflexion': 'Un chat.', 'calls': [{'op': 'draw', 'ref': 'new1', 'prompt': 'a cat', 'near': 'N-1'}]}),
+                            sketch, context={**self.CONTEXT, 'tool': 'draw'}, request='un chat')
+        self.assertEqual(engine.calls[0]['schema']['properties']['calls']['items']['properties']['op']['enum'], ['draw'])
+        self.assertIn('{"op":"draw"', engine.calls[0]['messages'][1]['content'])
+        self.assertEqual(engine.calls[1]['schema'], drawing.SKETCH_SCHEMA)  # le Gardien dessine avec son propre modèle
+        self.assertIn(('sketch', 'new1'), [(a['op'], a.get('ref')) for a in self.actions()])
+
+        self.events = []
+        found = [{'title': 'Kyoto', 'url': 'https://kyoto.jp', 'snippet': 'temples'}]
+        with mock.patch.object(web, 'search', return_value=found) as search:
+            engine = self.think(json.dumps({'reflexion': 'Kyoto.', 'calls': [{'op': 'put', 'ref': 'new1', 'text': 'Kyoto (https://kyoto.jp)'}]}),
+                                context={**self.CONTEXT, 'tool': 'web'}, request='que voir à Kyoto')
+        search.assert_called_once_with('que voir à Kyoto', limit=8)
+        self.assertIn('- Kyoto (https://kyoto.jp) : temples', engine.calls[0]['messages'][1]['content'])
+
     def test_think_mode_grows_thoughts_then_results_from_the_source(self):
         # Mode Pensée : chaque pensée devient un petit node sans cadre, relié à la précédente depuis le node source ;
         # les résultats se rattachent à la pensée qui les a produits. Aucune réponse en chat.
@@ -2091,6 +2112,28 @@ class WebTests(TestCase):
         with self.settings(GUARDIAN_WEB=False), self.assertRaisesMessage(web.WebError, 'désactivé'):
             web.search('kyoto')
 
+    def test_search_falls_back_engine_by_engine(self):
+        from . import web
+
+        lite = ("<a rel='nofollow' href='//duckduckgo.com/l/?uddg=https%3A%2F%2Fkyoto.jp%2F' class='result-link'>Kyoto <b>officiel</b></a>"
+                "<td class='result-snippet'>Temples et jardins</td>")
+
+        def get(url, data=None, headers=None, trusted=False):
+            if 'brave' in url:
+                self.assertEqual(headers['X-Subscription-Token'], 'clé')
+                raise web.WebError('quota dépassé')
+            if 'searx' in url:
+                self.assertTrue(trusted)  # instance de l'administrateur, éventuellement locale
+                return 'application/json', '{"results": []}'
+            if 'html.duckduckgo' in url:
+                return 'text/html', '<p>anomaly</p>'  # page de blocage : aucun résultat
+            return 'text/html', lite
+
+        with self.settings(BRAVE_API_KEY='clé', SEARXNG_URL='http://127.0.0.1:8888'), mock.patch.object(web, '_get', get):
+            self.assertEqual(web.search('kyoto'), [{'title': 'Kyoto officiel', 'url': 'https://kyoto.jp/', 'snippet': 'Temples et jardins'}])
+        with mock.patch.object(web, '_get', side_effect=web.WebError('hors ligne')), self.assertRaisesMessage(web.WebError, 'DuckDuckGo Lite : hors ligne'):
+            web.search('kyoto')
+
     def test_to_text(self):
         from . import web
 
@@ -2178,7 +2221,7 @@ class CudaBuildTests(TestCase):
         with tempfile.TemporaryDirectory() as folder:
             script = Path(folder) / 'cuda.sh'
             script.write_text('echo "Pas de carte NVIDIA"\nexit 2\n')
-            with mock.patch.object(cuda, 'SCRIPT', script):
+            with mock.patch.object(cuda.job, 'script', script):
                 r = self.client.post('/api/v1/toolbox/cuda', {'action': 'build'}, content_type='application/json')
                 self.assertEqual(r.status_code, 200)
                 for _ in range(50):
@@ -2189,6 +2232,29 @@ class CudaBuildTests(TestCase):
         self.assertEqual((data['code'], data['result'], data['log']), (2, 'pas de carte NVIDIA', ['Pas de carte NVIDIA']))
         r = self.client.post('/api/v1/toolbox/cuda', {'action': 'nimporte'}, content_type='application/json')
         self.assertEqual(r.status_code, 400)
+
+    def test_sd_install_is_staff_only_and_rescans_the_binary(self):
+        from . import imaging
+
+        user = NodzUser.objects.create_user(email='u@nodz.local', password='pw-123456')
+        admin = NodzUser.objects.create_user(email='root@nodz.local', password='pw-123456', is_staff=True)
+        self.client.force_login(user)
+        self.assertEqual(self.client.post('/api/v1/toolbox/sd', {}, content_type='application/json').status_code, 403)
+        self.client.force_login(admin)
+        imaging._binary['path'] = None  # « pas installé », gardé en mémoire avant la compilation
+        with tempfile.TemporaryDirectory() as folder:
+            script = Path(folder) / 'sd.sh'
+            script.write_text('echo "Compilation…"\nexit 0\n')
+            with mock.patch.object(imaging.installer, 'script', script), mock.patch.object(imaging, 'BUILT', Path(folder) / 'absent'):
+                self.assertEqual(self.client.post('/api/v1/toolbox/sd', {}, content_type='application/json').status_code, 200)
+                for _ in range(50):
+                    data = self.client.get('/api/v1/toolbox/sd').json()
+                    if not data['running']:
+                        break
+                    time.sleep(0.1)
+        self.assertEqual((data['code'], data['log']), (0, ['Compilation…']))
+        self.assertIn('installé', data['result'])
+        self.assertFalse(data['installed'])  # le binaire est recherché à nouveau (ici toujours absent)
 
 
 class DimensionsTests(TestCase):

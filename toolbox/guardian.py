@@ -116,7 +116,7 @@ PLAN_SCHEMA = {
                         'action', 'schedule_id', 'vision', 'goal', 'mission_id', 'project_name', 'new_value', 'kind', 'content',
                         'skill_id', 'summary', 'triggers', 'outcome', 'section_path', 'field_path', 'event_type', 'path',
                         'search_text', 'replace_text', 'message', 'filename', 'markdown', 'to', 'subject', 'body', 'command',
-                        'cwd', 'code', 'test_input', 'input', 'server', 'arguments')},
+                        'cwd', 'code', 'test_input', 'input', 'server', 'arguments', 'mode')},
                     **{k: {'type': 'number'} for k in ('budget', 'limit', 'strength', 'timeout')},
                     **{k: {'type': 'boolean'} for k in ('run', 'abort')},
                     **{k: {'type': 'array', 'items': {'type': 'string'}} for k in ('steps', 'files', 'packages', 'names', 'paths')},
@@ -164,8 +164,10 @@ THINK_OPS = ['think', 'put', 'nodes', 'style', 'link', 'grow', 'build', 'schema'
 # supprimer, aller dans les dimensions, lire (l'univers, un document, le web) avant de continuer sa pensée.
 THINK_TOOLS = ['update', 'archive', 'unlink', 'travel', 'goto', 'search_nodes', 'inventory', 'read_file',
                'templates', 'template_save', 'web_search', 'web_fetch',
-               'delegate', 'generate_image', 'edit_image', 'generate_pptx', 'generate_docx', 'generate_xlsx', 'generate_pdf']
+               'delegate', 'generate_image', 'draw', 'edit_image', 'generate_pptx', 'generate_docx', 'generate_xlsx', 'generate_pdf']
 FILE_OPS = ('generate_pptx', 'generate_docx', 'generate_xlsx', 'generate_pdf')  # le fichier devient un node avec son lien (pas un tour de lecture)
+# Outils choisis dans le chat (puce ou /commande) : la commande seule (image : prompt anglais détaillé pour FLUX).
+FORCED = {'draw': ['draw'], 'image': ['generate_image']}
 MAX_READS = 2  # tours de lecture d'une pensée : ce qu'elle a lu lui revient, elle continue
 # Noms des commandes pour le modèle : les mots qu'on emploie (« delete », « edit »), pas ceux du catalogue.
 THINK_NAMES = {'archive': 'delete', 'update': 'edit'}
@@ -195,7 +197,7 @@ MUSE = ('Avant ta réponse, pense librement à voix haute, sans JSON : fragments
 THINK_FIELDS = ('ref', 'near', 'text', 'source', 'target', 'color', 'shape', 'radius', 'content_type', 'children', 'links',
                 'layout', 'type', 'fill', 'rows', 'cols', 'items', 'cells', 'title', 'name', 'task', 'template',
                 'query', 'url', 'path', 'save_as', 'description', 'agent', 'prompt', 'strength', 'filename', 'slides', 'markdown',
-                'choices')
+                'choices', 'mode')
 # L'IA appelle l'IA : une branche confiée à une autre instance, qui la creuse depuis sa place dans l'arbre.
 MAX_EXPLORE, MAX_DEPTH, MAX_EXPLORATIONS = 2, 2, 4  # par réponse, profondeur, par demande
 LINEAGE = 8  # nodes du chemin dans l'arbre montrés au modèle
@@ -477,6 +479,7 @@ def intent(action, nodes):
     return {
         'ask': lambda a: 'Je te pose une question',
         'nodes': lambda a: f"Je pose {len(a.get('items') or [])} nodes",
+        'draw': lambda a: 'Je dessine',
         'note': lambda a: 'Je te laisse une note dans Échanges',
         'grow': lambda a: f"Je fais pousser « {short(str(a.get('text', '')).strip().splitlines()[0] if str(a.get('text', '')).strip() else '')} »",
         'put': lambda a: f"J'écris {name(a.get('ref'))}" if str(a.get('ref', '')).startswith('N-') else f"Je crée « {short(a.get('text'))} »",
@@ -852,6 +855,21 @@ class Guardian(IaquaOps):
             return None
         x, y = self.place(ref, action.get('near'), IMAGE_RADIUS if agent.role == Agent.Role.IMAGE else RADIUS)  # il attend le résultat
         self.nodes[ref]['text'] = f"{agent.name} {'dessine' if agent.role == Agent.Role.IMAGE else 'travaille'}…"
+        return {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(self.nodes[ref]['text']), 'color': None, 'shape': None}
+
+    def op_draw(self, action, agents):
+        """Le Gardien dessine lui-même, avec son modèle : un croquis au trait sur le canvas d'un node (par défaut) ou un
+        dessin vectoriel, dans un node nouveau ou existant."""
+        guardian = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
+        if guardian is None or guardian.model is None:
+            raise PlanError("le Gardien n'a pas de modèle pour dessiner")
+        mode = 'vector' if str(action.get('mode', '')).lower() in ('vector', 'vectoriel', 'svg') else 'sketch'
+        ref = action.get('ref') or f'img{len(self.nodes) + 1}'
+        self.jobs.append((guardian, action.get('prompt') or action.get('text', ''), ref, {'draw': mode, 'model': guardian.model}))
+        if ref in self.nodes:
+            return None
+        x, y = self.place(ref, action.get('near'), IMAGE_RADIUS)
+        self.nodes[ref]['text'] = 'Le Gardien dessine…'
         return {'op': 'create', 'ref': ref, 'x': x, 'y': y, 'text': text_html(self.nodes[ref]['text']), 'color': None, 'shape': None}
 
     def op_plug_agent(self, action, agents):
@@ -1348,10 +1366,11 @@ class Guardian(IaquaOps):
         self.emit('action', {'op': 'link', 'source': self.origin, 'target': ref})
 
     def delegate(self, agent, task, ref, extra=None):
-        self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task, 'role': agent.role})
+        drawing_ = bool(extra and extra.get('draw'))  # l'Illustrateur sans modèle d'image, ou le Gardien lui-même (draw)
+        self.emit('agent', {'agent': agent.name, 'ref': ref, 'task': task, 'role': Agent.Role.IMAGE if drawing_ else agent.role})
+        if drawing_:
+            return self.draw(agent, task, ref, extra['draw'], extra['model'])
         if agent.role == Agent.Role.IMAGE:
-            if extra and extra.get('draw'):
-                return self.draw(agent, task, ref, extra['draw'], extra['model'])
             return self.illustrate(agent, task, ref, extra or {})
         messages = [
             {'role': 'system', 'content': agent.system_prompt or prompts.default(agent.role)},
@@ -1395,7 +1414,7 @@ class Guardian(IaquaOps):
         """L'Illustrateur sans modèle d'image : un dessin vectoriel nettoyé (image du node) ou un croquis tracé sur le canvas
         du node. Ses consignes (Agents & modèles) s'ajoutent à celles du dessin. Un échec est écrit dans le node."""
         system = prompts.DRAW_SKETCH if mode == 'sketch' else prompts.DRAW_SVG
-        if agent.system_prompt:
+        if agent.system_prompt and agent.role != Agent.Role.ORCHESTRATOR:  # les consignes du Gardien ne parlent pas de dessin
             system += f'\nConsignes de l\'humain pour toi :\n{agent.system_prompt}'
         messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': task}]
         self.emit('intent', {'text': f"{agent.name} {'trace un croquis' if mode == 'sketch' else 'dessine'}"})
@@ -1468,6 +1487,22 @@ class Guardian(IaquaOps):
                                    priority=priorities.BACKGROUND, owner='gardien:préchauffage')
 
     # --- mode Pensée
+
+    def forced(self, tool, request):
+        """Consigne de l'outil choisi dans le chat ; la recherche web est faite d'abord, ses résultats viennent avec la
+        demande (pas de tour de lecture : le Gardien répond aussitôt à partir d'eux)."""
+        if tool == 'web':
+            self.emit('intent', {'text': 'Je cherche sur le web…'})
+            try:
+                results = web.search(request, limit=8)
+            except web.WebError as e:
+                raise PlanError(str(e)) from None
+            found = '\n'.join(f"- {r['title']} ({r['url']}) : {r['snippet']}" for r in results) or 'aucun résultat'
+            return (f'\n\nRésultats web pour « {short(request, 120)} » :\n{found}\n'
+                    'Réponds à partir de ces résultats : des nodes courts, chacun avec sa source (adresse) ; dis-le si rien ne répond.')
+        if tool in FORCED:
+            return f"\n\nRéponds par une seule commande : {tools.usage(FORCED[tool][0], self.docs)}"
+        return ''
 
     def think_system(self, agents):
         """Prompt système du mode Pensée : format, outils de création et consignes, fixes (lus une fois par llama.cpp),
@@ -1811,6 +1846,9 @@ class Guardian(IaquaOps):
         self.load(context)
         system = self.think_system(agents)
         guardian = self.guardian
+        tool = context.get('tool') if isinstance(context, dict) else None
+        if tool in FORCED:  # outil choisi dans le chat (puce ou /commande) : sa seule commande, même décochée
+            self.allowed = FORCED[tool]
         self.run = AIRun.objects.create(
             owner=self.user, model_id=str(guardian.model), mode=AIRun.Mode.COMMAND, prompt=request,
             context_node_ids=[n['id'] for n in self.context], status=AIRun.Status.RUNNING,
@@ -1819,7 +1857,7 @@ class Guardian(IaquaOps):
         try:
             self.source = self.source_node(request)
             self.dust = 0
-            messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': self.prompt(request)}]
+            messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': self.prompt(request) + self.forced(tool, request)}]
             if deep:
                 muse = [*messages[:1], {'role': 'user', 'content': f'{messages[1]["content"]}\n{MUSE}'}]
                 free = self.muse(guardian, muse)

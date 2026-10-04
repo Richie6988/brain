@@ -295,7 +295,7 @@ let queue = Promise.resolve();
 // s'affichent dans le chat ; depuis un node, les réponses courtes passent aussi en toast. Contexte rechargé à chaque
 // demande : depuis le chat, avec la conversation ; directe (un node, la pastille sur une sélection), sans elle, et le
 // serveur ne montre que ces nodes-là.
-async function ask(node, text, attached = [], direct = !!node) {
+async function ask(node, text, attached = [], direct = !!node, tool = null) {  // tool : web, draw, image (outil imposé, mode Pensée)
     let actions = Promise.resolve();
     const history = chat.recent();  // la conversation jusqu'ici : le Gardien la suit
     chat.add('user', text, node ? `node ${node.id}` : attached.length ? `${attached.length} node${attached.length > 1 ? 's' : ''} en contexte` : '');
@@ -343,11 +343,11 @@ async function ask(node, text, attached = [], direct = !!node) {
         const now = new Date();  // l'heure de l'humain : ses rappels (« vendredi 9 h »)
         const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} `
             + `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}, ${now.toLocaleDateString('fr-FR', { weekday: 'long' })}`;
-        await api.command({ prompt: text, context: { ...context, now: stamp, mode: chat.mode(), ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
+        await api.command({ prompt: text, context: { ...context, now: stamp, mode: tool ? 'think' : chat.mode(), ...(tool ? { tool } : {}), ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
             source: direct ? 'node' : 'chat', ...(history.length && !direct ? { history } : {}) } }, (type, data) => {
             if (type === 'thinking') {
                 thought(data);
-                if (chat.mode() !== 'auto') chat.mascot.muse(data.text);  // sa réflexion, en direct sur la mascotte (en Auto : du JSON brut)
+                if (tool || chat.mode() !== 'auto') chat.mascot.muse(data.text);  // sa réflexion, en direct sur la mascotte (en Auto : du JSON brut)
             }
             else if (type === 'stopped') stopped = true;
             else if (type === 'text' || type === 'notice') reply(type, data.text);
@@ -419,9 +419,9 @@ async function ask(node, text, attached = [], direct = !!node) {
 const chat = createChat({
     // Changer de mode : le modèle lit en arrière-plan le prompt système de ce mode.
     onMode: mode => api.request('POST', 'toolbox/warm', { mode }).catch(() => {}),
-    onSend: (text, attached, direct = false) => {
+    onSend: (text, attached, direct = false, tool = null) => {
         if (text === 'Plus tard') return chat.add('notice', 'D\'accord, je n\'y touche pas.');  // une note écartée : rien à demander au modèle
-        queue = queue.then(() => ask(null, text, attached, direct));
+        queue = queue.then(() => ask(null, text, attached, direct, tool));
     },
     // Stop : le serveur coupe le modèle à son prochain jeton ; la lecture du prompt, elle, va à son terme avant.
     onStop: () => {

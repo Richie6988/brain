@@ -26,6 +26,15 @@ const THINK_KEEP = 6000;  // caractères de réflexion gardés par message
 // Suggestions en pastilles au-dessus de la saisie : un clic pose la demande dans le champ, à compléter ou envoyer.
 const IDEAS = ['Résume cette dimension', 'Relie les idées proches', 'Fais un SWOT de ', 'Range en kanban'];
 
+// Outils imposés : clé envoyée au serveur, puce, infobulle, invite de saisie.
+const TOOLS = [
+    ['web', 'Web', 'Recherche web : le Gardien répond à partir des résultats, sources citées (/web)', 'Que chercher sur le web ?'],
+    ['draw', 'Dessin', 'Le Gardien dessine lui-même un croquis sur un node (/dessin)', 'Que dessiner ?'],
+    ['image', 'Image', 'Image générée par FLUX, ou un dessin si FLUX n\'est pas installé (/image)', 'Quelle image ?'],
+];
+const SLASH = /^\/(web|dessin|draw|image|img)\b\s*([\s\S]*)$/i;
+const SLASH_TOOLS = { web: 'web', dessin: 'draw', draw: 'draw', image: 'image', img: 'image' };
+
 export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onGoto = () => {}, onExchanges = () => {}, onMode = () => {} }) {
     let mode = 'think';
     try {
@@ -55,6 +64,15 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
     const input = h('textarea', { rows: 1, placeholder: PLACEHOLDER[mode], 'aria-label': 'Message au Gardien' });
     const send = h('button', { type: 'submit', class: 'gc-send', title: 'Envoyer (Entrée)' }, '↑');
     const form = h('form', { class: 'gc-form' }, input, send);
+    // Outil imposé pour le prochain message (puce, ou /web, /dessin, /image en tête du message) : une fois, puis il s'éteint.
+    let tool = null;
+    const toolChips = h('div', { class: 'gc-tools', role: 'group', 'aria-label': 'Outil du prochain message' },
+        TOOLS.map(([key, label, title]) => h('button', { type: 'button', 'data-tool': key, title, onclick: () => pick(tool === key ? null : key) }, label)));
+    function pick(next) {
+        tool = next;
+        toolChips.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tool === tool));
+        input.placeholder = tool ? TOOLS.find(([key]) => key === tool)[3] : PLACEHOLDER[mode];
+    }
     let attached = [];  // nodes joints au prochain message (pastille, sélecteur de contexte)
     let ignored = '';  // sélection retirée du contexte par ×, tant qu'elle ne change pas
     let working = false;  // une demande est en cours : le bouton d'envoi l'arrête
@@ -113,7 +131,7 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), state), modes,
             h('span', { class: 'gc-more-wrap' }, more, menu),
             h('button', { type: 'button', class: 'gc-close', title: 'Réduire', onclick: () => toggle(false) }, '×')),
-        log, status, tray, ideas, form);
+        log, status, tray, ideas, toolChips, form);
     // Deux nodes ou plus sélectionnés (Pensée, Profond) : la pastille envoie aussitôt, la sélection est le contexte.
     const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Gardien', onclick: () => {
         if (mode !== 'auto' && !working && selection().length > 1) onSend('Pense à partir de ces nodes.', [], true);
@@ -146,12 +164,15 @@ export function createChat({ onSend, onStop = () => {}, onMemory = () => {}, onG
         event.preventDefault();
         if (working) return onStop();  // pendant une réflexion, le bouton d'envoi est le stop
         const nodes = context();
+        const slash = input.value.trim().match(SLASH);
+        if (slash) pick(SLASH_TOOLS[slash[1].toLowerCase()]);
         // Pensée : la consigne est optionnelle, un node en contexte suffit.
-        const text = input.value.trim() || (mode !== 'auto' && nodes.length ? 'Pense à partir de ce node.' : '');
+        const text = (slash ? slash[2] : input.value).trim() || (mode !== 'auto' && nodes.length ? 'Pense à partir de ce node.' : '');
         if (!text) return;
         input.value = '';
         grow();
-        onSend(text, nodes.map(n => n.id));
+        onSend(text, nodes.map(n => n.id), false, tool);
+        pick(null);
         attached = [];  // contexte de cette demande seulement
         renderTray();
     });

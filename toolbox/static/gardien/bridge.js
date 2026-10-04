@@ -9,6 +9,7 @@ import { dragging } from './gesture.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const SKETCH = 360;  // côté d'un node de croquis posé par l'IA (le canvas de Nodz en fait 750)
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
 export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {},
@@ -22,7 +23,8 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
     svg.addEventListener('wheel', event => { if (event.isTrusted) cut(); }, true);
 
     const nodeOf = ref => document.getElementById(refs.get(ref) || ref);
-    const typeSelect = node => node.querySelector('select[id^="nodetypedropdown-"]');  // pas le choix de police
+    // Le choix du type (pas celui de la police) : dans la barre d'outils du node, rangée hors du node (node.tools).
+    const typeSelect = node => (node.tools?.type || node).querySelector('select[id^="nodetypedropdown-"]');
     const rootX = () => parseFloat(root.getAttribute('x'));
     const rootY = () => parseFloat(root.getAttribute('y'));
     // Coordonnées de Nodz (x, y vers le haut) ↔ écran, mêmes formules que createNode.
@@ -218,12 +220,17 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             const error = result !== 'ok' ? result : lines.find(l => /Traceback|Error\b|Erreur/.test(l));
             if (error) onCodeError(node, lines.slice(-6).join('\n') || error);
         },
-        // Croquis de l'Illustrateur : le node passe en dessin et les traits s'y tracent un à un, puis il est sauvé.
-        async sketch({ ref, operations }) {
+        // Croquis de l'Illustrateur ou du Gardien : le node passe en dessin, à la taille du croquis (SKETCH de côté),
+        // et les traits, dessinés pour un canvas de 750, s'y tracent un à un à l'échelle ; puis il est sauvé.
+        async sketch({ ref, operations: drawn }) {
             const node = nodeOf(ref);
             const select = typeSelect(node);
             select.value = 'canvas';
             select.dispatchEvent(new Event('change'));
+            nodeSizing(node, SKETCH, SKETCH);
+            const k = SKETCH / 750, at = p => ({ x: p.x * k, y: p.y * k });
+            const operations = drawn.map(o => ({ ...o, lineWidth: Math.max(1, o.lineWidth * k), ...(o.points ? { points: o.points.map(at) } : {}),
+                ...(o.center ? { center: o.center.map(at), radius: o.radius * k } : {}) }));
             node.setAttribute('canvascontent', JSON.stringify(operations));
             const canvasId = node.children[0].children[3].id;
             for (let shown = 1; shown <= operations.length; shown++) {

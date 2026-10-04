@@ -202,6 +202,8 @@ GUARDIAN_SHELL = os.environ.get('GUARDIAN_SHELL', '0') == '1'  # shell, Python e
 MCP_SERVERS = os.environ.get('MCP_SERVERS', '')  # JSON : {"nom": {"url": "https://…/mcp", "headers": {}, "description": "…"}}
 SD_BIN = os.environ.get('SD_BIN', '')  # stable-diffusion.cpp (vide = cherché dans le PATH)
 GUARDIAN_WEB = os.environ.get('GUARDIAN_WEB', '1') == '1'  # recherche et lecture web par le Gardien
+BRAVE_API_KEY = os.environ.get('BRAVE_API_KEY', '')  # recherche web par Brave Search (facultatif, la plus fiable)
+SEARXNG_URL = os.environ.get('SEARXNG_URL', '').rstrip('/')  # instance SearXNG (facultatif, peut être locale)
 GUARDIAN_WORKERS = int(os.environ.get('GUARDIAN_WORKERS', '1'))  # demandes au Gardien traitées en même temps
 GUARDIAN_QUEUE = int(os.environ.get('GUARDIAN_QUEUE', '8'))  # demandes en attente au plus
 

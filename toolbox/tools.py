@@ -229,6 +229,9 @@ TOOLS = [
     {'op': 'generate_image', 'category': 'Images', 'source': IAQUA, 'iaqua': 'generate_image', 'label': 'Générer une image',
      'doc': '{"op":"generate_image","prompt":"prompt en anglais","ref":"new1","near":"N-1","mode":"vector|sketch"} : l\'agent '
             'd\'image dessine dans un node (FLUX / SD s\'il est installé, sinon dessin vectoriel ou croquis).'},
+    {'op': 'draw', 'category': 'Images', 'source': NODZ, 'label': 'Dessiner soi-même (croquis ou vectoriel)',
+     'doc': '{"op":"draw","prompt":"ce qu\'il faut dessiner, précis","ref":"new1","near":"N-1","mode":"sketch|vector"} : tu dessines '
+            'toi-même : sketch, un croquis au trait sur le canvas du node ; vector, un dessin vectoriel en image.'},
     {'op': 'edit_image', 'category': 'Images', 'source': IAQUA, 'iaqua': 'edit_image', 'label': 'Retoucher une image',
      'doc': '{"op":"edit_image","ref":"N-5","prompt":"ce qui change","strength":0.6} : img2img sur un node image ; strength de 0 (proche) à 1 (libre).'},
     # --- Agents (compléments d'iAqua)

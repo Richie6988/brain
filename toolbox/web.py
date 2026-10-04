@@ -1,11 +1,14 @@
 """Recherche et lecture web du Gardien, comme web_search / web_fetch d'iAqua.
 
-Recherche par l'API HTML de DuckDuckGo (sans clé). Lecture d'une page publique seulement : chaque
-adresse (redirections comprises) est résolue et refusée si elle vise le réseau interne du serveur.
+Recherche en cascade, le premier moteur qui trouve répond : Brave Search (BRAVE_API_KEY), SearXNG (SEARXNG_URL,
+une instance de l'administrateur, éventuellement locale), puis DuckDuckGo sans clé (HTML, puis Lite : la page HTML
+refuse souvent les serveurs). Lecture d'une page publique seulement : chaque adresse (redirections comprises) est
+résolue et refusée si elle vise le réseau interne du serveur.
 """
 
 import html
 import ipaddress
+import json
 import re
 import socket
 import urllib.parse
@@ -44,11 +47,12 @@ class _Redirects(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def _get(url, data=None):
+def _get(url, data=None, headers=None, trusted=False):
+    """Une page ; `trusted` : adresse choisie par l'administrateur (SEARXNG_URL), qui peut être interne."""
     if not settings.GUARDIAN_WEB:
         raise WebError('le web est désactivé sur ce serveur (GUARDIAN_WEB=0)')
-    opener = urllib.request.build_opener(_Redirects)
-    request = urllib.request.Request(_public(url), data=data, headers={'User-Agent': UA})
+    opener = urllib.request.build_opener() if trusted else urllib.request.build_opener(_Redirects)
+    request = urllib.request.Request(url if trusted else _public(url), data=data, headers={'User-Agent': UA, **(headers or {})})
     try:
         with opener.open(request, timeout=TIMEOUT) as response:
             kind = response.headers.get_content_type()
@@ -66,22 +70,67 @@ def to_text(markup):
     return '\n'.join(' '.join(line.split()) for line in text.splitlines() if line.strip())
 
 
-def search(query, limit=5):
-    """[{title, url, snippet}] des premiers résultats."""
+def _brave(query, limit):
+    _, body = _get('https://api.search.brave.com/res/v1/web/search?' + urllib.parse.urlencode({'q': query, 'count': limit}),
+                   headers={'Accept': 'application/json', 'X-Subscription-Token': settings.BRAVE_API_KEY})
+    items = (json.loads(body).get('web') or {}).get('results') or []
+    return [{'title': to_text(i.get('title', '')), 'url': i.get('url', ''), 'snippet': to_text(i.get('description', ''))} for i in items]
+
+
+def _searxng(query, limit):
+    _, body = _get(f'{settings.SEARXNG_URL}/search?' + urllib.parse.urlencode({'q': query, 'format': 'json'}), trusted=True)
+    items = json.loads(body).get('results') or []
+    return [{'title': to_text(i.get('title', '')), 'url': i.get('url', ''), 'snippet': to_text(i.get('content', ''))} for i in items]
+
+
+def _unwrap(url):
+    url = html.unescape(url)
+    if 'uddg=' in url:  # lien de redirection de DuckDuckGo
+        url = urllib.parse.unquote(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)['uddg'][0])
+    return 'https:' + url if url.startswith('//') else url
+
+
+def _duckduckgo(query, limit):
     _, page = _get('https://html.duckduckgo.com/html/', urllib.parse.urlencode({'q': query}).encode())
     results = []
     for block in re.findall(r'(?s)<div class="result.*?</div>\s*</div>', page):
         link = re.search(r'class="result__a" href="([^"]+)"[^>]*>(.*?)</a>', block, re.S)
-        if not link:
-            continue
-        url = html.unescape(link.group(1))
-        if 'uddg=' in url:  # lien de redirection de DuckDuckGo
-            url = urllib.parse.unquote(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)['uddg'][0])
-        snippet = re.search(r'class="result__snippet"[^>]*>(.*?)</a>', block, re.S)
-        results.append({'title': to_text(link.group(2)), 'url': url, 'snippet': to_text(snippet.group(1)) if snippet else ''})
-        if len(results) >= limit:
-            break
+        if link:
+            snippet = re.search(r'class="result__snippet"[^>]*>(.*?)</a>', block, re.S)
+            results.append({'title': to_text(link.group(2)), 'url': _unwrap(link.group(1)), 'snippet': to_text(snippet.group(1)) if snippet else ''})
     return results
+
+
+def _duckduckgo_lite(query, limit):
+    _, page = _get('https://lite.duckduckgo.com/lite/', urllib.parse.urlencode({'q': query}).encode())
+    links = re.findall(r"""<a[^>]+href=["']([^"']+)["'][^>]*class=["']result-link["'][^>]*>(.*?)</a>""", page, re.S)
+    snippets = re.findall(r"""class=["']result-snippet["'][^>]*>(.*?)</td>""", page, re.S)
+    return [{'title': to_text(title), 'url': _unwrap(url), 'snippet': to_text(snippets[i]) if i < len(snippets) else ''}
+            for i, (url, title) in enumerate(links)]
+
+
+ENGINES = [('Brave', _brave, lambda: bool(settings.BRAVE_API_KEY)), ('SearXNG', _searxng, lambda: bool(settings.SEARXNG_URL)),
+           ('DuckDuckGo', _duckduckgo, lambda: True), ('DuckDuckGo Lite', _duckduckgo_lite, lambda: True)]
+
+
+def search(query, limit=5):
+    """[{title, url, snippet}] des premiers résultats, du premier moteur qui en trouve ; aucun résultat si tous ont
+    répondu sans rien trouver, une erreur (moteur par moteur) si aucun n'a répondu."""
+    failures, answered = [], False
+    for name, engine, on in ENGINES:
+        if not on():
+            continue
+        try:
+            found = [r for r in engine(query, limit) if r['url'].startswith(('http://', 'https://'))]
+        except (WebError, ValueError, KeyError) as e:  # ValueError : réponse illisible (JSON)
+            failures.append(f'{name} : {e}')
+            continue
+        answered = True
+        if found:
+            return found[:limit]
+    if not answered:
+        raise WebError('recherche impossible (' + ' ; '.join(failures) + ')')
+    return []
 
 
 def fetch(url):

@@ -330,6 +330,15 @@ def documents(request, body):
 
 
 @api('GET', 'POST')
+def sd_build(request, body):
+    """Compilation de stable-diffusion.cpp (deploy/sd.sh), pour les images FLUX : administrateur. Sans redémarrage."""
+    staff_only(request)
+    if request.method == 'POST' and not imaging.installer.build():
+        raise ChangeError('une compilation est déjà en cours')
+    return JsonResponse({**imaging.installer.state(), 'installed': bool(imaging.binary())})
+
+
+@api('GET', 'POST')
 def cuda_build(request, body):
     """Compilation de llama-cpp-python avec CUDA (deploy/cuda.sh) et redémarrage de Nodz : administrateur."""
     staff_only(request)

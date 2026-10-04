@@ -189,6 +189,13 @@ body:has(.universe.lightmode) .gardien-whisper { color: #7a6aa8; text-shadow: 0 
     background: rgba(104, 72, 166, 0.18); border: 1px solid rgba(184, 154, 242, 0.35); transition: background 0.15s, transform 0.15s;
 }
 .gc-ideas button:hover { color: #fff; background: rgba(104, 72, 166, 0.5); transform: translateY(-1px); }
+/* Outil imposé au prochain message (Web, Dessin, Image) : puces au-dessus de la saisie, une allumée au plus. */
+.gc-tools { display: flex; gap: 6px; padding: 0 12px 6px; }
+.gc-tools button { font: inherit; font-size: 10px; cursor: pointer; padding: 3px 10px; border-radius: 999px; color: #94a3b8;
+    background: transparent; border: 1px solid rgba(148, 163, 184, 0.35); transition: background 0.15s, color 0.15s; }
+.gc-tools button:hover { color: #e2e8f0; border-color: rgba(184, 154, 242, 0.6); }
+#gardien-chat .gc-tools button.on { color: #050c17; background: #33FF99; border-color: #33FF99; opacity: 1; font-weight: 600; }
+body:has(.universe.lightmode) .gc-tools button:not(.on) { color: #5b4a78; }
 .gc-attach { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; }
 .gc-attach:empty { display: none; }
 .gc-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; font-size: 10px;

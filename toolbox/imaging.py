@@ -18,6 +18,7 @@ from pathlib import Path
 from django.conf import settings
 
 from . import hub
+from .cuda import ScriptJob
 
 CANDIDATES = ['sd', 'sd-cli', 'sd-diffusion', 'sdcpp', 'stable-diffusion']
 COMPANIONS = {
@@ -26,7 +27,12 @@ COMPANIONS = {
     't5xxl': [r'^t5.*xxl.*\.(gguf|safetensors)$', r'^t5.*encoder.*\.gguf$'],
 }
 TIMEOUT = 45 * 60
+BUILT = Path(settings.BASE_DIR) / 'var' / 'sd' / 'bin' / 'sd'  # compilé par deploy/sd.sh
 _binary = {}
+# Compilation de stable-diffusion.cpp depuis Agents & modèles (administrateur) ; à la fin, le binaire est recherché à nouveau.
+installer = ScriptJob('sd.sh', {0: 'stable-diffusion.cpp installé : les images FLUX sont prêtes',
+                                3: 'outils de compilation absents (git, cmake, build-essential)', 5: 'la compilation a échoué'},
+                      done=lambda code: _binary.clear())
 
 
 class ImageUnavailable(Exception):
@@ -34,10 +40,10 @@ class ImageUnavailable(Exception):
 
 
 def binary():
-    """Chemin du binaire stable-diffusion.cpp, ou None (SD_BIN, sinon cherché dans le PATH)."""
+    """Chemin du binaire stable-diffusion.cpp, ou None (SD_BIN, sinon celui de deploy/sd.sh, sinon cherché dans le PATH)."""
     if 'path' not in _binary:
         found = None
-        for name in ([settings.SD_BIN] if settings.SD_BIN else CANDIDATES):
+        for name in ([settings.SD_BIN] if settings.SD_BIN else [str(BUILT), *CANDIDATES]):
             path = shutil.which(name) or (name if Path(name).is_file() else None)
             if not path:
                 continue
