@@ -287,9 +287,6 @@ body:has(.universe.lightmode) {
 /* Le curseur de saisie faisait défiler la boîte du node (foreignObject, overflow hidden) en fin de ligne longue : le texte
    restait décalé et rogné. Avec clip, même découpe, mais plus aucun défilement possible. */
 .node-group > foreignObject { overflow: clip; }
-/* Survol : le contour s'épaissit et luit, le node se laisse saisir (la sélection garde son contour jaune). */
-.node-group > :is(.hitbox, .squareShape) { transition: stroke-width 0.12s ease, filter 0.12s ease; }
-.node-group:hover > :is(.hitbox, .squareShape):not(.selectednode) { stroke-width: 7px !important; filter: drop-shadow(0 0 6px rgba(184, 154, 242, 0.6)); }
 body:has(.universe.lightmode) .node-text-input { color: #2a0f3a; text-shadow: 0 0 3px #f4efe6, 0 0 1px #f4efe6; }
 
 /* Icônes des barres (format, couleur, forme, verrou, calendrier, portail, fichiers, dessin) : les SVG de

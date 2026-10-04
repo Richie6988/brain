@@ -27,6 +27,13 @@
 #gardien-send kbd { font: inherit; font-size: 9px; opacity: 0.75; padding: 1px 5px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 6px; }
 @keyframes gardien-appear { from { opacity: 0; transform: scale(0.85); } }
 
+/* Zone de saisie du node (grab.js) : l'anneau où Nodz prend le node, dessiné par-dessus, sans prendre la souris. */
+#gardien-grab { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 3; pointer-events: none; overflow: visible; }
+#gardien-grab path { fill: rgba(184, 154, 242, 0.16); stroke: rgba(184, 154, 242, 0.55); stroke-width: 1; fill-rule: evenodd;
+    filter: drop-shadow(0 0 6px rgba(30, 144, 255, 0.45)); opacity: 0; transition: opacity 0.12s ease; }
+#gardien-grab.on path { opacity: 1; }
+body:has(.universe.lightmode) #gardien-grab path { fill: rgba(104, 72, 166, 0.12); stroke: rgba(104, 72, 166, 0.5); }
+
 /* Chat du Gardien, en bas à droite, au-dessus du compteur de nodes hors champ du coin */
 #gardien-chat { position: fixed; right: 20px; bottom: 84px; z-index: 32; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
     font: 12px 'Cascadia Code', monospace; }

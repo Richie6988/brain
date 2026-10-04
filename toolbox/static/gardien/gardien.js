@@ -14,6 +14,7 @@ import { createCutter } from './cutter.js';
 import { createIde } from './ide.js';
 import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
+import { createGrab } from './grab.js';
 import { createGuide } from './guide.js';
 import { createHistory } from './history.js';
 import { createLabels } from './labels.js';
@@ -123,6 +124,7 @@ const joined = node => ({ id: node.id, text: (node.children[0]?.children[0]?.inn
 const filters = createFilters({ onAttach: items => chat.attach(items) });  // sélecteur de contexte au-dessus du dock
 createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
+createGrab();  // zone de saisie du node allumée au survol
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createLabels();  // libellés d'icônes au style HYPERSPACE, à la place des infobulles
 createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estompées, masquées
