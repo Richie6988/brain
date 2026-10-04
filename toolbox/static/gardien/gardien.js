@@ -12,7 +12,8 @@ import { createBridge } from './bridge.js';
 import { createChat } from './chat.js';
 import { createCorners } from './corners.js';
 import { createCutter } from './cutter.js';
-import { createDataset, describe, download, stamp, toCsv } from './dataset.js';
+import { createDataset } from './dataset.js';
+import { createExchange } from './exchange.js';
 import { createIde } from './ide.js';
 import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
@@ -90,8 +91,8 @@ const signedIn = setInterval(() => {
 }, 400);
 
 const joined = node => ({ id: node.id, text: (node.children[0]?.children[0]?.innerText || '').trim() });  // node joint au chat
-const branches = createBranches({ say, download });  // replier, ranger en arbre, exporter Markdown / OPML / FreeMind
-const filters = createFilters({ onAttach: items => chat.attach(items), onImport: () => dataset.pick(), mapExports: () => branches.exportItems() });  // sélecteur de contexte au-dessus du dock
+const branches = createBranches({ say });  // replier, ranger en arbre (menu Branche de la pastille)
+const filters = createFilters({ onAttach: items => chat.attach(items) });  // sélecteur de contexte au-dessus du dock
 const dimensions = createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
 createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
 createGrab();  // zone de saisie du node allumée au survol
@@ -105,7 +106,6 @@ const guide = createGuide();  // présentation et tous les contrôles : bouton �
 createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au relâcher
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
-    onExport: nodes => download(`nodz-selection-${stamp()}.csv`, toCsv(nodes.map(describe))),
     onBranch: (node, anchor) => branches.open(node, anchor),
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node),
     onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); sfx.play('arrange'); physics.arrange(nodes); },
@@ -120,7 +120,8 @@ const fixed = new Set();  // nodes de code déjà renvoyés une fois au Gardien 
 const reminders = createReminders({ bridge, say, sfx });  // rappels : compte à rebours, notifications, panneau de la cloche
 const tour = createTour({ bridge, say });
 const room = createRoom({ bridge, say });
-const dataset = createDataset({ bridge, say, onDone: refs => bridge.perform({ op: 'frame', refs }) });  // import automatique (Filtres)  // salons multijoueur : bouton Partager, curseurs, gestes en direct
+const dataset = createDataset({ bridge, say, onDone: refs => bridge.perform({ op: 'frame', refs }) });  // import de cartes et de tableaux
+createExchange({ dataset, filters });  // bouton Export du dock : tout l'import et l'export  // salons multijoueur : bouton Partager, curseurs, gestes en direct
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
 const schemas = createSchemas({ bridge });  // galerie de modèles : schémas faits de nodes et de liens
 const ide = createIde({ say });  // IDE des nodes de code, exécution dans le navigateur ou sur le serveur

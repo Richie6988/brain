@@ -268,7 +268,7 @@ export async function plantTree(root, title, { bridge, center }) {
     return { refs: [...spots.keys()], placed: count };
 }
 
-// Import d'un dataset (« Importer un dataset » des Filtres) : choisir un fichier, l'arbre se pose, la caméra le cadre.
+// Import d'un fichier (panneau Importer / Exporter, exchange.js) : choisir un fichier, l'arbre se pose, la caméra le cadre.
 // Pas de bouton de plus dans le dock : il en changerait la largeur, et le dock est la zone des gestes de l'univers.
 export function createDataset({ bridge, say, onDone = () => {} }) {
     const picker = Object.assign(document.createElement('input'), { type: 'file', hidden: true,

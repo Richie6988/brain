@@ -12,7 +12,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const SKETCH = 360;  // côté d'un node de croquis posé par l'IA (le canvas de Nodz en fait 750)
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onExport = () => {}, onBranch = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {},
+export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onBranch = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {},
     onCodeError = () => {} }) {
     let ide = null;  // l'IDE des nodes de code (gardien.js le branche) : le Codeur y écrit et y exécute
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
@@ -447,9 +447,8 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 + '<button type="button" class="arrange" title="Ordonner ces nodes : ils se repoussent et se posent">Ordonner</button>'
                 + '<button type="button" class="up" title="Sélectionner aussi tous ses parents, de lien en lien">▲ Amont</button>'
                 + '<button type="button" class="down" title="Sélectionner aussi tous ses enfants, de lien en lien">▼ Aval</button>'
-                + '<button type="button" class="csv" title="Exporter ces nodes en CSV (texte, type, couleur, position, rappel, liens)">CSV</button>'
-                + '<button type="button" class="branch" title="Branche : ranger en arbre, replier, exporter (Markdown, OPML, FreeMind)">Branche ▾</button>';
-            const [sendButton, visitButton, arrangeButton, upButton, downButton, csvButton, branchButton] = pill.children;
+                + '<button type="button" class="branch" title="Branche : ranger en arbre, replier">Branche ▾</button>';
+            const [sendButton, visitButton, arrangeButton, upButton, downButton, branchButton] = pill.children;
             // Les nodes reliés à `node` en remontant (parents : Node1 → Node2 = node) ou en descendant, de proche en proche,
             // par les seuls liens visibles : un node masqué par les filtres coupe la chaîne (sinon les nodes au-delà
             // semblaient pris sans lien).
@@ -534,7 +533,6 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 if (target && !sendButton.disabled) fire(target);
             });
             // Sélection de zone : la physique de répulsion range ces nodes, les autres restent en place.
-            csvButton.addEventListener('click', () => onExport(group.filter(n => n.isConnected)));
             branchButton.addEventListener('click', () => { if (target) onBranch(target, branchButton.getBoundingClientRect()); });
             arrangeButton.addEventListener('click', () => {
                 const nodes = group.filter(n => n.isConnected);

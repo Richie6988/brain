@@ -58,10 +58,9 @@ const GARDIEN = [
     ['Chat', 'Bulle en bas à droite. Les nodes sélectionnés partent d\'eux-mêmes en contexte ; × les retire'],
     ['Modes', 'Pensée : il pense en nodes ; Profond : réflexion libre d\'abord ; Auto : web, fichiers, agents et missions'],
     ['Bulle avec 2 nodes ou plus', 'Envoi direct : la sélection est tout le contexte'],
-    ['Branche ▾', 'Pastille d\'un node qui a des enfants : ranger la branche en arbre, la replier (une pastille +N la rappelle, '
-        + 'un clic la déplie), l\'exporter en Markdown, OPML ou FreeMind. Filtres : « Exporter la carte » pour toute la dimension'],
-    ['Dataset', 'Filtres, « Importer un dataset » : une carte (Markdown, texte indenté, OPML, FreeMind, XMind) se pose en arbre ; un CSV, TSV, JSON ou Excel devient un arbre de nodes (une ligne = un node), libellé et '
-        + 'groupes devinés. Export CSV : bouton CSV de la pastille (sélection) ou « Exporter CSV » des Filtres (cochés, sinon ceux gardés)'],
+    ['Branche ▾', 'Pastille d\'un node qui a des enfants : ranger la branche en arbre, ou la replier (une pastille +N la rappelle, un clic la déplie)'],
+    ['Importer / Exporter', 'Bouton Export du dock : importer une carte (Markdown, OPML, FreeMind, XMind) ou un tableau (CSV, Excel, JSON) ; '
+        + 'exporter la sélection, la dimension ou les nodes filtrés en CSV, Markdown, OPML, FreeMind ou PDF'],
     ['Web, Dessin, Image', 'Puces au-dessus de la saisie, ou /web, /dessin, /image en tête du message : le prochain message part avec '
         + 'cet outil (recherche web sourcée, croquis du Gardien sur un node, image FLUX ou dessin si FLUX manque)'],
     ['Visite', 'Espace : pause ; ← / → : précédent, suivant ; Échap : arrêter'],

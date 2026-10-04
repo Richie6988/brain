@@ -17,8 +17,8 @@
     box-shadow: 0 0 14px rgba(104, 72, 166, 0.55); transition: filter 0.15s, box-shadow 0.15s;
 }
 #gardien-send .send { padding-left: 5px; }
-#gardien-send.multi .visit, #gardien-send.multi kbd, #gardien-send:not(.multi) .arrange, #gardien-send:not(.multi) .csv { display: none; }
-#gardien-send .arrange, #gardien-send .csv, #gardien-send .branch { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
+#gardien-send.multi .visit, #gardien-send.multi kbd, #gardien-send:not(.multi) .arrange { display: none; }
+#gardien-send .arrange, #gardien-send .branch { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
 #gardien-send .visit, #gardien-send .up, #gardien-send .down { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
 #gardien-send.multi .up, #gardien-send.multi .down, #gardien-send button[hidden] { display: none; }
 #gardien-send button:hover:not(:disabled) { filter: brightness(1.12); box-shadow: 0 0 20px rgba(30, 144, 255, 0.7); }
@@ -1139,8 +1139,9 @@ li.soon .gr-left { color: #ffb454; }
 body:has(.universe.lightmode) #gardien-room { color: #440852; background: rgba(255, 255, 255, 0.94); }
 body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #gardien-room .gsal-link input { color: #440852; background: #fff; }
 
-/* Branches (branches.js) : descendants repliés cachés, pastille +N pour déplier, menu Branche de la pastille d'un node. */
-.node-group.gardien-folded, .link.gardien-folded { display: none; }
+/* Branches (branches.js) : descendants repliés cachés (!important : en déplaçant la vue, Nodz pose display:block sur
+   chaque node à l'écran), pastille +N pour déplier, menu Branche de la pastille d'un node. */
+.node-group.gardien-folded, .link.gardien-folded { display: none !important; }
 #gardien-folds { position: fixed; inset: 0; z-index: 25; pointer-events: none; }
 #gardien-folds .gf-badge { position: absolute; left: 0; top: 0; pointer-events: auto; min-width: 26px; height: 20px; padding: 0 7px; cursor: pointer;
     font: 600 11px 'Cascadia Code', monospace; color: #050c17; background: #b89af2; border: 0; border-radius: 10px; box-shadow: 0 0 10px rgba(184, 154, 242, 0.6); }
@@ -1154,9 +1155,32 @@ body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #ga
 #gardien-branch button:hover { background: rgba(104, 72, 166, 0.45); }
 #gardien-branch small { margin: 4px 10px 0; color: #94a3b8; font-size: 10px; letter-spacing: 0.06em; }
 body:has(.universe.lightmode) #gardien-branch { color: #440852; background: rgba(255, 255, 255, 0.96); }
-.gx-formats button { text-align: left; }
 
 /* Texte des nodes (textfit.js) : interligne à la mesure de chaque police (Nodz fixait la hauteur de ligne à la plus
    grande taille du texte : les lignes d'une grande police se chevauchaient) ; un mot n'est coupé que s'il ne tient
    vraiment pas (le node s'élargit d'abord pour lui). */
 .node-text-input { line-height: 1.25 !important; word-break: normal; overflow-wrap: break-word; }
+
+/* Importer / Exporter (exchange.js) : le panneau du bouton Export du dock. */
+#gardien-exchange {
+    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 45; width: min(440px, calc(100vw - 32px));
+    box-sizing: border-box; display: grid; gap: 8px; padding: 14px 16px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: rgba(5, 12, 23, 0.92); border: 1px solid rgba(104, 72, 166, 0.55); border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 18px rgba(104, 72, 166, 0.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+#gardien-exchange[hidden] { display: none; }
+#gardien-exchange header { display: flex; align-items: center; justify-content: space-between; }
+#gardien-exchange header b { color: #b89af2; letter-spacing: 0.06em; }
+#gardien-exchange .gxx-x { background: none; border: 0; color: #94a3b8; font-size: 16px; cursor: pointer; }
+#gardien-exchange h4 { margin: 6px 0 0; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8; }
+#gardien-exchange .gxx-note { margin: 0; color: #cbd5e1; line-height: 1.5; }
+#gardien-exchange .gxx-note:empty { display: none; }
+#gardien-exchange button:not(.gxx-x) { padding: 6px 12px; font: inherit; color: #eef2ff; background: rgba(104, 72, 166, 0.3);
+    border: 1px solid rgba(184, 154, 242, 0.45); border-radius: 999px; cursor: pointer; }
+#gardien-exchange button:not(.gxx-x):hover:not(:disabled) { background: #6848A6; }
+#gardien-exchange button:disabled { opacity: 0.35; cursor: default; }
+#gardien-exchange .gxx-primary { justify-self: start; background: #6848A6 !important; }
+#gardien-exchange .gxx-seg, #gardien-exchange .gxx-formats { display: flex; flex-wrap: wrap; gap: 6px; }
+#gardien-exchange .gxx-seg button.on { color: #050c17; background: #33FF99; border-color: #33FF99; font-weight: 600; }
+body:has(.universe.lightmode) #gardien-exchange { color: #440852; background: rgba(255, 255, 255, 0.96); }
+body:has(.universe.lightmode) #gardien-exchange .gxx-note { color: #5b4a78; }
