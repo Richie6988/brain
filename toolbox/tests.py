@@ -851,6 +851,21 @@ class ToolboxApiTests(TestCase):
             self.assertFalse((Path(root) / 'b.gguf').exists())
             self.assertFalse(LocalModel.objects.exists())
 
+    def test_new_account_gets_a_ready_model(self):
+        """Un compte neuf (invité) reçoit d'office un modèle partagé : celui de Gardien des administrateurs."""
+        light = LocalModel.objects.create(repo='org/s', filename='s.gguf', status='ready', size=10)
+        chosen = LocalModel.objects.create(repo='org/b', filename='b.gguf', status='ready', size=99)
+        LocalModel.objects.create(repo='org/k', filename='k.gguf', status='ready', size=1, owner=self.admin, endpoint='https://x.test')
+        Agent.objects.create(owner=self.admin, name='Gardien', role=Agent.Role.ORCHESTRATOR, model=chosen)
+        roles = {a['role']: a['model'] for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
+        self.assertEqual(roles[Agent.Role.ORCHESTRATOR], str(chosen.pk))
+        self.assertEqual(roles[Agent.Role.TEXT], str(chosen.pk))
+        self.assertIsNone(roles[Agent.Role.IMAGE])
+        Agent.objects.filter(owner=self.admin).delete()
+        Agent.objects.filter(owner=self.user).delete()
+        roles = {a['role']: a['model'] for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
+        self.assertEqual(roles[Agent.Role.ORCHESTRATOR], str(light.pk))  # sinon le plus léger, jamais la clé d'un autre
+
     def test_agents_seeded_and_owner_scoped(self):
         r = self.client.get('/api/v1/toolbox/agents')
         names = {a['name']: a for a in r.json()['agents']}

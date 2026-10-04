@@ -624,11 +624,23 @@ def _agent_model(body, user):
     return model
 
 
+def default_model():
+    """Le modèle de texte partagé qu'un compte neuf (invité) reçoit d'office : celui déjà en mémoire, sinon le plus
+    choisi par les administrateurs pour leur Gardien, sinon le plus léger des modèles locaux prêts (il tient partout)."""
+    shared = LocalModel.objects.filter(owner=None, kind=LocalModel.Kind.TEXT, status=LocalModel.Status.READY)
+    loaded = shared.filter(pk=engine.loaded).first() if engine.loaded else None
+    staff = (shared.filter(agents__role=Agent.Role.ORCHESTRATOR, agents__owner__is_staff=True)
+             .annotate(n=Count('agents')).order_by('-n').first())
+    return loaded or staff or shared.filter(endpoint='').order_by('size').first()
+
+
 @api('GET', 'POST')
 def agents(request, body):
     if request.method == 'GET':
-        if not Agent.objects.filter(owner=request.user).exists():
-            Agent.objects.bulk_create([Agent(owner=request.user, name=n, role=r, description=d) for n, r, d in DEFAULT_AGENTS])
+        if not Agent.objects.filter(owner=request.user).exists():  # compte neuf : une IA prête d'office
+            model = default_model()
+            Agent.objects.bulk_create([Agent(owner=request.user, name=n, role=r, description=d, model=None if r == Agent.Role.IMAGE else model)
+                                       for n, r, d in DEFAULT_AGENTS])
         return JsonResponse({'agents': [agent_to_dict(a) for a in Agent.objects.filter(owner=request.user)]})
     if not body.get('name') or body.get('role', Agent.Role.TEXT) not in Agent.Role.values:
         raise ChangeError('name et role valides requis')
