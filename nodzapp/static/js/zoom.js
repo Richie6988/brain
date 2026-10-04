@@ -8,6 +8,7 @@ let isZooming = false;
 
 // Event listener for the wheel event (pinch-to-zoom)
 svg.addEventListener('wheel', function(event) { 
+    if (!event.ctrlKey && scrollsInside(event)) return;  // un contenu défilant dans un node (sortie, aperçu) défile
     event.preventDefault(); 
     const deltaY = event.deltaY;
     const deltaX = event.deltaX;
@@ -40,6 +41,17 @@ svg.addEventListener('wheel', function(event) {
         nodeSizing(currentNode,r,r);
     }
 });
+
+// Un élément HTML défilant sous le pointeur, entre lui et l'univers, qui peut encore défiler dans ce sens ?
+function scrollsInside(event) {
+    for (let el = event.target; el && el !== svg; el = el.parentNode) {
+        if (!(el instanceof HTMLElement) || el.scrollHeight <= el.clientHeight + 1) continue;
+        const overflow = getComputedStyle(el).overflowY;
+        if (overflow !== 'auto' && overflow !== 'scroll') continue;
+        if (event.deltaY < 0 ? el.scrollTop > 0 : el.scrollTop + el.clientHeight < el.scrollHeight - 1) return true;
+    }
+    return false;
+}
 
 // A mouse wheel (notches) rather than a touchpad: lines in Firefox, multiples of 120 in Chrome and Safari,
 // except the Mac touchpad signature (wheelDeltaY = -3 x deltaY)

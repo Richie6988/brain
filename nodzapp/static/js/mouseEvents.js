@@ -217,10 +217,9 @@ svg.addEventListener('mouseup', function() {
 
 //////////////////// PREVENT WEB NATIVE BEHAVIOR ////////////////////
 
-// Zoom
+// Zoom du navigateur (pincement = Ctrl + molette) : bloqué ; le reste défile normalement dans les champs et panneaux
 document.addEventListener('wheel', function(e) {
-    const deltaY = e.deltaY;
-    if(deltaY === Math.round(deltaY)) {
+    if(!e.ctrlKey) {
         return;
     }
     e.preventDefault();
