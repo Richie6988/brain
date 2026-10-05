@@ -1454,3 +1454,29 @@ body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }
     .ga-head, .ga-body { padding-left: 14px; padding-right: 14px; }
     .ga-choice { grid-template-columns: 1fr; }
 }
+
+/* Étincelle (spark.js) : dans une dimension vide, la carte qui invite à poser une première idée. */
+#gardien-spark {
+    position: fixed; left: 50%; top: 42%; z-index: 20; transform: translate(-50%, -50%); width: min(460px, calc(100vw - 32px)); box-sizing: border-box;
+    display: grid; gap: 10px; padding: 22px 24px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0; text-align: center;
+    background: radial-gradient(circle at 50% 0%, rgba(51, 255, 153, 0.14), transparent 60%), rgba(5, 12, 23, 0.9);
+    border: 1px solid rgba(51, 255, 153, 0.35); border-radius: 20px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 40px rgba(51, 255, 153, 0.12), 0 18px 40px rgba(0, 0, 0, 0.45); animation: gsp-in 0.4s ease-out;
+}
+#gardien-spark[hidden] { display: none; }
+#gardien-spark b { font-size: 17px; color: #fff; }
+#gardien-spark p { margin: 0; color: #94a3b8; }
+#gardien-spark form { display: flex; gap: 8px; margin-top: 4px; }
+#gardien-spark input { flex: 1; min-width: 0; padding: 10px 14px; font: inherit; color: #fff; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 12px; outline: none; }
+#gardien-spark input:focus { border-color: #33FF99; box-shadow: 0 0 0 3px rgba(51, 255, 153, 0.15); }
+#gardien-spark form button { padding: 0 16px; font: inherit; font-weight: 600; color: #050c17; background: #33FF99; border: 0; border-radius: 12px; cursor: pointer; }
+#gardien-spark form button:hover { filter: brightness(1.1); }
+#gardien-spark .gsp-examples { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+#gardien-spark .gsp-examples button { padding: 5px 12px; font: inherit; color: #cbd5e1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(184, 154, 242, 0.25); border-radius: 999px; cursor: pointer; }
+#gardien-spark .gsp-examples button:hover { color: #fff; border-color: #33FF99; }
+#gardien-spark .gsp-x { position: absolute; top: 8px; right: 10px; width: 26px; height: 26px; padding: 0; font-size: 16px; color: #94a3b8; background: none; border: 0; border-radius: 50%; cursor: pointer; }
+#gardien-spark .gsp-x:hover { color: #fff; }
+@keyframes gsp-in { from { opacity: 0; transform: translate(-50%, -46%); } }
+@media (prefers-reduced-motion: reduce) { #gardien-spark { animation: none; } }
+body:has(.universe.lightmode) #gardien-spark { color: #440852; background: rgba(255, 255, 255, 0.95); }
+body:has(.universe.lightmode) #gardien-spark b, body:has(.universe.lightmode) #gardien-spark input { color: #440852; }

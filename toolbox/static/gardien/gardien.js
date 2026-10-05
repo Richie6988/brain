@@ -35,6 +35,7 @@ import { createSchemas } from './schemas.js';
 import { createSearch } from './search.js';
 import { createSfx } from './sfx.js';
 import { createSide } from './side.js';
+import { createSpark } from './spark.js';
 import { createTextFit } from './textfit.js';
 import { createThoughts } from './thoughts.js';
 import { createTheme } from './theme.js';
@@ -367,3 +368,4 @@ document.addEventListener('input', function hint(event) {
 bridge.watchMessages((node, text) => {
     queue = queue.then(() => ask(node, text));
 });
+createSpark({ bridge, onSpark: (node, text) => { queue = queue.then(() => ask(node, text)); } });  // dimension vide : une première idée qui pousse

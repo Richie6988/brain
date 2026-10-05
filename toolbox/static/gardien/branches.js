@@ -1,6 +1,7 @@
 // Branches d'une carte. Une branche : un node et tout ce qui descend de lui par ses liens (Node1 → Node2, comme Aval).
 // - Replier : ses descendants et leurs liens disparaissent, une pastille « +N » à côté du node les rappelle (un clic
-//   déplie) ; l'état reste dans ce navigateur, par dimension, et revient à chaque chargement.
+//   déplie) ; l'état reste dans ce navigateur, par dimension, et revient à chaque chargement. Déplier range tout l'arbre
+//   depuis sa racine.
 // - Ranger en arbre : de gauche à droite, chaque niveau dans sa colonne, chaque sous-arbre dans sa bande, animé ; les
 //   positions sont enregistrées d'un coup (un seul Ctrl+Z).
 // - Exporter (bouton Importer / Exporter du dock, exchange.js) : Markdown, OPML, FreeMind (.mm), que lisent XMind,
@@ -42,6 +43,18 @@ export function tree(rootId, seen = new Set(), only = null) {
     seen.add(rootId);
     const kids = children(rootId, only).filter(id => !seen.has(id)).map(id => { seen.add(id); return id; });
     return { id: rootId, text: textOf(byId(rootId)), kids: kids.map(id => tree(id, seen, only)) };
+}
+
+// La racine de l'arbre d'un node : on remonte ses liens entrants (le premier parent à chaque fois) jusqu'à un node
+// sans parent ; un cycle s'arrête au dernier node pas encore vu.
+function rootOf(id) {
+    const seen = new Set([id]);
+    for (;;) {
+        const parent = [...universe.querySelectorAll('.link')].find(l => l.getAttribute('Node2') === id && byId(l.getAttribute('Node1')))?.getAttribute('Node1');
+        if (!parent || seen.has(parent)) return id;
+        seen.add(parent);
+        id = parent;
+    }
 }
 
 export function descendants(rootId) {
@@ -207,7 +220,8 @@ export function createBranches({ say }) {
             const node = byId(badge.dataset.node);
             const box = node && (node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1]).getBoundingClientRect();
             badge.hidden = !box?.width;
-            if (box?.width) badge.style.transform = `translate(${(box.right + 4).toFixed(1)}px, ${(box.top + box.height / 2 - 10).toFixed(1)}px)`;
+            // Au coin bas-droit du node : à droite au milieu, la pastille du node (Gardien, Branche) la recouvrirait.
+            if (box?.width) badge.style.transform = `translate(${(box.right - 10).toFixed(1)}px, ${(box.bottom - 12).toFixed(1)}px)`;
         });
         requestAnimationFrame(track);
     })();
@@ -224,10 +238,14 @@ export function createBranches({ say }) {
 
     function toggle(node) {
         const set = folded();
-        if (set.has(node.id)) set.delete(node.id); else set.add(node.id);
+        const unfolding = set.has(node.id);
+        if (unfolding) set.delete(node.id); else set.add(node.id);
         folds[here()] = [...set];
         keep();
         apply();
+        // Déplier : tout l'arbre se range depuis sa racine, les nodes qui reviennent ne s'empilent pas sur les autres.
+        const root = byId(rootOf(node.id));
+        if (unfolding && root) arrange(root);
     }
 
     // Menu « Branche » de la pastille d'un node.
