@@ -20,12 +20,13 @@ from django.db import connection
 from django.db.models import Count
 from django.http import FileResponse, JsonResponse, StreamingHttpResponse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 
 from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Layer, Link, Node
 
-from . import cuda, fit, gguf, home as homes, hub, iaqua, imaging, monitor, params as model_params, prompts, reminders as reminder_store, remote, tools, workspace
+from . import cuda, fit, gguf, home as homes, hub, iaqua, imaging, monitor, params as model_params, premium, prompts, reminders as reminder_store, remote, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable, acting_for
@@ -89,7 +90,7 @@ def model_to_dict(m, user):
             'gguf': info, 'kv_bytes': fit.kv_bytes_per_token(info) if info else None,  # estimation mémoire du dialogue
             'config': Engine.config(m),  # réglages effectifs (défauts d'iAqua compris)
             'placement': engine.placement.get(m.id),  # couches GPU et contexte retenus au dernier chargement
-            'endpoint': m.endpoint, 'has_key': bool(m.api_key),  # modèle par API : la clé ne quitte jamais le serveur
+            'endpoint': m.endpoint, 'has_key': bool(m.api_key), 'premium': m.premium,  # modèle par API : la clé ne quitte jamais le serveur
             'mine': m.owner_id is not None and m.owner_id == user.pk}  # connecteur personnel de cet utilisateur
 
 
@@ -701,6 +702,11 @@ def model_detail(request, body, model_id):
         model = api_model(body, model)
     if 'label' in body:
         model.label = str(body['label'])[:120]
+    if 'premium' in body:  # le modèle de l'offre Premium : un modèle partagé, choisi par l'administrateur
+        staff_only(request)
+        if model.owner_id is not None:
+            raise ChangeError('le Premium se donne à un modèle partagé, pas à un connecteur personnel')
+        model.premium = bool(body['premium'])
     if 'kind' in body:
         if body['kind'] not in LocalModel.Kind.values:
             raise ChangeError('type inconnu')
@@ -762,11 +768,55 @@ def _agent_model(body, user):
 def default_model():
     """Le modèle de texte partagé qu'un compte neuf (invité) reçoit d'office : celui déjà en mémoire, sinon le plus
     choisi par les administrateurs pour leur Gardien, sinon le plus léger des modèles locaux prêts (il tient partout)."""
-    shared = LocalModel.objects.filter(owner=None, kind=LocalModel.Kind.TEXT, status=LocalModel.Status.READY)
+    shared = LocalModel.objects.filter(owner=None, kind=LocalModel.Kind.TEXT, status=LocalModel.Status.READY, premium=False)
     loaded = shared.filter(pk=engine.loaded).first() if engine.loaded else None
     staff = (shared.filter(agents__role=Agent.Role.ORCHESTRATOR, agents__owner__is_staff=True)
              .annotate(n=Count('agents')).order_by('-n').first())
     return loaded or staff or shared.filter(endpoint='').order_by('size').first()
+
+
+def _site(request):
+    """L'adresse publique de Nodz (préfixe compris), pour les retours de Stripe."""
+    return request.build_absolute_uri('/').rstrip('/') + (settings.FORCE_SCRIPT_NAME or '')
+
+
+@api('GET')
+def premium_offer(request, body):
+    return JsonResponse(premium.offer(request.user))
+
+
+@api('POST')
+def premium_checkout(request, body):
+    try:
+        return JsonResponse({'url': premium.checkout_url(request.user, _site(request))})
+    except premium.PremiumError as e:
+        raise ChangeError(str(e)) from None
+    except Exception as e:  # Stripe injoignable ou mal réglé
+        logger.exception('Stripe Checkout')
+        raise Upstream(f'Stripe : {e}') from None
+
+
+@api('POST')
+def premium_portal(request, body):
+    try:
+        return JsonResponse({'url': premium.billing_url(request.user, _site(request))})
+    except premium.PremiumError as e:
+        raise ChangeError(str(e)) from None
+    except Exception as e:
+        logger.exception('Stripe portail')
+        raise Upstream(f'Stripe : {e}') from None
+
+
+@csrf_exempt
+def premium_webhook(request):
+    """Stripe appelle sans session : seule la signature (STRIPE_WEBHOOK_SECRET) fait foi."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'méthode non autorisée'}, status=405)
+    try:
+        done = premium.handle(request.body, request.META.get('HTTP_STRIPE_SIGNATURE', ''))
+    except premium.PremiumError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'ok': done})
 
 
 @api('GET', 'POST')

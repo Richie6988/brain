@@ -41,6 +41,7 @@ class LocalModel(models.Model):
     endpoint = models.URLField(max_length=300, blank=True)
     api_key = models.CharField(max_length=300, blank=True)  # jamais renvoyée au navigateur
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name='api_models')
+    premium = models.BooleanField(default=False)  # le Gardien Premium : réservé aux comptes abonnés (premium.py)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -52,8 +53,10 @@ class LocalModel(models.Model):
 
     @classmethod
     def visible_to(cls, user):
-        """Les modèles partagés du serveur et les connecteurs personnels de cet utilisateur (jamais ceux des autres)."""
-        return cls.objects.filter(models.Q(owner=None) | models.Q(owner=user))
+        """Les modèles partagés du serveur et les connecteurs personnels de cet utilisateur (jamais ceux des autres) ; un
+        modèle Premium seulement pour un compte abonné ou l'administrateur."""
+        shown = cls.objects.filter(models.Q(owner=None) | models.Q(owner=user))
+        return shown if getattr(user, 'is_staff', False) or getattr(user, 'premium', False) else shown.exclude(premium=True)
 
 
 class Agent(models.Model):
@@ -267,6 +270,8 @@ class Preference(models.Model):
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='nodz_preference')
     pinned_layers = models.JSONField(default=list, blank=True)  # numéros de dimension (layer_id), dans l'ordre d'épinglage
     gallery = models.JSONField(default=list, blank=True)  # [{id, name, nodes: [{x, y, text, color, shape, radius}], links: [[i, j]]}]
+    stripe_customer = models.CharField(max_length=100, blank=True)  # abonnement Premium (premium.py)
+    stripe_subscription = models.CharField(max_length=100, blank=True)
 
 
 def room_token():

@@ -335,6 +335,7 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
    jauge par ressource), qu'un clic déplie (modèle, barres). Les gestes sur l'univers la traversent (sélection
    rectangle, glissé) : seuls la pastille et l'en-tête sont cliquables. */
 .gm-pill { display: none; }
+.gm-hud.gm-off { display: none !important; }
 .gm-hud {
     position: fixed; top: 14px; left: 56px; padding: 7px 10px; box-sizing: border-box; pointer-events: none;
     color: #cbd5e1; border: 1px solid transparent; border-radius: 16px; user-select: none;
@@ -1309,6 +1310,7 @@ body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }
 .ga-nav button svg { width: 18px; height: 18px; flex: none; }
 .ga-nav button.active { color: #fff; background: rgba(184, 154, 242, 0.16); box-shadow: inset 3px 0 0 var(--ga-accent); }
 .ga-machine { margin-top: auto; display: grid; gap: 6px; }
+.ga-remote .ga-machine { display: none; }
 .ga-machine .gm-window { grid-template-columns: 1fr; margin: 0; background: rgba(255, 255, 255, 0.04); }
 .ga-machine .gl-machine { margin: 0 4px; color: var(--ga-muted); font-size: 10px; line-height: 1.5; }
 
@@ -1343,6 +1345,14 @@ body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }
 .ga-option h4 { margin: 0; font-size: 14px; }
 .ga-option p { margin: 0; color: var(--ga-muted); line-height: 1.6; }
 .ga-option > button { justify-self: start; }
+.ga-offers { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 12px; }
+.ga-offer { grid-template-rows: auto 1fr auto; }
+.ga-offer > .gl-badge, .ga-offer > .ga-link { justify-self: start; }
+.ga-offer h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ga-price { font-size: 12px; font-weight: 600; color: var(--ga-accent); }
+.ga-premium { border-color: rgba(184, 154, 242, 0.55); background: linear-gradient(160deg, rgba(104, 72, 166, 0.22), rgba(255, 255, 255, 0.035)); }
+.ga-premium.on { border-color: var(--ga-ok); }
+.ga-window a.ga-link { display: inline-block; padding: 6px 14px; border: 1px solid; border-radius: 999px; text-decoration: none; font: 12px 'Cascadia Code', monospace; }
 .ga-wide { margin-top: 12px; }
 .ga-window .gl-rec { margin: 0; max-width: none; background: rgba(0, 0, 0, 0.18); border-color: var(--ga-line); }
 .ga-window .gl-rec.best { border-color: rgba(51, 255, 153, 0.5); }
@@ -1396,9 +1406,10 @@ body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }
 .ga-more { position: relative; }
 .ga-more > summary { list-style: none; margin: 0; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(184, 154, 242, 0.28); color: var(--ga-text); }
 .ga-more > summary::-webkit-details-marker { display: none; }
-.ga-more > div { position: absolute; z-index: 5; right: 0; top: calc(100% + 4px); display: grid; gap: 2px; min-width: 210px; padding: 6px; border-radius: 12px;
+.ga-more > div { position: absolute; z-index: 5; left: 0; top: calc(100% + 4px); display: grid; gap: 2px; min-width: 210px; padding: 6px; border-radius: 12px;
     background: #0d1426; border: 1px solid rgba(184, 154, 242, 0.4); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5); }
 .ga-window .ga-more > div button { border: 0; background: none; border-radius: 8px; text-align: left; }
+.ga-more.ga-more-end > div { left: auto; right: 0; }
 .ga-window .gl-dialog { background: rgba(5, 12, 23, 0.6); backdrop-filter: blur(3px); }
 .ga-window .gl-dialog-card { background: linear-gradient(160deg, #170e2a, #050c17); color: var(--ga-text); border: 1px solid rgba(184, 154, 242, 0.45); width: min(660px, 92vw); }
 .ga-window .gl-dialog-card h3 { color: #fff; }

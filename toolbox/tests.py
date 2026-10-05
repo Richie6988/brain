@@ -3089,3 +3089,68 @@ class RoomTests(TransactionTestCase):
             await host.disconnect()
 
         async_to_sync(scenario)()
+
+
+@override_settings(STRIPE_SECRET_KEY='sk_test', STRIPE_PRICE_ID='price_1', STRIPE_WEBHOOK_SECRET='whsec_1', PREMIUM_PRICE_LABEL='9 € / mois',
+                   EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class PremiumTests(TestCase):
+    def setUp(self):
+        self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456')
+        self.free = LocalModel.objects.create(repo='org/m', filename='small.gguf', size=1, status=LocalModel.Status.READY)
+        self.best = LocalModel.objects.create(repo='api:x.ai', filename='best', endpoint='https://x.ai/v1', status=LocalModel.Status.READY,
+                                              capabilities=['chat', 'api'], premium=True)
+        self.client.force_login(self.user)
+        self.client.get('/api/v1/toolbox/agents')  # ses agents, sur le modèle gratuit
+        self.guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+
+    def hook(self, kind, obj):
+        event = {'type': kind, 'data': {'object': obj}}
+        with mock.patch('stripe.Webhook.construct_event', return_value=event) as check:
+            r = self.client.post('/api/v1/toolbox/premium/webhook', b'{}', content_type='application/json', HTTP_STRIPE_SIGNATURE='sig')
+        check.assert_called_once_with(b'{}', 'sig', 'whsec_1')
+        return r
+
+    def test_premium_model_is_hidden_and_never_the_free_default(self):
+        self.assertEqual(self.guardian.model, self.free)
+        ids = [m['id'] for m in self.client.get('/api/v1/toolbox/models').json()['models']]
+        self.assertEqual(ids, [str(self.free.id)])
+        r = self.client.patch(f'/api/v1/toolbox/agents/{self.guardian.id}', json.dumps({'model': str(self.best.id)}), content_type='application/json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.client.get('/api/v1/toolbox/premium').json(),
+                         {'configured': True, 'active': False, 'price': '9 € / mois', 'model': 'best', 'guest': False})
+
+    def test_webhook_activates_once_then_deactivates(self):
+        from django.core import mail
+
+        self.assertEqual(self.hook('checkout.session.completed', {'client_reference_id': str(self.user.pk), 'customer': 'cus_1', 'subscription': 'sub_1'}).json(), {'ok': 'activé'})
+        self.assertEqual(self.hook('customer.subscription.updated', {'id': 'sub_1', 'status': 'active'}).json(), {'ok': 'déjà actif'})
+        self.user.refresh_from_db()
+        self.guardian.refresh_from_db()
+        self.assertTrue(self.user.premium)
+        self.assertEqual(self.guardian.model, self.best)
+        self.assertEqual(len(mail.outbox), 1)  # un webhook rejoué ne renvoie pas d'e-mail
+        self.assertEqual(mail.outbox[0].to, ['a@nodz.local'])
+        self.assertEqual(self.hook('customer.subscription.deleted', {'id': 'sub_1', 'status': 'canceled'}).json(), {'ok': 'désactivé'})
+        self.user.refresh_from_db()
+        self.guardian.refresh_from_db()
+        self.assertFalse(self.user.premium)
+        self.assertEqual(self.guardian.model, self.free)
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_bad_signature_is_refused(self):
+        r = self.client.post('/api/v1/toolbox/premium/webhook', b'{}', content_type='application/json', HTTP_STRIPE_SIGNATURE='faux')
+        self.assertEqual(r.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.premium)
+
+    def test_checkout_goes_to_stripe_but_not_for_guests(self):
+        with mock.patch('stripe.checkout.Session.create', return_value=SimpleNamespace(url='https://checkout.stripe.com/x')) as create:
+            r = self.client.post('/api/v1/toolbox/premium/checkout', '{}', content_type='application/json')
+            self.assertEqual(r.json(), {'url': 'https://checkout.stripe.com/x'})
+            sent = create.call_args.kwargs
+            self.assertEqual((sent['client_reference_id'], sent['customer_email'], sent['mode']), (str(self.user.pk), 'a@nodz.local', 'subscription'))
+            self.assertTrue(sent['success_url'].endswith('/universe?premium=ok'))
+            guest = NodzUser.objects.create_user(email='guest12@nodz.com', password='pw-123456')
+            self.client.force_login(guest)
+            self.assertEqual(self.client.post('/api/v1/toolbox/premium/checkout', '{}', content_type='application/json').status_code, 400)
+            self.assertEqual(create.call_count, 1)

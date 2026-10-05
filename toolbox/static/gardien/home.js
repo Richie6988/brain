@@ -137,17 +137,19 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         return busy;
     };
 
-    // Première connexion : la maison se pose, puis retour là où l'on était. Pas sous automatisation (les bancs de
+    // Première connexion : la maison se pose, le Gardien dit ce qu'elle garde, puis retour là où l'on était, à l'humain de créer. Pas sous automatisation (les bancs de
     // navigation pilotent un navigateur vierge), ni en arrivant par le lien d'un salon (la dimension y est celle de l'hôte).
     async function ensure() {
         if (!(await fetchHome()) || navigator.webdriver || new URLSearchParams(location.search).has('room')) return;
         if (layerOf() && Object.keys(data.home.groups).length >= data.seed.groups.length) return;
         await once(async () => {
             const back = layerNumber;
-            say('Le Gardien s\'installe dans sa dimension « Gardien »…', 'guide');
+            say('Je m\'installe dans ma dimension « Gardien »…', 'guide');
             await install();
+            say('C\'est là que je stocke tous mes souvenirs : mon âme, ce que je sais de toi, mes outils, mes rêves. Retrouve-les quand tu veux depuis la dimension Gardien.', 'guide');
+            await wait(4000);  // le temps de lire, la maison sous les yeux
             await bridge.enterLayer(back);
-            say('Sa dimension « Gardien » est prête : son âme, ce qu\'il sait de toi, sa mémoire, ses outils, ses rêves. Réécris-la pour le régler.', 'guide');
+            say('Mais maintenant, c\'est à toi de créer.', 'guide');
         });
     }
 

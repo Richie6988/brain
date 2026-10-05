@@ -224,7 +224,7 @@ LOGIN_REDIRECT_URL = 'universe'
 LOGOUT_REDIRECT_URL = 'home'
 
 
-# Add your email configuration
+# Courrier. Avec Postfix sur la machine : EMAIL_HOST=localhost, EMAIL_PORT=25, EMAIL_USE_TLS=0, DEFAULT_FROM_EMAIL=...
 EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
 EMAIL_BACKEND = (
     'django.core.mail.backends.smtp.EmailBackend'
@@ -239,3 +239,8 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'nodz@localhost')
 
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
+# Gardien Premium (toolbox/premium.py) : le prix d'abonnement Stripe, le secret du webhook toolbox/premium/webhook,
+# et le prix tel qu'affiché dans Mon IA.
+STRIPE_PRICE_ID = os.environ.get('STRIPE_PRICE_ID', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+PREMIUM_PRICE_LABEL = os.environ.get('PREMIUM_PRICE_LABEL', '')

@@ -25,6 +25,9 @@ const tb = {
     serverFiles: () => api.request('GET', 'toolbox/files'),
     importFile: path => api.request('POST', 'toolbox/files', { path }),
     deleteFile: path => api.request('DELETE', `toolbox/files?${new URLSearchParams({ path })}`),
+    premium: () => api.request('GET', 'toolbox/premium'),
+    checkout: () => api.request('POST', 'toolbox/premium/checkout'),
+    portal: () => api.request('POST', 'toolbox/premium/portal'),
 };
 
 // Serveurs compatibles OpenAI proposés dans l'onglet « Par API » (l'URL de base se modifie ensuite).
@@ -143,6 +146,14 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
     modal.addEventListener('mousedown', event => {  // un menu ⋯ ouvert se ferme au clic ailleurs
         windowEl.querySelectorAll('.ga-more[open]').forEach(menu => { if (!menu.contains(event.target)) menu.open = false; });
     });
+    // Un menu ⋯ s'ouvre vers l'intérieur de la fenêtre : vers la droite, sauf s'il déborderait (dernière colonne).
+    windowEl.addEventListener('toggle', event => {
+        const menu = event.target;
+        if (!menu.classList?.contains('ga-more') || !menu.open) return;
+        const list = menu.lastElementChild, body = menu.closest('.ga-body') || windowEl;
+        menu.classList.remove('ga-more-end');
+        if (list.getBoundingClientRect().right > body.getBoundingClientRect().right - 8) menu.classList.add('ga-more-end');
+    }, true);
     document.body.append(modal);
 
     const guard = () => (state.staff ? {} : { disabled: true, title: "Réservé à l'administrateur du serveur" });
@@ -172,9 +183,12 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
     }
 
     async function refresh() {
-        const [status, { agents }, { models }] = await Promise.all([tb.status(), tb.agents(), tb.models()]);
-        state = { ...state, staff: status.staff, machine: status.machine, engine: status.engine, loaded: status.loaded, agents, models,
+        const [status, { agents }, { models }, premium] = await Promise.all([tb.status(), tb.agents(), tb.models(), tb.premium().catch(() => null)]);
+        state = { ...state, staff: status.staff, machine: status.machine, engine: status.engine, loaded: status.loaded, agents, models, premium,
             paramSpec: status.param_spec, imaging: status.imaging, packs: status.packs, gpuOffload: status.gpu_offload };
+        // CPU, RAM, GPU ne disent quelque chose qu'à qui fait tourner un modèle ici : sinon, le moniteur se cache.
+        state.local = agents.some(a => a.enabled && a.model && models.some(m => m.id === a.model && !m.endpoint));
+        windowEl.classList.toggle('ga-remote', !state.local);
         const m = state.machine;
         machineLine.replaceChildren(
             m.gpu ? `GPU ${(m.vram_mb / 1024).toFixed(1)} Go` : `Sans GPU · ${(m.ram_mb / 1024).toFixed(1)} Go de RAM`,
@@ -781,31 +795,65 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
                 : h('p', { class: 'gl-empty' }, 'Aucun modèle pour le moment.'));
     }
 
-    // --- Mon IA : l'état du Gardien, puis les deux façons de lui donner une IA (par API, sur cette machine), et ses outils.
+    // --- Mon IA : l'état du Gardien, puis les trois offres (gratuit sur le serveur, gratuit avec sa clé, Premium), et ses outils.
+
+    // Stripe : la page de paiement (ou le portail de l'abonnement) s'ouvre à la place de Nodz, le retour revient ici.
+    const goStripe = (button, call) => act(async () => {
+        button.disabled = true;
+        try {
+            location.href = (await call()).url;
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    function premiumOffer(current) {
+        const p = state.premium;
+        const action = !p?.configured ? h('button', { type: 'button', disabled: true }, 'Bientôt')
+            : p.active ? h('button', { type: 'button' }, 'Gérer mon abonnement')
+            : p.guest ? h('a', { class: 'gl-primary ga-link', href: `${document.documentElement.dataset.base || ''}/register/` }, 'Créer mon compte')
+            : h('button', { type: 'button', class: 'gl-primary' }, 'Passer Premium');
+        if (action.tagName === 'BUTTON' && p?.configured) action.addEventListener('click', () => goStripe(action, p.active ? tb.portal : tb.checkout));
+        return h('section', { class: `ga-option ga-offer ga-premium${p?.active ? ' on' : ''}` },
+            h('h4', {}, 'Premium', p?.price ? h('span', { class: 'ga-price' }, p.price) : ''),
+            h('p', {}, `Le Gardien haute performance${p?.model ? ` (${p.model})` : ''} : un grand modèle rapide, sans clé ni réglage. `
+                + (!p?.configured ? 'Bientôt disponible sur ce serveur.' : p.active ? 'Ton abonnement est actif.' : p.guest ? 'Il faut un compte avec ton adresse e-mail.' : 'Résiliable à tout moment.')),
+            current?.premium ? h('span', { class: 'gl-badge' }, 'ACTIF') : action);
+    }
 
     function renderStart() {
         const guardian = state.agents.find(a => a.role === 'orchestrator');
         const current = guardian?.model && state.models.find(m => m.id === guardian.model);
-        const local = h('div', { class: 'gl-step-recs' }, h('p', { class: 'gl-empty' }, 'Analyse de la machine…'));
-        const [where, level] = !current ? ['sans IA : il dort', 'off'] : current.endpoint ? ['par API', 'ok']
+        const [where, level] = !current ? ['sans IA : il dort', 'off'] : current.premium ? ['Premium', 'ok'] : current.endpoint ? ['par API', 'ok']
             : current.loaded ? ['sur cette machine, en mémoire', 'ok'] : ['sur cette machine, chargé à la première demande', 'ok'];
-        const option = (title, text, ...rest) => h('section', { class: 'ga-option' }, h('h4', {}, title), h('p', {}, text), ...rest);
+        const option = (title, text, ...rest) => h('section', { class: 'ga-option ga-offer' }, h('h4', {}, title), h('p', {}, text), ...rest);
+        // Gratuit : le modèle partagé du serveur (celui en mémoire d'abord), sans clé ; il tourne sur sa machine, donc lentement.
+        const shared = state.models.filter(m => !m.endpoint && !m.mine && !m.premium && m.kind === 'text' && m.status === 'ready')
+            .sort((a, b) => b.loaded - a.loaded || a.size - b.size)[0];
+        const use = model => act(() => tb.updateAgent(guardian.id, { model: model.id }), `Le Gardien utilise ${model.label || model.filename}`);
+        const free = !shared ? h('button', { type: 'button', disabled: true }, 'Aucun modèle sur le serveur')
+            : current?.id === shared.id ? h('span', { class: 'gl-badge' }, 'ACTIF')
+            : h('button', { type: 'button', disabled: !guardian, onclick: () => use(shared) }, 'Utiliser');
+        const local = h('div', { class: 'gl-step-recs' }, h('p', { class: 'gl-empty' }, 'Analyse de la machine…'));
         panels.start.replaceChildren(
             h('div', { class: `ga-now ${level}` }, h('span', { class: 'ga-dot' }),
                 h('div', {}, h('small', {}, 'Ton Gardien'), h('strong', {}, current ? current.label || current.filename : 'Pas encore d\'IA'), h('span', {}, where)),
                 guardian ? h('button', { type: 'button', onclick: () => show('agents') }, 'Ses agents') : null),
-            h('div', { class: 'ga-options' },
-                option('Par API', 'OpenAI, Mistral, Groq, OpenRouter, ou ton Ollama : un grand modèle tourne ailleurs. Ta clé reste sur le serveur Nodz et ne sert qu\'à toi.',
-                    h('button', { type: 'button', class: 'gl-primary', onclick: () => show('api') }, 'Brancher une API')),
-                option('Sur cette machine', `${machineLine.textContent}. Sans connexion ni clé. `
-                    + (state.staff ? 'Recommandés ici :' : 'Installer un modèle est réservé à l\'administrateur du serveur.'),
-                local, h('button', { type: 'button', onclick: () => show('hub') }, 'Chercher sur Hugging Face'))),
+            h('div', { class: 'ga-options ga-offers' },
+                option('Gratuit', 'Le modèle partagé du serveur, sans clé ni compte ailleurs. Il tourne sur le processeur du serveur : il répond, mais lentement.', free),
+                option('Gratuit avec ta clé', 'Ton compte OpenAI, Mistral, Groq, OpenRouter ou ton Ollama : rapide, payé à l\'usage chez eux (souvent gratuit pour commencer). '
+                    + 'Ta clé reste sur le serveur Nodz et ne sert qu\'à toi.',
+                    h('button', { type: 'button', onclick: () => show('api') }, 'Brancher ma clé')),
+                premiumOffer(current)),
+            state.staff ? h('div', { class: 'ga-option ga-wide' }, h('h4', {}, 'Sur cette machine (administrateur)'),
+                h('p', {}, `${machineLine.textContent}. Sans connexion ni clé. Recommandés ici :`),
+                local, h('button', { type: 'button', onclick: () => show('hub') }, 'Chercher sur Hugging Face')) : '',
             h('div', { class: 'ga-option ga-wide' }, h('h4', {}, 'Ce qu\'il a le droit de faire'),
                 h('p', {}, 'Mode Pensée : il crée, relie, range et voyage dans l\'univers. Mode Auto : il mène des missions avec le web, des fichiers, '
                     + 'des images, des présentations et ses agents.'),
                 h('div', { class: 'gl-actions' }, h('button', { type: 'button', onclick: () => show('tools') }, 'Choisir ses outils'),
                     h('button', { type: 'button', onclick: onOpenHome }, 'Ouvrir sa dimension Gardien'))));
-        recommend(local, false);
+        if (state.staff) recommend(local, false);
     }
 
     // --- Fichiers du serveur

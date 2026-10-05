@@ -87,6 +87,7 @@ const signedIn = setInterval(() => {
     guardianHome.ensure().catch(() => {});  // dimension Gardien posée d'office ; notes et rêves en attente
     reminders.refresh();
     dimensions.refresh();
+    library.refresh().catch(() => {});  // IA locale ou non : la tour CPU/GPU s'affiche ou se cache
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
     guide.welcome();  // première visite : le guide s'ouvre
     room.start();  // salon du lien (?room=) ou le sien resté ouvert
@@ -190,6 +191,7 @@ const library = createLibrary({
     monitor: monitor.panel('gm-window').root,
     onChange: state => {
         guardian = state.agents.find(a => a.role === 'orchestrator') || null;
+        tower.root.classList.toggle('gm-off', !state.local);  // la tour CPU/GPU ne sert qu'à qui fait tourner un modèle sur cette machine
     },
 });
 
@@ -352,6 +354,25 @@ const chat = createChat({
     onGoto: (ref, layer) => bridge.perform({ op: 'goto', ref, layer }).catch(() => say(`${ref} n'existe plus`, 'error')),
 });
 const guardianHome = createHome({ bridge, say, filters, chat, branches });  // dimension Gardien : ses clés, réglées en réécrivant ses nodes
+
+// Premier clic sur le Gardien (une fois par navigateur) : Mon IA et ses trois offres (gratuit lent, gratuit avec sa clé,
+// Premium) avant le chat. Pas sous automatisation (les bancs ouvrent le chat) ni dans un salon.
+document.getElementById('gardien-chat-button').addEventListener('click', event => {
+    try {
+        if (localStorage.getItem('gardien-offers') || navigator.webdriver || new URLSearchParams(location.search).has('room')) return;
+        localStorage.setItem('gardien-offers', '1');
+    } catch { return; }
+    event.stopImmediatePropagation();
+    library.open('start');
+}, true);
+
+// Retour de Stripe (?premium=ok ou annule) : un mot, puis l'adresse redevient propre.
+const paid = new URLSearchParams(location.search).get('premium');
+if (paid) {
+    say(paid === 'ok' ? 'Merci ! Ton Gardien Premium s\'active dans un instant ; un e-mail te le confirme.' : 'Paiement annulé : rien n\'a changé.', 'guide');
+    history.replaceState(null, '', location.pathname);
+    if (paid === 'ok') setTimeout(() => library.refresh().catch(() => {}), 4000);  // le webhook de Stripe arrive en quelques secondes
+}
 
 
 // Une fois par navigateur, au premier node écrit : comment parler au Gardien.
