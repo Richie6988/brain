@@ -834,67 +834,20 @@ function createLink(nodeGroup1, nodeGroup2,id) {
         link.style.display = 'none';
     }
 
-    let travelto;
-    link.addEventListener('mouseover', (e) => {
-        currentLink = link;
-        // Get the coordinates of the line's start and end points
-        const node1 = document.getElementById(link.getAttribute('Node1'));
-        const node2 = document.getElementById(link.getAttribute('Node2'));
-
-        const x1 = node1.getAttribute('x');
-        const y1 = node1.getAttribute('y');
-        const x2 = node2.getAttribute('x');
-        const y2 = node2.getAttribute('y');
-        
-        const mouseX = Math.round((e.clientX - centerX) + parseFloat(root.getAttribute('x')))/currentZoom;
-        const mouseY = -Math.round((e.clientY - centerY) - parseFloat(root.getAttribute('y')))/currentZoom;
-    
-        // Calculate distances from the cursor to the two ends of the line
-        const distToStart = Math.hypot(mouseX - x1, mouseY - y1);
-        const distToEnd = Math.hypot(mouseX - x2, mouseY - y2);    
-        let angle;
-        const nodes = document.querySelectorAll('.node-group');
-        // Check which end of the line the cursor is closer to
-        if (distToStart < distToEnd) {
-            // Cursor is closer to (x1, y1), so point the arrow towards (x2, y2)
-            angle = Math.atan2(y1 - y2, x2 - x1) * (180 / Math.PI); 
-            travelto = node2;
-        } else {
-            // Cursor is closer to (x2, y2), so point the arrow towards (x1, y1)
-            angle = Math.atan2(y2 - y1, x1 - x2) * (180 / Math.PI); 
-            travelto = node1;
-        }
-    
-        // Create the cursor using the Data URL, rotating it to match the calculated angle
-        var cursorURL;
-
-        cursorURL = `data:image/svg+xml;base64,${btoa(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#1E90FF" stroke="transparent" transform="rotate(${angle})">
-                <polygon points="12 2, 20 12, 12 22, 10 20, 14 12, 10 4" />
-            </svg>
-        `)}`; 
-
-        // Apply the custom cursor
-        link.style.cursor = `url(${cursorURL}) 16 16, auto`;
+    link.addEventListener('mouseover', () => {
+        currentLink = link;  // la flèche de saut (gardien/linkjump.js) remplace l'ancien curseur flèche et son clic
         if(currentZoom < 0.5) {
             link.style.strokeWidth = ''+7.5+'px'; 
         } else {
             link.style.strokeWidth ='5px'; 
         }
         
-                           
-        link.addEventListener('mousedown', (event) => {
-            if (event.button === 0){
-                focusNode(travelto,false);
-            }                       
-        }); 
-        
+
         document.addEventListener('keydown', keydownHandler);                    
    
     });
     
     link.addEventListener('mouseout', () => {
-        link.style.cursor = '';
         link.style.strokeWidth = ''+3+'px'; 
         document.removeEventListener('keydown', keydownHandler);
         currentLink = null;

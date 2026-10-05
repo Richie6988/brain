@@ -5,6 +5,7 @@ let currentZoom = defaultZoom;
 let prevZoom;
 const zoomStep = 0.95; 
 let isZooming = false;
+let zoomPending = 0, zoomFrame = 0;  // pas de zoom en attente de l'image suivante (signés : positif = recul)
 
 // Event listener for the wheel event (pinch-to-zoom)
 svg.addEventListener('wheel', function(event) { 
@@ -28,9 +29,20 @@ svg.addEventListener('wheel', function(event) {
                 zoomY = -Math.round((event.clientY - centerY) - parseFloat(root.getAttribute('y')))/currentZoom;    
                 isZooming = true;
             }  
-            // A mouse notch zooms several steps at once, a pinch one step per event
-            const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
-            for (let i = 0; i < steps; i++) zoom(event);
+            // Un cran de souris zoome de plusieurs pas, un pincement d'un pas par événement ; les pas reçus pendant
+            // une image s'appliquent d'un seul coup (un pincement envoie plusieurs événements par image). Les molettes
+            // simulées (Tab, aperçu de fichier) zooment tout de suite : leurs boucles attendent le nouveau zoom.
+            const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 30))) : 1;
+            if (!event.isTrusted) {
+                zoom(event, steps);
+            } else {
+                zoomPending += deltaY > 0 ? steps : -steps;
+                if (!zoomFrame) zoomFrame = requestAnimationFrame(() => {
+                    const n = zoomPending;
+                    zoomPending = zoomFrame = 0;
+                    if (n) zoom({ deltaY: n }, Math.abs(n));
+                });
+            }
         } else {
             event.stopPropagation();
         }     
@@ -61,7 +73,7 @@ function mouseWheel(event) {
     return !event.deltaX && !!notch && notch % 120 === 0 && notch !== -3 * event.deltaY;
 }
 
-function zoom(event) {  
+function zoom(event, steps = 1) {  
     // Get the delta value to determine the direction of the scroll (positive for zooming out, negative for zooming in)
     const delta = event.deltaY || event.detail || event.wheelDelta;
     const zoomOut = delta > 0;    
@@ -71,10 +83,12 @@ function zoom(event) {
     // areaHeight = window.innerHeight; 
 
     var prev = currentZoom;
-    if (zoomOut) {
-        currentZoom = Math.max(minZoom, currentZoom * zoomStep).toFixed(3); // Decrease the zoom level for zooming out
-    } else {
-        currentZoom = Math.min(maxZoom, currentZoom / zoomStep).toFixed(3); // Increase the zoom level for zooming in 
+    for (let i = 0; i < steps; i++) {  // pas par pas, arrondis compris : le même zoom qu'autant d'appels
+        if (zoomOut) {
+            currentZoom = Math.max(minZoom, currentZoom * zoomStep).toFixed(3); // Decrease the zoom level for zooming out
+        } else {
+            currentZoom = Math.min(maxZoom, currentZoom / zoomStep).toFixed(3); // Increase the zoom level for zooming in 
+        }
     }
     
     dragUniverse(parseFloat((-centerX)*(currentZoom - prev)),parseFloat((-centerY)*(currentZoom - prev)),false,'zoom');

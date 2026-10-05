@@ -260,6 +260,12 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Visite** : chaque flèche posée sur son lien, dans sa direction exacte (liens presque parallèles : la suivante recule le long du sien).
 
+**Pincement fluide** : le dispatcher de Nodz réécrivait à chaque image l'affichage de chaque node et lien et les quatre compteurs de coin, même inchangés, ce qui recalculait le style de toute la carte (25 ms par image à 300 nodes). Il n'écrit plus que ce qui change ; les pas d'un pincement reçus pendant une image s'appliquent d'un seul coup (même zoom, arrondis compris). Pincement à 300 nodes : image médiane de 33-50 ms à 16,7 ms, recalcul de style presque divisé par deux. Un cran de molette zoome de 4 pas au lieu de 3.
+
+**Ancienne flèche des liens retirée** : le curseur flèche bleu de Nodz au survol d'un lien (et son clic de voyage, qui s'ajoutait à chaque survol) apparaissait sous la nouvelle flèche de saut ; seule celle-ci reste.
+
+**Pastilles des branches repliées** : elles passaient par-dessus le profil, la galerie ou l'export ; cachées tant qu'une fenêtre de Nodz est ouverte, et en mode compact.
+
 **Texte jamais rogné** : un node texte dont le texte déborde (grande police, texte long, mot plus large que le node) grandit juste assez, après la frappe, au chargement ou après un changement de police : la largeur garde le mot le plus long entier, puis la plus petite forme qui contient tout (un rond : son carré inscrit ; un rectangle : plus large que haut). Jamais plus petit qu'avant ; un rectangle étiré à la main garde ses proportions. Interligne à la mesure de chaque police (les lignes d'une grande police se chevauchaient) et plus de mot coupé en deux.
 
 **Branches : replier, ranger en arbre, exporter** : la pastille d'un node qui a des enfants porte « Branche ▾ ». Ranger en arbre : ses descendants se rangent de gauche à droite, niveau par niveau, chaque sous-arbre dans sa bande, en glissant (un seul Ctrl+Z). Replier : ses descendants et leurs liens disparaissent, une pastille « +N » les rappelle (un clic déplie) ; le repli reste par dimension dans ce navigateur et revient au rechargement. Exporter : la branche en Markdown, OPML ou FreeMind (.mm), que lisent XMind, MindNode, MindMeister, Obsidian ou Workflowy ; « Exporter la carte » (Filtres) exporte toute la dimension. Les enfants suivent l'ordre de la carte (de haut en bas).

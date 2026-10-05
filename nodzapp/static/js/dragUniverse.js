@@ -44,12 +44,10 @@ function dispatcher() {
 
 function nodeGestion (node) {
     const category = isOnScreen(node);   
-    if (category !== 4) {
-        node.style.display = 'none'; 
-        categoryCounts[category]++;    
-    } else {
-        node.style.display = 'block';        
-    }
+    // N'écrire que ce qui change : réécrire display, même identique, recalcule le style de tout le node à chaque image
+    const display = category !== 4 ? 'none' : 'block';
+    if (category !== 4) categoryCounts[category]++;
+    if (node.style.display !== display) node.style.display = display;
 }
 
 function linkGestion (link) {
@@ -57,8 +55,8 @@ function linkGestion (link) {
     const node2 = document.getElementById(link.getAttribute('Node2'));
 
     if (isOnScreen(node1) !== 4 && isOnScreen(node2) !== 4 && !lineIsOnScreen(node1, node2)) {
-        link.style.display = 'none';
-    } else if (linkState !== 2) {
+        if (link.style.display !== 'none') link.style.display = 'none';
+    } else if (linkState !== 2 && link.style.display !== 'block') {
         link.style.display = 'block';
     }
 }
