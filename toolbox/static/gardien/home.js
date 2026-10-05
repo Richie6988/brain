@@ -64,44 +64,44 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         const saved = { layer: Number(layerNumber), groups: {}, tools: {} };
         let root = at(placed.root) ? placed.root : null;
         await bulk(async () => {
-        if (!root) {
-            root = saved.root = await create('home-root', 0, 0, `<b>${NAME}</b><br><font size="2">Ma maison : réécris mes nodes pour me régler.</font>`, '#6848A6', 'square');
-        }
-        const origin = at(root);
-        const families = [];
-        let row = 0;  // ordre de départ, de haut en bas : l'arbre le garde
-        const spot = depth => ({ x: origin.x + COLUMN * depth, y: origin.y - ROW * row++ });
-        for (const { key, label, hint } of seed.groups) {
-            if (at(placed.groups?.[key])) continue;
-            const p = spot(1);
-            const hub = saved.groups[key] = await create(`home-${key}`, p.x, p.y, `<b>${label}</b><br><font size="2">${escape(hint)}</font>`, COLORS[key], 'square');
-            await link(root, hub);
-            const child = async (ref, text, parent = hub, depth = 2, tint = COLORS[key]) => {
-                const q = spot(depth);
-                const id = await create(ref, q.x, q.y, html(text), tint, 'square');
-                await link(parent, id);
-                return id;
-            };
-            if (key === 'soul') await child('home-soul-1', seed.soul);
-            if (key === 'identity') await child('home-identity-1', seed.identity);
-            if (key === 'user') await child('home-user-1', seed.user);
-            if (key === 'memory') saved.memory = await child('home-memory-1', `Mémoire du Gardien\n${seed.memory.map(f => `- ${f}`).join('\n')}`);
-            if (key === 'skills') {
-                await child('home-skill-1', seed.skill);
-                saved.brain = await child('home-brain', seed.brain);
+            if (!root) {
+                root = saved.root = await create('home-root', 0, 0, `<b>${NAME}</b><br><font size="2">Ma maison : réécris mes nodes pour me régler.</font>`, '#6848A6', 'square');
             }
-            if (key === 'tools') {  // une famille par branche, ses outils derrière elle
-                for (const [f, family] of [...new Set(seed.tools.map(t => t.category))].entries()) {  // repliée : +N
-                    const tint = PALETTE[f % PALETTE.length];
-                    const fid = families[f] = await child(`home-family-${f}`, family, hub, 2, tint);
-                    for (const tool of seed.tools.filter(t => t.category === family)) {
-                        saved.tools[tool.op] = await child(`home-tool-${tool.op}`, `${tool.op}\n${tool.label}\n\n${tool.usage}`, fid, 3, tint);
+            const origin = at(root);
+            const families = [];
+            let row = 0;  // ordre de départ, de haut en bas : l'arbre le garde
+            const spot = depth => ({ x: origin.x + COLUMN * depth, y: origin.y - ROW * row++ });
+            for (const { key, label, hint } of seed.groups) {
+                if (at(placed.groups?.[key])) continue;
+                const p = spot(1);
+                const hub = saved.groups[key] = await create(`home-${key}`, p.x, p.y, `<b>${label}</b><br><font size="2">${escape(hint)}</font>`, COLORS[key], 'square');
+                await link(root, hub);
+                const child = async (ref, text, parent = hub, depth = 2, tint = COLORS[key]) => {
+                    const q = spot(depth);
+                    const id = await create(ref, q.x, q.y, html(text), tint, 'square');
+                    await link(parent, id);
+                    return id;
+                };
+                if (key === 'soul') await child('home-soul-1', seed.soul);
+                if (key === 'identity') await child('home-identity-1', seed.identity);
+                if (key === 'user') await child('home-user-1', seed.user);
+                if (key === 'memory') saved.memory = await child('home-memory-1', `Mémoire du Gardien\n${seed.memory.map(f => `- ${f}`).join('\n')}`);
+                if (key === 'skills') {
+                    await child('home-skill-1', seed.skill);
+                    saved.brain = await child('home-brain', seed.brain);
+                }
+                if (key === 'tools') {  // une famille par branche, ses outils derrière elle
+                    for (const [f, family] of [...new Set(seed.tools.map(t => t.category))].entries()) {  // repliée : +N
+                        const tint = PALETTE[f % PALETTE.length];
+                        const fid = families[f] = await child(`home-family-${f}`, family, hub, 2, tint);
+                        for (const tool of seed.tools.filter(t => t.category === family)) {
+                            saved.tools[tool.op] = await child(`home-tool-${tool.op}`, `${tool.op}\n${tool.label}\n\n${tool.usage}`, fid, 3, tint);
+                        }
                     }
                 }
             }
-        }
-        families.forEach(id => branches.fold(document.getElementById(id)));  // les outils se déplient famille par famille
-        if (Object.keys(saved.groups).length) await tidy(root);
+            families.forEach(id => branches.fold(document.getElementById(id)));  // les outils se déplient famille par famille
+            if (Object.keys(saved.groups).length) await tidy(root);
         });  // tout est enregistré : la carte de la maison peut partir
         data = await api.request('POST', 'toolbox/home', saved);
         filters.mark([saved.root, ...Object.values(saved.groups), saved.memory, saved.brain, ...Object.values(saved.tools)].filter(Boolean), 'ai');
@@ -122,8 +122,8 @@ export function createHome({ bridge, say, filters, chat, branches }) {
             await tidy(hub);
         };
         await bulk(async () => {
-        await place('exchanges', data.letters, 'letters', l => `<font size="2">${escape(l.at)}</font><br>${l.html}${l.choices?.length ? `<br><i>${l.choices.map(escape).join(' / ')}</i>` : ''}`);
-        await place('dreams', data.dreams, 'dreams', d => `<font size="2">${d.kind === 'souvenir' ? 'Souvenir' : 'Idée'} · ${escape(d.at)}</font><br>${escape(d.text)}`);
+            await place('exchanges', data.letters, 'letters', l => `<font size="2">${escape(l.at)}</font><br>${l.html}${l.choices?.length ? `<br><i>${l.choices.map(escape).join(' / ')}</i>` : ''}`);
+            await place('dreams', data.dreams, 'dreams', d => `<font size="2">${d.kind === 'souvenir' ? 'Souvenir' : 'Idée'} · ${escape(d.at)}</font><br>${escape(d.text)}`);
         });
         if (!Object.keys(posted.letters).length && !Object.keys(posted.dreams).length) return 0;
         data = await api.request('POST', 'toolbox/home', posted);
