@@ -965,7 +965,7 @@ body:has(.universe.lightmode) .node-group[type=code] .node-text-input pre.code-o
 #sfxButton[data-state="off"]::before { content: ''; position: absolute; left: 18%; right: 18%; top: 50%; height: 1.5px; z-index: 1;
     background: #fff; transform: rotate(-35deg); box-shadow: 0 0 3px rgba(184, 154, 242, 0.85); }
 /* Le bouton Visite (42 px) est pris sur la recherche : le dock garde sa largeur, la zone des gestes de l'univers aussi. */
-@media (min-width: 901px) { #button-container #semanticsearch { width: 175px; min-width: 0; } }
+@media (min-width: 901px) { #button-container #semanticsearch { width: 133px; min-width: 0; } }  /* Visite et Compact : -42 px chacun */
 #visitButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 2.5l2.5 3h-5zM12 21.5l2.5-3h-5zM2.5 12l3-2.5v5zM21.5 12l-3-2.5v5z' fill='%23000'/%3E%3C/svg%3E") no-repeat center / 90%; }
 #exportButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 4v13M4 13l4 4 4-4M16 20V7M12 11l4-4 4 4'/%3E%3C/svg%3E") no-repeat center / 80% !important; }
 #guideButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7'/%3E%3Ccircle cx='12' cy='17' r='.7' fill='%23000'/%3E%3C/svg%3E") no-repeat center / 90%; }
@@ -1467,3 +1467,13 @@ body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }
 @media (prefers-reduced-motion: reduce) { #gardien-spark { animation: none; } }
 body:has(.universe.lightmode) #gardien-spark { color: #440852; background: rgba(255, 255, 255, 0.95); }
 body:has(.universe.lightmode) #gardien-spark b, body:has(.universe.lightmode) #gardien-spark input { color: #440852; }
+/* Mode compact (compact.js) : formes effacées, seul le contenu reste, en texte net à la couleur du node. */
+#compactButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#compactButton.on { box-shadow: 0 0 0 2px #1E90FF, 0 0 14px rgba(30, 144, 255, 0.6); }
+body.gardien-compact .node-group :is(.hitbox, .squareShape) { stroke-opacity: 0 !important; fill-opacity: 0 !important; filter: none !important; }
+body.gardien-compact .node-group :is(.portal-door, .gf-badge) { display: none; }
+body.gardien-compact .node-group .node-text-input { font-size: 17px !important; line-height: 1.35 !important; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9); }
+body.gardien-compact .node-group .node-text-input::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 50%;
+    vertical-align: 1px; background: var(--node-color, #33FF99); box-shadow: 0 0 8px var(--node-color, #33FF99); }
+body.gardien-compact :is(#gardien-sizer, #gardien-nodebar, #gardien-send) { display: none !important; }
+body.gardien-compact .link { stroke-opacity: 0.22; }

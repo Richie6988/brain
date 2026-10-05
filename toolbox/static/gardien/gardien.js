@@ -10,6 +10,7 @@ import { api } from './api.js';
 import { createBranches } from './branches.js';
 import { createBridge } from './bridge.js';
 import { createChat } from './chat.js';
+import { createCompact } from './compact.js';
 import { createCorners } from './corners.js';
 import { createCutter } from './cutter.js';
 import { createDataset } from './dataset.js';
@@ -132,6 +133,7 @@ visitButton.addEventListener('click', () => {
     if (node) tour.start(node);
     else say('Sélectionne le node d\'où part la visite.');
 });
+const compact = createCompact({ bridge, say });  // mode compact : la dimension resserrée, formes effacées, lue d'un coup d'œil (C)
 const room = createRoom({ bridge, say });  // salons multijoueur : bouton Partager, curseurs, gestes en direct
 const dataset = createDataset({ bridge, say, onDone: refs => bridge.perform({ op: 'frame', refs }) });  // import de cartes et de tableaux
 createExchange({ dataset, filters });  // bouton Export du dock : tout l'import et l'export
@@ -227,6 +229,7 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
         chat.add(kind === 'text' ? 'guardian' : kind, message);
         if (node) say(message, kind);
     };
+    await compact.off();  // le Gardien agit sur la carte éclatée
     chat.busy(true);
     timeline.begin();
     // Réflexion en direct : le plan que le modèle écrit, fragment par fragment (un fragment ≈ un jeton).
