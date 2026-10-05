@@ -9,7 +9,8 @@
 import { api } from './api.js';
 import { h } from './library.js';
 
-const GAP = 0.42;  // écart minimal entre deux flèches (radians, ~24°)
+const GAP = 0.42;  // sous cet écart (radians, ~24°), deux flèches se chevaucheraient : la seconde recule sur son lien
+const STEP = 64;   // recul d'une flèche (px)
 const ARROW = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 17h18V7l16 17-16 17V31H8z"/></svg>';
 // Texte d'un node avec ses retours à la ligne (innerText les perd quand le node est caché hors de l'écran).
 function textOf(node) {
@@ -66,22 +67,14 @@ function disc(node) {
     const r = (shape || node).getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: Math.max(r.width, r.height) / 2 };
 }
-// Écarte les angles trop proches (deux liens presque dans la même direction) pour que chaque flèche reste cliquable.
-function spread(angles) {
-    const order = angles.map((a, i) => i).sort((i, j) => angles[i] - angles[j]);
-    const out = [...angles];
-    for (let pass = 0; pass < 12; pass++) {
-        for (let k = 0; k < order.length && order.length > 1; k++) {
-            const i = order[k], j = order[(k + 1) % order.length];
-            let d = out[j] - out[i];
-            if (k === order.length - 1) d += 2 * Math.PI;
-            if (d < GAP) {
-                out[i] -= (GAP - d) / 2;
-                out[j] += (GAP - d) / 2;
-            }
-        }
-    }
-    return out;
+// Flèches sur des liens presque parallèles : chacune reste sur son lien et dans sa direction exacte ; la suivante recule
+// d'un cran le long du sien pour ne pas couvrir l'autre.
+function stagger(arrows) {
+    const sorted = [...arrows].sort((p, q) => p.angle - q.angle);
+    sorted.forEach((a, k) => {
+        const close = sorted.slice(0, k).filter(b => Math.abs(Math.atan2(Math.sin(a.angle - b.angle), Math.cos(a.angle - b.angle))) < GAP);
+        a.lift = close.length ? Math.max(...close.map(b => b.lift)) + 1 : 0;
+    });
 }
 // Angle libre pour une flèche sans direction (portail vers une autre dimension) : le plus loin des autres.
 function freeAngle(taken) {
@@ -207,15 +200,15 @@ export function createTour({ bridge, say }) {
             button.addEventListener('mouseenter', () => { state.hover = step; element(step)?.classList.add('gardien-choice-hover'); paint(); });
             button.addEventListener('mouseleave', () => { state.hover = null; element(step)?.classList.remove('gardien-choice-hover'); paint(); });
             button.addEventListener('click', () => go(step));
-            return { step, button, angle: 0 };
+            return { step, button, angle: 0, lift: 0 };
         });
         // Directions : glisser ou zoomer la vue ne les change pas, elles se calculent une fois par node central.
         const c = disc(node);
         const near = state.arrows.filter(a => element(a.step));
-        const angles = spread(near.map(a => { const d = disc(element(a.step)); return Math.atan2(d.y - c.y, d.x - c.x); }));
-        near.forEach((a, i) => { a.angle = angles[i]; });
-        const taken = [...angles];
+        near.forEach(a => { const d = disc(element(a.step)); a.angle = Math.atan2(d.y - c.y, d.x - c.x); });
+        const taken = near.map(a => a.angle);
         state.arrows.filter(a => !element(a.step)).forEach(a => { a.angle = freeAngle(taken); taken.push(a.angle); });
+        stagger(state.arrows);
         ring.replaceChildren(...state.arrows.map(a => a.button));
         place();
     }
@@ -225,8 +218,8 @@ export function createTour({ bridge, say }) {
         const node = element(here());
         if (!node || ring.hidden) return;
         const c = disc(node);
-        const radius = c.r + 56;
         state.arrows.forEach(a => {
+            const radius = c.r + 56 + a.lift * STEP;
             const x = c.x + Math.cos(a.angle) * radius, y = c.y + Math.sin(a.angle) * radius;
             a.button.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${a.angle}rad)`;
             a.button.querySelector('span')?.style.setProperty('transform', `rotate(${-a.angle}rad)`);  // l'étiquette du portail reste droite
