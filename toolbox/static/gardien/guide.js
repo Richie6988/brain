@@ -73,7 +73,7 @@ const SHORTCUTS = [
         ['[Ctrl]+[Entrée] dans un node', 'L\'envoyer au Gardien'],
         ['/web /dessin /image', 'En tête du message : il part avec cet outil'],
         ['Visite : [←] [↑] [→] [↓] [Retour arrière] [Échap]', 'Prendre la flèche de cette direction, revenir, arrêter'],
-        ['[C]', 'Mode compact : la dimension resserrée, formes effacées, lue d\'un coup d\'œil (C de nouveau : retour)'],
+        ['[C]', 'Mode compact : la sélection (sinon la dimension) rangée en texte net ; 1 Arbre, 2 Nuage, 3 Processus horizontal, 4 vertical ; C ou Échap : retour'],
     ]],
 ];
 

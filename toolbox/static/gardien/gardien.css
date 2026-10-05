@@ -1476,11 +1476,35 @@ body:has(.universe.lightmode) #gardien-spark b, body:has(.universe.lightmode) #g
 #compactButton.on { box-shadow: 0 0 0 2px #1E90FF, 0 0 14px rgba(30, 144, 255, 0.6); }
 body.gardien-compact .node-group :is(.hitbox, .squareShape) { stroke-opacity: 0 !important; fill-opacity: 0 !important; filter: none !important; }
 body.gardien-compact .node-group :is(.portal-door, .gf-badge) { display: none; }
-body.gardien-compact .node-group .node-text-input { font-size: 17px !important; line-height: 1.35 !important; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9); }
+body.gardien-compact .node-group .node-text-input { font-size: var(--gc-font, 17px) !important; line-height: 1.35 !important; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9); }
+/* Le texte n'est plus tenu par le cercle effacé : sa largeur suit le contenu (15 em au plus), centré, mots entiers. */
+body.gardien-compact .node-group > foreignObject { overflow: visible; }
+body.gardien-compact .node-group .node-text-input { width: max-content !important; max-width: 15em; left: 50%; transform: translate(-50%, -50%);
+    word-break: normal; overflow-wrap: normal; overflow: visible; }
 body.gardien-compact .node-group .node-text-input::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 50%;
     vertical-align: 1px; background: var(--node-color, #33FF99); box-shadow: 0 0 8px var(--node-color, #33FF99); }
 body.gardien-compact :is(#gardien-sizer, #gardien-nodebar, #gardien-send) { display: none !important; }
 body.gardien-compact .link { stroke-opacity: 0.22; }
+/* Hors d'une sélection rangée : le reste de la carte s'efface. */
+body.gardien-compact .gc-out { opacity: 0.06; pointer-events: none; }
+/* Barre des rangements du compact, en haut au centre. */
+#gardien-compact-bar { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 31; max-width: calc(100vw - 32px); box-sizing: border-box;
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 7px 8px 7px 14px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    border-radius: 999px; border: 1px solid transparent;
+    background: linear-gradient(rgba(8, 13, 28, 0.94), rgba(8, 13, 28, 0.94)) padding-box, linear-gradient(135deg, #b89af2, #6848A6 45%, #1E90FF) border-box;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); animation: gardien-appear 0.18s ease-out; }
+#gardien-compact-bar[hidden] { display: none; }
+#gardien-compact-bar .gc-count { color: #94a3b8; margin-right: 4px; white-space: nowrap; }
+#gardien-compact-bar button { display: inline-flex; align-items: center; gap: 6px; font: inherit; color: #cbd5e1; background: rgba(148, 163, 184, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 999px; padding: 5px 11px; cursor: pointer; white-space: nowrap; }
+#gardien-compact-bar button:hover { color: #fff; background: rgba(104, 72, 166, 0.45); }
+#gardien-compact-bar button.on { color: #fff; background: rgba(30, 144, 255, 0.28); border-color: #1E90FF; }
+#gardien-compact-bar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#gardien-compact-bar .gc-quit { color: #fff; background: rgba(104, 72, 166, 0.55); border-color: #b89af2; }
+@media (max-width: 720px) { #gardien-compact-bar button span { display: none; } }
+body:has(.universe.lightmode) #gardien-compact-bar { color: #440852; background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+    linear-gradient(135deg, #b89af2, #6848A6 45%, #1E90FF) border-box; }
+body:has(.universe.lightmode) #gardien-compact-bar button:not(.on, .gc-quit) { color: #440852; }
 /* Plafond du compte gratuit (quota.js) : carte qui propose Premium. */
 .gq-card { position: relative; width: min(440px, calc(100vw - 32px)); box-sizing: border-box; padding: 26px 26px 22px; display: grid; gap: 12px;
     font: 13px/1.6 'Cascadia Code', monospace; color: #e2e8f0; border-radius: 22px; border: 1px solid transparent;
