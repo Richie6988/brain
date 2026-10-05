@@ -395,11 +395,15 @@ def save_node(request):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON data'}, status=400)
 
+        from toolbox import quota  # compte gratuit : 100 nodes hors dimension Gardien (toolbox/quota.py)
+
         # Save data to the database
         for group_data in json_data:
           
             if 'id' in group_data:
                 # print(user_id,group_data['id']),
+                if not Node.objects.filter(user=user, node_id=group_data['id']).exists() and not quota.room_for_nodes(user, group_data.get('layer'), 1):
+                    continue  # au-delà du quota gratuit : le node n'est pas créé (le navigateur propose Premium)
                 layer_instance, _ = Layer.objects.get_or_create(user=user, layer_id=group_data.get('layer', 1))
                 node, created = Node.objects.get_or_create(
                     user=user, 

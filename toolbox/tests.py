@@ -3006,7 +3006,7 @@ class RoomTests(TransactionTestCase):
     """Salons : un relais par salon, l'accès vérifié, l'auteur signé par le serveur, l'hôte seul maître."""
 
     def setUp(self):
-        self.host = NodzUser.objects.create_user(email='hote@nodz.local', password='pw-123456', username='Hote')
+        self.host = NodzUser.objects.create_user(email='hote@nodz.local', password='pw-123456', username='Hote', premium=True)  # ouvrir : Premium
         self.guest = NodzUser.objects.create_user(email='invite@nodz.local', password='pw-123456', username='Invite')
 
     def connect(self, token, user, query=''):
@@ -3156,3 +3156,50 @@ class PremiumTests(TestCase):
             self.client.force_login(guest)
             self.assertEqual(self.client.post('/api/v1/toolbox/premium/checkout', '{}', content_type='application/json').status_code, 400)
             self.assertEqual(create.call_count, 1)
+
+
+class QuotaTests(TestCase):
+    """Compte gratuit : 100 nodes et 5 dimensions hors dimension Gardien ; Premium : illimité ; ouvrir un salon : Premium."""
+
+    def setUp(self):
+        from nodzapp.models import Layer
+
+        self.user = NodzUser.objects.create_user(email='free@nodz.local', password='pw-123456')
+        self.client.force_login(self.user)
+        self.client.get('/api/v1/toolbox/agents')
+        self.layer = Layer.objects.create(user=self.user, layer_id=1, layer_name='Home')
+        self.home = Layer.objects.create(user=self.user, layer_id=2, layer_name='Gardien')
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        guardian.brain = {'home': {'layer': 2, 'groups': {'soul': 'N-500'}}}
+        guardian.save()
+
+    def node(self, i, layer):
+        return {'id': i, 'x': 0, 'y': 0, 'type': 'text', 'color': '#33FF99', 'shape': 'circle', 'likes': 0, 'radius': 85, 'layer': layer,
+                'textContent': f'n{i}', 'imgContent': '', 'canvasContent': '[]', 'fileName': '', 'links': '[]', 'siblings': '[]', 'quantum': '[]',
+                'notification': '', 'lock': 0}
+
+    def save(self, items):
+        params = {'originX': 0, 'originY': 0, 'originLayer': 1, 'dark': True, 'sound': True, 'layer': 1, 'fullscreen': False}
+        return self.client.post('/save-node/', json.dumps([*items, params]), content_type='application/json')
+
+    def test_free_account_stops_at_100_nodes_but_not_in_the_guardian_dimension(self):
+        from nodzapp.models import Node
+
+        self.save([self.node(i, 1) for i in range(1, 104)])
+        self.assertEqual(Node.objects.filter(user=self.user, layer=self.layer).count(), 100)
+        self.save([self.node(i, 2) for i in range(500, 520)])  # dimension Gardien : hors quota
+        self.assertEqual(Node.objects.filter(user=self.user, layer=self.home).count(), 20)
+        self.save([{**self.node(5, 1), 'textContent': 'réécrit'}])  # un node existant se réécrit toujours
+        self.assertEqual(Node.objects.get(user=self.user, node_id=5).text_content, 'réécrit')
+        usage = self.client.get('/api/v1/toolbox/quota').json()
+        self.assertEqual((usage['limited'], usage['nodes'], usage['dimensions'], usage['home']), (True, 100, 1, 2))
+
+    def test_premium_has_no_limit_and_hosts_rooms(self):
+        from nodzapp.models import Node
+
+        self.assertEqual(self.client.post('/api/v1/toolbox/rooms', '{}', content_type='application/json').status_code, 403)
+        NodzUser.objects.filter(pk=self.user.pk).update(premium=True)
+        self.save([self.node(i, 1) for i in range(1, 131)])
+        self.assertEqual(Node.objects.filter(user=self.user).count(), 130)
+        self.assertFalse(self.client.get('/api/v1/toolbox/quota').json()['limited'])
+        self.assertEqual(self.client.post('/api/v1/toolbox/rooms', '{}', content_type='application/json').status_code, 200)

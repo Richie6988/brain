@@ -335,58 +335,24 @@
 
         <!-- Subscription Section -->
         <div class="subscription">                         
-            <div class="subscription-upgrade" data-pf-tab="premium">
-                
-                <div class="subscription-upgrade" style="background-color: #f8f8f8; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); max-width: 600px; margin: 30px auto; font-family: 'Cascadia Code', monospace;">
-                    <p style="font-size: 24px; font-weight: bold; color: #663399; text-align: center; margin-bottom: 20px;">Passer à Premium</p>
-                    <ul id="feedback" style="font-size: 16px; margin: 0; padding-left: 20px; color: #444;">
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Serveur plus puissant</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Nodes et dimensions illimités</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Documents volumineux</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Accès à plusieurs</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Nouveautés en avant-première</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">Support prioritaire</p> 
-                        </li>
-                    </ul>
-                    <p style="color: #663399; text-align: center; font-size: 14px; margin-top: 20px;">
-                        Ton soutien nous aide à continuer de peaufiner Nodz.
-                    </p>
+            <!-- Premium : le compte gratuit et ses plafonds (toolbox/quota.py), l'offre et son paiement Stripe (toolbox/premium.py) -->
+            <div class="pf-premium" data-pf-tab="premium">
+                <div class="pf-plan">
+                    <h4>Gratuit</h4>
+                    <p>5 dimensions et 100 nodes, ta dimension Gardien en plus. Le Gardien pense avec ton IA par API (ta clé).</p>
+                    <div class="pf-meter"><span>Nodes</span><i><b id="pf-q-nodes"></b></i><em id="pf-q-nodes-n">…</em></div>
+                    <div class="pf-meter"><span>Dimensions</span><i><b id="pf-q-dims"></b></i><em id="pf-q-dims-n">…</em></div>
                 </div>
-                
-                <form id="payment-form" action="{% url 'process_payment' %}" method="POST">
-                    <!-- Terms Agreement -->
-                    <div class="form-group">
-                        <input type="checkbox" id="agree-terms" name="agree-terms" required>
-                        <span for="agree-terms">
-                            J'accepte les
-                            <a href="{% url 'terms' %}" style="color:#663399" target="_blank">conditions d'utilisation</a>
-                            et la
-                            <a href="{% url 'privacy' %}" style="color:#663399" target="_blank">politique de confidentialité</a>.
-                        </span>
-                    </div>
-                    <!-- Plan Selection -->
-                    <div class="form-group" style="display: flex; align-items: center; justify-content: center;">
-                        <select name="plan" id="plan" class="submit-button"
-                        style="background-color: #383838; width:30%; text-align: center; font-family: 'Cascadia Code', monospace; font-size: 14px; border: 1px solid #ccc; padding: 5px; border-radius: 4px;" 
-                        required>
-                            <option value="free" disabled>Gratuit</option>
-                            <option value="monthly" selected>Mensuel · 9,90 €</option>
-                            <option value="yearly">Annuel · 99 €</option>
-                        </select>
-                        <button style="width:180px;" type="submit" id="pay-button" class="submit-button">Passer à Premium</button>
-                    </div>     
-                </form>
+                <div class="pf-plan pf-plan-premium">
+                    <h4>Premium <small id="pf-price"></small></h4>
+                    <ul>
+                        <li>Nodes et dimensions illimités</li>
+                        <li>Gardien propulsé par l'IA du serveur, sans clé ni réglage</li>
+                        <li>Salons collaboratifs : invite qui tu veux à créer avec toi</li>
+                    </ul>
+                    <p class="pf-why">Ton abonnement fait vivre l'hébergement de l'IA sur ce serveur. Résiliable à tout moment.</p>
+                    <button type="button" id="pf-premium-go" class="submit-button">Passer Premium</button>
+                </div>
             </div>
              <!-- Contact Section -->
              <h3 class="section-title" data-pf-tab="avis">Ton avis</h3>
@@ -1023,52 +989,37 @@
         });
 
 
-        ////////////////////////////////// PAYMENT //////////////////////////////////
+        ////////////////////////////////// PREMIUM //////////////////////////////////
 
-        // Assume you have the Stripe.js library loaded
-        const stripe = ''// Stripe('your-publishable-key');
-
-        //Handle the subscription upgrade
-        document.getElementById('payment-form').addEventListener('submit', async (e) => {
-            e.preventDefault();    
-            const plan = document.getElementById('plan').value;
-            const csrfToken = getCookie('nodz_csrftoken');
-
-            // Send request to your Django backend to create a PaymentIntent
-            const response = await fetch('/process-payment/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken,  
-                },
-                body: new URLSearchParams({
-                    'plan': plan  // Send the selected plan (monthly or yearly)
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) {
-                pfNotice('Paiement impossible : ' + data.error, true);
-                return;
-            }
-
-            const clientSecret = data.client_secret;
-
-            // Use Stripe.js to handle the payment confirmation
-            const {error} = await stripe.confirmCardPayment(clientSecret, {
-                payment_method: {
-                    card: elements.getElement(CardElement),  // Assuming you're using Stripe Elements
-                    billing_details: {
-                        name: 'Customer Name',
-                        email: 'customer@example.com',
-                    },
-                },
-            });
-
-            if (error) {
-                pfNotice('Paiement refusé : ' + error.message, true);
-            } else {
-                pfNotice('Paiement accepté : bienvenue en Premium.');
+        // Onglet Premium : jauges du compte gratuit, prix, et le bouton vers Stripe (paiement, ou gestion de l'abonnement).
+        async function pfPremium() {
+            const get = path => fetch('/api/v1/toolbox/' + path).then(r => r.json());
+            const [quota, offer] = await Promise.all([get('quota'), get('premium')]).catch(() => [null, null]);
+            if (!quota || !offer) return;
+            const meter = (id, used, max) => {
+                document.getElementById(id).style.width = Math.min(100, (100 * used) / max) + '%';
+                document.getElementById(id + '-n').textContent = quota.limited ? used + ' / ' + max : used + ' · illimité';
+            };
+            meter('pf-q-nodes', quota.nodes, quota.max_nodes);
+            meter('pf-q-dims', quota.dimensions, quota.max_dimensions);
+            document.getElementById('pf-price').textContent = offer.price || '';
+            const go = document.getElementById('pf-premium-go');
+            go.textContent = offer.active ? 'Gérer mon abonnement' : 'Passer Premium';
+            go.dataset.action = offer.active ? 'portal' : 'checkout';
+            document.querySelector('#profile .pf-plan-premium').classList.toggle('on', !!offer.active);
+        }
+        document.querySelector('#profile .pf-tabs button[data-tab="premium"]').addEventListener('click', pfPremium);
+        document.getElementById('pf-premium-go').addEventListener('click', async () => {
+            const go = document.getElementById('pf-premium-go');
+            go.disabled = true;
+            try {
+                const response = await fetch('/api/v1/toolbox/premium/' + (go.dataset.action || 'checkout'), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('nodz_csrftoken') }, body: '{}' });
+                const data = await response.json();
+                if (data.url) location.href = data.url;
+                else pfNotice('Premium : ' + (data.error || 'indisponible pour le moment'), true);
+            } finally {
+                go.disabled = false;
             }
         });
 

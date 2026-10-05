@@ -29,6 +29,7 @@ urlpatterns = [
     path('workspace/<path:path>', api.workspace_file),
     path('home', api.home_view),
     path('dream', api.dream),
+    path('quota', api.quota_view),
     path('premium', api.premium_offer),
     path('premium/checkout', api.premium_checkout),
     path('premium/portal', api.premium_portal),

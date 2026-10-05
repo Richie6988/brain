@@ -26,12 +26,12 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Layer, Link, Node
 
-from . import cuda, fit, gguf, home as homes, hub, iaqua, imaging, monitor, params as model_params, premium, prompts, reminders as reminder_store, remote, tools, workspace
+from . import cuda, fit, gguf, home as homes, hub, iaqua, imaging, monitor, params as model_params, premium, prompts, quota, reminders as reminder_store, remote, tools, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable, acting_for
 from .guardian import Guardian, PlanError, guardian_prompt
-from .models import Agent, LocalModel, Mission, NodeMark, Preference, Room
+from .models import Agent, LocalModel, Mission, NodeMark, Preference, Room, hosted
 from .rooms import display_name
 from .runtime import broker, dispatcher, engine
 
@@ -553,6 +553,8 @@ def rooms(request, body):
     le ferme ; le lien d'accès est universe?room=<token>."""
     room = Room.objects.filter(host=request.user, closed=False).first()
     if request.method == 'POST':
+        if room is None and not hosted(request.user):  # ouvrir un salon : Premium ; le rejoindre reste ouvert à tous
+            raise Forbidden('les salons collaboratifs sont réservés au Premium')
         name = str(body.get('name') or '')[:120]
         if room is None:
             room = Room.objects.create(host=request.user, name=name)
@@ -768,6 +770,12 @@ def _agent_model(body, user):
 def _site(request):
     """L'adresse publique de Nodz (préfixe compris), pour les retours de Stripe."""
     return request.build_absolute_uri('/').rstrip('/') + (settings.FORCE_SCRIPT_NAME or '')
+
+
+@api('GET')
+def quota_view(request, body):
+    """Compte gratuit : nodes et dimensions utilisés (dimension Gardien hors quota) et les plafonds."""
+    return JsonResponse(quota.usage(request.user))
 
 
 @api('GET')

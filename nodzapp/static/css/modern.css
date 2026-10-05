@@ -203,6 +203,24 @@ body:has(.universe.lightmode) {
 #profile .pf-tabs button { font: 11px 'Cascadia Code', monospace; color: #440852; background: ivory; border: 1px solid #c9b8e0; border-radius: 12px; padding: 4px 10px; cursor: pointer; }
 #profile .pf-tabs button:hover { box-shadow: 0 -2px 6px #f0c8f3a9; }
 #profile .pf-tabs button.active { background: #440852; color: ivory; border-color: #440852; }
+/* Onglet Premium : le compte gratuit (jauges) à côté de l'offre Premium. */
+#profile .pf-premium { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 6px 0 14px; font-family: 'Cascadia Code', monospace; }
+#profile .pf-plan { display: grid; gap: 10px; align-content: start; padding: 18px; border-radius: 16px; background: ivory; border: 1px solid #c9b8e0; color: #440852; }
+#profile .pf-plan h4 { margin: 0; font-size: 16px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+#profile .pf-plan h4 small { font-size: 12px; color: #6848A6; }
+#profile .pf-plan p { margin: 0; font-size: 12px; line-height: 1.6; color: #5b3f7a; }
+#profile .pf-plan ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 13px; }
+#profile .pf-plan li { position: relative; padding-left: 22px; }
+#profile .pf-plan li::before { content: ''; position: absolute; left: 2px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, #b89af2, #1E90FF); }
+#profile .pf-plan-premium { background: linear-gradient(160deg, #f5edff, ivory); border-color: #b89af2; box-shadow: 0 6px 20px rgba(104, 72, 166, 0.15); }
+#profile .pf-plan-premium.on { border-color: #2fbf71; }
+#profile .pf-plan .pf-why { font-size: 11px; }
+#profile .pf-plan :is(p, li, .pf-meter) { text-transform: none; letter-spacing: normal; }
+#profile .pf-plan button { justify-self: start; }
+#profile .pf-meter { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 10px; font-size: 12px; }
+#profile .pf-meter i { height: 8px; border-radius: 999px; background: #ece4f6; overflow: hidden; }
+#profile .pf-meter b { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #6848A6, #1E90FF); transition: width 0.4s ease; }
+#profile .pf-meter em { font-style: normal; color: #6848A6; }
 #profile .pf-notice { margin: -6px 0 10px; color: #0f9f6e; font-size: 11px; }
 #profile .pf-notice.error { color: #c0392b; }
 #profile [data-pf-tab][hidden] { display: none !important; }

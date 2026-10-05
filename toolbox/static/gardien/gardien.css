@@ -1477,3 +1477,22 @@ body.gardien-compact .node-group .node-text-input::before { content: ''; display
     vertical-align: 1px; background: var(--node-color, #33FF99); box-shadow: 0 0 8px var(--node-color, #33FF99); }
 body.gardien-compact :is(#gardien-sizer, #gardien-nodebar, #gardien-send) { display: none !important; }
 body.gardien-compact .link { stroke-opacity: 0.22; }
+/* Plafond du compte gratuit (quota.js) : carte qui propose Premium. */
+.gq-card { position: relative; width: min(440px, calc(100vw - 32px)); box-sizing: border-box; padding: 26px 26px 22px; display: grid; gap: 12px;
+    font: 13px/1.6 'Cascadia Code', monospace; color: #e2e8f0; border-radius: 22px; border: 1px solid transparent;
+    background: linear-gradient(rgba(10, 14, 30, 0.97), rgba(10, 14, 30, 0.97)) padding-box, linear-gradient(135deg, #b89af2, #6848A6 50%, #1E90FF) border-box;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(104, 72, 166, 0.35); animation: gardien-appear 0.2s ease-out; }
+.gq-card h3 { margin: 0; padding-right: 24px; font-size: 18px; line-height: 1.35; color: #fff; }
+.gq-card p { margin: 0; color: #94a3b8; }
+.gq-card ul { margin: 2px 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.gq-card li { padding-left: 26px; position: relative; color: #e2e8f0; }
+.gq-card li::before { content: ''; position: absolute; left: 4px; top: 6px; width: 10px; height: 10px; border-radius: 50%;
+    background: linear-gradient(135deg, #b89af2, #1E90FF); box-shadow: 0 0 10px rgba(184, 154, 242, 0.7); }
+.gq-card .gq-why { font-size: 11px; }
+.gq-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.gq-actions button { font: inherit; padding: 8px 16px; border-radius: 999px; cursor: pointer; color: #cbd5e1; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.28); }
+.gq-actions .gq-go { color: #050c17; font-weight: 600; background: linear-gradient(135deg, #b89af2, #33FF99); border: 0; box-shadow: 0 0 18px rgba(51, 255, 153, 0.35); }
+.gq-x { position: absolute; top: 12px; right: 14px; border: 0; background: none; color: #94a3b8; font-size: 18px; cursor: pointer; }
+body:has(.universe.lightmode) .gq-card { color: #1e1b4b; background: linear-gradient(rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.97)) padding-box,
+    linear-gradient(135deg, #b89af2, #6848A6 50%, #1E90FF) border-box; }
+body:has(.universe.lightmode) .gq-card :is(h3, li) { color: #1e1b4b; }

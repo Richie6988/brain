@@ -30,6 +30,7 @@ import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
 import { createPending } from './pending.js';
 import { createPhysics } from './physics.js';
+import { createQuota } from './quota.js';
 import './portal.js';  // window.portalRing : l'anneau vivant des portails, que Nodz pose en créant un node
 import { createReminders } from './reminders.js';
 import { createRoom } from './room.js';
@@ -90,6 +91,7 @@ const signedIn = setInterval(() => {
     reminders.refresh();
     dimensions.refresh();
     library.refresh().catch(() => {});  // IA locale ou non : la tour CPU/GPU s'affiche ou se cache
+    quota.refresh();
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
     guide.welcome();  // première visite : le guide s'ouvre
     room.start();  // salon du lien (?room=) ou le sien resté ouvert
@@ -134,7 +136,7 @@ visitButton.addEventListener('click', () => {
     else say('Sélectionne le node d\'où part la visite.');
 });
 const compact = createCompact({ bridge, say });  // mode compact : la dimension resserrée, formes effacées, lue d'un coup d'œil (C)
-const room = createRoom({ bridge, say });  // salons multijoueur : bouton Partager, curseurs, gestes en direct
+const room = createRoom({ bridge, say, onPremiumOnly: () => quota.offer('rooms') });  // salons multijoueur : bouton Partager, curseurs, gestes en direct
 const dataset = createDataset({ bridge, say, onDone: refs => bridge.perform({ op: 'frame', refs }) });  // import de cartes et de tableaux
 createExchange({ dataset, filters });  // bouton Export du dock : tout l'import et l'export
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé
@@ -145,6 +147,7 @@ createSide({ bridge, say, filters });  // vue de côté : X = numéro de dimensi
 const pending = createPending({ bridge, say, onApplied: ids => filters.mark(ids, 'ai') });  // changer de dimension n'interrompt pas le Gardien
 let guardian = null;  // l'agent orchestrateur de l'utilisateur
 const timeline = createHistory({ onGesture: kind => sfx.play(kind) });  // Ctrl+Z / Ctrl+Y sur tout geste, du clavier, de la souris ou du Gardien
+const quota = createQuota({ onPremium: () => library.open('start') });  // compte gratuit : 5 dimensions, 100 nodes ; au-delà, Premium (après l'historique : un node refusé n'y entre pas)
 // Ouvrir une dimension (portail, Entrée sur un node) : l'arpège du passage.
 const nodzNewLayer = window.createNewLayer;
 window.createNewLayer = (...args) => {

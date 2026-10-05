@@ -7,6 +7,7 @@
 import { api } from './api.js';
 import { arrange } from './branches.js';
 import { bulk } from './bulk.js';
+import { exempt } from './quota.js';
 
 const NAME = 'Gardien';
 const COLORS = { soul: '#C77DFF', identity: '#FF9F45', user: '#4DD4C6', memory: '#33FF99', skills: '#FFD93D', tools: '#4D96FF',
@@ -102,8 +103,9 @@ export function createHome({ bridge, say, filters, chat, branches }) {
             }
             families.forEach(id => branches.fold(document.getElementById(id)));  // les outils se déplient famille par famille
             if (Object.keys(saved.groups).length) await tidy(root);
-        });  // tout est enregistré : la carte de la maison peut partir
-        data = await api.request('POST', 'toolbox/home', saved);
+            // La carte part avant les nodes (fin de bulk) : le serveur sait déjà qu'ils sont ceux du Gardien, hors quota.
+            data = await api.request('POST', 'toolbox/home', saved);
+        });
         filters.mark([saved.root, ...Object.values(saved.groups), saved.memory, saved.brain, ...Object.values(saved.tools)].filter(Boolean), 'ai');
         return Object.keys(saved.groups).length;
     }
@@ -145,7 +147,7 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         await once(async () => {
             const back = layerNumber;
             say('Je m\'installe dans ma dimension « Gardien »…', 'guide');
-            await install();
+            await exempt(install);  // la maison du Gardien : hors quota du compte gratuit
             say('C\'est là que je stocke tous mes souvenirs : mon âme, ce que je sais de toi, mes outils, mes rêves. Retrouve-les quand tu veux depuis la dimension Gardien.', 'guide');
             await wait(4000);  // le temps de lire, la maison sous les yeux
             await bridge.enterLayer(back);
@@ -157,7 +159,7 @@ export function createHome({ bridge, say, filters, chat, branches }) {
     async function open() {
         if (!(await fetchHome())) return say('Le Gardien n\'est pas encore là : ouvre Agents & modèles.', 'error');
         await once(async () => {
-            const added = await install();
+            const added = await exempt(install);
             const delivered = await deliver();
             await bridge.perform({ op: 'overview', text: delivered ? `${delivered} nouveauté${delivered > 1 ? 's' : ''} : notes et rêves autour de leurs groupes.`
                 : added ? 'Sa maison : réécris ses nodes pour le régler.' : 'La dimension du Gardien : chaque groupe se règle en réécrivant ses nodes.' });

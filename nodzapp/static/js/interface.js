@@ -435,10 +435,9 @@ document.getElementById('profileButton').addEventListener('mousedown', function(
 
     profile.addEventListener('mousedown', function(e) {
         const feedback = document.getElementById('feedback-input');
-        const plan = document.getElementById('plan');
         const country = document.getElementById('country-select');
 
-        if(feedback.contains(e.target) || plan.contains(e.target)){
+        if(feedback.contains(e.target)){
             return;
         } else if (country &&  country.contains(e.target)){
             return;

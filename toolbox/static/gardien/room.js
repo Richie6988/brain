@@ -63,7 +63,7 @@ const drawing = value => {
     }
 };
 
-export function createRoom({ bridge, say }) {
+export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
     let socket = null, me = null, room = null, role = null, applying = 0, layer = null, following = null, moving = false;
     // Mon pseudo et mon avatar : choisis une fois, gardés dans ce navigateur (vide : le nom du compte).
     let profile = { name: '', avatar: Object.keys(AVATARS)[Math.floor(Math.random() * 8)] };
@@ -507,6 +507,7 @@ export function createRoom({ bridge, say }) {
             connect(room.token);
             render();
         } catch (error) {
+            if (/Premium/.test(error.message)) return onPremiumOnly();  // ouvrir un salon : Premium (le rejoindre reste libre)
             say(`Salon : ${error.message}`, 'error');
         }
     });
