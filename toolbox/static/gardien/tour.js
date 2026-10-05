@@ -7,11 +7,11 @@
 // du parcours est donc { id, layer } et non un élément de la page, que le chargement remplace. Rien n'est modifié.
 
 import { api } from './api.js';
+import { ARROW, overChrome } from './arrows.js';
 import { h } from './library.js';
 
 const GAP = 0.42;  // sous cet écart (radians, ~24°), deux flèches se chevaucheraient : la seconde recule sur son lien
-const STEP = 64;   // recul d'une flèche (px)
-const ARROW = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 17h18V7l16 17-16 17V31H8z"/></svg>';
+const STEP = 50;   // recul d'une flèche (px)
 // Texte d'un node avec ses retours à la ligne (innerText les perd quand le node est caché hors de l'écran).
 function textOf(node) {
     const html = node?.children[0]?.children[0]?.innerHTML || '';
@@ -52,9 +52,10 @@ const layerName = layer => layers.find(l => l.id === layer)?.name || `dimension 
 // Pas voisins d'un node : par ses liens (attributs Node1 / Node2 des liens de Nodz), puis par ses portails (champ
 // quantum : [{ node, layer }]). Un univers d'un autre compte (admin) ne se charge pas : ses portails sont ignorés.
 function neighbours(node) {
-    const linked = parse(node.getAttribute('links')).map(id => document.getElementById(id)).filter(Boolean)
+    // Une branche repliée (branches.js) cache ses liens et ses nodes : pas de flèche vers eux.
+    const linked = parse(node.getAttribute('links')).map(id => document.getElementById(id)).filter(l => l && !l.classList.contains('gardien-folded'))
         .map(link => (link.getAttribute('Node1') === node.id ? link.getAttribute('Node2') : link.getAttribute('Node1')))
-        .filter(id => document.getElementById(id)?.classList.contains('node-group'))
+        .filter(id => { const n = document.getElementById(id); return n?.classList.contains('node-group') && !n.classList.contains('gardien-folded'); })
         .map(id => ({ id, layer: layerNumber }));
     const portals = parse(node.getAttribute('quantum')).filter(p => p?.node)
         .map(p => ({ id: String(p.node).startsWith('N-') ? String(p.node) : `N-${p.node}`, layer: Number(p.layer) || layerNumber, portal: true }))
@@ -205,7 +206,10 @@ export function createTour({ bridge, say }) {
         // Directions : glisser ou zoomer la vue ne les change pas, elles se calculent une fois par node central.
         const c = disc(node);
         const near = state.arrows.filter(a => element(a.step));
-        near.forEach(a => { const d = disc(element(a.step)); a.angle = Math.atan2(d.y - c.y, d.x - c.x); });
+        // Par les coordonnées de l'univers, pas à l'écran : Nodz masque les nodes hors de la vue (display none, rien à mesurer).
+        const world = n => ({ x: parseFloat(n.getAttribute('x')), y: -parseFloat(n.getAttribute('y')) });
+        const from = world(node);
+        near.forEach(a => { const d = world(element(a.step)); a.angle = Math.atan2(d.y - from.y, d.x - from.x); });
         const taken = near.map(a => a.angle);
         state.arrows.filter(a => !element(a.step)).forEach(a => { a.angle = freeAngle(taken); taken.push(a.angle); });
         stagger(state.arrows);
@@ -219,8 +223,11 @@ export function createTour({ bridge, say }) {
         if (!node || ring.hidden) return;
         const c = disc(node);
         state.arrows.forEach(a => {
-            const radius = c.r + 56 + a.lift * STEP;
+            const radius = c.r + 40 + a.lift * STEP;
             const x = c.x + Math.cos(a.angle) * radius, y = c.y + Math.sin(a.angle) * radius;
+            // Jamais sur l'overview, le dock ou le chat, ni sur un autre node que celui où elle mène.
+            const under = overChrome(x, y) ? null : document.elementsFromPoint(x, y).find(e => !ring.contains(e) && e.closest?.('.node-group'))?.closest('.node-group');
+            a.button.style.visibility = overChrome(x, y) || (under && under !== node && under.id !== a.step.id) ? 'hidden' : '';
             a.button.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${a.angle}rad)`;
             a.button.querySelector('span')?.style.setProperty('transform', `rotate(${-a.angle}rad)`);  // l'étiquette du portail reste droite
         });

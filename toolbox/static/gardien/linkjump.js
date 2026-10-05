@@ -3,6 +3,8 @@
 // clic y voyage (focusNode de Nodz, comme l'ancien curseur flèche du lien). Rien pendant un geste, une visite, le mode
 // coupe-liens ou un chargement.
 
+import { ARROW, overChrome } from './arrows.js';
+
 // Couleur du node d'arrivée : son attribut, sinon le trait réellement affiché (cercle ou rectangle).
 function colorOf(node) {
     const set = node.getAttribute('color');
@@ -10,11 +12,17 @@ function colorOf(node) {
     const shape = node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1];
     return (shape && getComputedStyle(shape).stroke) || '#1E90FF';
 }
-const shown = link => link.checkVisibility?.({ visibilityProperty: true, opacityProperty: true }) ?? link.style.display !== 'none';
+const shown = link => !link.classList.contains('gardien-folded')
+    && (link.checkVisibility?.({ visibilityProperty: true, opacityProperty: true }) ?? link.style.display !== 'none');
+// Rayon à l'écran de la forme d'un node (cercle ou rectangle), pour garder la flèche hors de lui.
+function reach(node) {
+    const r = (node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1])?.getBoundingClientRect();
+    return r ? Math.max(r.width, r.height) / 2 : 0;
+}
+const HALF = 26;   // demi-flèche (px), marge avec les nodes
 
 const NEAR = 14;   // distance au lien qui fait apparaître la flèche (px)
 const KEEP = 34;   // flèche affichée : on la garde tant que la souris reste sur elle
-const ARROW = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 17h18V7l16 17-16 17V31H8z"/></svg>';
 
 export function createLinkJump() {
     const layer = document.createElement('div');
@@ -45,8 +53,10 @@ export function createLinkJump() {
             const t = Math.max(0, Math.min(1, ((x - p.x) * dx + (y - p.y) * dy) / len2));
             const d = Math.hypot(p.x + t * dx - x, p.y + t * dy - y);
             if (d > limit || (best && d >= best.d) || !shown(l)) continue;  // un lien masqué (filtres, branche repliée) : rien
+            const x0 = p.x + t * dx, y0 = p.y + t * dy, len = Math.sqrt(len2);
+            if (t * len < reach(a) + HALF || (1 - t) * len < reach(b) + HALF) continue;  // jamais sur le node d'un bout du lien
             const to = t < 0.5 ? b : a;  // vers le bout le plus loin de la souris
-            best = { d, to, x: p.x + t * dx, y: p.y + t * dy, angle: t < 0.5 ? Math.atan2(dy, dx) : Math.atan2(-dy, -dx) };
+            best = { d, to, x: x0, y: y0, angle: t < 0.5 ? Math.atan2(dy, dx) : Math.atan2(-dy, -dx) };
         }
         return best;
     }
@@ -57,7 +67,8 @@ export function createLinkJump() {
         const onArrow = over === button || button.contains(over);
         if (buttons || !idle() || !(onArrow || (svg.contains(over) && !over.closest?.('.node-group')))) return hide();
         const hit = nearest(x, y, onArrow ? KEEP : NEAR);
-        if (!hit) return hide();
+        if (!hit || overChrome(hit.x, hit.y)) return hide();  // un lien qui passe sous le dock, le chat… : pas de flèche
+        if (document.elementsFromPoint(hit.x, hit.y).some(e => e.closest?.('.node-group'))) return hide();  // ni sur un autre node
         target = hit.to;
         button.hidden = false;
         button.style.setProperty('--c', colorOf(target));

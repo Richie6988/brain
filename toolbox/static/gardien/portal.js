@@ -18,12 +18,34 @@ function contour(base, waves, phase) {
 }
 
 // Une animation de forme : FRAMES images d'un même contour, la dernière revient à la première (boucle sans saut).
+// Le contour est posé figé ; l'animation (<animate>) ne s'y attache que si l'anneau est affiché (wake, plus bas) :
+// chaque node porte un anneau, presque toujours caché, et des centaines d'animations SMIL tournaient pour rien
+// (une image de glissé passait de 17 à 50 ms à 300 nodes).
 function morph(base, waves, duration) {
     const frames = Array.from({ length: FRAMES }, (_, f) => contour(base, waves, (f / FRAMES) * 2 * Math.PI));
-    return `<path d="${frames[0]}"><animate attributeName="d" dur="${duration}s" repeatCount="indefinite" `
-        + `values="${[...frames, frames[0]].join(';')}" calcMode="spline" keyTimes="${[...Array(FRAMES + 1).keys()].map(i => i / FRAMES).join(';')}" `
-        + `keySplines="${Array(FRAMES).fill('0.45 0 0.55 1').join(';')}"/></path>`;
+    return `<path d="${frames[0]}" data-dur="${duration}" data-values="${[...frames, frames[0]].join(';')}"/>`;
 }
+
+const KEY_TIMES = [...Array(FRAMES + 1).keys()].map(i => i / FRAMES).join(';');
+const KEY_SPLINES = Array(FRAMES).fill('0.45 0 0.55 1').join(';');
+
+// Une fois par seconde : les anneaux affichés (node à portail, à l'écran) s'animent, les autres se figent.
+function wake() {
+    document.querySelectorAll('.node-group .pr path[data-values]').forEach(path => {
+        const node = path.closest('.node-group');
+        const shown = node.style.display !== 'none' && node.children[3]?.style.display === 'block';
+        if (shown && !path.firstChild) {
+            const animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+            Object.entries({ attributeName: 'd', dur: `${path.dataset.dur}s`, repeatCount: 'indefinite', values: path.dataset.values,
+                calcMode: 'spline', keyTimes: KEY_TIMES, keySplines: KEY_SPLINES }).forEach(([k, v]) => animate.setAttribute(k, v));
+            path.append(animate);
+            animate.beginElement?.();
+        } else if (!shown && path.firstChild) {
+            path.replaceChildren();
+        }
+    });
+}
+setInterval(wake, 1000);
 
 const waves = (list, amp) => list.map(k => ({ k, amp: amp * (0.4 + Math.random() * 0.6), p: Math.random() * 6.28, speed: k % 2 ? 1 : -1 }));
 

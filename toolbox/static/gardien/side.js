@@ -352,7 +352,11 @@ export function createSide({ bridge, say, filters }) {
             frame(0);
             await Promise.all([animate(0, 1), bridge.frame(scene.bounds, 80)]);
             busy = false;
-            follow({});  // allumé d'emblée autour du pointeur
+            // Allumé d'emblée autour du centre de la vue, comme si le pointeur y passait : il est encore sur le cube (ou
+            // n'a pas bougé), et l'hyperspace s'allumait dans le coin jusqu'au premier mouvement de souris.
+            last = [window.innerWidth / 2, window.innerHeight / 2];
+            scene.at = null;
+            follow({});
         } catch (error) {
             say(`Vue de côté : ${error.message}`, 'error');
             teardown();

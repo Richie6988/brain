@@ -18,6 +18,7 @@ import { createExchange } from './exchange.js';
 import { createIde } from './ide.js';
 import { createDimensions } from './dimensions.js';
 import { createFilters } from './filters.js';
+import { createFrames } from './frames.js';
 import { createGrab } from './grab.js';
 import { createGuide } from './guide.js';
 import { createHome } from './home.js';
@@ -111,6 +112,7 @@ createTheme();  // bouton jour / nuit : Nuit ou Ardoise (gris-bleu sombre), plus
 const sfx = createSfx();  // effets sonores des gestes : création, lien, suppression, portail…
 const guide = createGuide();  // présentation et tous les contrôles : bouton « ? » du menu, touche « ? »
 createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au relâcher
+createFrames();  // nodes à l'écran recalculés une fois par image, pas à chaque pas de zoom
 createLinkJump();  // près d'un lien, une grosse flèche (style de la visite) y voyage d'un clic
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),

@@ -262,15 +262,18 @@ body:has(.universe.lightmode) .gc-form textarea { color: #440852; }
 #gardien-arrows.moving { opacity: 0; }
 #gardien-jump { position: fixed; inset: 0; z-index: 29; pointer-events: none; }
 #gardien-jump .gt-arrow[hidden] { display: none; }
-.gt-arrow { position: absolute; left: 0; top: 0; width: 66px; height: 66px; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto;
-    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c, #1E90FF) 70%, transparent)); }
-.gt-arrow svg { width: 100%; height: 100%; transition: transform 0.15s ease; }
-.gt-arrow path { fill: var(--c, #1E90FF); stroke: color-mix(in srgb, var(--c, #1E90FF) 55%, #fff); stroke-width: 2.5; stroke-linejoin: round; }  /* pleine, à la couleur du node d'arrivée */
-.gt-arrow:hover svg, .gt-arrow:focus-visible svg { transform: scale(1.22) translateX(4px); }
+.gt-arrow { position: absolute; left: 0; top: 0; width: 46px; height: 46px; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; }
+.gt-arrow svg { width: 100%; height: 100%; overflow: visible; transition: transform 0.18s ease; }
+/* Pastille de verre liserée à la couleur du node d'arrivée, chevron fin dedans */
+.gt-arrow circle { fill: rgba(8, 13, 28, 0.62); stroke: color-mix(in srgb, var(--c, #1E90FF) 70%, transparent); stroke-width: 1.5;
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c, #1E90FF) 45%, transparent)); transition: fill 0.18s ease; }
+.gt-arrow path { fill: none; stroke: var(--c, #1E90FF); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.gt-arrow:hover svg, .gt-arrow:focus-visible svg { transform: scale(1.18); }
+.gt-arrow:hover circle { fill: color-mix(in srgb, var(--c, #1E90FF) 30%, rgba(8, 13, 28, 0.8)); stroke: var(--c, #1E90FF); }
 .gt-arrow:hover path { stroke: #fff; }
-.gt-arrow.seen { opacity: 0.7; }
-.gt-arrow.came path { stroke-dasharray: 4 4; }
-.gt-arrow.portal path { stroke: #b89af2; stroke-dasharray: 3 5; }
+.gt-arrow.seen { opacity: 0.55; }
+.gt-arrow.came circle { stroke-dasharray: 3 4; }
+.gt-arrow.portal circle { stroke: #b89af2; stroke-dasharray: 2 4; }
 .gt-arrow span { position: absolute; left: 50%; top: 100%; margin-left: -60px; width: 120px; text-align: center; font: 10px 'Cascadia Code', monospace; color: #b89af2; pointer-events: none; }
 .node-group.gardien-visiting .hitbox, .node-group.gardien-visiting .squareShape { stroke-width: 6px; filter: drop-shadow(0 0 10px #f3ee58); }
 .node-group.gardien-choice-hover .hitbox, .node-group.gardien-choice-hover .squareShape { filter: drop-shadow(0 0 16px #1E90FF); }

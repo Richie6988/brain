@@ -8,6 +8,7 @@ const SQUEEZE = 0.1;   // les positions se rapprochent du centre de ce facteur, 
 const MARGIN = 22;     // espace entre deux textes (unités de l'univers)
 const ROUNDS = 160;    // passes de séparation
 const DURATION = 380;  // ms de transition
+const READABLE = 0.75; // zoom minimal du cadrage : en deçà, les textes ne se lisent plus
 
 const TRANSFORM = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
 const place = node => ({ x: parseFloat(node.getAttribute('x')), y: parseFloat(node.getAttribute('y')) });
@@ -109,18 +110,30 @@ export function createCompact({ bridge, say }) {
     }
 
     async function on() {
-        const nodes = [...document.querySelectorAll('.node-group')];
+        // Une branche repliée reste repliée, hors du rangement (ses nodes sont cachés, ils n'ont pas de taille).
+        const nodes = [...document.querySelectorAll('.node-group:not(.gardien-folded)')];
         if (nodes.length < 2) return say('Le mode compact resserre une dimension de plusieurs nodes.', 'notice');
         layer = layerNumber;
+        const before = bridge.center();  // ce que l'on regardait
         nodes.forEach(n => n.style.setProperty('--node-color', n.getAttribute('color') || '#33FF99'));  // liseré du texte
         document.body.classList.add('gardien-compact');  // formes effacées d'abord : les tailles mesurées sont celles du texte
+        // Nodz cache les nodes hors de l'écran (display none) : sans taille, leurs textes s'empilaient. Le temps de la
+        // mesure ils s'affichent tous, puis Nodz recalcule ce qui est à l'écran.
+        nodes.forEach(n => { if (n.style.display === 'none') n.style.display = 'block'; });
         items = layout(nodes);
+        dispatcher();
         button.classList.add('on');
         await slide(items.map(i => ({ node: i.node, from: i.home, to: { x: i.x, y: i.y } })));
         if (!items) return;  // déjà quitté pendant la transition
+        dispatcher();  // nodes déplacés : Nodz remontre ceux qui entrent à l'écran
         const x0 = Math.min(...items.map(i => i.x - i.w / 2)), x1 = Math.max(...items.map(i => i.x + i.w / 2));
         const y0 = Math.min(...items.map(i => i.y - i.h / 2)), y1 = Math.max(...items.map(i => i.y + i.h / 2));
-        bridge.frame({ x0, x1, y0, y1 }, 60);  // toute la dimension sous les yeux
+        const fit = Math.min(window.innerWidth / (x1 - x0 + 120), (window.innerHeight - 140) / (y1 - y0 + 120));
+        if (fit >= READABLE) return bridge.frame({ x0, x1, y0, y1 }, 60);  // toute la dimension sous les yeux
+        // Trop grande pour tenir lisible : cadrée au zoom lisible autour de ce que l'on regardait (son node le plus proche).
+        const c = before, a = items.reduce((best, i) => (Math.hypot(i.home.x - c.x, i.home.y - c.y) < Math.hypot(best.home.x - c.x, best.home.y - c.y) ? i : best));
+        const hw = window.innerWidth / READABLE / 2 - 60, hh = (window.innerHeight - 140) / READABLE / 2 - 60;
+        bridge.frame({ x0: a.x - hw, x1: a.x + hw, y0: a.y - hh, y1: a.y + hh }, 60);
     }
 
     // Retour à l'éclaté : chaque node à sa place exacte ; le node au centre de l'écran y reste (la vue suit).
@@ -137,7 +150,7 @@ export function createCompact({ bridge, say }) {
         const c = bridge.center();
         const anchor = back.reduce((best, i) => (Math.hypot(i.x - c.x, i.y - c.y) < Math.hypot(best.x - c.x, best.y - c.y) ? i : best));
         return slide(back.map(i => ({ node: i.node, from: { x: i.x, y: i.y }, to: i.home })),
-            { x: (anchor.x - anchor.home.x) * currentZoom, y: (anchor.home.y - anchor.y) * currentZoom });
+            { x: (anchor.x - anchor.home.x) * currentZoom, y: (anchor.home.y - anchor.y) * currentZoom }).then(() => dispatcher());
     }
 
     const toggle = () => (items ? off() : on());

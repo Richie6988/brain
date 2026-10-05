@@ -250,6 +250,14 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Nettoyage des artefacts v1** : retirés, l'ancien paiement (`process-payment`, `cancel-subscription`, PaymentIntent jamais abouti, `STRIPE_PUBLISHABLE_KEY`), l'ancien lien de partage (`generate_invite`, `invite_access`, `api/shared_nodes`, modèle `Invite`, migration `0018_remove_invite`) et l'ancien mode multijoueur qu'il lançait (`multiUsers`, consumer `ws/` sans vérification du jeton, curseurs). Les salons (`toolbox/rooms.py`) et Stripe Checkout (`toolbox/premium.py`) les remplacent. `.env.example` liste les réglages du Premium.
 
+**Fluidité avec beaucoup de nodes** (156 nodes à l'écran, 300 dans la dimension) : glissé de 50 à 16,7 ms par image, molette de 50 à 33 ms. Chaque node portait un anneau de portail animé (deux animations SMIL, 600 au total) qui tournait même caché : l'animation ne s'attache plus qu'aux anneaux affichés. Les indicateurs de coin forçaient un recalcul de toute la page à chaque changement de nombre (Web Animations à la place). Le recalcul des nodes à l'écran de Nodz (`dispatcher`) ne tourne plus qu'une fois par image, au lieu de jusqu'à 8 fois par cran de molette (`frames.js`).
+
+**Flèches** : un chevron fin dans une pastille de verre, à la couleur du node d'arrivée (visite et liens, `arrows.js`). Leurs directions se calculent dans l'univers et non à l'écran : Nodz cache les nodes hors de la vue, ce qui alignait les flèches de la visite vers le coin. Jamais par-dessus l'interface (dock, overview, chat, jauges), ni sur un autre node, ni vers une branche repliée.
+
+**Mode compact** : les nodes cachés par Nodz (hors de l'écran) sont mesurés avant d'être rangés (leurs textes s'empilaient), une branche repliée reste repliée, et la vue ne recule jamais sous un zoom lisible (0,75) : une grande dimension est cadrée autour de ce que l'on regardait.
+
+**Hyperspace** : à l'ouverture, les nodes s'allument autour du centre de la vue (avant, autour du pointeur resté sur le cube, jusqu'au premier mouvement de souris).
+
 **Visite** : chaque flèche posée sur son lien, dans sa direction exacte (liens presque parallèles : la suivante recule le long du sien).
 
 **Texte jamais rogné** : un node texte dont le texte déborde (grande police, texte long, mot plus large que le node) grandit juste assez, après la frappe, au chargement ou après un changement de police : la largeur garde le mot le plus long entier, puis la plus petite forme qui contient tout (un rond : son carré inscrit ; un rectangle : plus large que haut). Jamais plus petit qu'avant ; un rectangle étiré à la main garde ses proportions. Interligne à la mesure de chaque police (les lignes d'une grande police se chevauchaient) et plus de mot coupé en deux.
