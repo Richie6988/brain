@@ -72,7 +72,7 @@ const SHORTCUTS = [
     ['Gardien', [
         ['[Ctrl]+[Entrée] dans un node', 'L\'envoyer au Gardien'],
         ['/web /dessin /image', 'En tête du message : il part avec cet outil'],
-        ['Visite : [Espace] [←] [→] [Échap]', 'Pause, précédent, suivant, arrêter'],
+        ['Visite : [←] [↑] [→] [↓] [Retour arrière] [Échap]', 'Prendre la flèche de cette direction, revenir, arrêter'],
     ]],
 ];
 
@@ -91,8 +91,8 @@ const CARDS = [
         + '(ou dessin si FLUX manque).'],
     ['Pastille d\'un node', 'Branche ▾ pour ranger sa branche en arbre ou la replier ; Sélection ▾ pour sélectionner sa lignée : '
         + 'Amont (ses parents), Aval (ses enfants) ou Tout ce qui lui est relié.'],
-    ['Visite', 'Bouton lecture du dock : la caméra parcourt la carte à partir du node sélectionné, de lien en lien, et te laisse '
-        + 'choisir à chaque embranchement.'],
+    ['Visite', 'Bouton du dock : de grosses flèches entourent le node sélectionné, une par lien. Survole-en une : l\'aperçu en haut '
+        + 'montre le node où elle mène ; clique : la caméra y glisse. Un clic sur un autre node en fait le centre.'],
     ['Pastille d\'une sélection', 'Gardien · N nodes les joint au chat ; Ordonner : la physique les éclate puis les range.'],
     ['Importer / Exporter', 'Bouton du dock : une carte (Markdown, OPML, FreeMind, XMind) se pose en arbre, un tableau (CSV, Excel, JSON) '
         + 'en nodes, un CSV exporté par Nodz redonne ses nodes et ses liens ; la sélection, la dimension ou les filtres repartent en CSV, '

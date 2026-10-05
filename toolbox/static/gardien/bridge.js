@@ -18,7 +18,6 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
     let take = 0;            // numéro de prise : un geste de l'utilisateur coupe le travelling
     const cut = () => { take += 1; };
-    let tempo = 1;           // vitesse des travellings (la visite la règle ; 1 pour le Gardien)
     svg.addEventListener('mousedown', cut, true);
     svg.addEventListener('wheel', event => { if (event.isTrusted) cut(); }, true);
 
@@ -43,7 +42,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             if (id !== take || previous === currentZoom) break;  // coupé, ou borne atteinte
             previous = currentZoom;
             svg.dispatchEvent(new WheelEvent('wheel', { clientX: x, clientY: y, deltaY: out ? 0.9 : -0.9, cancelable: true }));
-            for (let i = 0; i < Math.max(1, Math.round((1 + Math.max(0, 5 - notch)) / tempo)); i++) await frame();
+            for (let i = 0; i < 1 + Math.max(0, 5 - notch); i++) await frame();
         }
         isZooming = false;
         return id === take;
@@ -51,7 +50,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
 
     // Glissé de l'univers en travelling fluide (dragUniverse découpé).
     async function pan(dx, dy, id) {
-        const duration = Math.min(1800, 350 + Math.hypot(dx, dy) * 0.7) / tempo;
+        const duration = Math.min(1800, 350 + Math.hypot(dx, dy) * 0.7);
         const start = performance.now();
         let done = 0;
         for (let t = 0; t < 1;) {
@@ -354,11 +353,10 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
     return {
         useIde(editor) { ide = editor; },
         // Travelling de la visite ; faux si l'utilisateur a repris la main (clic, molette) ou si la visite a coupé.
-        async visit(node, zoom = 0.9) {  // assez large pour voir les branches au-dessus du lecteur
+        async visit(node, zoom = 0.9) {  // assez large pour voir les voisins autour des flèches
             cut();
             return focus(node, zoom, take);
         },
-        setTempo(k) { tempo = k; },
         center: () => toWorld(window.innerWidth / 2, window.innerHeight / 2),  // centre de la vue, en coordonnées de Nodz
         // Recule (jamais n'avance) pour montrer une zone de `width` × `height` autour du centre de la vue.
         async fit(width, height) {

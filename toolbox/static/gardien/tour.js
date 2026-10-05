@@ -1,19 +1,16 @@
-// Visite interactive d'une arborescence, comme une vidéo dont on choisit la suite : la caméra part d'un
-// node et suit ses liens en travelling. À chaque embranchement, la visite s'arrête et propose les
-// branches (« cette branche ou celle-ci ») ; au bout d'une branche, elle revient au dernier embranchement
-// resté ouvert. Le parcours est gardé comme l'historique d'un navigateur : ⏮ et ⏭ (← →) y font autant
-// d'allers-retours qu'on veut, le fil d'Ariane y saute d'un clic ; au bout du parcours, ⏭ explore la suite, et
-// quand tout est vu, il continue de suivre les liens. Lecture / pause, vitesse, mode auto (il choisit seul).
-// Les portails comptent comme des liens : la visite les prend et continue dans la dimension de l'autre bout (elle
-// s'y charge). Un pas du parcours est donc { id, layer } et non un élément de la page, que le chargement remplace.
-// À chaque node, sa traçabilité : création, dernière modification, origine et auteur (route toolbox/nodes/meta).
-// Un clic hors de la carte quitte la visite ; un glissé ou la molette sur l'univers la met en pause. Rien n'est modifié.
+// Visite pilotée : le joueur se déplace de node en node. De grosses flèches entourent le node central, une par lien
+// (et par portail), chacune pointant vers son node ; un clic (ou la flèche du clavier la plus proche) y glisse la
+// caméra et les flèches se recalculent autour du nouveau centre. En haut, l'overview : le chemin parcouru (un clic y
+// revient) et la carte du node, celui où l'on est, ou la destination de la flèche survolée (texte, couleur, auteur,
+// date). Un clic sur un autre node en fait le centre ; un clic dans le vide, ou Échap, quitte la visite.
+// Les portails comptent comme des liens : la visite passe dans la dimension de l'autre bout (elle s'y charge). Un pas
+// du parcours est donc { id, layer } et non un élément de la page, que le chargement remplace. Rien n'est modifié.
 
 import { api } from './api.js';
 import { h } from './library.js';
 
-const SPEEDS = [0.5, 1, 1.5, 2, 3];
-const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const GAP = 0.42;  // écart minimal entre deux flèches (radians, ~24°)
+const ARROW = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 17h18V7l16 17-16 17V31H8z"/></svg>';
 // Texte d'un node avec ses retours à la ligne (innerText les perd quand le node est caché hors de l'écran).
 function textOf(node) {
     const html = node?.children[0]?.children[0]?.innerHTML || '';
@@ -61,296 +58,252 @@ function neighbours(node) {
     const portals = parse(node.getAttribute('quantum')).filter(p => p?.node)
         .map(p => ({ id: String(p.node).startsWith('N-') ? String(p.node) : `N-${p.node}`, layer: Number(p.layer) || layerNumber, portal: true }))
         .filter(p => !(typeof admin !== 'undefined' && admin && p.layer !== layerNumber) && !linked.some(l => l.id === p.id));
-    return [...linked, ...portals];
+    return [...linked, ...portals].filter((s, i, all) => all.findIndex(o => o.id === s.id) === i);
+}
+// Forme visible d'un node (cercle ou rectangle) : centre et rayon à l'écran.
+function disc(node) {
+    const shape = node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1];
+    const r = (shape || node).getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: Math.max(r.width, r.height) / 2 };
+}
+// Écarte les angles trop proches (deux liens presque dans la même direction) pour que chaque flèche reste cliquable.
+function spread(angles) {
+    const order = angles.map((a, i) => i).sort((i, j) => angles[i] - angles[j]);
+    const out = [...angles];
+    for (let pass = 0; pass < 12; pass++) {
+        for (let k = 0; k < order.length && order.length > 1; k++) {
+            const i = order[k], j = order[(k + 1) % order.length];
+            let d = out[j] - out[i];
+            if (k === order.length - 1) d += 2 * Math.PI;
+            if (d < GAP) {
+                out[i] -= (GAP - d) / 2;
+                out[j] += (GAP - d) / 2;
+            }
+        }
+    }
+    return out;
+}
+// Angle libre pour une flèche sans direction (portail vers une autre dimension) : le plus loin des autres.
+function freeAngle(taken) {
+    let best = Math.PI / 2, score = -1;
+    for (let k = 0; k < 48; k++) {
+        const a = (k / 48) * 2 * Math.PI;
+        const d = Math.min(Math.PI, ...taken.map(t => Math.abs(Math.atan2(Math.sin(a - t), Math.cos(a - t)))));
+        if (d > score) [best, score] = [a, d];
+    }
+    return best;
 }
 
 export function createTour({ bridge, say }) {
-    // trail : chaque arrivée, dans l'ordre ; at : où l'on en est dans ce parcours (⏮ ⏭ s'y déplacent).
-    // next : voisins de chaque node déjà atteint (on ne peut plus les lire une fois sa dimension quittée) ;
-    // info : texte, couleur et dimension de chaque pas, pour le fil d'Ariane et les choix ; known : nodes connus.
-    const state = { trail: [], at: -1, seen: new Set(), known: new Set(), next: new Map(), info: new Map(), meta: new Map(),
-        playing: false, auto: false, speed: 1, choices: [], run: 0 };
+    // trail : chaque arrivée, dans l'ordre ; info : texte, couleur de chaque node rencontré (chemin, aperçus) ;
+    // meta : traçabilité (route toolbox/nodes/meta) ; arrows : flèches du node central.
+    const state = { trail: [], seen: new Set(), info: new Map(), meta: new Map(), arrows: [], hover: null, moving: false, run: 0 };
 
-    const title = h('strong', {});
-    const bar = h('i');
-    const crumbs = h('nav', { class: 'gt-crumbs', 'aria-label': 'Parcours' });
+    const crumbs = h('nav', { class: 'gt-crumbs', 'aria-label': 'Chemin parcouru' });
     const swatch = h('span', { class: 'gt-swatch' });
-    const place = h('span', { class: 'gt-place' });
+    const tag = h('small', { class: 'gt-tag' });
     const heading = h('b', { class: 'gt-title' });
     const body = h('span', { class: 'gt-body' });
-    const text = h('span', { class: 'gt-text' }, heading, body);
-    const current = h('div', { class: 'gt-current' }, swatch, text);
     const meta = h('p', { class: 'gt-meta' });
-    const choices = h('div', { class: 'gt-choices' });
-    const play = h('button', { type: 'button', class: 'gt-play', title: 'Lecture / pause (Espace)' });
-    const back = h('button', { type: 'button', title: 'Node précédent (←)' }, '⏮');
-    const ahead = h('button', { type: 'button', title: 'Node suivant (→) ; à un embranchement, la première branche' }, '⏭');
-    const auto = h('button', { type: 'button', class: 'gt-auto', title: 'Aux embranchements, choisir seul la première branche' }, 'Auto');
-    const speeds = h('div', { class: 'gt-speeds' }, SPEEDS.map(k => h('button', { type: 'button', dataset: { speed: k }, onclick: () => setSpeed(k) }, `${k}×`)));
+    const back = h('button', { type: 'button', class: 'gt-back', title: 'Revenir au node précédent (Retour arrière)', onclick: previous }, '⟲');
     const quit = h('button', { type: 'button', class: 'gt-quit', title: 'Quitter la visite (Échap)', onclick: stop }, '✕');
     const card = h('section', { id: 'gardien-tour', hidden: true, role: 'region', 'aria-label': 'Visite' },
-        h('div', { class: 'gt-progress' }, bar),
-        h('header', {}, h('span', { class: 'gt-dot' }), title, place, quit), crumbs, current, meta, choices,
-        h('footer', {}, h('div', { class: 'gt-transport' }, back, play, ahead), speeds, auto));
-    document.body.append(card);
+        h('header', {}, crumbs, back, quit),
+        h('div', { class: 'gt-current' }, swatch, h('span', { class: 'gt-text' }, tag, heading, body)), meta);
+    const ring = h('div', { id: 'gardien-arrows', hidden: true });
+    document.body.append(card, ring);
 
-    play.addEventListener('click', () => (state.playing ? pause() : resume()));
-    // Un clic (sans glissé) hors de la carte quitte la visite.
-    let press = null;
-    document.addEventListener('pointerdown', event => { press = card.hidden || card.contains(event.target) ? null : [event.clientX, event.clientY]; }, true);
-    document.addEventListener('pointerup', event => {
-        if (press && Math.hypot(event.clientX - press[0], event.clientY - press[1]) < 5) stop();
-        press = null;
-    }, true);
-    back.addEventListener('click', previous);
-    ahead.addEventListener('click', forward);
-    auto.addEventListener('click', () => {
-        state.auto = !state.auto;
-        paint();
-        if (state.auto && state.choices.length) choose(state.choices[0]);
-    });
-
-    // Raccourcis pendant la visite (sauf pendant une saisie) : Espace, ←, →, 1 à 9, Échap.
-    document.addEventListener('keydown', event => {
-        if (card.hidden || event.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
-        const n = Number(event.key);
-        if (event.key === ' ') state.playing ? pause() : resume();
-        else if (event.key === 'Escape') stop();
-        else if (event.key === 'ArrowLeft' || event.key === 'Backspace') previous();
-        else if (event.key === 'ArrowRight') forward();
-        else if (n >= 1 && n <= state.choices.length) choose(state.choices[n - 1]);
-        else return;
-        event.preventDefault();
-        event.stopImmediatePropagation();  // ni node créé par Espace, ni raccourci de Nodz
-    }, true);
-
-    const here = () => state.trail[state.at];
+    const here = () => state.trail.at(-1);
     const element = step => (step && step.layer === layerNumber ? document.getElementById(step.id) : null);
-    const open = step => (state.next.get(step.id) || []).filter(n => !state.seen.has(n.id));
-    const colorOf = step => state.info.get(step?.id)?.color || '#b89af2';
-    const label = step => (state.info.has(step.id) ? state.info.get(step.id).text : `⟿ ${layerName(step.layer)}`);
+    const colorOf = id => state.info.get(id)?.color || '#b89af2';
+    const label = step => state.info.get(step.id)?.text || `⟿ ${layerName(step.layer)}`;
+    const remember = node => state.info.set(node.id, { text: labelOf(node), color: node.getAttribute('color'), layer: layerNumber });
 
-    // Ce que la page montre de la dimension chargée : voisins et textes des nodes atteignables depuis `node`
-    // (ils font la barre de progression ; les portails comptent, leur dimension sera lue en y arrivant).
-    function survey(node) {
-        for (let queue = [node]; queue.length;) {
-            const n = queue.shift();
-            if (state.next.has(n.id)) continue;
-            state.known.add(n.id);
-            state.info.set(n.id, { text: labelOf(n), color: n.getAttribute('color'), layer: layerNumber });
-            const steps = neighbours(n);
-            state.next.set(n.id, steps);
-            steps.forEach(s => {
-                state.known.add(s.id);
-                const el = element(s);
-                if (el && !state.next.has(s.id)) queue.push(el);
-            });
-        }
-        const missing = [...state.info.keys()].filter(id => !state.meta.has(id));
-        if (missing.length) {
-            missing.forEach(id => state.meta.set(id, null));  // une seule demande par node
-            api.request('GET', `toolbox/nodes/meta?ids=${missing.join(',')}`)
-                .then(({ nodes }) => { Object.entries(nodes).forEach(([id, facts]) => state.meta.set(id, facts)); paint(); })
-                .catch(() => {});  // sans traçabilité, la visite continue
-        }
-    }
+    // Un clic sans glissé : sur un autre node, il devient le centre ; dans le vide de l'univers, la visite s'arrête.
+    // Un glissé ou la molette déplacent la vue : les flèches suivent.
+    let press = null;
+    document.addEventListener('pointerdown', event => {
+        press = card.hidden || card.contains(event.target) || ring.contains(event.target) ? null : [event.clientX, event.clientY, event.target];
+    }, true);
+    document.addEventListener('pointerup', event => {
+        const [x, y, target] = press || [];
+        press = null;
+        if (!target || Math.hypot(event.clientX - x, event.clientY - y) >= 5 || !svg.contains(target)) return;
+        const node = target.closest?.('.node-group');
+        if (!node) return stop();
+        if (node.id !== here()?.id) setTimeout(() => go({ id: node.id, layer: layerNumber }));  // après la sélection de Nodz
+    }, true);
 
+    // Raccourcis pendant la visite : Échap partout ; flèches du clavier et Retour arrière hors saisie.
+    const KEYS = { ArrowRight: 0, ArrowDown: Math.PI / 2, ArrowLeft: Math.PI, ArrowUp: -Math.PI / 2 };
+    document.addEventListener('keydown', event => {
+        if (card.hidden) return;
+        if (event.key === 'Escape') stop();
+        else if (event.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+        else if (event.key === 'Backspace') previous();
+        else if (event.key in KEYS) {
+            const want = KEYS[event.key];
+            const near = state.arrows.map(a => ({ a, d: Math.abs(Math.atan2(Math.sin(a.angle - want), Math.cos(a.angle - want))) }))
+                .filter(o => o.d < 1.2).sort((p, q) => p.d - q.d)[0];
+            if (near) go(near.a.step);
+        } else return;
+        event.preventDefault();
+        event.stopImmediatePropagation();  // ni node créé, ni raccourci de Nodz
+    }, true);
+
+    // La carte de l'overview : le node survolé par une flèche (destination), sinon celui où l'on est.
     function paint() {
-        const step = here();
-        const total = state.known.size;
-        const away = step && state.trail[0] && step.layer !== state.trail[0].layer;
-        title.textContent = `Visite · ${state.seen.size} / ${total}`;
-        place.textContent = step ? layerName(step.layer) : '';
-        place.classList.toggle('away', Boolean(away));
-        bar.style.width = `${total ? (100 * state.seen.size) / total : 0}%`;
-        swatch.style.background = colorOf(step);
-        card.style.setProperty('--c', colorOf(step));  // liseré et halo à la couleur du node
-        const [first = '', ...rest] = (step ? label(step) : '').split('\n');
+        const step = state.hover || here();
+        if (!step) return;
+        const color = colorOf(step.id);
+        swatch.style.background = color;
+        card.style.setProperty('--c', color);
+        card.classList.toggle('preview', Boolean(state.hover));
+        tag.textContent = state.hover ? (step.layer !== here().layer ? `Portail · ${layerName(step.layer)}` : state.seen.has(step.id) ? 'Déjà vu' : 'Destination')
+            : `Ici · ${layerName(step.layer)}`;
+        const [first = '', ...rest] = label(step).split('\n');
         heading.textContent = short(first, 90);
         body.textContent = rest.length ? short(rest.join(' · '), 220) : '';
-        // Traçabilité : créé, modifié, par qui (Nodz ne garde pas l'auteur de chaque modification)
-        const facts = step && state.meta.get(step.id);
+        const facts = state.meta.get(step.id);
         meta.replaceChildren(...(facts ? [
             h('span', { class: `gt-origin ${facts.origin}` }, `${ORIGIN[facts.origin] || 'par'} ${facts.author}`),
             h('span', {}, `créé ${when(facts.created)}`),
             ...(Math.abs(new Date(facts.modified) - new Date(facts.created)) > 60000 ? [h('span', {}, `modifié ${when(facts.modified)}`)] : []),
         ] : []));
-        play.textContent = state.playing ? '⏸' : '▶';
-        back.disabled = state.at <= 0;
-        ahead.disabled = !step || (state.at === state.trail.length - 1 && !(state.next.get(step.id) || []).length);
-        // Fil d'Ariane : les étapes autour de la position, chacune cliquable (aller-retour direct).
-        const from = Math.max(0, state.at - 3), to = Math.min(state.trail.length, state.at + 3);
-        crumbs.replaceChildren(...(from > 0 ? [h('span', {}, '…')] : []), ...state.trail.slice(from, to).flatMap((n, k) => {
+        back.disabled = state.trail.length < 2;
+        // Chemin : les derniers pas, chacun cliquable (on y revient, la suite du chemin est coupée).
+        const from = Math.max(0, state.trail.length - 6);
+        crumbs.replaceChildren(...(from > 0 ? [h('span', {}, '…')] : []), ...state.trail.slice(from).flatMap((n, k) => {
             const index = from + k;
-            const crumb = h('button', { type: 'button', class: index === state.at ? 'on' : '', title: label(n) || '(node vide)',
-                onclick: () => jump(index) }, short(label(n), 18));
-            crumb.style.setProperty('--c', colorOf(n));
+            const crumb = h('button', { type: 'button', class: index === state.trail.length - 1 ? 'on' : '', title: label(n), onclick: () => jump(index) }, short(label(n).split('\n')[0], 18));
+            crumb.style.setProperty('--c', colorOf(n.id));
             const crossed = index > 0 && state.trail[index - 1].layer !== n.layer;  // passage d'un portail
             return crossed ? [h('span', { class: 'gt-portal', title: `Portail vers ${layerName(n.layer)}` }, '⟿'), crumb] : [crumb];
-        }), ...(to < state.trail.length ? [h('span', {}, '…')] : []));
-        auto.classList.toggle('on', state.auto);
-        speeds.querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === state.speed));
-        document.querySelectorAll('.gardien-choice').forEach(n => n.classList.remove('gardien-choice'));
-        choices.replaceChildren(...(state.choices.length ? [h('small', {}, `${state.choices.length} branches : laquelle ?`),
-            ...state.choices.map((n, i) => {
-                const el = element(n);
-                el?.classList.add('gardien-choice');
-                const button = h('button', { type: 'button', class: n.portal ? 'portal' : '', onclick: () => choose(n) },
-                    h('b', {}, String(i + 1)), short(n.portal && n.layer !== layerNumber ? `⟿ ${layerName(n.layer)}` : label(n), 48));
-                button.style.setProperty('--c', colorOf(n));
-                button.addEventListener('mouseenter', () => el?.classList.add('gardien-choice-hover'));
-                button.addEventListener('mouseleave', () => el?.classList.remove('gardien-choice-hover'));
-                return button;
-            })] : []));
+        }));
     }
 
-    function setSpeed(k) {
-        state.speed = k;
-        bridge.setTempo(k);
-        paint();
+    // Traçabilité des nodes affichés (centre et voisins), une demande par node.
+    function trace(ids) {
+        const missing = ids.filter(id => !state.meta.has(id));
+        if (!missing.length) return;
+        missing.forEach(id => state.meta.set(id, null));
+        api.request('GET', `toolbox/nodes/meta?ids=${missing.join(',')}`)
+            .then(({ nodes }) => { Object.entries(nodes).forEach(([id, facts]) => state.meta.set(id, facts)); paint(); })
+            .catch(() => {});  // sans traçabilité, la visite continue
     }
 
-    // Travelling vers le pas `step` (après chargement de sa dimension s'il est au bout d'un portail), pause de lecture
-    // proportionnelle au texte, puis la suite. Un nouveau pas s'ajoute au parcours (et coupe l'éventuelle suite déjà
-    // vue, comme un navigateur) ; `replay` rejoue un pas du parcours.
+    // Les flèches du node central : une par voisin, dans sa direction à l'écran (portails d'ailleurs : angle libre).
+    function build(node) {
+        const steps = neighbours(node);
+        const came = state.trail.at(-2);
+        steps.forEach(s => { const el = element(s); if (el) remember(el); });
+        trace([node.id, ...steps.filter(s => s.layer === layerNumber).map(s => s.id)]);
+        state.arrows = steps.map(step => {
+            const button = h('button', { type: 'button', class: ['gt-arrow', step.portal ? 'portal' : '', state.seen.has(step.id) ? 'seen' : '',
+                step.id === came?.id ? 'came' : ''].filter(Boolean).join(' '), 'aria-label': `Aller à : ${short(label(step), 60)}` });
+            button.innerHTML = ARROW;
+            if (step.portal && step.layer !== layerNumber) button.append(h('span', {}, `⟿ ${short(layerName(step.layer), 16)}`));
+            button.style.setProperty('--c', colorOf(step.id));
+            button.addEventListener('mouseenter', () => { state.hover = step; element(step)?.classList.add('gardien-choice-hover'); paint(); });
+            button.addEventListener('mouseleave', () => { state.hover = null; element(step)?.classList.remove('gardien-choice-hover'); paint(); });
+            button.addEventListener('click', () => go(step));
+            return { step, button, angle: 0 };
+        });
+        // Directions : glisser ou zoomer la vue ne les change pas, elles se calculent une fois par node central.
+        const c = disc(node);
+        const near = state.arrows.filter(a => element(a.step));
+        const angles = spread(near.map(a => { const d = disc(element(a.step)); return Math.atan2(d.y - c.y, d.x - c.x); }));
+        near.forEach((a, i) => { a.angle = angles[i]; });
+        const taken = [...angles];
+        state.arrows.filter(a => !element(a.step)).forEach(a => { a.angle = freeAngle(taken); taken.push(a.angle); });
+        ring.replaceChildren(...state.arrows.map(a => a.button));
+        place();
+    }
+
+    // Replace les flèches à chaque image autour du node central : la vue peut glisser, zoomer, le node grandir.
+    function place() {
+        const node = element(here());
+        if (!node || ring.hidden) return;
+        const c = disc(node);
+        const radius = c.r + 56;
+        state.arrows.forEach(a => {
+            const x = c.x + Math.cos(a.angle) * radius, y = c.y + Math.sin(a.angle) * radius;
+            a.button.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${a.angle}rad)`;
+            a.button.querySelector('span')?.style.setProperty('transform', `rotate(${-a.angle}rad)`);  // l'étiquette du portail reste droite
+        });
+    }
+    (function loop() {
+        if (!ring.hidden && !state.moving) place();
+        requestAnimationFrame(loop);
+    })();
+
+    // Glisse jusqu'au pas `step` (après chargement de sa dimension s'il est au bout d'un portail), puis ses flèches.
     async function go(step, { replay = false } = {}) {
         const run = ++state.run;
-        state.choices = [];
-        if (!replay) {
-            state.trail = [...state.trail.slice(0, state.at + 1), { id: step.id, layer: step.layer }];
-            state.at = state.trail.length - 1;
-        }
+        if (!replay) state.trail.push({ id: step.id, layer: step.layer });
         state.seen.add(step.id);
-        document.querySelectorAll('.gardien-visiting').forEach(n => n.classList.remove('gardien-visiting'));
-        paint();
+        state.hover = null;
+        state.moving = true;
+        ring.classList.add('moving');
+        document.querySelectorAll('.gardien-visiting, .gardien-choice-hover').forEach(n => n.classList.remove('gardien-visiting', 'gardien-choice-hover'));
+        selectedNodes.slice().forEach(n => nodeUnselection(n));  // la pastille du node se retire
+        release();
+        document.dispatchEvent(new MouseEvent('mouseup'));
         if (step.layer !== layerNumber) {
             say(`Portail : je passe dans « ${layerName(step.layer)} »`, 'guide');
             await bridge.enter(step.layer);
             if (run !== state.run) return;
         }
         const node = element(step);
-        if (!node) return pause('Ce node n\'existe plus : ⏮ pour revenir');
-        survey(node);
+        if (!node) {
+            state.moving = false;
+            ring.replaceChildren();
+            heading.textContent = 'Ce node n\'existe plus : ⟲ pour revenir';
+            return;
+        }
+        remember(node);
         node.classList.add('gardien-visiting');
         paint();
-        const arrived = await bridge.visit(node);
+        build(node);
+        await bridge.visit(node);
         if (run !== state.run) return;
-        if (!arrived) return state.playing ? pause('Tu as repris la main : ▶ pour continuer') : undefined;
-        await dwell(run, 1400 + textOf(node).length * 35);
-        if (run === state.run && state.playing) advance();
+        release();
+        state.moving = false;
+        ring.classList.remove('moving');
     }
 
-    // La suite en lecture : le parcours déjà fait s'il y en a devant, sinon l'exploration.
-    function advance() {
-        if (state.at < state.trail.length - 1) return go(state.trail[++state.at], { replay: true });
-        return next();
+    // Un node cliqué ne garde pas la saisie (Nodz la donne au clic) : les flèches du clavier restent à la visite.
+    function release() {
+        if (svg.contains(document.activeElement)) document.activeElement.blur();
     }
 
-    async function dwell(run, ms) {
-        for (let t = 0; t < ms / state.speed; t += 100) {
-            await wait(100);
-            if (run !== state.run) return;
-            while (!state.playing) {  // en pause : le temps de lecture reprend où il en était
-                await wait(150);
-                if (run !== state.run) return;
-            }
-        }
-    }
-
-    function next() {
-        const options = open(here());
-        if (options.length === 1 || (options.length && state.auto)) return go(options[0]);
-        if (options.length > 1) {
-            state.choices = options;
-            return paint();
-        }
-        // Bout de branche : retour au dernier embranchement du parcours encore ouvert.
-        for (let i = state.at - 1; i >= 0; i--) {
-            if (open(state.trail[i]).length) {
-                const fork = state.trail[i];
-                say(`Retour à « ${short(label(fork), 40)} » : il reste des branches`, 'guide');
-                return go(fork);
-            }
-        }
-        state.playing = false;
-        paint();
-        say(`Visite terminée : ${state.seen.size} nodes parcourus. ⏮ ⏭ pour la revoir.`, 'guide');
-        return null;
-    }
-
-    function choose(step) {
-        if (!state.choices.includes(step)) return;
-        state.playing = true;
-        go(step);
-    }
-
-    // Un pas du parcours déjà fait, en pause (fil d'Ariane, ⏮, ⏭ dans le parcours).
+    // Un pas du chemin : on y revient, la suite est coupée (comme un navigateur).
     function jump(index) {
-        if (index < 0 || index >= state.trail.length) return;
-        state.at = index;
-        state.playing = false;
+        if (index < 0 || index >= state.trail.length - 1) return;
+        state.trail = state.trail.slice(0, index + 1);
         go(state.trail[index], { replay: true });
     }
 
     function previous() {
-        jump(state.at - 1);
-    }
-
-    // Pas suivant à la main, sans attendre la fin du temps de lecture ; la lecture garde son état. Au bout du
-    // parcours : l'exploration ; tout est vu : on suit quand même un lien (pas celui d'où l'on vient si possible).
-    function forward() {
-        if (state.choices.length) return go(state.choices[0]);
-        if (!here() || ahead.disabled) return;
-        state.run += 1;
-        bridge.cut();
-        if (state.at < state.trail.length - 1) return go(state.trail[++state.at], { replay: true });
-        if (state.trail.some(n => open(n).length)) return next();
-        const came = state.trail[state.at - 1];
-        const links = state.next.get(here().id) || [];
-        go(links.find(n => n.id !== came?.id) || links[0]);
-    }
-
-    function pause(message) {
-        state.playing = false;
-        bridge.cut();  // arrête le travelling en cours
-        paint();
-        if (message) {
-            heading.textContent = message;
-            body.textContent = '';
-        }
-    }
-
-    function resume() {
-        const step = here();
-        if (!step) return;
-        state.playing = true;
-        paint();
-        if (!state.choices.length) {
-            // reprise : on recale la caméra sur le node (dans sa dimension), puis la suite
-            if (!element(step)) return go(step, { replay: true });
-            const run = ++state.run;
-            bridge.visit(element(step)).then(ok => { if (ok && run === state.run && state.playing) advance(); });
-        }
+        jump(state.trail.length - 2);
     }
 
     function stop() {
         state.run += 1;
+        state.moving = false;
         bridge.cut();
-        bridge.setTempo(1);
-        card.hidden = true;
-        document.querySelectorAll('.gardien-visiting, .gardien-choice, .gardien-choice-hover')
-            .forEach(n => n.classList.remove('gardien-visiting', 'gardien-choice', 'gardien-choice-hover'));
+        card.hidden = ring.hidden = true;
+        ring.replaceChildren();
+        state.arrows = [];
+        document.querySelectorAll('.gardien-visiting, .gardien-choice-hover').forEach(n => n.classList.remove('gardien-visiting', 'gardien-choice-hover'));
     }
 
     return {
         start(node) {
             if (!node) return;
             stop();
-            selectedNodes.slice().forEach(n => nodeUnselection(n));  // la pastille du node se retire
-            document.dispatchEvent(new MouseEvent('mouseup'));
-            Object.assign(state, { trail: [], at: -1, seen: new Set(), known: new Set(), next: new Map(), info: new Map(), meta: new Map(), choices: [], playing: true });
-            bridge.setTempo(state.speed);
-            card.hidden = false;
+            Object.assign(state, { trail: [], seen: new Set(), info: new Map(), meta: new Map(), hover: null });
+            card.hidden = ring.hidden = false;
             go({ id: node.id, layer: layerNumber });
         },
         stop,
