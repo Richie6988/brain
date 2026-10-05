@@ -260,6 +260,8 @@ body:has(.universe.lightmode) .gc-form textarea { color: #440852; }
 .gt-origin.message::before { background: #33FF99; }
 #gardien-arrows { position: fixed; inset: 0; z-index: 30; pointer-events: none; transition: opacity 0.2s; }
 #gardien-arrows.moving { opacity: 0; }
+#gardien-jump { position: fixed; inset: 0; z-index: 29; pointer-events: none; }
+#gardien-jump .gt-arrow[hidden] { display: none; }
 .gt-arrow { position: absolute; left: 0; top: 0; width: 66px; height: 66px; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto;
     filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c, #1E90FF) 70%, transparent)); }
 .gt-arrow svg { width: 100%; height: 100%; transition: transform 0.15s ease; }
@@ -277,7 +279,7 @@ body:has(.universe.lightmode) #gardien-tour { color: #440852; background: linear
 body:has(.universe.lightmode) .gt-title { color: #1e1b4b; }
 body:has(.universe.lightmode) .gt-meta span { color: #440852; }
 
-body.gardien-gesture :is(#gardien-chat, #gardien-send, #gardien-tour, #gardien-arrows) { pointer-events: none; }
+body.gardien-gesture :is(#gardien-chat, #gardien-send, #gardien-tour, #gardien-arrows, #gardien-jump) { pointer-events: none; }
 body:not(.gardien-ready) :is(#gardien-chat, #gardien-context-button) { display: none; }
 
 /* Liste des dimensions : recherche, épinglées, nombre de nodes */

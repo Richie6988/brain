@@ -23,6 +23,7 @@ import { createHome } from './home.js';
 import { createHistory } from './history.js';
 import { createLabels } from './labels.js';
 import { createLibrary } from './library.js';
+import { createLinkJump } from './linkjump.js';
 import { createLinkDrop } from './linkdrop.js';
 import { createMonitor } from './monitor.js';
 import { createNodebar } from './nodebar.js';
@@ -107,6 +108,7 @@ createTheme();  // bouton jour / nuit : Nuit ou Ardoise (gris-bleu sombre), plus
 const sfx = createSfx();  // effets sonores des gestes : création, lien, suppression, portail…
 const guide = createGuide();  // présentation et tous les contrôles : bouton « ? » du menu, touche « ? »
 createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au relâcher
+createLinkJump();  // près d'un lien, une grosse flèche (style de la visite) y voyage d'un clic
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
     onBranch: (node, anchor) => branches.open(node, anchor),
