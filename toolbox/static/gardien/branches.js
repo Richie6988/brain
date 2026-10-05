@@ -217,7 +217,9 @@ export function createBranches({ say }) {
         }));
     }
     (function track() {  // les pastilles suivent leurs nodes (zoom, glissé)
-        layer.querySelectorAll('.gf-badge').forEach(badge => {
+        // Une fenêtre de Nodz ouverte (profil, galerie, export…, sans z-index) : les pastilles passaient par-dessus.
+        layer.hidden = typeof overlay !== 'undefined' && overlay;
+        if (!layer.hidden) layer.querySelectorAll('.gf-badge').forEach(badge => {
             const node = byId(badge.dataset.node);
             const box = node && (node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1]).getBoundingClientRect();
             badge.hidden = !box?.width;
