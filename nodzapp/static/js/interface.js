@@ -270,97 +270,11 @@ document.getElementById('templateButton').addEventListener('click', function() {
     });
 });
 
-//////////////////// SHARE/INVITE ////////////////////
+//////////////////// SHARE (salons : toolbox/static/gardien/room.js) ////////////////////
 
 document.getElementById('shareButton').addEventListener('mouseover', function() {
     createTooltip ('shareButton','Share');
 });
-
-document.getElementById('shareButton').addEventListener('click', function() {
-    // var sharedIDs = [('userID',userID)]
-    var sharedIDs = [];
-    const nodeGroups = document.querySelectorAll('.node-group');
-       nodeGroups.forEach(node => {
-        if (node.getAttribute('privacy') !== 2){
-            sharedIDs.push(parseInt(node.id.match(/\d+/)[0], 10));
-        }        
-    }) 
-    generateInvite(sharedIDs);
-});
-
-
-function generateInvite(nodeIds) {
-    fetch(`/generate_invite/${nodeIds.join(',')}/`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.invite_link) {
-                let popup = document.createElement('div');
-                popup.id = 'invitePopup'
-                popup.className = 'popup'; 
-                popup.style.height = 'auto';
-            
-                popup.addEventListener('contextmenu', (event) => {
-                    event.preventDefault();
-                });
-            
-                const message = document.createElement('div');
-                message.className = 'smallmessage';   
-                message.textContent = data.invite_link;
-                popup.appendChild(message);
-                const buttonContainer = document.createElement('div');
-                buttonContainer.className = 'popupbutton-container'; 
-                buttonContainer.style.justifyContent = 'center';
-                const copyButton = document.createElement('span');
-                copyButton.textContent = 'Copier le lien';
-                copyButton.className = 'popupbutton confirm'; 
-                copyButton.style.fontSize = '10px';
-                copyButton.className = 'submit-button'; 
-                copyButton.style.padding = '5px';
-                buttonContainer.appendChild(copyButton);
-                popup.appendChild(buttonContainer)
-                document.body.appendChild(popup);
-                
-                copyButton.addEventListener('mousedown', function() {                                        
-                    console.log(data.invite_link)
-                    const inviteLink = data.invite_link;
-                    // Use the Clipboard API if available for modern browsers
-                    if (navigator.clipboard) {
-                        navigator.clipboard.writeText(inviteLink).then(() => {
-                            message.textContent = "Lien copié."; 
-                            setTimeout(closePopup, 1000);
-                        }).catch(err => {
-                            console.error('Failed to copy text: ', err);
-                        });
-                    } else {  // page en http : pas d'API presse-papiers, copie par une zone de texte temporaire
-                        const area = document.createElement('textarea');
-                        area.value = inviteLink;
-                        area.style.cssText = 'position:fixed;opacity:0';
-                        document.body.appendChild(area);
-                        area.select();
-                        document.execCommand('copy');
-                        area.remove();
-                        message.textContent = "Lien copié.";
-                        setTimeout(closePopup, 1000);
-                    }
-                });
-                
-                svg.addEventListener('mousedown', function(event) {
-                    if (popup) {
-                        closePopup();    
-                    }
-                });
-                
-                function closePopup() {
-                    document.body.removeChild(popup);
-                    popup = null;
-                }
-               
-            } else {
-                console.log("Failed to generate invite link.");
-            }
-        });
-}
-
 
 //////////////////// EXPORT ////////////////////
 
@@ -871,36 +785,7 @@ window.addEventListener('resize', function(event) {
 
 let pendingLogin = false;
 window.addEventListener('load', function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-
-    if (token) {
-        fetch(`/api/shared_nodes/?token=${token}`)
-        .then(response => {
-            if (!response.ok) throw new Error('Failed to load nodes');
-            return response.json();
-        })
-        .then(data => {
-            if (data.nodes) {
-                data.nodes.forEach(node => {    
-                    displayNode(node);
-                });
-            } if (data.links) {
-                data.links.forEach(link => {    
-                    displayLink(link);
-                });
-            } if (data.params) {
-                data.params.forEach(param => {    
-                    loadParams(param); // TODO userID of original universe for saving operations
-                });
-            }  
-            guest();  
-            multiUsers();
-        })
-        .catch(error => console.error(error));
-    } else {
-        login();
-    }
+    login();
     console.log('Window has finished loading!');
     // Create the audio element
     const audio = document.createElement('audio');

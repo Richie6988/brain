@@ -464,16 +464,6 @@ body:has(.universe.lightmode) .dropdown-content .dropdown-item:not(.new) .icon {
     paint-order: stroke; stroke: var(--nz-card); stroke-width: 5px; stroke-linejoin: round;
 }
 
-/* --- Partage : le lien dans un champ, un vrai bouton Copier (les styles en ligne de Nodz cèdent) */
-#invitePopup { max-width: min(640px, calc(100vw - 32px)); }
-#invitePopup .smallmessage {
-    padding: 10px 14px; border-radius: 12px; background: var(--nz-field); border: 1px solid var(--nz-field-line);
-    font-size: 13px; overflow-wrap: anywhere; user-select: all; text-align: left;
-}
-#invitePopup .submit-button {
-    padding: 8px 22px !important; font-size: 12px !important; font-weight: 700; letter-spacing: 0.08em; border-radius: 999px; cursor: pointer;
-}
-
 /* Drapeau de la nouvelle origine (bouton drapeau, interface.js) : verre en 3D comme le cube HYPERSPACE, planté au
    centre de l'écran (pied du mât au centre), il tourne en ondulant puis s'efface au bout de 3 s. */
 @keyframes of3-life {

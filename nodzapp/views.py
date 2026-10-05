@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 import re
 import html
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.db.models import Max
 
 
@@ -1303,64 +1304,6 @@ def test(request):
 
 
 
-############################## PAYMENT ##############################
-
-from django.views.decorators.csrf import csrf_exempt  # Needed to handle POST requests without CSRF tokens (for APIs)
-from django.conf import settings  # Access to Stripe API keys in settings.py
-import stripe
-
-# Set your secret key from settings
-stripe.api_key = settings.STRIPE_SECRET_KEY
-
-@csrf_exempt  # Stripe usually sends POST requests, which can require CSRF exemption
-def process_payment(request):
-    if request.method == 'POST':
-        try:
-            # Get the plan (e.g., 'monthly' or 'yearly') from the request body
-            plan = request.POST.get('plan')  # Or request.body with JSON if using a frontend that sends JSON
-            
-            # Determine the price based on the plan selected
-            price = 1000 if plan == 'monthly' else 10000  # In cents (e.g., $10 or $100)
-            
-            # Create a payment intent using Stripe API
-            intent = stripe.PaymentIntent.create(
-                amount=price,
-                currency='usd',
-                payment_method_types=['card'],  # Accept credit cards
-            )
-            
-            # Return the client secret needed to complete the payment
-            return JsonResponse({'client_secret': intent.client_secret})
-        
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=403)
-    
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-
-@login_required
-def cancel_subscription(request):
-    if request.method == 'POST':
-        # Get the currently logged-in user
-        user = request.user
-
-        if not user.is_premium:
-            return JsonResponse({'error': 'User is not subscribed to any premium plan.'}, status=400)
-
-        # Cancel the Stripe subscription
-        try:
-            stripe.Subscription.delete(user.stripe_subscription_id)
-            user.is_premium = False  # Update the user status to non-premium
-            user.stripe_subscription_id = None  # Clear subscription ID
-            user.save()  # Save the changes to the database
-            return JsonResponse({'status': 'Subscription canceled successfully'})
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-    
-    # If not a POST request, return an error
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-
 ############################## CONTACT ##############################
 
 
@@ -1399,120 +1342,6 @@ def feedback(request):
 
     return render(request, 'contact.html', {'form': form})
 
-
-############################## MULTI-USERS ##############################
-
-from django.shortcuts import get_object_or_404, redirect
-from django.http import JsonResponse
-from django.utils import timezone
-from .models import Node, Invite
-from django.urls import reverse
-from django.db.models import Q
-
-
-from django.shortcuts import redirect, get_object_or_404
-from django.http import JsonResponse
-from django.utils import timezone
-from .models import Invite  # Ensure the Invite model is imported
-
-@login_required
-def invite_access(request, token):
-    # Validate the invite token
-    invite = get_object_or_404(Invite, token=token)
-
-    # Check if the invite is still valid
-    if invite.expires_at < timezone.now():
-        return JsonResponse({'error': 'Invite link has expired'}, status=403)
-
-    # Check if max access has been reached
-    if invite.access_count >= invite.max_access:
-        return JsonResponse({'error': 'Invite link has reached maximum access count'}, status=403)
-
-    # Increment access count and save
-    invite.access_count += 1
-    print('invite',invite.access_count)
-    invite.save()
-
-    # Redirect to the you page with the token in the URL
-    return redirect(f"{reverse('universe')}?token={token}")
-
-def shared_nodes(request):
-    token = request.GET.get('token')
-    
-    if token:
-        # Fetch the invite object based on the token
-        invite = get_object_or_404(Invite, token=token)
-
-        # Fetch nodes based on token
-        # nodes = invite.nodes.exclude(privacy=2)
-        node_data = [{
-            'node': node.node_id,
-            'x_coordinate': node.x_coordinate,
-            'y_coordinate': node.y_coordinate,
-            'type': node.type,
-            'color': node.color,
-            'radius': node.radius,
-            'layer': node.layer,
-            'rank': node.rank,
-            'links': node.links,
-            'quantum': node.quantum,
-            'text_content': node.text_content,
-            'image_content': node.image_content.url if node.image_content else '',
-            'canvas_content': node.canvas_content,
-            'file_name': node.file_name,
-            'notification': node.notification,
-            'lock': node.lock,
-            'shape': node.shape,
-            'likes': node.likes,
-        } for node in invite.nodes.all()]
-
-        link_data = [{
-            'link': link.link,
-            'linkA': link.linkA,
-            'linkB': link.linkB,
-        } for link in invite.links.all()]
-
-        params_data = list(invite.params.values(
-            'rootX', 'rootY', 'layer', 'dark', 'sound', 
-            'nodecounter', 'linkcounter', 'layercounter'
-        ))
-        data = {
-            'nodes': node_data,
-            'links': link_data,
-            'params': params_data,
-        }
-        return JsonResponse(data)
-    return JsonResponse({'error': 'Invalid token'}, status=404)
-
-
-@login_required
-def generate_invite(request, node_ids):
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': 'User must be logged in'}, status=403)
-
-    user = request.user
-    params = Param.objects.filter(user=user)
-    # Parse node_ids and validate nodes belong to the user
-    node_ids = node_ids.split(',')
-    nodes = Node.objects.filter(user=user, node_id__in=node_ids)
-    # Get related links
-    links = Link.objects.filter(Q(user=user) & (Q(linkA__in=node_ids) | Q(linkB__in=node_ids)))
-
-    if not nodes.exists():
-        return JsonResponse({'error': 'No valid nodes selected'}, status=404)
-
-    invite = Invite.objects.create(
-        invited_by=request.user,
-        expires_at=timezone.now() + timezone.timedelta(days=1),  # 1-day expiry
-        max_access=5
-    )
-    invite.params.set(params)
-    invite.nodes.set(nodes)
-    invite.links.set(links)
-
-    # Generate the link
-    invite_link = request.build_absolute_uri(reverse('invite_access', args=[invite.token]))
-    return JsonResponse({'invite_link': invite_link})
 
 ############################## SECURE FILE DOWNLOAD OUTSIDE Nod-Z ##############################
 from itsdangerous import URLSafeTimedSerializer

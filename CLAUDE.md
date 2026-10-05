@@ -26,7 +26,7 @@ Règles de collaboration (non négociables) :
 ### Repo `Richie6988/nodz` : le moteur graphique (Django)
 - **Stack** : Django 5.0.7, Channels 4 + Daphne (WebSocket), SQLite, JS vanilla sans build, SVG pour le rendu.
 - **Volume** : environ 15 000 lignes écrites à la main (le reste des 85 000 lignes correspond à des librairies vendorisées : `customThree.js` = three.js, `customSVG.js` = svg.js 3.0.14, `customhtml2canvas.js` = html2canvas 1.4.1).
-- **Modèles** (`nodzapp/models.py`) : `NodzUser`, `Param` (état de la vue par utilisateur), `Layer` (dimension, `layer_id` séquentiel par user), `Node`, `Link`, `Template`, `Feedback`, `Invite`.
+- **Modèles** (`nodzapp/models.py`) : `NodzUser`, `Param` (état de la vue par utilisateur), `Layer` (dimension, `layer_id` séquentiel par user), `Node`, `Link`, `Template`, `Feedback`.
   - `Node` : coordonnées x/y, `layer` FK, `type` (text, image, video, file, canvas), color, shape, radius, lock, likes, plus un champ de contenu par type. Un node **garde tous ses états possibles** : passer de texte à image conserve le texte comme métadonnée.
   - Les liens sont stockés **en double** : dans `Link.linkA/linkB` (chaînes `"N-12"`) et dans les champs JSON-texte `Node.links`, `Node.siblings` et `Node.quantum`.
   - `quantum` = **portail inter-dimensions** : `[{"node": "N-x", "layer": "y"}]`.
@@ -42,7 +42,6 @@ Règles de collaboration (non négociables) :
 
 ### Dette et bugs repérés (à traiter dans les phases concernées)
 - `created_at = DateTimeField(auto_now=True)` : la date de création est écrasée à chaque sauvegarde. `uploaded_at = utc_now` est évalué une seule fois, à l'import du module.
-- `generate_invite` est défini deux fois dans `views.py` (l.1442 et l.1549).
 - `send_validation_code` et `verify_validation_code` sont en `@csrf_exempt`.
 - `requirements.txt` ne liste que 3 paquets alors que le code importe stripe, aspose.slides, geoip2, PyPDF2, python-docx, python-pptx, openpyxl, reportlab, bs4, itsdangerous et requests.
 - Chemins statiques avec antislash dans les templates (`static\js\...`) : ça ne marche que sous Windows.
@@ -111,7 +110,7 @@ Objectif de performance : **60 fps** en pan et zoom avec 2 000 nodes sur un plan
 ### Phase 1 : inventaire et formatage
 1. Tableau d'inventaire de chaque fonctionnalité existante avec ta proposition **garder, adapter ou supprimer**, et une justification d'une ligne. Candidats à discuter : Stripe et premium, parrainage, admin stats, invitations et partage, curseurs multi-utilisateurs (Channels), mode invité, YouTube, calendrier, export PDF, aspose.slides (propriétaire et lourd : à remplacer par LibreOffice headless ou à supprimer). **Attends la validation de Richard avant de supprimer quoi que ce soit.**
 2. Formatage automatique, dans des commits dédiés : `ruff format` + `ruff check --fix` côté Python, Prettier côté JS/CSS/HTML. Ajoute `pyproject.toml`, `.prettierrc` et `eslint.config.js`.
-3. Corrige les bugs listés en section 1 (created_at, doublon generate_invite, CSRF, chemins statiques).
+3. Corrige les bugs listés en section 1 (created_at, CSRF, chemins statiques).
 4. Découpe `views.py` en modules par domaine (`views/graph.py`, `views/files.py`, `views/auth.py`, etc.) sans changer les URLs.
 5. Librairies vendorisées : déplace-les dans `static/vendor/` avec leur version et leur licence. Charge three.js à la demande (uniquement pour l'aperçu STL).
 

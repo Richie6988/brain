@@ -1360,17 +1360,3 @@ label {
   cursor: pointer;
   margin-left: 7px;
 }
-
-/*//////////////////////  MULTI USERS  //////////////////////*/
-
-.user-cursor {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.user-tooltip {
-  margin-left: 15px;
-  font-size: smaller;
-}

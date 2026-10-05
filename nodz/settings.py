@@ -238,7 +238,6 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'nodz@localhost')
 
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
-STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 # Gardien Premium (toolbox/premium.py) : le prix d'abonnement Stripe, le secret du webhook toolbox/premium/webhook,
 # et le prix tel qu'affiché dans Mon IA.
 STRIPE_PRICE_ID = os.environ.get('STRIPE_PRICE_ID', '')
