@@ -5,6 +5,7 @@
 // Les variables et fonctions de Nodz sont des globales des scripts classiques de la page.
 
 import { endpoint } from './api.js';
+import { breathe } from './bulk.js';
 import { dragging } from './gesture.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
@@ -425,6 +426,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         async perform(action) {
             const tool = tools[action.op];
             if (!tool) return;
+            if (window.nodzQuiet) await breathe();  // pose en masse : la page reste vivante (clics, images)
             const needs = [action.ref, action.source, action.target].filter(Boolean);
             const missing = needs.find(r => !nodeOf(r));
             if (missing && !['create', 'goto', 'remind'].includes(action.op)) throw new Error(`${action.op} : ${missing} n'est pas dans cette dimension`);

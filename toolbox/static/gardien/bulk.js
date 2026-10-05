@@ -46,6 +46,16 @@ async function flush() {
     }
 }
 
+// Une pose en masse s'enchaîne en micro-tâches (bridge.perform est async, ses outils synchrones) : sans pause, la page
+// gelait plusieurs secondes (le guide ne répondait plus). breathe() rend la main au navigateur toutes les SLICE ms.
+const SLICE = 12;
+let slice = 0;
+export async function breathe() {
+    if (performance.now() - slice < SLICE) return;
+    await new Promise(resolve => setTimeout(resolve));
+    slice = performance.now();
+}
+
 // Exécute job ; tout ce qu'il enregistre part groupé à la fin (les bulk imbriqués partent avec le plus extérieur).
 export async function bulk(job) {
     depth += 1;
