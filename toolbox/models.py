@@ -7,6 +7,11 @@ from django.conf import settings
 from django.db import models
 
 
+def hosted(user):
+    """L'IA hébergée par le serveur : l'administrateur et les comptes Premium."""
+    return bool(getattr(user, 'is_staff', False) or getattr(user, 'premium', False))
+
+
 class LocalModel(models.Model):
     """Un fichier de poids (GGUF) téléchargé depuis Hugging Face, partagé par tout le serveur ; ou un modèle par API,
     partagé (ajouté par l'administrateur) ou personnel (`owner` : le connecteur et la clé d'un utilisateur, à lui seul)."""
@@ -53,10 +58,17 @@ class LocalModel(models.Model):
 
     @classmethod
     def visible_to(cls, user):
-        """Les modèles partagés du serveur et les connecteurs personnels de cet utilisateur (jamais ceux des autres) ; un
-        modèle Premium seulement pour un compte abonné ou l'administrateur."""
+        """Les modèles partagés du serveur et les connecteurs personnels de cet utilisateur (jamais ceux des autres). Les
+        modèles de texte du serveur (l'IA qu'il héberge) ne servent qu'aux comptes Premium et à l'administrateur : les
+        autres branchent leur IA par API ; un petit modèle gratuit dégraderait l'expérience."""
         shown = cls.objects.filter(models.Q(owner=None) | models.Q(owner=user))
-        return shown if getattr(user, 'is_staff', False) or getattr(user, 'premium', False) else shown.exclude(premium=True)
+        return shown if hosted(user) else shown.exclude(premium=True).exclude(owner=None, kind=cls.Kind.TEXT)
+
+    def usable_by(self, user):
+        """Ce compte peut-il faire tourner ce modèle (même règle que visible_to) ?"""
+        if self.owner_id is not None:
+            return self.owner_id == user.pk
+        return hosted(user) or (self.kind != self.Kind.TEXT and not self.premium)
 
 
 class Agent(models.Model):

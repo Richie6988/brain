@@ -373,7 +373,7 @@ class EngineTests(TestCase):
             except EngineUnavailable as e:
                 results.append(str(e))
 
-        worker = threading.Thread(target=background, args=(5,))
+        worker = threading.Thread(target=background, args=(SimpleNamespace(pk=5, is_staff=True),))
         worker.start()
         while engine._current is None:
             time.sleep(0.01)
@@ -381,7 +381,7 @@ class EngineTests(TestCase):
         self.assertTrue(engine.interrupt(5))
         worker.join(5)
         self.assertEqual(results, ['arrêté'])
-        worker = threading.Thread(target=background, args=(5,))
+        worker = threading.Thread(target=background, args=(SimpleNamespace(pk=5, is_staff=True),))
         worker.start()
         while engine._current is None:
             time.sleep(0.01)
@@ -624,7 +624,7 @@ class ParamsTests(SimpleTestCase):
 
 class ToolboxApiTests(TestCase):
     def setUp(self):
-        self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456')
+        self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456', premium=True)  # il voit l'IA du serveur
         self.admin = NodzUser.objects.create_user(email='root@nodz.local', password='pw-123456', is_staff=True)
         self.client.force_login(self.user)
 
@@ -851,20 +851,23 @@ class ToolboxApiTests(TestCase):
             self.assertFalse((Path(root) / 'b.gguf').exists())
             self.assertFalse(LocalModel.objects.exists())
 
-    def test_new_account_gets_a_ready_model(self):
-        """Un compte neuf (invité) reçoit d'office un modèle partagé : celui de Gardien des administrateurs."""
-        light = LocalModel.objects.create(repo='org/s', filename='s.gguf', status='ready', size=10)
-        chosen = LocalModel.objects.create(repo='org/b', filename='b.gguf', status='ready', size=99)
-        LocalModel.objects.create(repo='org/k', filename='k.gguf', status='ready', size=1, owner=self.admin, endpoint='https://x.test')
-        Agent.objects.create(owner=self.admin, name='Gardien', role=Agent.Role.ORCHESTRATOR, model=chosen)
-        roles = {a['role']: a['model'] for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
-        self.assertEqual(roles[Agent.Role.ORCHESTRATOR], str(chosen.pk))
-        self.assertEqual(roles[Agent.Role.TEXT], str(chosen.pk))
-        self.assertIsNone(roles[Agent.Role.IMAGE])
-        Agent.objects.filter(owner=self.admin).delete()
-        Agent.objects.filter(owner=self.user).delete()
-        roles = {a['role']: a['model'] for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}
-        self.assertEqual(roles[Agent.Role.ORCHESTRATOR], str(light.pk))  # sinon le plus léger, jamais la clé d'un autre
+    def test_server_ai_is_for_premium_only(self):
+        """Un compte neuf, sans Premium, n'a pas d'IA : pas de petit modèle gratuit du serveur, ni à choisir ni à faire
+        tourner (même un agent réglé avant la règle) ; ses connecteurs et les modèles d'image restent à lui."""
+        text = LocalModel.objects.create(repo='org/s', filename='s.gguf', status='ready', size=10)
+        drawing = LocalModel.objects.create(repo='org/i', filename='i.gguf', status='ready', kind=LocalModel.Kind.IMAGE)
+        free = NodzUser.objects.create_user(email='guest7@nodz.com', password='pw-123456')
+        own = LocalModel.objects.create(repo='api:x.test', filename='k', status='ready', owner=free, endpoint='https://x.test')
+        self.client.force_login(free)
+        self.assertEqual({a['model'] for a in self.client.get('/api/v1/toolbox/agents').json()['agents']}, {None})
+        self.assertEqual({m['id'] for m in self.client.get('/api/v1/toolbox/models').json()['models']}, {str(drawing.pk), str(own.pk)})
+        self.assertEqual(self.send('post', '/api/v1/toolbox/agents', {'name': 'X', 'role': 'text', 'model': str(text.pk)}).status_code, 400)
+        from .engine import PREMIUM_ONLY, acting_for
+
+        with acting_for(free), self.assertRaisesMessage(EngineUnavailable, PREMIUM_ONLY):
+            Engine(Broker()).chat(text, [{'role': 'user', 'content': 'x'}])
+        self.assertTrue(drawing.usable_by(free) and own.usable_by(free))
+        self.assertTrue(text.usable_by(self.user))  # Premium
 
     def test_agents_seeded_and_owner_scoped(self):
         r = self.client.get('/api/v1/toolbox/agents')
@@ -922,7 +925,7 @@ class GuardianTests(TestCase):
     }
 
     def setUp(self):
-        self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456')
+        self.user = NodzUser.objects.create_user(email='a@nodz.local', password='pw-123456', premium=True)
         self.model = LocalModel.objects.create(repo='org/m', filename='a.gguf', path='/m/a.gguf', status=LocalModel.Status.READY)
         self.client.force_login(self.user)
         self.client.get('/api/v1/toolbox/agents')  # agents de départ
@@ -2403,11 +2406,11 @@ class ApiModelTests(TestCase):
         self.assertEqual(r.status_code, 400)  # pas de relais vers le réseau du serveur
         self.assertIn('interne', r.json()['error'])
         post.assert_not_called()
-        self.assertEqual(self.client.delete(f'/api/v1/toolbox/models/{shared.id}').status_code, 403)  # le partagé : l'administrateur
+        self.assertEqual(self.client.delete(f'/api/v1/toolbox/models/{shared.id}').status_code, 404)  # l'IA du serveur : invisible sans Premium
         self.assertEqual(self.client.patch(f'/api/v1/toolbox/models/{mine["id"]}', {'label': 'Mon GPT'}, content_type='application/json').status_code, 200)
         self.client.force_login(other)
         ids = [m['id'] for m in self.client.get('/api/v1/toolbox/models').json()['models']]
-        self.assertEqual((str(shared.id) in ids, mine['id'] in ids), (True, False))  # ni le nom ni la clé d'un autre
+        self.assertEqual((str(shared.id) in ids, mine['id'] in ids), (False, False))  # ni le nom ni la clé d'un autre ; le partagé, Premium
         self.assertEqual(self.client.patch(f'/api/v1/toolbox/models/{mine["id"]}', {'label': 'x'}, content_type='application/json').status_code, 404)
         agent = self.client.post('/api/v1/toolbox/agents', {'name': 'A', 'role': 'text'}, content_type='application/json').json()
         r = self.client.patch(f'/api/v1/toolbox/agents/{agent["id"]}', {'model': mine['id']}, content_type='application/json')
@@ -3110,10 +3113,9 @@ class PremiumTests(TestCase):
         check.assert_called_once_with(b'{}', 'sig', 'whsec_1')
         return r
 
-    def test_premium_model_is_hidden_and_never_the_free_default(self):
-        self.assertEqual(self.guardian.model, self.free)
-        ids = [m['id'] for m in self.client.get('/api/v1/toolbox/models').json()['models']]
-        self.assertEqual(ids, [str(self.free.id)])
+    def test_premium_model_is_hidden_and_never_given_for_free(self):
+        self.assertIsNone(self.guardian.model)  # sans Premium ni clé, le Gardien dort
+        self.assertEqual(self.client.get('/api/v1/toolbox/models').json()['models'], [])
         r = self.client.patch(f'/api/v1/toolbox/agents/{self.guardian.id}', json.dumps({'model': str(self.best.id)}), content_type='application/json')
         self.assertEqual(r.status_code, 400)
         self.assertEqual(self.client.get('/api/v1/toolbox/premium').json(),
@@ -3134,7 +3136,7 @@ class PremiumTests(TestCase):
         self.user.refresh_from_db()
         self.guardian.refresh_from_db()
         self.assertFalse(self.user.premium)
-        self.assertEqual(self.guardian.model, self.free)
+        self.assertIsNone(self.guardian.model)  # l'IA du serveur s'arrête avec l'abonnement
         self.assertEqual(len(mail.outbox), 2)
 
     def test_bad_signature_is_refused(self):

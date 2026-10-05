@@ -128,8 +128,8 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
     const title = h('h3', {}), subtitle = h('p', {});
     const machineLine = h('p', { class: 'gl-machine' });
     const readOnly = h('p', { class: 'gl-warning', hidden: true },
-        'Compte invité ou non administrateur : tu branches ta propre IA par API (Modèles, Par API, avec ta clé) et tu choisis parmi les modèles '
-        + 'du serveur ; installer des modèles locaux est réservé au compte administrateur (créé ou promu par ', h('code', {}, 'manage.py bootstrap --email … --password …'), ').');
+        'Compte invité ou non administrateur : tu branches ta propre IA par API (Modèles, Par API, avec ta clé), ou tu passes Premium pour '
+        + 'l\'IA du serveur ; installer des modèles locaux est réservé au compte administrateur (créé ou promu par ', h('code', {}, 'manage.py bootstrap --email … --password …'), ').');
     const notice = h('p', { class: 'gl-notice', role: 'status' });
     [...SECTIONS.map(([key]) => key).filter(key => key !== 'models'), ...MODEL_TABS.map(([key]) => key)]
         .forEach(key => { panels[key] = h('section', { class: 'gl-panel', dataset: { panel: key } }); });
@@ -795,7 +795,8 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
                 : h('p', { class: 'gl-empty' }, 'Aucun modèle pour le moment.'));
     }
 
-    // --- Mon IA : l'état du Gardien, puis les trois offres (gratuit sur le serveur, gratuit avec sa clé, Premium), et ses outils.
+    // --- Mon IA : l'état du Gardien, puis ses deux IA possibles (sa clé API, ou le Premium hébergé ici), et ses outils.
+    // L'univers reste gratuit ; l'IA du serveur est réservée au Premium (un petit modèle gratuit dégraderait l'expérience).
 
     // Stripe : la page de paiement (ou le portail de l'abonnement) s'ouvre à la place de Nodz, le retour revient ici.
     const goStripe = (button, call) => act(async () => {
@@ -827,23 +828,17 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
         const [where, level] = !current ? ['sans IA : il dort', 'off'] : current.premium ? ['Premium', 'ok'] : current.endpoint ? ['par API', 'ok']
             : current.loaded ? ['sur cette machine, en mémoire', 'ok'] : ['sur cette machine, chargé à la première demande', 'ok'];
         const option = (title, text, ...rest) => h('section', { class: 'ga-option ga-offer' }, h('h4', {}, title), h('p', {}, text), ...rest);
-        // Gratuit : le modèle partagé du serveur (celui en mémoire d'abord), sans clé ; il tourne sur sa machine, donc lentement.
-        const shared = state.models.filter(m => !m.endpoint && !m.mine && !m.premium && m.kind === 'text' && m.status === 'ready')
-            .sort((a, b) => b.loaded - a.loaded || a.size - b.size)[0];
-        const use = model => act(() => tb.updateAgent(guardian.id, { model: model.id }), `Le Gardien utilise ${model.label || model.filename}`);
-        const free = !shared ? h('button', { type: 'button', disabled: true }, 'Aucun modèle sur le serveur')
-            : current?.id === shared.id ? h('span', { class: 'gl-badge' }, 'ACTIF')
-            : h('button', { type: 'button', disabled: !guardian, onclick: () => use(shared) }, 'Utiliser');
         const local = h('div', { class: 'gl-step-recs' }, h('p', { class: 'gl-empty' }, 'Analyse de la machine…'));
         panels.start.replaceChildren(
             h('div', { class: `ga-now ${level}` }, h('span', { class: 'ga-dot' }),
                 h('div', {}, h('small', {}, 'Ton Gardien'), h('strong', {}, current ? current.label || current.filename : 'Pas encore d\'IA'), h('span', {}, where)),
                 guardian ? h('button', { type: 'button', onclick: () => show('agents') }, 'Ses agents') : null),
+            h('p', { class: 'gl-hint ga-pitch' }, 'L\'univers, la visite et les salons sont gratuits. Le Gardien, lui, pense avec un grand modèle : '
+                + 'le tien par API, ou le nôtre avec Premium, qui fait vivre l\'hébergement de l\'IA sur ce serveur.'),
             h('div', { class: 'ga-options ga-offers' },
-                option('Gratuit', 'Le modèle partagé du serveur, sans clé ni compte ailleurs. Il tourne sur le processeur du serveur : il répond, mais lentement.', free),
-                option('Gratuit avec ta clé', 'Ton compte OpenAI, Mistral, Groq, OpenRouter ou ton Ollama : rapide, payé à l\'usage chez eux (souvent gratuit pour commencer). '
+                option('Ta clé API', 'Ton compte OpenAI, Mistral, Groq, OpenRouter ou ton Ollama : payé à l\'usage chez eux (souvent gratuit pour commencer). '
                     + 'Ta clé reste sur le serveur Nodz et ne sert qu\'à toi.',
-                    h('button', { type: 'button', onclick: () => show('api') }, 'Brancher ma clé')),
+                    current?.mine ? h('span', { class: 'gl-badge' }, 'ACTIF') : h('button', { type: 'button', onclick: () => show('api') }, 'Brancher ma clé')),
                 premiumOffer(current)),
             state.staff ? h('div', { class: 'ga-option ga-wide' }, h('h4', {}, 'Sur cette machine (administrateur)'),
                 h('p', {}, `${machineLine.textContent}. Sans connexion ni clé. Recommandés ici :`),

@@ -1321,6 +1321,7 @@ body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }
 .ga-option p { margin: 0; color: var(--ga-muted); line-height: 1.6; }
 .ga-option > button { justify-self: start; }
 .ga-offers { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 12px; }
+.ga-pitch { margin: 0 0 10px; line-height: 1.6; }
 .ga-offer { grid-template-rows: auto 1fr auto; }
 .ga-offer > .gl-badge, .ga-offer > .ga-link { justify-self: start; }
 .ga-offer h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }

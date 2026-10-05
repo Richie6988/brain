@@ -88,7 +88,7 @@ class RealEngineTests(TransactionTestCase):
         from .engine import Engine
         from .models import Agent, LocalModel
 
-        self.user = NodzUser.objects.create_user(email='real@nodz.local', password='pw-123456')
+        self.user = NodzUser.objects.create_user(email='real@nodz.local', password='pw-123456', premium=True)
         self.model = LocalModel.objects.create(repo='test/tiny', filename='tiny.gguf', path=str(self.path),
                                                status=LocalModel.Status.READY, params={'max_tokens': 40})
         Agent.objects.create(owner=self.user, name='Gardien', role=Agent.Role.ORCHESTRATOR, model=self.model)
@@ -141,7 +141,7 @@ class RealEngineTests(TransactionTestCase):
 
         def work():
             try:
-                with acting_for(self.user.pk):
+                with acting_for(self.user):
                     self.engine.chat(self.model, [{'role': 'system', 'content': 'mot ' * 3800}, {'role': 'user', 'content': 'x'}],
                                      priority=BACKGROUND)
                 outcome['result'] = 'fini'

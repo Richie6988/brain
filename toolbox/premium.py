@@ -6,8 +6,8 @@
 - handle : le webhook signé (STRIPE_WEBHOOK_SECRET) ; checkout.session.completed active le compte,
   customer.subscription.updated / deleted le garde actif ou le désactive selon l'état de l'abonnement.
 Activer : premium sur le compte, son Gardien passe sur le modèle Premium, un e-mail de bienvenue part (SMTP, Postfix en
-local). Désactiver : premium retiré, ses agents qui utilisaient le modèle Premium reprennent le modèle gratuit, un e-mail
-le dit. Chaque changement d'état n'a lieu qu'une fois : un webhook rejoué ne renvoie pas d'e-mail.
+local). Désactiver : premium retiré, ses agents qui utilisaient l'IA du serveur s'endorment (sa clé API ou le Premium les
+réveillent), un e-mail le dit. Chaque changement d'état n'a lieu qu'une fois : un webhook rejoué ne renvoie pas d'e-mail.
 """
 
 import logging
@@ -100,12 +100,11 @@ def deactivate(user):
         return False
     user.premium = False
     user.save(update_fields=['premium'])
-    from .api import default_model  # le modèle gratuit du serveur (comme un compte neuf)
-
-    Agent.objects.filter(owner=user, model__premium=True).update(model=default_model())
+    Agent.objects.filter(owner=user, model__owner=None, model__kind=LocalModel.Kind.TEXT).update(model=None)  # l'IA du serveur
     _mail(user, 'Ton abonnement Nodz Premium est terminé',
-          "Bonjour,\n\nTon abonnement Premium a pris fin : ton Gardien repasse sur le modèle gratuit du serveur.\n"
-          "Tu peux te réabonner à tout moment depuis Agents & modèles, Mon IA.\n\nNodz")
+          "Bonjour,\n\nTon abonnement Premium a pris fin : ton Gardien s'endort, l'IA du serveur est réservée au Premium.\n"
+          "Pour le réveiller : branche ton IA par API avec ta clé, ou réabonne-toi, depuis Agents & modèles, Mon IA.\n"
+          "Ton univers, lui, reste entier et gratuit.\n\nNodz")
     return True
 
 

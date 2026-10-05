@@ -62,17 +62,20 @@ class EngineUnavailable(Exception):
 
 
 _acting = threading.local()
+PREMIUM_ONLY = ('l\'IA du serveur est réservée au Premium : passe Premium, ou branche ton IA par API avec ta clé '
+                '(Agents & modèles, Mon IA)')
 
 
 @contextmanager
-def acting_for(user_id):
-    """Les appels au modèle faits dans ce bloc (ce thread) sont ceux de cet utilisateur : son bouton stop les coupe."""
-    previous = getattr(_acting, 'user', None)
-    _acting.user = user_id
+def acting_for(user):
+    """Les appels au modèle faits dans ce bloc (ce thread) sont ceux de ce compte : son bouton stop les coupe, et l'IA du
+    serveur ne lui sert que s'il y a droit (Premium ou administrateur, lu ici : pas de requête dans le fil du modèle)."""
+    previous = getattr(_acting, 'user', None), getattr(_acting, 'account', None)
+    _acting.user, _acting.account = user.pk, user
     try:
         yield
     finally:
-        _acting.user = previous
+        _acting.user, _acting.account = previous
 
 
 def default_factory(**kwargs):
@@ -261,6 +264,7 @@ class Engine:
         ni la mémoire locale.
         on_token(fragment, chances), à la place d'on_text : avec chaque fragment, les jetons que le modèle envisageait à
         cet instant et leur probabilité, [(texte, p), ...] du plus probable au moins probable (ou None si inconnu)."""
+        self._allowed(model)
         # Réglages du modèle, puis ceux de l'appel (agent, Gardien) qui priment.
         options = {'temperature': 0.7, 'max_tokens': 1024, **sampling_options(model.params), **sampling_options(params)}
         if model.params.get('random_seed') is False and 'seed' not in options:
@@ -283,6 +287,14 @@ class Engine:
                 return self._local(model, messages, json_schema, on_text, options, on_token)
             finally:
                 self._current = None
+
+    @staticmethod
+    def _allowed(model):
+        """L'IA du serveur (ses modèles de texte) est réservée aux comptes Premium et à l'administrateur, même pour un agent
+        réglé avant cette règle ; hors demande d'un compte (tâche du serveur), pas de contrôle."""
+        account = getattr(_acting, 'account', None)
+        if account is not None and not model.usable_by(account):
+            raise EngineUnavailable(PREMIUM_ONLY)
 
     def _local(self, model, messages, json_schema, on_text, options, on_token=None):
         llm = self._ensure(model)

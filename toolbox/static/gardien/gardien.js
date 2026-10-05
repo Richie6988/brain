@@ -234,8 +234,9 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
     try {
         if (!guardian) await loadGuardian();
         if (!guardian?.enabled || !guardian.model) {
-            chat.offer('Le Gardien dort : il lui faut une IA, par API (ta clé) ou sur ta machine.', 'Choisir mon IA', () => library.open('start'));
-            if (node) say('Le Gardien dort : choisis-lui une IA dans Agents & modèles.', 'notice');
+            chat.offer('Je dors : pour penser avec toi, il me faut un grand modèle. Passe Premium, ou branche ton IA par API avec ta clé.',
+                'Réveiller le Gardien', () => library.open('start'));
+            if (node) say('Le Gardien dort : Premium ou ta clé API le réveillent (Agents & modèles, Mon IA).', 'notice');
             return;
         }
         node?.classList.add('gardien-thinking');

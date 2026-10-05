@@ -241,7 +241,7 @@ def warm(request, body):
 
     def work():
         try:
-            with acting_for(user.pk):
+            with acting_for(user):
                 Guardian(user, engine, lambda kind, data: None).warm(body.get('mode') if body.get('mode') in ('think', 'deep') else 'auto')
         except (EngineUnavailable, BrokerTimeout):
             pass  # pas de modèle, ou file trop longue : la première demande lira tout
@@ -459,7 +459,7 @@ def dream(request, body):
 
     def work():
         try:
-            with acting_for(user.pk):
+            with acting_for(user):
                 Guardian(user, engine, lambda kind, data: None).dream(history)
         except (EngineUnavailable, BrokerTimeout):
             pass  # pas de modèle, ou file trop longue : il rêvera une autre fois
@@ -765,16 +765,6 @@ def _agent_model(body, user):
     return model
 
 
-def default_model():
-    """Le modèle de texte partagé qu'un compte neuf (invité) reçoit d'office : celui déjà en mémoire, sinon le plus
-    choisi par les administrateurs pour leur Gardien, sinon le plus léger des modèles locaux prêts (il tient partout)."""
-    shared = LocalModel.objects.filter(owner=None, kind=LocalModel.Kind.TEXT, status=LocalModel.Status.READY, premium=False)
-    loaded = shared.filter(pk=engine.loaded).first() if engine.loaded else None
-    staff = (shared.filter(agents__role=Agent.Role.ORCHESTRATOR, agents__owner__is_staff=True)
-             .annotate(n=Count('agents')).order_by('-n').first())
-    return loaded or staff or shared.filter(endpoint='').order_by('size').first()
-
-
 def _site(request):
     """L'adresse publique de Nodz (préfixe compris), pour les retours de Stripe."""
     return request.build_absolute_uri('/').rstrip('/') + (settings.FORCE_SCRIPT_NAME or '')
@@ -822,10 +812,8 @@ def premium_webhook(request):
 @api('GET', 'POST')
 def agents(request, body):
     if request.method == 'GET':
-        if not Agent.objects.filter(owner=request.user).exists():  # compte neuf : une IA prête d'office
-            model = default_model()
-            Agent.objects.bulk_create([Agent(owner=request.user, name=n, role=r, description=d, model=None if r == Agent.Role.IMAGE else model)
-                                       for n, r, d in DEFAULT_AGENTS])
+        if not Agent.objects.filter(owner=request.user).exists():  # compte neuf : ses agents, sans IA (Premium ou sa clé)
+            Agent.objects.bulk_create([Agent(owner=request.user, name=n, role=r, description=d) for n, r, d in DEFAULT_AGENTS])
         return JsonResponse({'agents': [agent_to_dict(a) for a in Agent.objects.filter(owner=request.user)]})
     if not body.get('name') or body.get('role', Agent.Role.TEXT) not in Agent.Role.values:
         raise ChangeError('name et role valides requis')
@@ -916,7 +904,7 @@ async def command(request):
             if not dispatcher.wait(ticket, lambda position: events.put(('queued', {'position': position}))):
                 return  # la page est partie avant son tour
             outcome['ran'], started = True, time.monotonic()
-            with acting_for(user.pk):
+            with acting_for(user):
                 Guardian(user, engine, emit).handle(prompt, body['context'])
             if ticket.cancelled:
                 raise Stopped
@@ -1001,7 +989,7 @@ def doctor(request, body):
     # Essai réel : le prompt système du Gardien, une réponse de quelques jetons.
     try:
         system = guardian_.system(agents)
-        with acting_for(user.pk):
+        with acting_for(user):
             engine.chat(model, [{'role': 'system', 'content': system}, {'role': 'user', 'content': 'Réponds seulement : OK'}],
                         owner='diagnostic', max_tokens=8, temperature=0)
     except Exception as e:  # le diagnostic rapporte toute panne au lieu d'échouer

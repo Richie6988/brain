@@ -126,12 +126,12 @@ def fire_due_schedules(engine=None, now=None, background=True):
 def run_task(task_id, engine):
     """Exécute une tâche par son agent (en fond) : résultat et statut dans le registre."""
     try:
-        task = Task.objects.select_related('agent__model').get(pk=task_id)
+        task = Task.objects.select_related('agent__model', 'owner').get(pk=task_id)
         agent = task.agent
         task.status = Task.Status.IN_PROGRESS
         task.save(update_fields=['status', 'updated_at'])
         prompt = f'{task.title}\n{task.description}' + (f'\nCritères de réussite : {task.acceptance}' if task.acceptance else '')
-        with acting_for(task.owner_id):  # le bouton stop de son propriétaire la coupe
+        with acting_for(task.owner):  # le bouton stop de son propriétaire la coupe
             text = engine.chat(agent.model, [{'role': 'system', 'content': agent.system_prompt or default(agent.role)},
                                              {'role': 'user', 'content': prompt}],
                                priority=priorities.BACKGROUND, owner=f'task:{task.key}', **agent.params)
@@ -164,7 +164,7 @@ Agents : {agents}"""
 
 def run_mission(mission_id, engine):
     """Mission en fond, au nom de son propriétaire : son bouton stop coupe l'appel au modèle en cours."""
-    with acting_for(Mission.objects.values_list('owner_id', flat=True).get(pk=mission_id)):
+    with acting_for(Mission.objects.select_related('owner').get(pk=mission_id).owner):
         _run_mission(mission_id, engine)
 
 
