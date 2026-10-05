@@ -7,6 +7,7 @@
 
 import { endpoint } from './api.js';
 import { arrange, layout } from './branches.js';
+import { bulk } from './bulk.js';
 
 const MAX_ROWS = 500;     // nodes posés au plus par import
 const SHOWN_FIELDS = 3;   // colonnes affichées sous le libellé
@@ -317,7 +318,7 @@ export function createDataset({ bridge, say, onDone = () => {} }) {
             if (OUTLINE.test(file.name)) {  // une carte : son arbre tel quel
                 const root = await readOutline(file);
                 say(`Import de la carte ${file.name}…`);
-                const done = await plantTree(root, file.name.replace(/\.[^.]+$/, ''), { bridge, center: bridge.center() });
+                const done = await bulk(() => plantTree(root, file.name.replace(/\.[^.]+$/, ''), { bridge, center: bridge.center() }));  // enregistrés groupés
                 say(`${done.placed} nodes posés, rangés en arbre${done.placed >= MAX_TOPICS ? ` (${MAX_TOPICS} au plus)` : ''}.`);
                 return onDone(done.refs);
             }
@@ -325,11 +326,11 @@ export function createDataset({ bridge, say, onDone = () => {} }) {
             if (!rows.length) return say(`${file.name} : aucune ligne lue.`, 'error');
             say(`Import de ${file.name} : ${Math.min(rows.length, MAX_ROWS)} nodes…`);
             if (ownExport(rows)) {  // un export de Nodz : les nodes tels qu'ils étaient
-                const back = await restore(rows, { bridge, center: bridge.center() });
+                const back = await bulk(() => restore(rows, { bridge, center: bridge.center() }));
                 say(`${back.placed} nodes restaurés avec leurs liens${back.total > back.placed ? ` (${MAX_ROWS} au plus)` : ''}.`);
                 return onDone(back.refs);
             }
-            const done = await plant(rows, file.name.replace(/\.[^.]+$/, ''), { bridge, center: bridge.center() });
+            const done = await bulk(() => plant(rows, file.name.replace(/\.[^.]+$/, ''), { bridge, center: bridge.center() }));
             say(`${done.placed} nodes posés (libellé : ${done.label}${done.group ? `, groupés par ${done.group}` : ''})`
                 + (done.total > done.placed ? ` ; ${done.total - done.placed} lignes laissées (${MAX_ROWS} au plus)` : '') + '.');
             onDone(done.refs);

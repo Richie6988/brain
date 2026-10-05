@@ -214,7 +214,7 @@ function createNode(x,y,id) {
                 nodeSizing(nodeGroup,dim,dim);
             } 
             prevtextlength = textContent.length;
-            if(nodeGroup.getAttribute('lock') === '0') { 
+            if(nodeGroup.getAttribute('lock') === '0' && !isLoading && !window.nodzQuiet) {  // pas de focus au chargement ni en masse
                 input.focus();
             } 
             break;
@@ -750,10 +750,7 @@ function createNode(x,y,id) {
     const canvasID = `canvas-${count}`;
     canvas.setAttribute('id', canvasID);
     canvas.setAttribute("width", "750px");
-    canvas.setAttribute("height", "750px");
-    var ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'rgba(255, 255, 255, 0)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    canvas.setAttribute("height", "750px");  // transparent d'origine : rien à peindre, le contexte se prend au premier trait
 
     const canvasStyleGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     canvasStyleGroup.setAttribute('visibility','hidden');
@@ -976,7 +973,7 @@ function createNode(x,y,id) {
         typeGroup.style.display = 'none';
     });
 
-    input.focus(); 
+    if (!isLoading && !window.nodzQuiet) input.focus();  // chargement, création en masse : pas de focus (un recalcul de page par node)
       
     function handleInput() {
         nodetypedropdown.value = 'text';    

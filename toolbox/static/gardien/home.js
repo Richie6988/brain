@@ -6,6 +6,7 @@
 
 import { api } from './api.js';
 import { arrange } from './branches.js';
+import { bulk } from './bulk.js';
 
 const NAME = 'Gardien';
 const COLORS = { soul: '#C77DFF', identity: '#FF9F45', user: '#4DD4C6', memory: '#33FF99', skills: '#FFD93D', tools: '#4D96FF',
@@ -14,7 +15,6 @@ const PALETTE = ['#4D96FF', '#33FF99', '#FF6B6B', '#FFD93D', '#C77DFF', '#FF9F45
 const COLUMN = 700;    // premières positions, en colonnes (racine, groupes, nodes) : le rangement en arbre les affine
 const ROW = 300;
 const QUIET = 10 * 60 * 1000;  // période calme avant un rêve
-const PACE = 120;  // ms entre deux créations
 
 const escape = text => String(text).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const html = text => String(text).split('\n').map(escape).join('<br>');
@@ -40,17 +40,13 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         const node = id && document.getElementById(id);
         return node ? { x: parseFloat(node.getAttribute('x')) || 0, y: parseFloat(node.getAttribute('y')) || 0 } : null;
     };
-    // Une centaine de nodes d'affilée : un temps entre chacun, que leurs sauvegardes ne partent pas en rafale (un
-    // serveur peut refuser des connexions, et le node perdu).
+    // Une centaine de nodes d'affilée, dans bulk() : leurs enregistrements partent groupés à la fin (plus de rafale
+    // d'une requête par node, plus d'attente entre deux créations).
     const create = async (ref, x, y, text, color, shape = 'circle') => {
         await bridge.perform({ op: 'create', ref, x: Math.round(x), y: Math.round(y), text, color, shape });
-        await wait(PACE);
         return bridge.idOf(ref);
     };
-    const link = async (source, target) => {
-        await bridge.perform({ op: 'link', source, target });
-        await wait(PACE);
-    };
+    const link = (source, target) => bridge.perform({ op: 'link', source, target });
     // Ranger en arbre (de gauche à droite) une fois les nodes à leur taille (textfit.js les agrandit en 600 ms).
     const tidy = async id => {
         await wait(1500);
@@ -67,6 +63,7 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         else await bridge.newDimension(layers.some(l => l.name.toLowerCase() === NAME.toLowerCase()) ? `${NAME} 2` : NAME);
         const saved = { layer: Number(layerNumber), groups: {}, tools: {} };
         let root = at(placed.root) ? placed.root : null;
+        await bulk(async () => {
         if (!root) {
             root = saved.root = await create('home-root', 0, 0, `<b>${NAME}</b><br><font size="2">Ma maison : réécris mes nodes pour me régler.</font>`, '#6848A6', 'square');
         }
@@ -105,6 +102,7 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         }
         families.forEach(id => branches.fold(document.getElementById(id)));  // les outils se déplient famille par famille
         if (Object.keys(saved.groups).length) await tidy(root);
+        });  // tout est enregistré : la carte de la maison peut partir
         data = await api.request('POST', 'toolbox/home', saved);
         filters.mark([saved.root, ...Object.values(saved.groups), saved.memory, saved.brain, ...Object.values(saved.tools)].filter(Boolean), 'ai');
         return Object.keys(saved.groups).length;
@@ -123,8 +121,10 @@ export function createHome({ bridge, say, filters, chat, branches }) {
             }
             await tidy(hub);
         };
+        await bulk(async () => {
         await place('exchanges', data.letters, 'letters', l => `<font size="2">${escape(l.at)}</font><br>${l.html}${l.choices?.length ? `<br><i>${l.choices.map(escape).join(' / ')}</i>` : ''}`);
         await place('dreams', data.dreams, 'dreams', d => `<font size="2">${d.kind === 'souvenir' ? 'Souvenir' : 'Idée'} · ${escape(d.at)}</font><br>${escape(d.text)}`);
+        });
         if (!Object.keys(posted.letters).length && !Object.keys(posted.dreams).length) return 0;
         data = await api.request('POST', 'toolbox/home', posted);
         filters.mark([...Object.values(posted.letters), ...Object.values(posted.dreams)], 'ai');

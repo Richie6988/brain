@@ -12,11 +12,24 @@ const PAD = 8;         // marge autour du texte
 
 const textNode = node => node.getAttribute('type') === 'text' && !(node.getAttribute('shape') === 'square' && parseFloat(node.getAttribute('ratio')) > 0);
 
+const candidate = node => node.isConnected && textNode(node) && !node.classList.contains('gardien-folded')
+    && Boolean(node.children[0]?.children[0]?.textContent.trim());
+
+// Parmi `nodes`, ceux dont le texte déborde : toutes les écritures, puis toutes les lectures (un seul calcul de la page
+// pour tous, au lieu d'un par node : au chargement d'une dimension chargée, c'était le goulet).
+function overflowing(nodes) {
+    const inputs = nodes.filter(candidate).map(node => [node, node.children[0].children[0]]);
+    inputs.forEach(([, input]) => { input.style.height = 'auto'; input.style.overflowWrap = 'normal'; });
+    const over = inputs.filter(([node, input]) => input.scrollWidth > input.clientWidth + 1
+        || input.scrollHeight + PAD > (parseFloat(node.children[0].getAttribute('height')) || 0) + PAD).map(([node]) => node);
+    inputs.forEach(([, input]) => { input.style.overflowWrap = ''; });
+    return over;
+}
+
 // Vrai si le node a été agrandi.
 export function fit(node) {
-    if (!node.isConnected || !textNode(node) || node.classList.contains('gardien-folded')) return false;
-    const fo = node.children[0], input = fo?.children[0];
-    if (!input || !input.textContent.trim()) return false;
+    if (!candidate(node)) return false;
+    const fo = node.children[0], input = fo.children[0];
     const width = parseFloat(fo.getAttribute('width')) || 0, height = parseFloat(fo.getAttribute('height')) || 0;
     // Mesures sans coupure de mot : un mot plus large que le node déborde (scrollWidth) au lieu d'être coupé.
     const measure = w => {
@@ -64,10 +77,14 @@ export function createTextFit() {
         done.set(node, key(node));
         if (grown && keep && !node.contains(document.activeElement)) save(node);  // en frappe : Nodz enregistre à la pause
     }
-    // Chargements, Gardien, collages, polices : un tour régulier, seulement les nodes qui ont changé.
+    // Chargements, Gardien, collages, polices : un tour régulier, seulement les nodes qui ont changé ; parmi eux, seuls
+    // ceux qui débordent se mesurent en détail.
     setInterval(() => {
         if (typeof isLoading === 'undefined' || isLoading || typeof universe === 'undefined') return;
-        universe.querySelectorAll('.node-group').forEach(node => check(node));
+        const changed = [...universe.querySelectorAll('.node-group')].filter(node => done.get(node) !== key(node));
+        if (!changed.length) return;
+        const over = new Set(overflowing(changed));
+        changed.forEach(node => (over.has(node) ? check(node) : done.set(node, key(node))));
     }, 600);
     // Pendant la frappe : juste après le redimensionnement de Nodz, avant l'affichage (pas de clignement).
     document.addEventListener('input', event => {

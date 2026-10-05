@@ -95,7 +95,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
     function setText(node, markup) {
         const input = node.children[0].children[0];
         input.innerHTML = markup;
-        input.dispatchEvent(new Event('input'));  // Nodz redimensionne le node selon son texte
+        if (!window.nodzQuiet) input.dispatchEvent(new Event('input'));  // Nodz le redimensionne (en masse : textfit.js, après)
         node.setAttribute('textcontent', input.innerHTML);
         input.blur();
         save(node);

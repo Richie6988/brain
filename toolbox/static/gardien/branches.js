@@ -118,7 +118,8 @@ export function glide(spots, duration = 450) {
             links.forEach(id => { const link = byId(id); if (link) updateLink(link); });
             if (k < 1) return requestAnimationFrame(frame);
             // Enregistrés un à un, pas en rafale (un serveur peut refuser des connexions) ; l'écart reste sous celui
-            // qui clôt un geste dans l'historique : un seul Ctrl+Z.
+            // qui clôt un geste dans l'historique : un seul Ctrl+Z. En masse (bulk.js), ils partent groupés : d'un coup.
+            if (window.nodzQuiet) return resolve(moving.forEach(({ node }) => save(node)));
             moving.reduce((queue, { node }) => queue.then(() => { save(node); return new Promise(r => setTimeout(r, SAVE_GAP)); }),
                 Promise.resolve()).then(resolve);
         };

@@ -234,7 +234,7 @@ function displayNode(node) {
     newNode.setAttribute('canvascontent', node.canvas_content);
     var drawingDataString = newNode.getAttribute('canvascontent');
     var drawingData = JSON.parse(drawingDataString);              
-    redrawCanvas(newNode.children[0].children[3].id,0, drawingData);
+    if (drawingData && drawingData.length) redrawCanvas(newNode.children[0].children[3].id,0, drawingData);  // dessin vide : le canevas neuf l'est déjà
     newNode.setAttribute('filename', node.file_name);
     newNode.setAttribute('file', node.file);
     newNode.tools.file.children[2].children[0].textContent = node.file_name;        
