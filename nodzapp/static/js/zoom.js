@@ -7,7 +7,7 @@ const zoomStep = 0.95;
 let isZooming = false;
 // Pincement du trackpad (Ctrl + molette envoyé par le navigateur, des dizaines d'événements par geste) : un geste est
 // une seule commande, comme un cran de molette. Son premier événement zoome d'un gros pas d'un coup (PINCH_STEPS pas de
-// zoomStep, ×2 ou ÷2, comme les boucles de Tab), les suivants sont ignorés ; un geste se termine après PINCH_GAP ms sans
+// zoomStep, ×2 ou ÷2, en un seul déplacement de la vue), les suivants sont ignorés ; un geste se termine après PINCH_GAP ms sans
 // événement.
 const PINCH_STEPS = 14;
 const PINCH_GAP = 150;
@@ -39,10 +39,10 @@ svg.addEventListener('wheel', function(event) {
             if (event.ctrlKey && event.isTrusted) {
                 const fresh = event.timeStamp - pinchLast > PINCH_GAP;  // premier événement d'un nouveau geste
                 pinchLast = event.timeStamp;
-                if (fresh) for (let i = 0; i < PINCH_STEPS; i++) zoom(event);
+                if (fresh) zoom(event, PINCH_STEPS);
             } else {
                 const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
-                for (let i = 0; i < steps; i++) zoom(event);
+                zoom(event, steps);
             }
         } else {
             event.stopPropagation();
@@ -74,7 +74,9 @@ function mouseWheel(event) {
     return !event.deltaX && !!notch && notch % 120 === 0 && notch !== -3 * event.deltaY;
 }
 
-function zoom(event) {  
+// count : pas appliqués d'un coup (même zoom, mêmes arrondis qu'autant d'appels) ; la vue ne se déplace et les nodes à
+// l'écran ne se recalculent qu'une fois, au lieu d'une fois par pas (un pincement de 14 pas en faisait 28).
+function zoom(event, count = 1) {  
     // Get the delta value to determine the direction of the scroll (positive for zooming out, negative for zooming in)
     const delta = event.deltaY || event.detail || event.wheelDelta;
     const zoomOut = delta > 0;    
@@ -84,10 +86,12 @@ function zoom(event) {
     // areaHeight = window.innerHeight; 
 
     var prev = currentZoom;
-    if (zoomOut) {
-        currentZoom = Math.max(minZoom, currentZoom * zoomStep).toFixed(3); // Decrease the zoom level for zooming out
-    } else {
-        currentZoom = Math.min(maxZoom, currentZoom / zoomStep).toFixed(3); // Increase the zoom level for zooming in 
+    for (let i = 0; i < count; i++) {
+        if (zoomOut) {
+            currentZoom = Math.max(minZoom, currentZoom * zoomStep).toFixed(3); // Decrease the zoom level for zooming out
+        } else {
+            currentZoom = Math.min(maxZoom, currentZoom / zoomStep).toFixed(3); // Increase the zoom level for zooming in 
+        }
     }
     
     dragUniverse(parseFloat((-centerX)*(currentZoom - prev)),parseFloat((-centerY)*(currentZoom - prev)),false,'zoom');
