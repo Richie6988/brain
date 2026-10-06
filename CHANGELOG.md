@@ -282,6 +282,16 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Zoom d'origine rétabli** : `zoom.js` revient octet pour octet à sa version d'origine. Chaque événement de pincement fait un pas de 5 %, et la molette fait plusieurs crans. Le pincement image par image et la correction Windows à `deltaY` entier sont retirés. Les gains de fluidité restent, car ils ne touchent pas au geste : classes du body à la place de `body:has()`, node léger, dispatcher allégé. Le premier des deux déplacements d'un pas de zoom ne relance pas le dispatcher.
 
+**Garde-fous du zoom au geste** (`zoom.js`, gestes réels seulement, la caméra du Gardien et les bancs n'en dépendent pas) :
+- un événement qui attend depuis plus de 100 ms (≈ 6 événements en file) est jeté au lieu de zoomer en retard ;
+- zoom min ou max atteint : la suite du geste dans ce sens est jetée, le sens inverse repart tout de suite ;
+- souris déplacée de plus de 8 px pendant le geste : la suite du geste est jetée ;
+- changement de sens : les restes de l'ancien sens arrivés dans les 100 ms suivantes sont jetés.
+
+Un geste finit après 150 ms sans événement. Le pas de 5 % par événement reste celui d'origine.
+
+**Plus de zoom natif du navigateur** dans toute l'app : Ctrl + molette ou pincement sur les panneaux, le dock ou le chat, Ctrl + / - / 0, gestes de pincement de Safari.
+
 **Zoom en un seul déplacement** : les pas d'un geste de pincement (14) ou d'un cran de molette (3) s'appliquent d'un coup à la valeur du zoom, puis la vue se déplace et les nodes à l'écran se recalculent une seule fois, au lieu d'une fois par pas (28 recalculs de toute la carte pour un pincement). Même zoom et même position au pixel près ; sur la dimension Gardien, un pincement passe de 60 à 6 ms de calcul.
 
 **Zoom et dispatcher d'origine** : `zoom.js`, `dragUniverse.js` (dispatcher) et les compteurs de coin (`navigationLabels`) reviennent exactement à leur version d'avant le 5 octobre (`f461152`) : le dispatcher est de nouveau synchrone, appelé à chaque déplacement de la vue. Son report à l'image suivante (`frames.js`, introduit avec « Fluidité à plusieurs centaines de nodes »), ses écritures conditionnelles, son cache et le regroupement des événements de pincement sont retirés. Restent, sans lien avec le zoom : fond sans animation, boucles d'image sans réécriture, chargement par lot.

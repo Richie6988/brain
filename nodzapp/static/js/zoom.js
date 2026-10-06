@@ -6,6 +6,42 @@ let prevZoom;
 const zoomStep = 0.95; 
 let isZooming = false;
 
+// Garde-fous du zoom au geste (événements du navigateur seulement : la caméra du Gardien et les bancs passent) :
+// - un événement qui attend depuis plus de ZOOM_LAG ms est un retard en file (≈ 6 événements), il est jeté ;
+// - zoom min ou max atteint : la suite du geste dans ce sens est jetée, le sens inverse repart tout de suite ;
+// - souris déplacée pendant le geste : la suite du geste est jetée ;
+// - changement de sens : les restes de l'ancien sens arrivés dans les ZOOM_LAG ms suivantes sont jetés.
+// Un geste finit après ZOOM_GESTURE ms sans événement ; le suivant repart sans blocage.
+const ZOOM_LAG = 100;
+const ZOOM_GESTURE = 150;
+const ZOOM_MOVE = 8;  // px de déplacement de la souris qui arrêtent le geste
+let zoomLast = -Infinity, zoomLimit = 0, zoomStopped = false, zoomDirection = 0, zoomTurn = -Infinity, zoomPointer = null;
+function zoomAccepted(event) {
+    if (event.timeStamp - zoomLast > ZOOM_GESTURE) { zoomLimit = 0; zoomStopped = false; }
+    zoomLast = event.timeStamp;
+    zoomPointer = { x: event.clientX, y: event.clientY };
+    const direction = Math.sign(event.deltaY);
+    if (direction !== zoomDirection) {
+        if (event.timeStamp - zoomTurn < ZOOM_LAG && direction === -zoomDirection) return false;  // reste de l'ancien sens
+        zoomDirection = direction;
+        zoomTurn = event.timeStamp;
+    }
+    if (zoomStopped || direction === zoomLimit) return false;
+    return performance.now() - event.timeStamp <= ZOOM_LAG;
+}
+window.addEventListener('mousemove', event => {
+    if (zoomPointer && performance.now() - zoomLast < ZOOM_GESTURE
+        && Math.hypot(event.clientX - zoomPointer.x, event.clientY - zoomPointer.y) > ZOOM_MOVE) zoomStopped = true;
+});
+
+// Pas de zoom natif du navigateur dans toute l'app : Ctrl + molette ou pincement hors de l'univers (panneaux, dock,
+// chat), Ctrl + / - / 0, gestes de pincement de Safari. Dans l'univers, le pincement reste le zoom de Nodz (plus bas).
+window.addEventListener('wheel', event => { if (event.ctrlKey) event.preventDefault(); }, { passive: false });
+window.addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && ['+', '-', '=', '_', '0'].includes(event.key)) event.preventDefault();
+});
+['gesturestart', 'gesturechange', 'gestureend'].forEach(type => document.addEventListener(type, event => event.preventDefault()));
+
 // Event listener for the wheel event (pinch-to-zoom)
 svg.addEventListener('wheel', function(event) { 
     if (!event.ctrlKey && scrollsInside(event)) return;  // un contenu défilant dans un node (sortie, aperçu) défile
@@ -21,6 +57,7 @@ svg.addEventListener('wheel', function(event) {
     } else {        
         // Pinch zoom detected, or a mouse wheel notch
         if(!isCtrlPressed && !preview){
+            if (event.isTrusted && !zoomAccepted(event)) return;
             if(!isZooming) {
                 areaWidth = window.innerWidth;
                 areaHeight = window.innerHeight;             
@@ -30,7 +67,9 @@ svg.addEventListener('wheel', function(event) {
             }  
             // A mouse notch zooms several steps at once, a pinch one step per event
             const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
+            const before = currentZoom;
             for (let i = 0; i < steps; i++) zoom(event);
+            if (event.isTrusted && currentZoom === before) zoomLimit = Math.sign(deltaY);  // butée : la suite du geste dans ce sens est jetée
         } else {
             event.stopPropagation();
         }     
