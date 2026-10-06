@@ -445,7 +445,24 @@ document.fonts?.addEventListener('loadingdone', () => {
     });
 });
 
+// Chargement d'une dimension : lire la hauteur du texte d'un rectangle (scrollHeight) forçait une mise en page de toute
+// la carte à chaque node. Pendant le chargement, nodeSizing la lit dans measuredText (0 en attendant) et note le node ;
+// settleSquares lit ensuite toutes les hauteurs d'un coup (une seule mise en page) et redonne à chacun sa taille.
+const measuredText = new Map();
+const unsettled = new Map();  // node → [w, h] de son dernier nodeSizing pendant le chargement
+function settleSquares() {
+    const list = [...unsettled].filter(([node]) => node.isConnected);
+    unsettled.clear();
+    list.forEach(([node]) => measuredText.set(node, node.children[0].children[0].scrollHeight));
+    list.forEach(([node, [w, h]]) => nodeSizing(node, w, h));
+    measuredText.clear();
+}
+
 function nodeSizing(nodeGroup,w,h) {  
+    if (isLoading && !measuredText.has(nodeGroup) && nodeGroup.getAttribute('shape') === 'square') {
+        if (!unsettled.size) queueMicrotask(settleSquares);  // filet : une pose sous isLoading hors de load()
+        unsettled.set(nodeGroup, [w, h]);
+    }
     // Rectangle étiré (attribut ratio = largeur / hauteur) : à surface égale, ses proportions sont gardées quel que
     // soit l'appel, et sa hauteur n'est plus seulement celle du texte.
     const ratio = parseFloat(nodeGroup.getAttribute('ratio')) || 0;
@@ -468,6 +485,7 @@ function nodeSizing(nodeGroup,w,h) {
     foreignObject.setAttribute('height',h);  
 
     let input = nodeGroup.children[0].children[0];
+    const textHeight = measuredText.has(nodeGroup) ? measuredText.get(nodeGroup) : isLoading ? 0 : input.scrollHeight;
   
     input.style.width = '100%';
 
@@ -510,7 +528,7 @@ function nodeSizing(nodeGroup,w,h) {
         }           
     } else if (['text', 'code'].includes(nodeGroup.getAttribute('type')) && nodeGroup.getAttribute('shape') === 'square') {
         square.setAttribute('width', w + 30); 
-        square.setAttribute('height', Math.max(input.scrollHeight, stretched ? h : 0) + 30);
+        square.setAttribute('height', Math.max(textHeight, stretched ? h : 0) + 30);
         reduction_factor = 2*hitboxRadius - w - 30; 
     } else {
         square.setAttribute('width', 2 * hitboxRadius); 
@@ -545,7 +563,7 @@ function nodeSizing(nodeGroup,w,h) {
     let smileyButtonfo = nodeGroup.tools.text.children[5];
 
     if(nodeGroup.getAttribute('shape') === 'square') { 
-        const shift = (input.scrollHeight + 40)/2;       
+        const shift = (textHeight + 40)/2;       
         boldButtonfo.setAttribute('x', centerX -38); 
         boldButtonfo.setAttribute('y', centerY + shift);
 
@@ -673,7 +691,7 @@ function nodeSizing(nodeGroup,w,h) {
     let layerButtonfo = nodeGroup.tools.type.children[8];
 
     if(nodeGroup.getAttribute('shape') === 'square') {
-        const shift = (input.scrollHeight + 40)/2;
+        const shift = (textHeight + 40)/2;
         typeButtonfo.setAttribute('x', centerX - 27); 
         typeButtonfo.setAttribute('y', centerY - shift - 26);
         typeButton.setAttribute('x', centerX - 27); 

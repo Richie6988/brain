@@ -406,7 +406,7 @@ def home_view(request, body):
     """La dimension « Gardien » (home.py) : GET donne ce qu'il faut y poser (groupes et leurs textes de départ, outils
     par famille, notes et rêves en attente) et ce qui y est déjà ; POST enregistre ce que la page a posé
     ({layer, root, groups: {clé: N-3}, memory, brain, tools: {op: N-40}, letters: {id: N-12}, dreams: {id: N-13}}),
-    ajouté à ce qui était là."""
+    ajouté à ce qui était là ; POST {build: true} pose d'un bloc ce qui manque de la maison (home.build)."""
     from .guardian import brain_text, text_html
 
     guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
@@ -414,7 +414,7 @@ def home_view(request, body):
         return JsonResponse({'error': 'pas de Gardien'}, status=404)
     brain = dict(guardian.brain or {})
     notes, dreams = list(brain.get('letters') or []), list(brain.get('dreams') or [])
-    if request.method == 'POST':
+    if request.method == 'POST' and not body.get('build'):
         ref = lambda value: str(value) if str(value or '').startswith('N-') else None
         placed = dict(brain.get('home') or {})
         if isinstance(body.get('layer'), int):
@@ -429,13 +429,16 @@ def home_view(request, body):
         guardian.brain = {**brain, 'home': placed, 'letters': notes, 'dreams': dreams}
         guardian.save(update_fields=['brain'])
     ops = tools.enabled(guardian, request.user)
+    seed = {'groups': [{'key': k, 'label': label, 'hint': hint} for k, label, hint in homes.GROUPS],
+            'soul': guardian.system_prompt or homes.SOUL, 'identity': homes.IDENTITY, 'user': homes.USER, 'skill': homes.SKILL,
+            'memory': guardian.memory, 'brain': brain_text(guardian),
+            'tools': [{'op': t['op'], 'label': t['label'], 'category': t['category'], 'usage': t['doc']} for t in tools.TOOLS if t['op'] in ops]}
+    if request.method == 'POST' and body.get('build'):  # la maison posée d'un bloc par le serveur (home.build)
+        return JsonResponse({'built': homes.build(request.user, guardian, seed), 'home': homes.mapping(guardian)})
     waiting = [n for n in notes if not n.get('node')], [d for d in dreams if not d.get('node')]
     return JsonResponse({
         'home': homes.mapping(guardian),
-        'seed': {'groups': [{'key': k, 'label': label, 'hint': hint} for k, label, hint in homes.GROUPS],
-                 'soul': guardian.system_prompt or homes.SOUL, 'identity': homes.IDENTITY, 'user': homes.USER, 'skill': homes.SKILL,
-                 'memory': guardian.memory, 'brain': brain_text(guardian),
-                 'tools': [{'op': t['op'], 'label': t['label'], 'category': t['category'], 'usage': t['doc']} for t in tools.TOOLS if t['op'] in ops]},
+        'seed': seed,
         'letters': [{**n, 'html': text_html(n['text'])} for n in waiting[0]],
         'dreams': waiting[1],
         'unread': len(waiting[0]) + len(waiting[1]),

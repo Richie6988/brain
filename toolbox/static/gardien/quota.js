@@ -3,20 +3,10 @@
 // Premium : nodes et dimensions illimités, Gardien propulsé par l'IA, salons collaboratifs. Les compteurs viennent du
 // serveur à la connexion, puis suivent les créations et suppressions ; le serveur refuse lui-même un node de trop.
 // Jamais compté : un chargement de dimension, un node recréé avec son identifiant (couper / coller), la dimension
-// Gardien et ce que exempt() pose (la maison du Gardien).
+// Gardien (posée par le serveur, toolbox/home.py).
 
 import { api } from './api.js';
 import { h } from './library.js';
-
-let free = 0;
-export async function exempt(job) {
-    free += 1;
-    try {
-        return await job();
-    } finally {
-        free -= 1;
-    }
-}
 
 const PERKS = ['Nodes et dimensions illimités', 'Gardien propulsé par l\'IA du serveur, sans clé ni réglage',
     'Salons collaboratifs : invite qui tu veux à créer avec toi'];
@@ -49,7 +39,7 @@ export function createQuota({ onPremium }) {
 
     const refresh = () => api.request('GET', 'toolbox/quota').then(s => { state = s; return s; }).catch(() => state);
     const home = () => String(layerNumber) === String(state.home);
-    const limited = () => Boolean(state?.limited) && !free;
+    const limited = () => Boolean(state?.limited);
     const full = kind => limited() && state[kind] >= state[`max_${kind}`];
     const stop = kind => {
         offer(kind);

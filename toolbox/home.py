@@ -14,11 +14,15 @@ Les nodes de la page sont la seule source : le serveur relit la dimension à cha
 """
 
 import json
+import math
 import re
 import time
 from collections import defaultdict
 
-from nodzapp.models import Layer, Link, Node
+from django.db import transaction
+from django.db.models import Max
+
+from nodzapp.models import Layer, Link, Node, Param
 
 GROUPS = [
     ('soul', 'Âme', 'Mon caractère et mes consignes. Réécris ce node, ou ajoute-en un relié ici : je le suis.'),
@@ -124,6 +128,161 @@ def profile(state):
 def soul(state):
     """Consignes de l'âme (tous ses nodes), '' si aucune."""
     return '\n\n'.join(state['texts'].get('soul') or []) if state else ''
+
+
+# --- pose de la maison
+
+NAME = 'Gardien'
+COLORS = {'soul': '#C77DFF', 'identity': '#FF9F45', 'user': '#4DD4C6', 'memory': '#33FF99', 'skills': '#FFD93D', 'tools': '#4D96FF',
+          'dreams': '#F15BB5', 'exchanges': '#1E90FF'}
+PALETTE = ['#4D96FF', '#33FF99', '#FF6B6B', '#FFD93D', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5', '#9BE15D', '#7FB3FF']
+COLUMN = 700   # écart entre deux profondeurs de l'arbre (unités de l'univers)
+GAP = 60       # entre deux nodes d'une même colonne
+RADIUS = 60    # rayon de départ : au chargement, textfit agrandit chaque node à son texte, d'un seul calcul
+
+
+def _escape(text):
+    return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def _html(text):
+    return '<br>'.join(_escape(line) for line in str(text).split('\n'))
+
+
+def _height(text):
+    """Hauteur estimée d'un node d'après son texte (une ligne de 48 signes environ), pour espacer l'arbre avant que
+    la page ne le mesure."""
+    plain = re.sub(r'<[^>]+>', '', text.replace('<br>', '\n'))
+    lines = sum(max(1, math.ceil(len(line) / 48)) for line in plain.split('\n'))
+    return max(2 * RADIUS, 22 * lines + 40)
+
+
+def build(user, guardian, seed):
+    """Pose d'un bloc ce qui manque de la maison : la dimension, la racine, chaque groupe absent et ses nodes de départ
+    (les outils rangés par famille, repliées dans la page). Nodes et liens sont écrits en une transaction, rangés en
+    arbre de gauche à droite ; la page n'a plus qu'à charger la dimension (une seule passe, au lieu d'une centaine de
+    créations à la suite). Hors quota : rien ne passe par save_node. Rend {layer, name, added, families, nodes,
+    counters}."""
+    with transaction.atomic():
+        param = Param.objects.select_for_update().filter(user=user).first()
+        placed = dict(mapping(guardian) or (guardian.brain or {}).get('home') or {})
+        layer = Layer.objects.filter(user=user, layer_id=placed.get('layer')).first() if placed.get('layer') else None
+        if layer is None:  # pas encore de maison, ou sa dimension a été supprimée : tout est à poser
+            taken = {name.lower() for name in Layer.objects.filter(user=user).values_list('layer_name', flat=True)}
+            layer_id = (Layer.objects.filter(user=user).aggregate(top=Max('layer_id'))['top'] or 0) + 1
+            layer = Layer.objects.create(user=user, layer_id=layer_id, layer_name=f'{NAME} 2' if NAME.lower() in taken else NAME)
+            placed = {'layer': layer_id, 'groups': {}, 'tools': {}}
+        existing = {f'N-{n.node_id}': n for n in Node.objects.filter(user=user, layer=layer, archive=False)}
+        alive = lambda ref: ref in existing
+        node_id = max(param.nodecounter if param else 0, Node.objects.filter(user=user).aggregate(top=Max('node_id'))['top'] or 0)
+        link_id = max(param.linkcounter if param else 0, Link.objects.filter(user=user).aggregate(top=Max('link_id'))['top'] or 0)
+
+        items, links = {}, []  # ref → {text, color, kids, folded} ; (parent, enfant)
+
+        def add(text, color, parent=None, folded=False):
+            nonlocal node_id
+            node_id += 1
+            ref = f'N-{node_id}'
+            items[ref] = {'text': text, 'color': color, 'kids': [], 'folded': folded, 'h': _height(text)}
+            if parent:
+                links.append((parent, ref))
+                if parent in items:
+                    items[parent]['kids'].append(ref)
+            return ref
+
+        root = placed.get('root') if alive(placed.get('root')) else None
+        new_root = root is None
+        if new_root:
+            root = placed['root'] = add(f'<b>{NAME}</b><br><font size="2">Ma maison : réécris mes nodes pour me régler.</font>', '#6848A6')
+        groups, tools_placed, families, added = dict(placed.get('groups') or {}), dict(placed.get('tools') or {}), [], []
+        for key, label, hint in GROUPS:
+            if alive(groups.get(key)):
+                continue
+            tint = COLORS[key]
+            hub = groups[key] = add(f'<b>{label}</b><br><font size="2">{_escape(hint)}</font>', tint, root)
+            added.append(hub)
+            child = lambda text, parent=hub, color=tint: add(_html(text), color, parent)
+            if key == 'soul':
+                child(seed['soul'])
+            elif key == 'identity':
+                child(seed['identity'])
+            elif key == 'user':
+                child(seed['user'])
+            elif key == 'memory':
+                placed['memory'] = child('Mémoire du Gardien\n' + '\n'.join(f'- {fact}' for fact in seed['memory']))
+            elif key == 'skills':
+                child(seed['skill'])
+                placed['brain'] = child(seed['brain'])
+            elif key == 'tools':  # une famille par branche, repliée dans la page, ses outils derrière elle
+                for f, family in enumerate(dict.fromkeys(t['category'] for t in seed['tools'])):
+                    color = PALETTE[f % len(PALETTE)]
+                    fid = add(_html(family), color, hub, folded=True)
+                    families.append(fid)
+                    for tool in (t for t in seed['tools'] if t['category'] == family):
+                        tools_placed[tool['op']] = add(_html(f"{tool['op']}\n{tool['label']}\n\n{tool['usage']}"), color, fid)
+
+        # Arbre de gauche à droite : une colonne par profondeur, les feuilles l'une sous l'autre, chaque parent au
+        # milieu de ses enfants ; une famille repliée compte pour une feuille, ses outils empilés à sa droite.
+        spots = {}
+        if new_root:
+            origin = {'x': 0.0, 'y': 0.0}
+        else:
+            node = existing[root]
+            origin = {'x': node.x_coordinate, 'y': node.y_coordinate}
+        cursor = origin['y'] if new_root else min([n.y_coordinate for n in existing.values()] + [origin['y']]) - 2 * GAP
+
+        def lay(ref, depth):
+            nonlocal cursor
+            item, x = items[ref], origin['x'] + COLUMN * depth
+            if item['kids'] and not item['folded']:
+                ys = [lay(kid, depth + 1) for kid in item['kids']]
+                y = (ys[0] + ys[-1]) / 2
+            else:
+                y = cursor - item['h'] / 2
+                cursor -= item['h'] + GAP
+                stack = sum(items[k]['h'] + GAP for k in item['kids']) - GAP
+                top = y + stack / 2
+                for kid in item['kids']:  # outils repliés : ils attendent à droite de leur famille
+                    spots[kid] = (x + COLUMN, top - items[kid]['h'] / 2)
+                    top -= items[kid]['h'] + GAP
+            spots[ref] = (x, y)
+            return y
+
+        if new_root:
+            lay(root, 0)
+        else:
+            for hub in added:
+                lay(hub, 1)
+
+        touching = defaultdict(list)  # ref → (lien, voisin) : les attributs links et siblings de Nodz
+        new_links = []
+        for parent, kid in links:
+            link_id += 1
+            new_links.append(Link(user=user, link_id=link_id, linkA=parent, linkB=kid, layer=layer))
+            touching[parent].append((f'L-{link_id}', kid))
+            touching[kid].append((f'L-{link_id}', parent))
+        Node.objects.bulk_create([Node(
+            user=user, node_id=int(ref[2:]), layer=layer, x_coordinate=round(spots[ref][0]), y_coordinate=round(spots[ref][1]),
+            type='text', color=item['color'], shape='square', radius=RADIUS, ratio=0, text_content=item['text'],
+            links=json.dumps([l for l, _ in touching[ref]]), siblings=json.dumps([n for _, n in touching[ref]]),
+            quantum='[]', canvas_content='[]', file_name='', notification='', image_content='', file='', preview='',
+        ) for ref, item in items.items()])
+        Link.objects.bulk_create(new_links)
+        if not new_root and touching[root]:  # la racine déjà là gagne les liens de ses nouveaux groupes
+            node = existing[root]
+            node.links = json.dumps(json.loads(node.links or '[]') + [l for l, _ in touching[root]])
+            node.siblings = json.dumps(json.loads(node.siblings or '[]') + [n for _, n in touching[root]])
+            node.save(update_fields=['links', 'siblings'])
+        if param:
+            param.nodecounter, param.linkcounter = node_id, link_id
+            param.layercounter = max(param.layercounter or 1, layer.layer_id)
+            param.save(update_fields=['nodecounter', 'linkcounter', 'layercounter'])
+        placed.update(groups=groups, tools=tools_placed)
+        guardian.brain = {**(guardian.brain or {}), 'home': placed}
+        guardian.save(update_fields=['brain'])
+    # Les compteurs de la page (prochain node, lien, dimension) : charger une dimension ne les relit pas.
+    return {'layer': layer.layer_id, 'name': layer.layer_name, 'added': len(added), 'families': families, 'nodes': list(items),
+            'counters': {'node': node_id, 'link': link_id, 'layer': max(param.layercounter or 1, layer.layer_id) if param else layer.layer_id}}
 
 
 # --- rêves

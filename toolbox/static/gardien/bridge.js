@@ -391,8 +391,8 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             const target = layers.find(l => l.name.toLowerCase() === name.toLowerCase());
             return target ? this.enterLayer(target.id) : this.newDimension(name);
         },
-        async enterLayer(id) {
-            if (id === layerNumber) return;
+        async enterLayer(id, again = false) {  // again : la recharge même si on y est (nodes posés par le serveur)
+            if (id === layerNumber && !again) return;
             load(id);
             await waitLoaded();
         },

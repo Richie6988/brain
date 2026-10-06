@@ -1028,8 +1028,10 @@ function calculateEndpoint(nodeCenterX, nodeCenterY, nodeRadius, linkAngle, node
     } else if (shape === 'square') {
         // The square has the same center and diameter as the circle, so its side length is 2 * nodeRadius
         // var halfSide = nodeRadius;
-        var halfSideX =  node.children[2].getBoundingClientRect().width/currentZoom/2;
-        var halfSideY = node.children[2].getBoundingClientRect().height/currentZoom/2;
+        // Taille du cadre lue dans ses attributs : getBoundingClientRect forçait une mise en page par lien (au
+        // chargement d'une dimension, une par lien) et valait 0 pour un node caché hors de l'écran.
+        var halfSideX = (parseFloat(node.children[2].getAttribute('width')) || 0)/2;
+        var halfSideY = (parseFloat(node.children[2].getAttribute('height')) || 0)/2;
        
         var dx = Math.cos(angleRad);
         var dy = Math.sin(angleRad);

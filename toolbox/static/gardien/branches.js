@@ -17,7 +17,16 @@ const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
 const byId = id => document.getElementById(id);
 const nodes = () => [...universe.querySelectorAll('.node-group')];
-const textOf = node => (node.children[0]?.children[0]?.innerText || '').trim();
+// Texte d'un node avec ses retours à la ligne, lu sans mise en page (innerText en forçait une par node : replier ou
+// ranger une grande branche figeait la page).
+const textOf = node => {
+    const input = node.children[0]?.children[0];
+    if (!input) return '';
+    const copy = input.cloneNode(true);
+    copy.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+    copy.querySelectorAll('div, p, li').forEach(block => block.prepend('\n'));
+    return copy.textContent.replace(/\n{3,}/g, '\n\n').trim();
+};
 
 // Demi-largeur et demi-hauteur d'un node, en unités de l'univers (rectangle : son cadre ; sinon son cercle).
 export function half(node) {

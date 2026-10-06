@@ -2873,6 +2873,48 @@ class IaquaToolsTests(TestCase):
         self.assertEqual(self.client.post('/api/v1/toolbox/home', body, content_type='application/json').status_code, 200)
         return nodes
 
+    def test_build_poses_the_whole_house_at_once(self):
+        """POST toolbox/home {build} : la maison posée d'un bloc par le serveur, identifiants après ceux du compte,
+        hors quota ; un second appel ne pose rien ; un groupe supprimé revient seul, relié à la racine."""
+        import json
+
+        from nodzapp.models import Layer, Link, Node, Param
+        from . import home as homes, quota, tools
+
+        Param.objects.get_or_create(user=self.user)
+        first, _ = Layer.objects.get_or_create(user=self.user, layer_id=1)
+        Node.objects.create(user=self.user, node_id=5, layer=first, text_content='à moi')
+        Link.objects.create(user=self.user, link_id=7, linkA='N-5', linkB='N-5', layer=first)
+        build = lambda: self.client.post('/api/v1/toolbox/home', {'build': True}, content_type='application/json').json()
+
+        data = build()
+        built, guardian = data['built'], Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        layer = Layer.objects.get(user=self.user, layer_id=built['layer'])
+        self.assertEqual(layer.layer_name, 'Gardien')
+        ops = tools.enabled(guardian, self.user)
+        families = {t['category'] for t in tools.TOOLS if t['op'] in ops}
+        nodes = Node.objects.filter(user=self.user, layer=layer)
+        self.assertEqual(nodes.count(), 1 + len(homes.GROUPS) + 6 + len(families) + len(ops))
+        self.assertEqual(Link.objects.filter(user=self.user, layer=layer).count(), nodes.count() - 1)  # un arbre
+        self.assertEqual(len(built['nodes']), nodes.count())
+        self.assertEqual(len(built['families']), len(families))
+        self.assertTrue(all(n.node_id > 5 for n in nodes))
+        param = Param.objects.get(user=self.user)
+        self.assertEqual((param.nodecounter, param.linkcounter), (max(n.node_id for n in nodes), 7 + nodes.count() - 1))
+        root = nodes.get(node_id=int(data['home']['root'][2:]))
+        self.assertEqual(len(json.loads(root.siblings)), len(homes.GROUPS))
+        self.assertTrue(all(homes.read(self.user, guardian)['groups'].values()))  # le Gardien relit tous ses groupes
+        self.assertEqual(quota.usage(self.user)['nodes'], 1)  # la maison ne compte pas
+        self.assertEqual(len({(n.x_coordinate, n.y_coordinate) for n in nodes}), nodes.count())  # chacun sa place
+
+        again = build()['built']
+        self.assertEqual((again['added'], again['nodes']), (0, []))
+        Node.objects.filter(node_id=int(data['home']['groups']['dreams'][2:])).update(archive=True)
+        again = build()['built']
+        self.assertEqual((again['added'], len(again['nodes']), again['layer']), (1, 1, built['layer']))
+        root.refresh_from_db()
+        self.assertIn(again['nodes'][0], json.loads(root.siblings))
+
     def test_memory_and_brain_live_in_the_guardian_dimension(self):
         nodes = self.home({'memory': 61, 'skills': 62}, {61: 'Mémoire', 62: 'Compétences',
                           53: 'Mémoire du Gardien<br>- Richard aime Kyoto<br>- vélo le dimanche', 54: 'Cerveau du Gardien'},

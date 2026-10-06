@@ -102,6 +102,7 @@ function load(layer,nodeID){
             data.nodes.forEach(node => {    
                 displayNode(node);
             });
+            settleSquares();  // hauteurs des textes lues d'un coup, avant que les liens ne visent les bords des rectangles
         } if (data.links) {
             data.links.forEach(link => {    
                 displayLink(link);               
