@@ -240,10 +240,10 @@ function displayNode(node) {
     newNode.setAttribute('filename', node.file_name);
     newNode.setAttribute('file', node.file);
     newNode.tools.file.children[2].children[0].textContent = node.file_name;        
-    const filePreview = newNode.children[0].children[2].children[0];
-    const spinner = newNode.children[0].children[2].children[1];
-    const fileContainer = newNode.children[0].children[2];
     if (node.file_name !== '') {
+        const filePreview = previewOf(newNode);
+        const spinner = newNode.children[0].children[2].children[1];
+        const fileContainer = newNode.children[0].children[2];
         loadFile(id, node.file_name, spinner, filePreview, fileContainer);
     }    
     newNode.setAttribute('notification', node.notification);
@@ -268,7 +268,7 @@ function displayNode(node) {
     }
     newNode.setAttribute('quantum', node.quantum);
     if(JSON.parse(newNode.getAttribute('quantum')).length > 0){
-        newNode.children[3].style.display = 'block';
+        showPortal(newNode);
     }
 
     newNode.children[0].children[0].innerHTML = node.text_content;

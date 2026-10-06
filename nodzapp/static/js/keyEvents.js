@@ -381,9 +381,6 @@ function pastenodes(tunnel) {
             pasteNode.children[0].children[1].src = element.children[0].children[1].src;
             pasteNode.setAttribute('imagecontent',element.children[0].children[1].src);
             // File
-            const filePreview = pasteNode.children[0].children[2].children[0];
-            const spinner = pasteNode.children[0].children[2].children[1];
-            const fileContainer = pasteNode.children[0].children[2];
             const fileName = element.getAttribute('filename');
             pasteNode.tools.file.children[2].children[0].textContent = element.querySelector('.filename, .filename-light')?.textContent || '';  // copie : un clone, sans node.tools
             
@@ -404,12 +401,15 @@ function pastenodes(tunnel) {
                 pasteNode.setAttribute('file',element.getAttribute('id'));
                 pasteNode.setAttribute('filename',fileName);
                 console.log(element.getAttribute('id'), fileName)
+                const filePreview = previewOf(pasteNode);
+                const spinner = pasteNode.children[0].children[2].children[1];
+                const fileContainer = pasteNode.children[0].children[2];
                 loadFile(element.getAttribute('id'), fileName, spinner, filePreview, fileContainer);
             }
                     
             // 4D
             if(tunnel) {
-                pasteNode.children[3].style.display = 'block';
+                showPortal(pasteNode);
                 if(!dark){
                     pasteNode.children[3].children[0].children[0].classList.remove('raydark');
                     pasteNode.children[3].children[0].children[0].classList.add('raylight');
@@ -436,7 +436,7 @@ function pastenodes(tunnel) {
                 const id = quantumData[0].node;
                 saveQuantum(id,parseInt(pasteNode.id.match(/\d+/)[0], 10)); 
                 if (parseInt(quantumData[0].layer) === layerNumber) {
-                    document.getElementById(quantumData[0].node).children[3].style.display = 'block';  
+                    showPortal(document.getElementById(quantumData[0].node));  
                 }
             }
 

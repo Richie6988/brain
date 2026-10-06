@@ -272,6 +272,14 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Pincement sous Windows** : un pincement du trackpad dont le `deltaY` est entier (Brave, Chrome sous Windows) était pris pour un glissé à deux doigts et déplaçait la vue ; tout Ctrl + molette venant du navigateur zoome désormais.
 
+**Node léger** : un node texte passe de 33 à 11 éléments dans la page.
+- L'iframe d'aperçu de fichier n'entre dans le DOM qu'au premier fichier (`previewOf(node)`). Une iframe branchée est un document entier, avec son propre contexte JS, qui suit le cycle de rendu à chaque image, même masquée.
+- L'anneau de portail n'est dessiné qu'au premier affichage (`showPortal(node)`).
+- Le groupe du nom de fichier n'est inséré qu'au passage en type fichier.
+- Les index d'enfants d'origine sont conservés dès que ces parties existent.
+
+À 1000 nodes : chargement 14,3 → 2,3 s, tas JS 361 → 10 Mo, 1000 iframes → 0, image de déplacement 100 → 67 ms en rendu logiciel.
+
 **Zoom en un seul déplacement** : les pas d'un geste de pincement (14) ou d'un cran de molette (3) s'appliquent d'un coup à la valeur du zoom, puis la vue se déplace et les nodes à l'écran se recalculent une seule fois, au lieu d'une fois par pas (28 recalculs de toute la carte pour un pincement). Même zoom et même position au pixel près ; sur la dimension Gardien, un pincement passe de 60 à 6 ms de calcul.
 
 **Zoom et dispatcher d'origine** : `zoom.js`, `dragUniverse.js` (dispatcher) et les compteurs de coin (`navigationLabels`) reviennent exactement à leur version d'avant le 5 octobre (`f461152`) : le dispatcher est de nouveau synchrone, appelé à chaque déplacement de la vue. Son report à l'image suivante (`frames.js`, introduit avec « Fluidité à plusieurs centaines de nodes »), ses écritures conditionnelles, son cache et le regroupement des événements de pincement sont retirés. Restent, sans lien avec le zoom : fond sans animation, boucles d'image sans réécriture, chargement par lot.

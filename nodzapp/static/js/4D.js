@@ -5,7 +5,7 @@ document.addEventListener('keydown', function(event) {
         if (JSON.parse(selectedNodes[selectedNodes.length - 1].getAttribute('quantum')).length === 0) {    
             tunnel = true;
             copynodes(tunnel);
-            selectedNodes[selectedNodes.length - 1].children[3].style.display = 'block'; 
+            showPortal(selectedNodes[selectedNodes.length - 1]); 
             // if(!dark){
             //     selectedNodes[selectedNodes.length - 1].children[3].children[0].children[0].classList.remove('raydark');
             //     selectedNodes[selectedNodes.length - 1].children[3].children[0].children[0].classList.add('raylight');

@@ -86,6 +86,31 @@ semanticsearch.blur();
 
 //////////////////// NODE CREATION ////////////////////
 
+// Aperçu de fichier d'un node : son iframe n'entre dans le DOM qu'au premier fichier. Une iframe branchée est un document
+// qui suit le cycle de rendu à chaque image, même masquée : 1000 nodes en portaient 1000, un tiers de chaque image de
+// déplacement. Une fois insérée, elle reprend sa place d'origine (premier enfant du conteneur de fichier, avant le
+// chargeur et l'icône du fichier). insert = false : la lire sans l'insérer.
+function previewOf(nodeGroup, insert = true) {
+    const container = nodeGroup.children[0].children[2];
+    let frame = nodeGroup.preview || container.querySelector(':scope > iframe.filepreview');
+    if (!frame) {  // copie d'un node sans aperçu inséré
+        frame = document.createElement('iframe');
+        frame.className = 'filepreview';
+        frame.style.display = 'none';
+    }
+    nodeGroup.preview = frame;
+    if (insert && frame.parentNode !== container) container.prepend(frame);
+    return frame;
+}
+
+// Porte d'un portail : son anneau (gardien/portal.js, un SVG animé et son dégradé) n'est dessiné qu'au premier
+// affichage, au lieu d'être posé caché dans chaque node.
+function showPortal(nodeGroup) {
+    const door = nodeGroup.children[3];
+    if (!door.children[0].firstChild && window.portalRing) door.children[0].innerHTML = window.portalRing();
+    door.style.display = 'block';
+}
+
 function createNode(x,y,id) {
     var nodeID = id;
     var count;
@@ -302,6 +327,7 @@ function createNode(x,y,id) {
         case 'file':
             // console.log('Document option selected');
             nodeGroup.setAttribute('type', 'file');
+            if (fileGroup.parentNode !== nodeGroup) nodeGroup.appendChild(fileGroup);  // nom du fichier, posé au premier passage en fichier
             fileContainer.style.display = 'block';
             fileGroup.style.display = 'block';   
             fileGroup.setAttribute('visibility', 'visible');     
@@ -669,7 +695,7 @@ function createNode(x,y,id) {
     filePreview.id = `filePreview-${count}`;
     filePreview.className = 'filepreview';
     filePreview.style.display = 'none';
-    fileContainer.appendChild(filePreview);
+    nodeGroup.preview = filePreview;  // inséré par previewOf au premier fichier
  
     // Create spinner
     var spinner = document.createElement('div');
@@ -915,7 +941,7 @@ function createNode(x,y,id) {
     quantumButtonfo.setAttribute('class', 'stylebutton'); 
     const quantumButtonimg = document.createElement('div');  // anneau vivant autour du node (gardien/portal.js)
     quantumButtonimg.className = 'portal-door';
-    quantumButtonimg.innerHTML = window.portalRing ? window.portalRing() : '';
+    // anneau dessiné au premier affichage (showPortal)
     quantumButtonimg.style.width = '100%';
     quantumButtonimg.style.height = '100%';
     quantumButtonfo.classList.add("portal");
@@ -936,9 +962,8 @@ function createNode(x,y,id) {
     nodeGroup.appendChild(square);
     nodeGroup.appendChild(quantumButtonfo);
     // Barres d'outils du node : gardées hors de la page (la barre HTML du Gardien les pilote), sauf le groupe
-    // fichier (nom du fichier affiché) ; une soixantaine d'éléments de moins par node. On y accède par node.tools.
+    // fichier (nom du fichier affiché), inséré quand le node devient un fichier. On y accède par node.tools.
     nodeGroup.tools = { text: styleGroup, file: fileGroup, canvas: canvasStyleGroup, type: typeGroup };
-    nodeGroup.appendChild(fileGroup);
     square.style.display = 'none';   
     universe.appendChild(nodeGroup);
     
@@ -1600,6 +1625,7 @@ function createNode(x,y,id) {
 
     fileButton1input.addEventListener('change', function() {    
         const file = fileButton1input.files[0];
+        previewOf(nodeGroup);
         const fileSize = (file.size / (1024 * 1024)).toFixed(2); // Size in MB
         console.log("File size: " + fileSize + " MB");               
         if (file) {

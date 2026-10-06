@@ -608,8 +608,8 @@ function nodeSizing(nodeGroup,w,h) {
     let fileButton1fo = nodeGroup.tools.file.children[0];
     let fileButton2fo = nodeGroup.tools.file.children[1];
     let fileButton3fo = nodeGroup.tools.file.children[2];
-    let filePreview = nodeGroup.children[0].children[2].children[0];
-    let fileTypeImg = nodeGroup.children[0].children[2].children[2];
+    let filePreview = previewOf(nodeGroup, false);  // sans fichier, l'aperçu reste hors du DOM
+    let fileTypeImg = nodeGroup.children[0].children[2].children[filePreview.parentNode ? 2 : 1];
 
     fileButton3fo.style.width = w;  
     truncateMiddleText(nodeGroup.getAttribute('filename'),fileButton3fo.children[0], w/11);
