@@ -8,6 +8,8 @@
 //   MindNode, MindMeister, Obsidian, Workflowy…
 // Tout se fait à partir de la page : les nodes et les liens de la dimension ouverte.
 
+import { setStyle, show } from './frames.js';
+
 const KEY = 'gardien-folds';
 const GAP_X = 160;   // entre le bord d'un node et le bord de ses enfants
 const GAP_Y = 46;    // entre deux sous-arbres voisins
@@ -227,13 +229,13 @@ export function createBranches({ say }) {
     }
     (function track() {  // les pastilles suivent leurs nodes (zoom, glissé)
         // Une fenêtre de Nodz ouverte (profil, galerie, export…, sans z-index) : les pastilles passaient par-dessus.
-        layer.hidden = typeof overlay !== 'undefined' && overlay;
+        show(layer, !(typeof overlay !== 'undefined' && overlay));
         if (!layer.hidden) layer.querySelectorAll('.gf-badge').forEach(badge => {
             const node = byId(badge.dataset.node);
             const box = node && (node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1]).getBoundingClientRect();
-            badge.hidden = !box?.width;
+            show(badge, !!box?.width);
             // Au coin bas-droit du node : à droite au milieu, la pastille du node (Gardien, Branche) la recouvrirait.
-            if (box?.width) badge.style.transform = `translate(${(box.right - 10).toFixed(1)}px, ${(box.bottom - 12).toFixed(1)}px)`;
+            if (box?.width) setStyle(badge, 'transform', `translate(${(box.right - 10).toFixed(1)}px, ${(box.bottom - 12).toFixed(1)}px)`);
         });
         requestAnimationFrame(track);
     })();

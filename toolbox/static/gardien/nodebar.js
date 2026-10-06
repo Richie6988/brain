@@ -12,6 +12,7 @@
 // Un node texte carré devient un rectangle : la poignée est à son vrai coin et règle largeur et hauteur à part
 // (attribut ratio, gardé par nodeSizing et sauvegardé).
 
+import { setStyle, show } from './frames.js';
 import { dragging as gesture } from './gesture.js';
 
 const TYPE = 'type', TEXT = 'text', FILE = 'file', CANVAS = 'canvas';  // barres d'outils du node (node.tools, elementsCreation.js)
@@ -177,14 +178,14 @@ function createSizer() {
     (function follow() {
         node = candidate();
         if (!node || (typeof admin !== 'undefined' && admin)) {
-            knob.hidden = true;
+            show(knob, false);
         } else {
             const [cx, cy, halfW, halfH] = center(node);
             const square = node.getAttribute('shape') === 'square';  // bas droit du carré ou du rectangle, sinon du cercle
             const [dx, dy] = square ? [halfW, halfH] : [halfW * Math.SQRT1_2, halfH * Math.SQRT1_2];
-            knob.hidden = false;
-            knob.style.transform = `translate(${Math.round(cx + dx - 14)}px, ${Math.round(cy + dy - 14)}px)`;
-            knob.style.setProperty('--c', node.getAttribute('color') || '#b89af2');
+            show(knob, true);
+            setStyle(knob, 'transform', `translate(${Math.round(cx + dx - 14)}px, ${Math.round(cy + dy - 14)}px)`);
+            setStyle(knob, '--c', node.getAttribute('color') || '#b89af2');
         }
         requestAnimationFrame(follow);
     })();
@@ -322,16 +323,16 @@ export function createNodebar() {
     (function follow() {
         const [node, modes] = (typeof admin !== 'undefined' && admin) || gesture() ? [null, []] : active();
         if (!node) {
-            bar.hidden = true;
+            show(bar, false);
             key = '';
         } else {
             render(node, modes);
-            bar.hidden = false;
+            show(bar, true);
             const shape = node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1];
             const r = (shape || node).getBoundingClientRect();
             const x = Math.min(Math.max(8, r.left + r.width / 2 - bar.offsetWidth / 2), innerWidth - bar.offsetWidth - 8);
             const y = r.top - bar.offsetHeight - 12 > 8 ? r.top - bar.offsetHeight - 12 : r.bottom + 12;  // au-dessus, sinon dessous
-            bar.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+            setStyle(bar, 'transform', `translate(${Math.round(x)}px, ${Math.round(y)}px)`);
         }
         requestAnimationFrame(follow);
     })();

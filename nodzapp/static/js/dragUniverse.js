@@ -31,12 +31,13 @@ function dispatcher() {
     const links = document.querySelectorAll('.link');
     categoryCounts = [0, 0, 0, 0]; 
 
+    const onScreen = new Map();  // catégorie de chaque node, calculée une fois : chaque lien la relisait pour ses deux bouts
     nodeGroups.forEach(node => {
-        nodeGestion (node);
+        onScreen.set(node, nodeGestion (node));
     }) 
     links.forEach(link => {
         if(link.getAttribute('multiverse') !== "true"){
-            linkGestion (link);
+            linkGestion (link, onScreen);
         }        
     });
     navigationLabels(categoryCounts);
@@ -48,13 +49,15 @@ function nodeGestion (node) {
     const display = category !== 4 ? 'none' : 'block';
     if (category !== 4) categoryCounts[category]++;
     if (node.style.display !== display) node.style.display = display;
+    return category;
 }
 
-function linkGestion (link) {
+function linkGestion (link, onScreen) {
     const node1 = document.getElementById(link.getAttribute('Node1'));
     const node2 = document.getElementById(link.getAttribute('Node2'));
+    const category = node => onScreen.get(node) ?? isOnScreen(node);
 
-    if (isOnScreen(node1) !== 4 && isOnScreen(node2) !== 4 && !lineIsOnScreen(node1, node2)) {
+    if (category(node1) !== 4 && category(node2) !== 4 && !lineIsOnScreen(node1, node2)) {
         if (link.style.display !== 'none') link.style.display = 'none';
     } else if (linkState !== 2 && link.style.display !== 'block') {
         link.style.display = 'block';
