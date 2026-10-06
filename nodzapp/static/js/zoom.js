@@ -8,10 +8,44 @@ const zoomStep = 0.95;
 // comme le zoom natif du navigateur), au plus un pas de zoomStep par événement. Plus petit : moins sensible.
 const PINCH = 0.01;
 let isZooming = false;
+// Pendant un pincement, l'univers déjà dessiné est agrandi par le navigateur (transformation CSS du SVG, sans redessiner
+// aucun node) ; le vrai zoom de Nodz s'applique quand le geste s'arrête (PINCH_IDLE ms sans événement) ou dès que
+// l'échelle a beaucoup changé (les nodes qui entrent alors à l'écran s'affichent). Redessiner toute la carte à chaque
+// événement prenait plus de temps qu'il n'en sépare deux : le zoom partait en retard et continuait après le geste.
+const PINCH_IDLE = 140;
+const minZoom = (defaultZoom * Math.pow(zoomStep, 50)).toFixed(2);
+const maxZoom = (defaultZoom / Math.pow(zoomStep, 42)).toFixed(2);
+let pinchScale = 1, pinchTimer = 0;
+function pinchPreview(rate) {
+    pinchScale = Math.min(maxZoom, Math.max(minZoom, currentZoom * pinchScale * rate)) / currentZoom;
+    // Le point fixe du zoom de Nodz (zoomX, zoomY), à l'écran : l'aperçu grandit autour de lui, comme le zoom final.
+    const x = zoomX * currentZoom - parseFloat(root.getAttribute('x')) + centerX;
+    const y = -zoomY * currentZoom + parseFloat(root.getAttribute('y')) + centerY;
+    svg.style.willChange = 'transform';
+    svg.style.transformOrigin = `${x}px ${y}px`;
+    svg.style.transform = `scale(${pinchScale})`;
+    clearTimeout(pinchTimer);
+    if (pinchScale > 1.8 || pinchScale < 0.55) pinchCommit();
+    else pinchTimer = setTimeout(pinchCommit, PINCH_IDLE);
+}
+function pinchCommit() {
+    clearTimeout(pinchTimer);
+    if (pinchScale === 1) return;
+    const rate = pinchScale;
+    pinchScale = 1;
+    svg.style.transform = '';
+    svg.style.willChange = '';
+    zoom({ deltaY: 0 }, rate);
+    sizeCurrent();
+}
+// Tout autre geste (clic, glissé, touche) part de la vue réelle : le zoom en attente s'applique d'abord.
+['pointerdown', 'keydown'].forEach(type => window.addEventListener(type, pinchCommit, true));
 
 // Event listener for the wheel event (pinch-to-zoom)
 svg.addEventListener('wheel', function(event) { 
     if (!event.ctrlKey && scrollsInside(event)) return;  // un contenu défilant dans un node (sortie, aperçu) défile
+    const pinch = event.ctrlKey && event.isTrusted;
+    if (!pinch) pinchCommit();  // molette, glissé à deux doigts, caméra du Gardien : depuis la vue réelle
     event.preventDefault(); 
     const deltaY = event.deltaY;
     const deltaX = event.deltaX;
@@ -36,8 +70,8 @@ svg.addEventListener('wheel', function(event) {
             // ici), souvent avec wheelDeltaY = -120 comme un cran de souris : il zoomait de 5 % par événement, près de
             // 7 fois le geste. Il suit maintenant les doigts. Les molettes simulées (Tab, caméra du Gardien) gardent
             // leur pas exact : leurs boucles comptent dessus. A mouse notch zooms several steps at once.
-            if (event.ctrlKey && event.isTrusted) {
-                zoom(event, Math.min(1 / zoomStep, Math.max(zoomStep, Math.exp(-deltaY * PINCH))));
+            if (pinch) {
+                pinchPreview(Math.min(1 / zoomStep, Math.max(zoomStep, Math.exp(-deltaY * PINCH))));
             } else {
                 const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
                 for (let i = 0; i < steps; i++) zoom(event);
@@ -46,12 +80,16 @@ svg.addEventListener('wheel', function(event) {
             event.stopPropagation();
         }     
     }
+    if (!pinch) sizeCurrent();  // pendant l'aperçu d'un pincement rien n'a bougé : au zoom réel (pinchCommit)
+});
+
+function sizeCurrent() {
     if(currentNode){
         var r = parseFloat(currentNode.children[1].getAttribute('r'));
         r = Math.sqrt(2*r*r);
         nodeSizing(currentNode,r,r);
     }
-});
+}
 
 // Un élément HTML défilant sous le pointeur, entre lui et l'univers, qui peut encore défiler dans ce sens ?
 function scrollsInside(event) {
@@ -76,8 +114,6 @@ function zoom(event, rate) {  // rate : facteur de zoom d'un pincement ; sans lu
     // Get the delta value to determine the direction of the scroll (positive for zooming out, negative for zooming in)
     const delta = event.deltaY || event.detail || event.wheelDelta;
     const zoomOut = delta > 0;    
-    const minZoom = (defaultZoom * Math.pow(zoomStep, 50)).toFixed(2); 
-    const maxZoom = (defaultZoom / Math.pow(zoomStep, 42)).toFixed(2);   
     // areaWidth = window.innerWidth;
     // areaHeight = window.innerHeight; 
 
