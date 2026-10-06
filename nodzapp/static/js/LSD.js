@@ -222,6 +222,7 @@ function displayNode(node) {
         newNode.children[1].style.stroke = 'transparent';
         newNode.children[2].style.display = 'block';  
         newNode.children[2].setAttribute('class','squareShape');  
+        newNode.children[2].style.stroke = node.color;  // le cadre gardait la couleur courante de createNode (vert)
         if (dark) {
             newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
         } else {

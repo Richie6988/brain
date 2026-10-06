@@ -88,13 +88,13 @@ const signedIn = setInterval(() => {
     clearInterval(signedIn);
     // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
     api.request('POST', 'toolbox/warm', { mode: chat.mode() }).catch(() => {});
-    guardianHome.ensure().catch(() => {});  // dimension Gardien posée d'office ; notes et rêves en attente
     reminders.refresh();
     dimensions.refresh();
     library.refresh().catch(() => {});  // IA locale ou non : la tour CPU/GPU s'affiche ou se cache
     quota.refresh();
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
     guide.welcome();  // première visite : le guide s'ouvre
+    guardianHome.ensure(guide.closed).catch(() => {});  // dimension Gardien posée d'office, une fois le guide fermé
     room.start();  // salon du lien (?room=) ou le sien resté ouvert
 }, 400);
 

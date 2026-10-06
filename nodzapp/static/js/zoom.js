@@ -9,6 +9,7 @@ const zoomStep = 0.95;
 // au lieu de rejouer la file d'attente).
 const pinchStep = 0.975;
 const PINCH_LATE = 100;
+let pinchFrame = 0;  // un pas de pincement au plus par image : les événements de plus dans la même image sont ignorés
 let isZooming = false;
 
 // Event listener for the wheel event (pinch-to-zoom)
@@ -35,7 +36,10 @@ svg.addEventListener('wheel', function(event) {
             }  
             // A mouse notch zooms several steps at once, a pinch one step per event
             if (event.ctrlKey && event.isTrusted) {
-                if (performance.now() - event.timeStamp <= PINCH_LATE) zoom(event, pinchStep);
+                if (!pinchFrame && performance.now() - event.timeStamp <= PINCH_LATE) {
+                    pinchFrame = requestAnimationFrame(() => { pinchFrame = 0; });
+                    zoom(event, pinchStep);
+                }
             } else {
                 const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
                 for (let i = 0; i < steps; i++) zoom(event);

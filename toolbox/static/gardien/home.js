@@ -63,11 +63,17 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         layerCounter = Math.max(Number(layerCounter) || 0, built.counters.layer);
         if (!layers.some(l => Number(l.id) === built.layer)) layers.push({ id: built.layer, name: built.name });
         await bridge.enterLayer(built.layer, built.nodes.length > 0);
-        await bulk(async () => {  // textfit puis le rangement réenregistrent les nodes : en quelques requêtes groupées
+        // textfit puis le rangement réenregistrent les nodes : en quelques requêtes groupées, qui partent pendant que le
+        // Gardien montre sa maison (on n'attend que l'arbre rangé).
+        let arranged;
+        const ready = new Promise(resolve => { arranged = resolve; });
+        bulk(async () => {
             built.families.forEach(id => branches.fold(document.getElementById(id)));  // les outils se déplient famille par famille
             filters.mark(built.nodes, 'ai');
             if (built.added) await tidy(home.root);
-        });
+            arranged();
+        }).catch(() => arranged());
+        await ready;
         return built.added;
     }
 
@@ -100,19 +106,22 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         return busy;
     };
 
-    // Première connexion : la maison se pose, le Gardien dit ce qu'elle garde, puis retour là où l'on était, à l'humain de créer. Pas sous automatisation (les bancs de
-    // navigation pilotent un navigateur vierge), ni en arrivant par le lien d'un salon (la dimension y est celle de l'hôte).
-    async function ensure() {
+    // Première connexion, une fois le guide fermé (ready) : la maison se pose, le Gardien la montre en entier et dit ce
+    // qu'elle garde, puis retour là où l'on était, à l'humain de créer. Pas sous automatisation (les bancs de navigation
+    // pilotent un navigateur vierge), ni en arrivant par le lien d'un salon (la dimension y est celle de l'hôte).
+    async function ensure(ready = () => Promise.resolve()) {
         if (!(await fetchHome()) || navigator.webdriver || new URLSearchParams(location.search).has('room')) return;
         if (layerOf() && Object.keys(data.home.groups).length >= data.seed.groups.length) return;
+        await ready();
         await once(async () => {
             const back = layerNumber;
             say('Je m\'installe dans ma dimension « Gardien »…', 'guide');
             await install();
-            say('C\'est là que je stocke tous mes souvenirs : mon âme, ce que je sais de toi, mes outils, mes rêves. Retrouve-les quand tu veux depuis la dimension Gardien.', 'guide');
-            await wait(4000);  // le temps de lire, la maison sous les yeux
+            await bridge.perform({ op: 'overview' });  // tout son cerveau sous les yeux
+            say('Voici mon cerveau : mon âme, ce que je sais de toi, ma mémoire, mes outils, mes rêves. Retrouve-le quand tu veux dans la dimension Gardien.', 'guide');
+            await wait(5000);  // le temps de lire, la maison sous les yeux
             await bridge.enterLayer(back);
-            say('Mais maintenant, c\'est à toi de créer.', 'guide');
+            say('À toi maintenant : double-clique dans le vide pour créer ton premier node.', 'guide');
         });
     }
 

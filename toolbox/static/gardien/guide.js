@@ -184,7 +184,13 @@ export function createGuide() {
             localStorage.setItem(KEY, '1');
         } catch { /* stockage indisponible */ }
     }
-    function close() { modal.hidden = true; }
+    let waiting = [];
+    function close() {
+        modal.hidden = true;
+        waiting.splice(0).forEach(resolve => resolve());
+    }
+    // Résolue quand le guide est fermé (tout de suite s'il ne l'est pas) : l'accueil du Gardien attend que l'on ait lu.
+    const closed = () => (modal.hidden ? Promise.resolve() : new Promise(resolve => waiting.push(resolve)));
 
     const button = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'guideButton', title: 'Guide' });
     document.getElementById('profileButton')?.before(button);
@@ -204,5 +210,5 @@ export function createGuide() {
         const guest = typeof guestUser !== 'undefined' && guestUser;
         if ((guest || !seen) && !navigator.webdriver) open();
     }
-    return { open, welcome };
+    return { open, welcome, closed };
 }
