@@ -264,7 +264,9 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Ancienne flèche des liens retirée** : le curseur flèche bleu de Nodz au survol d'un lien (et son clic de voyage, qui s'ajoutait à chaque survol) apparaissait sous la nouvelle flèche de saut ; seule celle-ci reste.
 
-**Pincement : un pas par image au plus** : les événements de pincement en plus dans une même image sont ignorés (`pinchFrame` dans zoom.js), en plus de ceux arrivés en retard : le zoom ne prend plus d'avance sur l'affichage et ne laisse aucun reste après le geste.
+**Pincement : un pas à la fois, plus petit** : un pas de pincement accepté bloque les suivants tant qu'il n'est pas traité (appliqué puis affiché, `pinchBusy` dans zoom.js), et ce pas vaut 1 % : un grand geste fait un petit zoom (un pincement qui divise l'écart des doigts par deux : zoom × 0,85). Les événements en retard restent ignorés : le zoom s'arrête avec le geste.
+
+**Messages du Gardien redessinés** : une carte de verre à son nom, avec son orbe en petit qui cligne des yeux, « GARDIEN » en dégradé et un liseré de la couleur du message (violet pour le guide, vert pour les agents, bleu pour les notes, rouge pour les erreurs) vers le violet et le bleu de Nodz ; elle apparaît en montant et s'efface en douceur.
 
 **Accueil de l'invité** : les messages du Gardien attendent que le guide soit fermé. Ensuite sa maison se pose, il la montre en entier (vue d'ensemble) en disant ce qu'elle garde, puis il ramène dans la dimension de départ : « À toi maintenant : double-clique dans le vide pour créer ton premier node. » Les enregistrements du rangement partent pendant la visite au lieu de la retarder. Au chargement d'une dimension, le cadre d'un rectangle reprend la couleur de son node (il gardait le vert par défaut).
 

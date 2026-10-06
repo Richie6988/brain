@@ -7,9 +7,9 @@ const zoomStep = 0.95;
 // Pincement du trackpad (Ctrl + molette envoyé par le navigateur) : un pas plus doux qu'un cran de souris, et un
 // événement en retard de plus de PINCH_LATE ms est ignoré (quand la page prend du retard, le zoom s'arrête avec le geste
 // au lieu de rejouer la file d'attente).
-const pinchStep = 0.975;
+const pinchStep = 0.99;  // 1 % par image : un grand geste, un petit zoom
 const PINCH_LATE = 100;
-let pinchFrame = 0;  // un pas de pincement au plus par image : les événements de plus dans la même image sont ignorés
+let pinchBusy = false;  // un pas de pincement accepté et pas encore traité (appliqué puis affiché) : les autres sont ignorés
 let isZooming = false;
 
 // Event listener for the wheel event (pinch-to-zoom)
@@ -36,9 +36,10 @@ svg.addEventListener('wheel', function(event) {
             }  
             // A mouse notch zooms several steps at once, a pinch one step per event
             if (event.ctrlKey && event.isTrusted) {
-                if (!pinchFrame && performance.now() - event.timeStamp <= PINCH_LATE) {
-                    pinchFrame = requestAnimationFrame(() => { pinchFrame = 0; });
+                if (!pinchBusy && performance.now() - event.timeStamp <= PINCH_LATE) {
+                    pinchBusy = true;
                     zoom(event, pinchStep);
+                    requestAnimationFrame(() => setTimeout(() => { pinchBusy = false; }));  // libre une fois l'image affichée
                 }
             } else {
                 const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;

@@ -47,11 +47,12 @@ import { createTour } from './tour.js';
 
 const toast = document.getElementById('gardien-toast');
 
-// Messages courts du Gardien (légendes de visite, agents au travail, erreurs), au style de Nodz.
+// Messages courts du Gardien (légendes de visite, agents au travail, erreurs) : une carte à son nom, avec son orbe.
 function say(text, kind = '') {
     const line = document.createElement('p');
     line.className = kind;
-    line.textContent = text;
+    line.innerHTML = '<span class="gt-orb" aria-hidden="true"><i></i><i></i></span><span class="gt-body"><b>Gardien</b><span></span></span>';
+    line.querySelector('.gt-body span').textContent = text;
     toast.append(line);
     setTimeout(() => line.classList.add('fade'), kind === 'guide' ? 6000 : 4500);
     setTimeout(() => line.remove(), kind === 'guide' ? 7000 : 5500);
