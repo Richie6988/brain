@@ -26,7 +26,8 @@ svg.addEventListener('wheel', function(event) {
     const deltaX = event.deltaX;
 
     const mouse = mouseWheel(event);
-    if (deltaY === Math.round(deltaY) && (!mouse || event.shiftKey)) {
+    // Un pincement (Ctrl + molette du navigateur) zoome même à deltaY entier, comme sous Windows
+    if (deltaY === Math.round(deltaY) && (!mouse || event.shiftKey) && !(event.ctrlKey && event.isTrusted)) {
         // Two-finger movement detected (or Shift + mouse wheel)
         dragUniverse(-deltaX,-deltaY,false)
          
@@ -103,7 +104,7 @@ function zoom(event, count = 1, step = zoomStep) {
         }
     }
     
-    dragUniverse(parseFloat((-centerX)*(currentZoom - prev)),parseFloat((-centerY)*(currentZoom - prev)),false,'zoom');
+    dragUniverse(parseFloat((-centerX)*(currentZoom - prev)),parseFloat((-centerY)*(currentZoom - prev)),false,'zoom');  // sans dispatcher : le second appel le passe
     dragUniverse(parseFloat((-zoomX)*(currentZoom - prev)),parseFloat((zoomY)*(currentZoom - prev)),false,'');  
 }   
 

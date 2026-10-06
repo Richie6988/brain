@@ -18,7 +18,8 @@ function dragUniverse(dragX,dragY,selection,zoom) {
     }
 
     // Functions to display or not nodes depending if they are on screen and count them
-    dispatcher();
+    // (the first half of a zoom step skips it: the second half dispatches once for both)
+    if (zoom !== 'zoom') dispatcher();
     // Create and dispatch custom event "nodeSizing"
     // const sizeEvent = new Event('nodeSizing');
     // document.dispatchEvent(sizeEvent);
@@ -29,52 +30,66 @@ let categoryCounts;
 function dispatcher() {
     const nodeGroups = document.querySelectorAll('.node-group');
     const links = document.querySelectorAll('.link');
+    const view = viewOf();
+    const categories = new Map();  // category of each node, computed once per pass and reused by its links
     categoryCounts = [0, 0, 0, 0]; 
 
     nodeGroups.forEach(node => {
-        nodeGestion (node);
+        nodeGestion (node, view, categories);
     }) 
     links.forEach(link => {
         if(link.getAttribute('multiverse') !== "true"){
-            linkGestion (link);
+            linkGestion (link, view, categories);
         }        
     });
     navigationLabels(categoryCounts);
 }
 
-function nodeGestion (node) {
-    const category = isOnScreen(node);   
+// Only a changed value is written: an unchanged write still costs a style pass on 1000 nodes
+function setDisplay (element, value) {
+    if (element.style.display !== value) element.style.display = value;
+}
+
+function nodeGestion (node, view, categories) {
+    const category = isOnScreen(node, view);   
+    if (!categories.has(node.id)) categories.set(node.id, category);
     if (category !== 4) {
-        node.style.display = 'none'; 
+        setDisplay(node, 'none'); 
         categoryCounts[category]++;    
     } else {
-        node.style.display = 'block';        
+        setDisplay(node, 'block');        
     }
 }
 
-function linkGestion (link) {
-    const node1 = document.getElementById(link.getAttribute('Node1'));
-    const node2 = document.getElementById(link.getAttribute('Node2'));
+function linkGestion (link, view, categories) {
+    const id1 = link.getAttribute('Node1');
+    const id2 = link.getAttribute('Node2');
+    const category = id => categories.has(id) ? categories.get(id) : isOnScreen(document.getElementById(id), view);
 
-    if (isOnScreen(node1) !== 4 && isOnScreen(node2) !== 4 && !lineIsOnScreen(node1, node2)) {
-        link.style.display = 'none';
+    if (category(id1) !== 4 && category(id2) !== 4 && !lineIsOnScreen(document.getElementById(id1), document.getElementById(id2))) {
+        setDisplay(link, 'none');
     } else if (linkState !== 2) {
-        link.style.display = 'block';
+        setDisplay(link, 'block');
     }
+}
+
+// Screen frame, read once per dispatcher pass instead of once per node
+function viewOf () {
+    return { rootX: parseFloat(root.getAttribute('x')), rootY: parseFloat(root.getAttribute('y')), width: window.innerWidth, height: window.innerHeight };
 }
 
 // Check if node is visible on the screen
-function isOnScreen (node) {    
-    const screenX = - Math.round(-parseFloat(node.getAttribute('x'))*currentZoom - centerX + parseFloat(root.getAttribute('x')));
-    const screenY = - Math.round(parseFloat(node.getAttribute('y'))*currentZoom - centerY - parseFloat(root.getAttribute('y')));
+function isOnScreen (node, view = viewOf()) {    
+    const screenX = - Math.round(-parseFloat(node.getAttribute('x'))*currentZoom - centerX + view.rootX);
+    const screenY = - Math.round(parseFloat(node.getAttribute('y'))*currentZoom - centerY - view.rootY);
     const r = parseFloat(node.children[1].getAttribute('r'))*currentZoom;
-    if (((screenX + r < 0 && screenY < window.innerHeight/2) || (screenY + r < 0 && screenX < window.innerWidth/2))) {
+    if (((screenX + r < 0 && screenY < view.height/2) || (screenY + r < 0 && screenX < view.width/2))) {
         return 0; // Top-left
-    } else if (((screenX - r > window.innerWidth && screenY <= window.innerHeight/2) || (screenY + r < 0 && screenX >= window.innerWidth/2))) {
+    } else if (((screenX - r > view.width && screenY <= view.height/2) || (screenY + r < 0 && screenX >= view.width/2))) {
         return 1; // Top-right
-    } else if (((screenX + r < 0 && screenY >=  window.innerHeight/2) || (screenY - r > window.innerHeight && screenX <= window.innerWidth/2))) {
+    } else if (((screenX + r < 0 && screenY >=  view.height/2) || (screenY - r > view.height && screenX <= view.width/2))) {
         return 2; // Bottom-left
-    } else if (((screenX - r > window.innerWidth && screenY >=  window.innerHeight/2) || (screenY - r > window.innerHeight && screenX > window.innerWidth/2))) {
+    } else if (((screenX - r > view.width && screenY >=  view.height/2) || (screenY - r > view.height && screenX > view.width/2))) {
         return 3; // Bottom-right
     } else {
         return 4;

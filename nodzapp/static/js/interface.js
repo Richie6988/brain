@@ -996,29 +996,19 @@ counters.forEach(counter => {
     });
 }); 
 
+const cornerCounters = ['top-left-corner', 'top-right-corner', 'bottom-left-corner', 'bottom-right-corner'];
 function navigationLabels(navigationCounters) {
-    const counters = document.querySelectorAll('.counter');
-    // Loop through each counter
-    counters.forEach(counter => {
-        if (counter.id === 'top-left-corner') {
-            counter.textContent = navigationCounters[0];
-        } else if (counter.id === 'top-right-corner') {
-            counter.textContent = navigationCounters[1];
-        } else if (counter.id === 'bottom-left-corner') {
-            counter.textContent = navigationCounters[2];
-        } else {
-            counter.textContent = navigationCounters[3];
-        }
-        const triangleContainer = counter.parentElement;
-        // Check if counter value is 0
-        if (counter.textContent.trim() === '0') {
-            // Add class to make counter transparent
-            counter.classList.add('counter-zero');
-            triangleContainer.classList.add('counter-zero');
-        } 
-        else {
-            counter.classList.remove('counter-zero');
-            triangleContainer.classList.remove('counter-zero');
+    // Each corner is rewritten only when its count changes (every pan or zoom frame calls this)
+    cornerCounters.forEach((id, i) => {
+        const counter = document.getElementById(id);
+        if (!counter) return;
+        const text = String(navigationCounters[i]);
+        if (counter.textContent !== text) counter.textContent = text;
+        const zero = text === '0';
+        if (counter.classList.contains('counter-zero') !== zero) {
+            // Class to make counter transparent
+            counter.classList.toggle('counter-zero', zero);
+            counter.parentElement.classList.toggle('counter-zero', zero);
         }
     });
 }
