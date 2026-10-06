@@ -4,6 +4,11 @@ const defaultZoom = 1;
 let currentZoom = defaultZoom;
 let prevZoom;
 const zoomStep = 0.95; 
+// Pincement du trackpad (Ctrl + molette envoyé par le navigateur) : un pas plus doux qu'un cran de souris, et un
+// événement en retard de plus de PINCH_LATE ms est ignoré (quand la page prend du retard, le zoom s'arrête avec le geste
+// au lieu de rejouer la file d'attente).
+const pinchStep = 0.975;
+const PINCH_LATE = 100;
 let isZooming = false;
 
 // Event listener for the wheel event (pinch-to-zoom)
@@ -29,8 +34,12 @@ svg.addEventListener('wheel', function(event) {
                 isZooming = true;
             }  
             // A mouse notch zooms several steps at once, a pinch one step per event
-            const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
-            for (let i = 0; i < steps; i++) zoom(event);
+            if (event.ctrlKey && event.isTrusted) {
+                if (performance.now() - event.timeStamp <= PINCH_LATE) zoom(event, pinchStep);
+            } else {
+                const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
+                for (let i = 0; i < steps; i++) zoom(event);
+            }
         } else {
             event.stopPropagation();
         }     
@@ -61,7 +70,7 @@ function mouseWheel(event) {
     return !event.deltaX && !!notch && notch % 120 === 0 && notch !== -3 * event.deltaY;
 }
 
-function zoom(event) {  
+function zoom(event, step = zoomStep) {  
     // Get the delta value to determine the direction of the scroll (positive for zooming out, negative for zooming in)
     const delta = event.deltaY || event.detail || event.wheelDelta;
     const zoomOut = delta > 0;    
@@ -72,9 +81,9 @@ function zoom(event) {
 
     var prev = currentZoom;
     if (zoomOut) {
-        currentZoom = Math.max(minZoom, currentZoom * zoomStep).toFixed(3); // Decrease the zoom level for zooming out
+        currentZoom = Math.max(minZoom, currentZoom * step).toFixed(3); // Decrease the zoom level for zooming out
     } else {
-        currentZoom = Math.min(maxZoom, currentZoom / zoomStep).toFixed(3); // Increase the zoom level for zooming in 
+        currentZoom = Math.min(maxZoom, currentZoom / step).toFixed(3); // Increase the zoom level for zooming in 
     }
     
     dragUniverse(parseFloat((-centerX)*(currentZoom - prev)),parseFloat((-centerY)*(currentZoom - prev)),false,'zoom');
