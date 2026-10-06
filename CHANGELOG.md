@@ -286,9 +286,10 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 - un événement qui attend depuis plus de 100 ms (≈ 6 événements en file) est jeté au lieu de zoomer en retard ;
 - zoom min ou max atteint : la suite du geste dans ce sens est jetée, le sens inverse repart tout de suite ;
 - souris déplacée de plus de 8 px pendant le geste : la suite du geste est jetée ;
-- changement de sens : les restes de l'ancien sens arrivés dans les 100 ms suivantes sont jetés.
+- changement de sens : la file de l'ancien sens est vidée (compteur à 0) et le nouveau sens zoome aussitôt ; les restes de l'ancien sens arrivés dans les 100 ms suivantes sont jetés ;
+- compteur global : les pas de zoom attendent dans une file plafonnée à 3 (`ZOOM_QUEUE`), appliquée à l'image suivante, un pas d'origine de 5 % chacun. Au-delà du plafond, ils sont ignorés. Un pincement compte un pas par événement, un cran de molette ses pas (au plus 3). Le navigateur ne retient plus de file : le gestionnaire ne fait que compter.
 
-Un geste finit après 150 ms sans événement. Le pas de 5 % par événement reste celui d'origine.
+Un geste finit après 150 ms sans événement.
 
 **Plus de zoom natif du navigateur** dans toute l'app : Ctrl + molette ou pincement sur les panneaux, le dock ou le chat, Ctrl + / - / 0, gestes de pincement de Safari.
 

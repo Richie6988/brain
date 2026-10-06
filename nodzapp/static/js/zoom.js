@@ -10,11 +10,15 @@ let isZooming = false;
 // - un événement qui attend depuis plus de ZOOM_LAG ms est un retard en file (≈ 6 événements), il est jeté ;
 // - zoom min ou max atteint : la suite du geste dans ce sens est jetée, le sens inverse repart tout de suite ;
 // - souris déplacée pendant le geste : la suite du geste est jetée ;
-// - changement de sens : les restes de l'ancien sens arrivés dans les ZOOM_LAG ms suivantes sont jetés.
+// - changement de sens : la file de l'ancien sens est vidée, et ses restes arrivés dans les ZOOM_LAG ms suivantes jetés ;
+// - file globale (zoomPending) plafonnée à ZOOM_QUEUE pas : un événement de pincement compte un pas, un cran de molette
+//   ses pas ; au-delà du plafond ils sont ignorés. La file est appliquée à l'image suivante, un zoom d'origine (5 %) par pas.
 // Un geste finit après ZOOM_GESTURE ms sans événement ; le suivant repart sans blocage.
 const ZOOM_LAG = 100;
 const ZOOM_GESTURE = 150;
 const ZOOM_MOVE = 8;  // px de déplacement de la souris qui arrêtent le geste
+const ZOOM_QUEUE = 3;  // pas de zoom en attente au plus
+let zoomPending = 0, zoomFrame = 0;
 let zoomLast = -Infinity, zoomLimit = 0, zoomStopped = false, zoomDirection = 0, zoomTurn = -Infinity, zoomPointer = null;
 function zoomAccepted(event) {
     if (event.timeStamp - zoomLast > ZOOM_GESTURE) { zoomLimit = 0; zoomStopped = false; }
@@ -25,14 +29,26 @@ function zoomAccepted(event) {
         if (event.timeStamp - zoomTurn < ZOOM_LAG && direction === -zoomDirection) return false;  // reste de l'ancien sens
         zoomDirection = direction;
         zoomTurn = event.timeStamp;
+        zoomPending = 0;  // la file de l'ancien sens est vidée
     }
     if (zoomStopped || direction === zoomLimit) return false;
     return performance.now() - event.timeStamp <= ZOOM_LAG;
 }
 window.addEventListener('mousemove', event => {
     if (zoomPointer && performance.now() - zoomLast < ZOOM_GESTURE
-        && Math.hypot(event.clientX - zoomPointer.x, event.clientY - zoomPointer.y) > ZOOM_MOVE) zoomStopped = true;
+        && Math.hypot(event.clientX - zoomPointer.x, event.clientY - zoomPointer.y) > ZOOM_MOVE) { zoomStopped = true; zoomPending = 0; }
 });
+// Applique la file : les pas en attente, dans le sens courant, jusqu'à la butée.
+function zoomFlush() {
+    zoomFrame = 0;
+    const event = { deltaY: zoomDirection };
+    for (; zoomPending > 0; zoomPending--) {
+        const before = currentZoom;
+        zoom(event);
+        if (currentZoom === before) { zoomLimit = zoomDirection; zoomPending = 0; break; }  // butée : la suite du geste dans ce sens est jetée
+    }
+    sizeCurrent();
+}
 
 // Pas de zoom natif du navigateur dans toute l'app : Ctrl + molette ou pincement hors de l'univers (panneaux, dock,
 // chat), Ctrl + / - / 0, gestes de pincement de Safari. Dans l'univers, le pincement reste le zoom de Nodz (plus bas).
@@ -67,19 +83,26 @@ svg.addEventListener('wheel', function(event) {
             }  
             // A mouse notch zooms several steps at once, a pinch one step per event
             const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
-            const before = currentZoom;
+            if (event.isTrusted) {  // geste réel : ses pas dans la file, appliquée à l'image suivante
+                zoomPending = Math.min(ZOOM_QUEUE, zoomPending + steps);
+                if (!zoomFrame) zoomFrame = requestAnimationFrame(zoomFlush);
+                return;
+            }
             for (let i = 0; i < steps; i++) zoom(event);
-            if (event.isTrusted && currentZoom === before) zoomLimit = Math.sign(deltaY);  // butée : la suite du geste dans ce sens est jetée
         } else {
             event.stopPropagation();
         }     
     }
+    sizeCurrent();
+});
+
+function sizeCurrent() {
     if(currentNode){
         var r = parseFloat(currentNode.children[1].getAttribute('r'));
         r = Math.sqrt(2*r*r);
         nodeSizing(currentNode,r,r);
     }
-});
+}
 
 // Un élément HTML défilant sous le pointeur, entre lui et l'univers, qui peut encore défiler dans ce sens ?
 function scrollsInside(event) {
