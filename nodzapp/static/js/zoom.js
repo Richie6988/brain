@@ -5,13 +5,18 @@ let currentZoom = defaultZoom;
 let prevZoom;
 const zoomStep = 0.95; 
 let isZooming = false;
-// Pincement du trackpad (Ctrl + molette envoyé par le navigateur, des dizaines d'événements par geste) : un geste est
-// une seule commande, comme un cran de molette. Son premier événement zoome d'un gros pas d'un coup (PINCH_STEPS pas de
-// zoomStep, ×2 ou ÷2, en un seul déplacement de la vue), les suivants sont ignorés ; un geste se termine après PINCH_GAP ms sans
-// événement.
-const PINCH_STEPS = 14;
-const PINCH_GAP = 150;
-let pinchLast = -Infinity;
+// Pincement du trackpad (Ctrl + molette envoyé par le navigateur, des dizaines d'événements par geste) : un mouvement
+// continu, image par image. Tant que des événements arrivent, le zoom avance d'un pas de PINCH_STEP à chaque image,
+// dans le sens du dernier événement, quel que soit leur nombre ; une image sans événement l'arrête net.
+const PINCH_STEP = 0.98;  // 2 % par image : environ ×3 par seconde de pincement soutenu
+let pinchEvent = null, pinchFrame = 0;
+function pinchTick() {
+    if (!pinchEvent) { pinchFrame = 0; return; }  // aucun événement depuis l'image précédente : le geste s'est arrêté
+    zoom(pinchEvent, 1, PINCH_STEP);
+    sizeCurrent();
+    pinchEvent = null;
+    pinchFrame = requestAnimationFrame(pinchTick);
+}
 
 // Event listener for the wheel event (pinch-to-zoom)
 svg.addEventListener('wheel', function(event) { 
@@ -37,9 +42,9 @@ svg.addEventListener('wheel', function(event) {
             }  
             // A mouse notch zooms several steps at once, a pinch one step per event
             if (event.ctrlKey && event.isTrusted) {
-                const fresh = event.timeStamp - pinchLast > PINCH_GAP;  // premier événement d'un nouveau geste
-                pinchLast = event.timeStamp;
-                if (fresh) zoom(event, PINCH_STEPS);
+                pinchEvent = { deltaY };
+                if (!pinchFrame) pinchTick();  // première image du geste tout de suite, les suivantes à chaque image
+                return;  // la taille du node courant suit à chaque image (pinchTick)
             } else {
                 const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
                 zoom(event, steps);
@@ -48,12 +53,16 @@ svg.addEventListener('wheel', function(event) {
             event.stopPropagation();
         }     
     }
+    sizeCurrent();
+});
+
+function sizeCurrent() {
     if(currentNode){
         var r = parseFloat(currentNode.children[1].getAttribute('r'));
         r = Math.sqrt(2*r*r);
         nodeSizing(currentNode,r,r);
     }
-});
+}
 
 // Un élément HTML défilant sous le pointeur, entre lui et l'univers, qui peut encore défiler dans ce sens ?
 function scrollsInside(event) {
@@ -75,8 +84,8 @@ function mouseWheel(event) {
 }
 
 // count : pas appliqués d'un coup (même zoom, mêmes arrondis qu'autant d'appels) ; la vue ne se déplace et les nodes à
-// l'écran ne se recalculent qu'une fois, au lieu d'une fois par pas (un pincement de 14 pas en faisait 28).
-function zoom(event, count = 1) {  
+// l'écran ne se recalculent qu'une fois, au lieu d'une fois par pas. step : taille d'un pas (zoomStep, ou PINCH_STEP).
+function zoom(event, count = 1, step = zoomStep) {  
     // Get the delta value to determine the direction of the scroll (positive for zooming out, negative for zooming in)
     const delta = event.deltaY || event.detail || event.wheelDelta;
     const zoomOut = delta > 0;    
@@ -88,9 +97,9 @@ function zoom(event, count = 1) {
     var prev = currentZoom;
     for (let i = 0; i < count; i++) {
         if (zoomOut) {
-            currentZoom = Math.max(minZoom, currentZoom * zoomStep).toFixed(3); // Decrease the zoom level for zooming out
+            currentZoom = Math.max(minZoom, currentZoom * step).toFixed(3); // Decrease the zoom level for zooming out
         } else {
-            currentZoom = Math.min(maxZoom, currentZoom / zoomStep).toFixed(3); // Increase the zoom level for zooming in 
+            currentZoom = Math.min(maxZoom, currentZoom / step).toFixed(3); // Increase the zoom level for zooming in 
         }
     }
     

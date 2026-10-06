@@ -264,7 +264,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Ancienne flèche des liens retirée** : le curseur flèche bleu de Nodz au survol d'un lien (et son clic de voyage, qui s'ajoutait à chaque survol) apparaissait sous la nouvelle flèche de saut ; seule celle-ci reste.
 
-**Pincement : un geste, un gros pas** : comme un cran de molette, un geste de pincement est une seule commande. Son premier événement zoome d'un coup de 14 pas du zoom d'origine (×2 en écartant, ÷2 en pinçant), comme les boucles de Tab ; le reste du geste est ignoré (un geste se termine après 150 ms sans événement). Molette, Tab, dispatcher et caméra du Gardien inchangés (`PINCH_STEPS`, `PINCH_GAP` dans zoom.js).
+**Pincement continu, image par image** : tant que les doigts bougent, le zoom avance d'un pas de 2 % à chaque image (60 par seconde), dans le sens du dernier événement, quel que soit le nombre d'événements reçus ; une image sans événement l'arrête net. Un seul déplacement de la vue par image, jamais de file d'attente. Molette, Tab, dispatcher et caméra du Gardien inchangés (`PINCH_STEP` dans zoom.js).
 
 **Zoom en un seul déplacement** : les pas d'un geste de pincement (14) ou d'un cran de molette (3) s'appliquent d'un coup à la valeur du zoom, puis la vue se déplace et les nodes à l'écran se recalculent une seule fois, au lieu d'une fois par pas (28 recalculs de toute la carte pour un pincement). Même zoom et même position au pixel près ; sur la dimension Gardien, un pincement passe de 60 à 6 ms de calcul.
 
