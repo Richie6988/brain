@@ -5,6 +5,13 @@ let currentZoom = defaultZoom;
 let prevZoom;
 const zoomStep = 0.95; 
 let isZooming = false;
+// Pincement du trackpad (Ctrl + molette envoyé par le navigateur, des dizaines d'événements par geste) : un geste est
+// une seule commande, comme un cran de molette. Son premier événement zoome d'un gros pas d'un coup (PINCH_STEPS pas de
+// zoomStep, ×2 ou ÷2, comme les boucles de Tab), les suivants sont ignorés ; un geste se termine après PINCH_GAP ms sans
+// événement.
+const PINCH_STEPS = 14;
+const PINCH_GAP = 150;
+let pinchLast = -Infinity;
 
 // Event listener for the wheel event (pinch-to-zoom)
 svg.addEventListener('wheel', function(event) { 
@@ -29,8 +36,14 @@ svg.addEventListener('wheel', function(event) {
                 isZooming = true;
             }  
             // A mouse notch zooms several steps at once, a pinch one step per event
-            const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
-            for (let i = 0; i < steps; i++) zoom(event);
+            if (event.ctrlKey && event.isTrusted) {
+                const fresh = event.timeStamp - pinchLast > PINCH_GAP;  // premier événement d'un nouveau geste
+                pinchLast = event.timeStamp;
+                if (fresh) for (let i = 0; i < PINCH_STEPS; i++) zoom(event);
+            } else {
+                const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
+                for (let i = 0; i < steps; i++) zoom(event);
+            }
         } else {
             event.stopPropagation();
         }     

@@ -264,6 +264,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Ancienne flèche des liens retirée** : le curseur flèche bleu de Nodz au survol d'un lien (et son clic de voyage, qui s'ajoutait à chaque survol) apparaissait sous la nouvelle flèche de saut ; seule celle-ci reste.
 
+**Pincement : un geste, un gros pas** : comme un cran de molette, un geste de pincement est une seule commande. Son premier événement zoome d'un coup de 14 pas du zoom d'origine (×2 en écartant, ÷2 en pinçant), comme les boucles de Tab ; le reste du geste est ignoré (un geste se termine après 150 ms sans événement). Molette, Tab, dispatcher et caméra du Gardien inchangés (`PINCH_STEPS`, `PINCH_GAP` dans zoom.js).
+
 **Zoom et dispatcher d'origine** : `zoom.js`, `dragUniverse.js` (dispatcher) et les compteurs de coin (`navigationLabels`) reviennent exactement à leur version d'avant le 5 octobre (`f461152`) : le dispatcher est de nouveau synchrone, appelé à chaque déplacement de la vue. Son report à l'image suivante (`frames.js`, introduit avec « Fluidité à plusieurs centaines de nodes »), ses écritures conditionnelles, son cache et le regroupement des événements de pincement sont retirés. Restent, sans lien avec le zoom : fond sans animation, boucles d'image sans réécriture, chargement par lot.
 
 **Pastilles et poignée séparées, zone de saisie à jour** : la pastille « +N » d'une branche repliée passe au coin bas-gauche du node (elle était sous la poignée de taille, au coin bas-droit). La zone de saisie allumée au survol s'éteint dès que son node quitte la carte (Suppr, menu, Gardien, rechargement) au lieu d'attendre un mouvement de souris.
