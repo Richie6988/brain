@@ -25,7 +25,7 @@
     --nz-gradient: linear-gradient(135deg, #6848A6, #1E90FF);
     --nz-card-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(104, 72, 166, 0.25);
 }
-body:has(.universe.lightmode) {
+body.nz-light {
     --nz-card: rgba(255, 255, 255, 0.96);
     --nz-card-line: rgba(104, 72, 166, 0.35);
     --nz-card-text: #440852;
@@ -314,7 +314,7 @@ body:has(.universe.lightmode) {
 /* Le curseur de saisie faisait défiler la boîte du node (foreignObject, overflow hidden) en fin de ligne longue : le texte
    restait décalé et rogné. Avec clip, même découpe, mais plus aucun défilement possible. */
 .node-group > foreignObject { overflow: clip; }
-body:has(.universe.lightmode) .node-text-input { color: #2a0f3a; text-shadow: 0 0 3px #f4efe6, 0 0 1px #f4efe6; }
+body.nz-light .node-text-input { color: #2a0f3a; text-shadow: 0 0 3px #f4efe6, 0 0 1px #f4efe6; }
 
 /* Icônes des barres (format, couleur, forme, verrou, calendrier, portail, fichiers, dessin) : les SVG de
    img/ sont dessinés à trait (clair, prune en mode clair, violet vif quand l'outil est actif). */
@@ -338,8 +338,8 @@ foreignObject.stylebutton > div:has(> svg) {
 }
 foreignObject.stylebutton > div:has(> svg) svg { width: 70%; height: 70%; }
 foreignObject.stylebutton > div:has(> svg):hover { border-color: #1E90FF; box-shadow: 0 0 12px rgba(30, 144, 255, 0.8); }
-body:has(.universe.lightmode) :is(.select-dropdown, .selectlight) { color: #440852; background-color: rgba(255, 255, 255, 0.85); }
-body:has(.universe.lightmode) foreignObject.stylebutton > div:has(> svg) { background: rgba(255, 255, 255, 0.9); }
+body.nz-light :is(.select-dropdown, .selectlight) { color: #440852; background-color: rgba(255, 255, 255, 0.85); }
+body.nz-light foreignObject.stylebutton > div:has(> svg) { background: rgba(255, 255, 255, 0.9); }
 
 /* Sélecteur d'emojis du texte (bouton emoji) : ses classes Tailwind n'étaient chargées nulle part (panneau blanc
    brut) ; verre sombre, grille de 8, survol violet. Les barres flottantes du node s'effacent tant qu'il est ouvert. */
@@ -355,23 +355,23 @@ body:has(.universe.lightmode) foreignObject.stylebutton > div:has(> svg) { backg
     transition: background-color 0.12s, transform 0.12s;
 }
 #emojiPicker .emoji-item:hover { background: rgba(104, 72, 166, 0.45); transform: scale(1.15); }
-body:has(#smileys[style*="flex"]) :is(#gardien-nodebar, #gardien-sizer, #gardien-send) { display: none !important; }
-body:has(.universe.lightmode) #smileys .smileyContent { background: rgba(255, 255, 255, 0.96); border-color: rgba(68, 8, 82, 0.18); }
+body.nz-smileys :is(#gardien-nodebar, #gardien-sizer, #gardien-send) { display: none !important; }
+body.nz-light #smileys .smileyContent { background: rgba(255, 255, 255, 0.96); border-color: rgba(68, 8, 82, 0.18); }
 
 /* --- Mode clair (bouton Dark/Light de Nodz) */
 
-body:has(.universe.lightmode) #button-container { background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }
-body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton) {
+body.nz-light #button-container { background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.14); box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12); }
+body.nz-light :is(.menuBtn, #soundButton, #exportButton) {
     border-color: rgba(104, 72, 166, 0.4); background: linear-gradient(135deg, rgba(104, 72, 166, 0.12), rgba(30, 144, 255, 0.08));
     box-shadow: inset 0 0 8px rgba(30, 144, 255, 0.15);
 }
-body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton)::after { filter: none; }
-body:has(.universe.lightmode) :is(.menuBtn, #soundButton, #exportButton):is(:hover, :active)::after { filter: brightness(0) invert(1); }
-body:has(.universe.lightmode) #layerButton.dropdown-button { color: var(--nz-plum); background: rgba(104, 72, 166, 0.1); }
-body:has(.universe.lightmode) #semanticsearch { color: #1668c4; background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.18); }
-body:has(.universe.lightmode) .dropdown-content { background: rgba(255, 255, 255, 0.92); border-color: rgba(68, 8, 82, 0.14); }
-body:has(.universe.lightmode) .dropdown-content .dropdown-item { color: var(--nz-plum); }
-body:has(.universe.lightmode) .dropdown-content .dropdown-item:not(.new) .icon { background-image: url('../img/edit-light.svg'); }
+body.nz-light :is(.menuBtn, #soundButton, #exportButton)::after { filter: none; }
+body.nz-light :is(.menuBtn, #soundButton, #exportButton):is(:hover, :active)::after { filter: brightness(0) invert(1); }
+body.nz-light #layerButton.dropdown-button { color: var(--nz-plum); background: rgba(104, 72, 166, 0.1); }
+body.nz-light #semanticsearch { color: #1668c4; background: rgba(255, 255, 255, 0.8); border-color: rgba(68, 8, 82, 0.18); }
+body.nz-light .dropdown-content { background: rgba(255, 255, 255, 0.92); border-color: rgba(68, 8, 82, 0.14); }
+body.nz-light .dropdown-content .dropdown-item { color: var(--nz-plum); }
+body.nz-light .dropdown-content .dropdown-item:not(.new) .icon { background-image: url('../img/edit-light.svg'); }
 
 @media (max-width: 900px) {
     #button-container { padding: 0 6px; gap: 0; }
@@ -495,4 +495,4 @@ body:has(.universe.lightmode) .dropdown-content .dropdown-item:not(.new) .icon {
     position: absolute; top: 100%; left: 50%; margin-top: 10px; transform: translateX(-50%); white-space: nowrap;
     font: 600 9px 'Cascadia Code', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #b89af2;
 }
-body:has(.universe.lightmode) .origin-flag small { color: #6848A6; }
+body.nz-light .origin-flag small { color: #6848A6; }

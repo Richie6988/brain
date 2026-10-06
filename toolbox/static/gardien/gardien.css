@@ -33,7 +33,7 @@
 #gardien-grab .band { fill: rgba(184, 154, 242, 0.16); stroke: rgba(184, 154, 242, 0.55); stroke-width: 1;
     filter: drop-shadow(0 0 6px rgba(30, 144, 255, 0.45)); opacity: 0; transition: opacity 0.12s ease; }
 #gardien-grab.on .band { opacity: 1; }
-body:has(.universe.lightmode) #gardien-grab .band { fill: rgba(104, 72, 166, 0.12); stroke: rgba(104, 72, 166, 0.5); }
+body.nz-light #gardien-grab .band { fill: rgba(104, 72, 166, 0.12); stroke: rgba(104, 72, 166, 0.5); }
 /* Chat du Gardien, en bas à droite, au-dessus du compteur de nodes hors champ du coin */
 #gardien-chat { position: fixed; right: 20px; bottom: 84px; z-index: 32; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
     font: 12px 'Cascadia Code', monospace; }
@@ -108,7 +108,7 @@ body:has(.universe.lightmode) #gardien-grab .band { fill: rgba(104, 72, 166, 0.1
 .gc-mode { display: flex; padding: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(184, 154, 242, 0.25); }
 .gc-panel header .gc-mode button { font-size: 10px; padding: 3px 7px; border-radius: 999px; }
 .gc-panel header .gc-mode button.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 10px rgba(30, 144, 255, 0.4); }
-body:has(.universe.lightmode) .gc-mode { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.18); }
+body.nz-light .gc-mode { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.18); }
 .gc-more-wrap { position: relative; }
 /* Mode Pensée : la pensée qui s'écrit encore, un curseur lavande au bout du texte. */
 @keyframes gardien-caret { 50% { opacity: 0; } }
@@ -124,7 +124,7 @@ body:has(.universe.lightmode) .gc-mode { background: rgba(68, 8, 82, 0.04); bord
     font: italic 11px 'Cascadia Code', monospace; color: #a79fd6; text-shadow: 0 0 8px rgba(104, 72, 166, 0.9);
     animation: gardien-whisper 4.5s ease-out forwards;
 }
-body:has(.universe.lightmode) .gardien-whisper { color: #7a6aa8; text-shadow: 0 0 6px rgba(255, 255, 255, 0.9); }
+body.nz-light .gardien-whisper { color: #7a6aa8; text-shadow: 0 0 6px rgba(255, 255, 255, 0.9); }
 .node-group.gardien-forming .node-text-input::after { content: '▍'; margin-left: 1px; color: #b89af2; animation: gardien-caret 0.8s steps(1) infinite; }
 .gc-more { font-size: 16px !important; line-height: 1; letter-spacing: 0.05em; }
 .gc-more.on { color: #fff !important; box-shadow: inset 0 0 0 1px rgba(30, 144, 255, 0.8); }
@@ -195,7 +195,7 @@ body:has(.universe.lightmode) .gardien-whisper { color: #7a6aa8; text-shadow: 0 
     background: transparent; border: 1px solid rgba(148, 163, 184, 0.35); transition: background 0.15s, color 0.15s; }
 .gc-tools button:hover { color: #e2e8f0; border-color: rgba(184, 154, 242, 0.6); }
 #gardien-chat .gc-tools button.on { color: #050c17; background: #33FF99; border-color: #33FF99; opacity: 1; font-weight: 600; }
-body:has(.universe.lightmode) .gc-tools button:not(.on) { color: #5b4a78; }
+body.nz-light .gc-tools button:not(.on) { color: #5b4a78; }
 .gc-attach { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; }
 .gc-attach:empty { display: none; }
 .gc-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; font-size: 10px;
@@ -213,15 +213,15 @@ body:has(.universe.lightmode) .gc-tools button:not(.on) { color: #5b4a78; }
     background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 12px rgba(30, 144, 255, 0.45); transition: transform 0.15s; }
 .gc-send:hover { transform: scale(1.08); }
 .gc-send.stop { background: linear-gradient(135deg, #b9538b, #e11d48); font-size: 13px; box-shadow: 0 0 12px rgba(225, 29, 72, 0.5); }
-body:has(.universe.lightmode) .gc-panel { color: #440852;
+body.nz-light .gc-panel { color: #440852;
     background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(250, 246, 238, 0.96)) padding-box,
         linear-gradient(135deg, rgba(104, 72, 166, 0.55), rgba(30, 144, 255, 0.3)) border-box; }
-body:has(.universe.lightmode) .gc-guardian p { background: rgba(68, 8, 82, 0.05); border-color: rgba(68, 8, 82, 0.12); }
-body:has(.universe.lightmode) .gc-menu { background: rgba(255, 255, 255, 0.98); border-color: rgba(68, 8, 82, 0.2); }
-body:has(.universe.lightmode) .gc-ideas button { color: #6848A6; background: rgba(104, 72, 166, 0.08); }
-body:has(.universe.lightmode) .gc-form { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.2); }
-body:has(.universe.lightmode) .gc-think pre { color: #6b4a7a; }
-body:has(.universe.lightmode) .gc-form textarea { color: #440852; }
+body.nz-light .gc-guardian p { background: rgba(68, 8, 82, 0.05); border-color: rgba(68, 8, 82, 0.12); }
+body.nz-light .gc-menu { background: rgba(255, 255, 255, 0.98); border-color: rgba(68, 8, 82, 0.2); }
+body.nz-light .gc-ideas button { color: #6848A6; background: rgba(104, 72, 166, 0.08); }
+body.nz-light .gc-form { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.2); }
+body.nz-light .gc-think pre { color: #6b4a7a; }
+body.nz-light .gc-form textarea { color: #440852; }
 @media (max-width: 700px) { #gardien-chat { right: 12px; bottom: 140px; } }  /* au-dessus du dock, sur deux ou trois lignes */
 
 /* Visite pilotée (tour.js) : l'overview en haut (chemin parcouru, carte du node courant ou de la destination
@@ -277,10 +277,10 @@ body:has(.universe.lightmode) .gc-form textarea { color: #440852; }
 .gt-arrow span { position: absolute; left: 50%; top: 100%; margin-left: -60px; width: 120px; text-align: center; font: 10px 'Cascadia Code', monospace; color: #b89af2; pointer-events: none; }
 .node-group.gardien-visiting .hitbox, .node-group.gardien-visiting .squareShape { stroke-width: 6px; filter: drop-shadow(0 0 10px #f3ee58); }
 .node-group.gardien-choice-hover .hitbox, .node-group.gardien-choice-hover .squareShape { filter: drop-shadow(0 0 16px #1E90FF); }
-body:has(.universe.lightmode) #gardien-tour { color: #440852; background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+body.nz-light #gardien-tour { color: #440852; background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
     linear-gradient(135deg, var(--c, #6848A6), #6848A6 45%, #1E90FF) border-box; }
-body:has(.universe.lightmode) .gt-title { color: #1e1b4b; }
-body:has(.universe.lightmode) .gt-meta span { color: #440852; }
+body.nz-light .gt-title { color: #1e1b4b; }
+body.nz-light .gt-meta span { color: #440852; }
 
 body.gardien-gesture :is(#gardien-chat, #gardien-send, #gardien-tour, #gardien-arrows, #gardien-jump) { pointer-events: none; }
 body:not(.gardien-ready) :is(#gardien-chat, #gardien-context-button) { display: none; }
@@ -301,7 +301,7 @@ body:not(.gardien-ready) :is(#gardien-chat, #gardien-context-button) { display: 
 #dropdown-content .dropdown-item[data-layer] { justify-content: flex-start; gap: 10px; text-align: left; }
 #dropdown-content .dropdown-item[data-layer] .icon { margin-left: 4px !important; }
 #dropdown-content .dropdown-item.gd-last-pin { border-bottom: 1px dashed rgba(148, 163, 184, 0.3); border-radius: 10px 10px 4px 4px; }
-body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 8, 82, 0.05); }
+body.nz-light .gd-search { color: #440852; background: rgba(68, 8, 82, 0.05); }
 
 /* Messages courts du Gardien : une carte de verre à son nom, liseré dégradé (couleur du message → violet → bleu), son
    orbe en petit qui cligne des yeux. */
@@ -402,7 +402,7 @@ body:has(.universe.lightmode) .gd-search { color: #440852; background: rgba(68, 
 #gardien-context-button::after { content: none; }
 #gardien-context-button svg { width: 18px; height: 18px; fill: none; stroke: #eef2ff; stroke-width: 1.8; stroke-linejoin: round; }
 #gardien-context-button.on { background: var(--nz-violet, #6848A6); box-shadow: 0 0 0 1px rgba(184, 154, 242, 0.7), 0 6px 18px rgba(104, 72, 166, 0.45); }
-body:has(.universe.lightmode) #gardien-context-button:not(.on) svg { stroke: #6848A6; }
+body.nz-light #gardien-context-button:not(.on) svg { stroke: #6848A6; }
 #gardien-context {
     position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 40; width: min(980px, calc(100vw - 32px));
     display: grid; gap: 8px; padding: 10px 12px; box-sizing: border-box; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
@@ -452,12 +452,12 @@ body:has(.universe.lightmode) #gardien-context-button:not(.on) svg { stroke: #68
 .gx-count { flex: 1; color: #f3ee58; }
 #gardien-context .gx-join { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); font-weight: 700; }
 #gardien-context .gx-join:disabled { opacity: 0.4; cursor: default; }
-body:has(.universe.lightmode) #gardien-context { color: #440852; background: rgba(255, 255, 255, 0.97); border-color: rgba(104, 72, 166, 0.35); box-shadow: 0 16px 40px rgba(68, 8, 82, 0.18); }
-body:has(.universe.lightmode) #gardien-context button { color: #6848A6; background: rgba(104, 72, 166, 0.08); }
-body:has(.universe.lightmode) #gardien-context button.on { color: #fff; background: #6848A6; }
-body:has(.universe.lightmode) :is(.gx-head input[type=search], #gardien-context .gx-text) { color: #440852; }
-body:has(.universe.lightmode) .gx-pop { background: rgba(255, 255, 255, 0.98); border-color: rgba(104, 72, 166, 0.35); }
-body:has(.universe.lightmode) .gx-span, body:has(.universe.lightmode) .gx-count { color: #6848A6; }
+body.nz-light #gardien-context { color: #440852; background: rgba(255, 255, 255, 0.97); border-color: rgba(104, 72, 166, 0.35); box-shadow: 0 16px 40px rgba(68, 8, 82, 0.18); }
+body.nz-light #gardien-context button { color: #6848A6; background: rgba(104, 72, 166, 0.08); }
+body.nz-light #gardien-context button.on { color: #fff; background: #6848A6; }
+body.nz-light :is(.gx-head input[type=search], #gardien-context .gx-text) { color: #440852; }
+body.nz-light .gx-pop { background: rgba(255, 255, 255, 0.98); border-color: rgba(104, 72, 166, 0.35); }
+body.nz-light .gx-span, body.nz-light .gx-count { color: #6848A6; }
 .node-group.gardien-filtered, .link.gardien-filtered { opacity: 0.08; pointer-events: none; transition: opacity 0.3s; }
 .node-group.gardien-picked > :is(circle, rect) { filter: drop-shadow(0 0 10px #1E90FF) drop-shadow(0 0 4px #1E90FF); }
 /* Recherche du dock (search.js) : le résultat courant pulse, le compteur « x / y » suit les flèches. */
@@ -465,22 +465,22 @@ body:has(.universe.lightmode) .gx-span, body:has(.universe.lightmode) .gx-count 
 .node-group.gardien-found > :is(circle, rect) { animation: gardien-found 0.9s ease-in-out infinite alternate; }
 #gardien-search-count { min-width: 0; margin: 0 4px; white-space: nowrap; font: 600 11px 'Cascadia Code', monospace; color: #b89af2; }
 #gardien-search-count:empty { display: none; }
-body:has(.universe.lightmode) #gardien-search-count { color: #6848A6; }
+body.nz-light #gardien-search-count { color: #6848A6; }
 
 /* Mode clair de Nodz */
-body:has(.universe.lightmode) .gm-hud { color: #5b4a78; box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12);
+body.nz-light .gm-hud { color: #5b4a78; box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12);
     background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)) padding-box, linear-gradient(135deg, rgba(104, 72, 166, 0.45), rgba(30, 144, 255, 0.3)) border-box; }
-body:has(.universe.lightmode) .gm-ring b { color: #440852; }
-body:has(.universe.lightmode) .gm-ring circle { stroke: rgba(68, 8, 82, 0.1); }
-body:has(.universe.lightmode) .gm-ring circle + circle { stroke: #10b981; }
-body:has(.universe.lightmode) .gm-ring circle.warn { stroke: #d97706; }
-body:has(.universe.lightmode) .gm-ring circle.high { stroke: #dc2626; }
-body:has(.universe.lightmode) .gm-hud .gm-name { color: #440852; }
-body:has(.universe.lightmode) .gm-hud .gm-bar { background: rgba(68, 8, 82, 0.1); }
-body:has(.universe.lightmode) .gm-hud .gm-bar i.ok { background: #10b981; }
-body:has(.universe.lightmode) #gardien-toast p { background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+body.nz-light .gm-ring b { color: #440852; }
+body.nz-light .gm-ring circle { stroke: rgba(68, 8, 82, 0.1); }
+body.nz-light .gm-ring circle + circle { stroke: #10b981; }
+body.nz-light .gm-ring circle.warn { stroke: #d97706; }
+body.nz-light .gm-ring circle.high { stroke: #dc2626; }
+body.nz-light .gm-hud .gm-name { color: #440852; }
+body.nz-light .gm-hud .gm-bar { background: rgba(68, 8, 82, 0.1); }
+body.nz-light .gm-hud .gm-bar i.ok { background: #10b981; }
+body.nz-light #gardien-toast p { background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
     linear-gradient(135deg, var(--accent), #6848A6 55%, #1E90FF) border-box; box-shadow: 0 10px 28px rgba(68, 8, 82, 0.16); }
-body:has(.universe.lightmode) .gt-body span { color: #440852; }
+body.nz-light .gt-body span { color: #440852; }
 
 /* Fenêtre Agents & modèles */
 .gl-modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(5, 12, 23, 0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
@@ -703,7 +703,7 @@ body:has(.universe.lightmode) .gt-body span { color: #440852; }
 .gc-choices button:hover:not(:disabled) { background: linear-gradient(135deg, #6848A6, #1E90FF); transform: translateY(-1px); }
 .gc-choices button:disabled { cursor: default; opacity: 0.45; }
 .gc-choices button.on { opacity: 1; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); border-color: transparent; }
-body:has(.universe.lightmode) .gc-choices button { color: #440852; background: rgba(68, 8, 82, 0.06); }
+body.nz-light .gc-choices button { color: #440852; background: rgba(68, 8, 82, 0.06); }
 
 /* Bulle de la mascotte (orb.js) : la réflexion du Gardien en direct, puis ses gestes ; elle ne prend pas la souris. */
 .go-say { position: absolute; right: calc(100% + 10px); bottom: 18px; width: max-content; max-width: min(300px, 70vw); padding: 7px 11px;
@@ -713,7 +713,7 @@ body:has(.universe.lightmode) .gc-choices button { color: #440852; background: r
 #gardien-chat-button.saying .go-say { opacity: 1; transform: none; }
 #gardien-chat.open .go-say { display: none; }  /* chat ouvert : la réflexion s'y écrit déjà */
 #gardien-chat.flying { transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1), top 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
-body:has(.universe.lightmode) .go-say { color: #440852; background: rgba(255, 255, 255, 0.95); border-color: rgba(104, 72, 166, 0.35); }
+body.nz-light .go-say { color: #440852; background: rgba(255, 255, 255, 0.95); border-color: rgba(104, 72, 166, 0.35); }
 
 /* Barre d'outils du node (nodebar.js), au style de la pastille du Gardien : une pilule de verre au-dessus du node
    actif, et la poignée de taille HTML. Elles remplacent les barres SVG de Nodz, gardées hors de la page (node.tools) ;
@@ -728,8 +728,8 @@ body:has(.universe.lightmode) .go-say { color: #440852; background: rgba(255, 25
 #gardien-sizer svg { width: 14px; height: 14px; fill: none; stroke: #f8fafc; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 #gardien-sizer:hover, body.gardien-sizing #gardien-sizer { background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 16px rgba(30, 144, 255, 0.8); }
 body.gardien-sizing, body.gardien-sizing * { cursor: nwse-resize !important; }
-body:has(.universe.lightmode) #gardien-sizer { background: rgba(255, 255, 255, 0.95); }
-body:has(.universe.lightmode) #gardien-sizer svg { stroke: #440852; }
+body.nz-light #gardien-sizer { background: rgba(255, 255, 255, 0.95); }
+body.nz-light #gardien-sizer svg { stroke: #440852; }
 #gardien-nodebar {
     position: fixed; left: 0; top: 0; z-index: 31; display: flex; align-items: center; gap: 2px; padding: 4px 6px;
     background: rgba(15, 23, 42, 0.82); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 999px;
@@ -746,7 +746,7 @@ body:has(.universe.lightmode) #gardien-sizer svg { stroke: #440852; }
 #gardien-nodebar button:hover { background-color: rgba(104, 72, 166, 0.5); border-color: #1E90FF;
     box-shadow: inset 0 0 12px rgba(30, 144, 255, 0.55), 0 0 10px rgba(30, 144, 255, 0.45); transform: perspective(120px) rotateX(14deg) rotateY(-18deg); }
 #gardien-nodebar button > svg { width: 16px; height: 16px; vertical-align: middle; fill: none; stroke: #eef2ff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-body:has(.universe.lightmode) #gardien-nodebar button > svg { stroke: #440852; }
+body.nz-light #gardien-nodebar button > svg { stroke: #440852; }
 #gardien-nodebar select {
     height: 24px; padding: 0 22px 0 10px; border-radius: 999px; cursor: pointer; font: 11px 'Cascadia Code', monospace;
     color: #e2e8f0; background: rgba(104, 72, 166, 0.3); border: 1px solid rgba(184, 154, 242, 0.55); appearance: auto;
@@ -762,10 +762,10 @@ body:has(.universe.lightmode) #gardien-nodebar button > svg { stroke: #440852; }
 }
 #gardien-nodebar .gn-menu[hidden] { display: none; }
 #gardien-nodebar .gn-menu button { width: auto; height: 30px; padding: 0 12px; border-radius: 10px; text-align: left; font-size: 14px; font-weight: 400; }
-body:has(.universe.lightmode) #gardien-nodebar .gn-menu { background: rgba(255, 255, 255, 0.97); border-color: rgba(68, 8, 82, 0.2); }
+body.nz-light #gardien-nodebar .gn-menu { background: rgba(255, 255, 255, 0.97); border-color: rgba(68, 8, 82, 0.2); }
 #gardien-nodebar .sep { width: 1px; height: 18px; margin: 0 4px; background: rgba(184, 154, 242, 0.35); }
-body:has(.universe.lightmode) #gardien-nodebar { background: rgba(255, 255, 255, 0.92); border-color: rgba(68, 8, 82, 0.2); }
-body:has(.universe.lightmode) #gardien-nodebar button, body:has(.universe.lightmode) #gardien-nodebar select { color: #440852; }
+body.nz-light #gardien-nodebar { background: rgba(255, 255, 255, 0.92); border-color: rgba(68, 8, 82, 0.2); }
+body.nz-light #gardien-nodebar button, body.nz-light #gardien-nodebar select { color: #440852; }
 
 /* Liens vers les nodes posés ou retouchés par le Gardien : pastilles cliquables qui y voyagent. */
 .gc-links { max-width: 100% !important; }
@@ -776,7 +776,7 @@ body:has(.universe.lightmode) #gardien-nodebar button, body:has(.universe.lightm
 }
 .gc-links button b { color: #1E90FF; font-weight: 600; }
 .gc-links button:hover { color: #fff; background: rgba(30, 144, 255, 0.35); }
-body:has(.universe.lightmode) .gc-links button { color: #440852; }
+body.nz-light .gc-links button { color: #440852; }
 
 /* Correspondance : le bouton Échanges du chat s'allume quand le Gardien a laissé des notes. */
 .gc-panel header .gc-exchanges.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
@@ -810,7 +810,7 @@ foreignObject.portal.stylebutton > div.portal-door svg.pr { display: block; widt
 }
 #templates .gt-mine { grid-column: 1 / -1; justify-self: stretch; display: flex; flex-wrap: wrap; gap: 14px; justify-content: flex-start; }
 /* Galerie ouverte (la sélection y devient un modèle) : ni pastille ni barre d'outils du node par-dessus. */
-body:has(#templates[style*="flex"]) :is(#gardien-send, #gardien-nodebar, #gardien-sizer) { display: none !important; }
+body.nz-templates :is(#gardien-send, #gardien-nodebar, #gardien-sizer) { display: none !important; }
 #templates .gt-save { display: flex; flex-direction: column; gap: 8px; justify-content: center; width: 220px; padding: 14px; box-sizing: border-box;
     border: 1px dashed rgba(184, 154, 242, 0.6); border-radius: 18px; color: #e2e8f0; font: 12px 'Cascadia Code', monospace; }
 #templates .gt-save b { color: #b89af2; }
@@ -848,7 +848,7 @@ body.gardien-side-on :is(.node-group, .link, .triangle-container, #gardien-nodeb
 .gardien-side-layer .gs-file b { padding: 10px 8px 14px; border-radius: 4px 14px 4px 4px; background: linear-gradient(135deg, #6848A6, #1E90FF); color: #fff; font-size: 11px; letter-spacing: 0.06em; }
 .gardien-side-layer .gs-file span { max-width: 100%; overflow-wrap: anywhere; line-height: 1.3; }
 .gardien-side-layer .gs-doc { width: 100%; height: 100%; border: 0; border-radius: 6px; background: #fff; pointer-events: none; }
-body:has(.universe.lightmode) .gardien-side-layer .gs-file { color: #440852; }
+body.nz-light .gardien-side-layer .gs-file { color: #440852; }
 /* filtres du haut appliqués aux répliques : l'opacité posée par l'animation cède */
 .gardien-side-layer .gs-out { opacity: 0.08 !important; pointer-events: none; }
 .gardien-side-layer .gs-links line { stroke: rgba(184, 154, 242, 0.75); stroke-width: 3px; }
@@ -859,21 +859,21 @@ body:has(.universe.lightmode) .gardien-side-layer .gs-file { color: #440852; }
 .gardien-side-layer .gs-guides text { fill: #94a3b8; font: 600 34px 'Cascadia Code', monospace; text-anchor: middle; }
 .gardien-side-layer .gs-guides text.here { fill: #1E90FF; }
 /* mode clair : répliques claires, texte, colonnes et liens foncés, comme les nodes réels en mode clair */
-body:has(.universe.lightmode) .gardien-side-layer .gs-shape { fill: #ffffff; }
-body:has(.universe.lightmode) .gardien-side-layer .gs-shape.bare { fill: transparent; }
-body:has(.universe.lightmode) .gardien-side-layer .gs-links line { stroke: rgba(68, 8, 82, 0.45); }
-body:has(.universe.lightmode) .gardien-side-layer .gs-guides line { stroke: rgba(68, 8, 82, 0.2); }
-body:has(.universe.lightmode) .gardien-side-layer .gs-guides line.here { stroke: rgba(104, 72, 166, 0.6); }
-body:has(.universe.lightmode) .gardien-side-layer .gs-guides text { fill: #6b5b8a; }
-body:has(.universe.lightmode) .gardien-side-layer .gs-guides text.here { fill: #6848A6; }
-body:has(.universe.lightmode) .gardien-side-layer .gs-portals path { stroke: #6848A6; filter: drop-shadow(0 0 4px rgba(104, 72, 166, 0.5)); }
-body:has(.universe.lightmode) #gardien-cube small { color: #6b5b8a; }
+body.nz-light .gardien-side-layer .gs-shape { fill: #ffffff; }
+body.nz-light .gardien-side-layer .gs-shape.bare { fill: transparent; }
+body.nz-light .gardien-side-layer .gs-links line { stroke: rgba(68, 8, 82, 0.45); }
+body.nz-light .gardien-side-layer .gs-guides line { stroke: rgba(68, 8, 82, 0.2); }
+body.nz-light .gardien-side-layer .gs-guides line.here { stroke: rgba(104, 72, 166, 0.6); }
+body.nz-light .gardien-side-layer .gs-guides text { fill: #6b5b8a; }
+body.nz-light .gardien-side-layer .gs-guides text.here { fill: #6848A6; }
+body.nz-light .gardien-side-layer .gs-portals path { stroke: #6848A6; filter: drop-shadow(0 0 4px rgba(104, 72, 166, 0.5)); }
+body.nz-light #gardien-cube small { color: #6b5b8a; }
 @keyframes gc3-spin { from { transform: rotateX(-22deg) rotateY(0deg); } to { transform: rotateX(-22deg) rotateY(360deg); } }
 #gardien-cube {
     position: fixed; top: 108px; right: 22px; z-index: 32; width: 84px; height: 96px; padding: 0; border: 0; background: none; cursor: pointer;
     perspective: 240px; display: flex; flex-direction: column; align-items: center; gap: 18px;
 }
-body:has(#loginPopup) #gardien-cube { display: none; }  /* pas de vue de côté sur l'accueil */
+body.nz-login #gardien-cube { display: none; }  /* pas de vue de côté sur l'accueil */
 #gardien-cube .gc3 { position: relative; width: 52px; height: 52px; margin-top: 10px; transform-style: preserve-3d; animation: gc3-spin 14s linear infinite; }
 #gardien-cube .gc3 i {
     position: absolute; inset: 0; border: 1.5px solid rgba(184, 154, 242, 0.85); border-radius: 4px;
@@ -890,7 +890,7 @@ body:has(#loginPopup) #gardien-cube { display: none; }  /* pas de vue de côté 
     font: 600 9px 'Cascadia Code', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #b89af2;
     background: rgba(5, 12, 23, 0.72); text-shadow: 0 0 6px rgba(104, 72, 166, 0.8); }
 #gardien-label[hidden] { display: none; }
-body:has(.universe.lightmode) #gardien-label { color: #6848A6; background: rgba(255, 255, 255, 0.85); text-shadow: none; }
+body.nz-light #gardien-label { color: #6848A6; background: rgba(255, 255, 255, 0.85); text-shadow: none; }
 #gardien-cube small { font: 600 9px 'Cascadia Code', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8; }
 #gardien-cube:hover .gc3 { animation-duration: 3s; }
 #gardien-cube:hover small, #gardien-cube.on small { color: #b89af2; }
@@ -913,14 +913,14 @@ body:has(.universe.lightmode) #gardien-label { color: #6848A6; background: rgba(
 .node-group[type=code] .node-text-input code {
     display: block; white-space: pre; overflow: hidden; font: 11px/1.4 'Cascadia Code', ui-monospace, monospace; color: #c4b5fd; tab-size: 4;
 }
-body:has(.universe.lightmode) .node-group[type=code] .node-text-input code { color: #440852; }
+body.nz-light .node-group[type=code] .node-text-input code { color: #440852; }
 /* Résultat de la dernière exécution, sous le code (ide.js) : il se regarde, le node se glisse toujours. */
 .node-group[type=code] .node-text-input .code-output {
     display: block; margin: 6px 0 0; padding: 6px 8px; border-radius: 6px; border-left: 2px solid #33FF99; text-align: left; white-space: pre-wrap;
     font: 11px/1.4 'Cascadia Code', ui-monospace, monospace; color: #cbd5e1; background: rgba(3, 7, 15, 0.7); pointer-events: none; user-select: none;
 }
 .node-group[type=code] .node-text-input iframe.code-output { width: 100%; height: 200px; box-sizing: border-box; padding: 0; border: 0; border-left: 2px solid #33FF99; background: #fff; }
-body:has(.universe.lightmode) .node-group[type=code] .node-text-input pre.code-output { color: #440852; background: rgba(68, 8, 82, 0.06); }
+body.nz-light .node-group[type=code] .node-text-input pre.code-output { color: #440852; background: rgba(68, 8, 82, 0.06); }
 #gardien-nodebar .gn-action { width: auto; padding: 0 10px; border-radius: 999px; font-weight: 600; }
 #gardien-ide {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 45; width: min(960px, calc(100vw - 40px)); height: min(680px, calc(100vh - 80px));
@@ -1088,7 +1088,7 @@ body.gardien-thoughts-off .gardien-thought, body.gardien-thoughts-off .gardien-t
 
 /* Vue hyperspace chargée (plus de 1 500 nodes) : le contenu en étiquette légère plutôt qu'en vignette. */
 .gardien-side-layer .gs-label { fill: #e2e8f0; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: rgba(5, 12, 23, 0.8); stroke-width: 3px; }
-body:has(.universe.lightmode) .gardien-side-layer .gs-label { fill: #440852; stroke: rgba(255, 255, 255, 0.8); }
+body.nz-light .gardien-side-layer .gs-label { fill: #440852; stroke: rgba(255, 255, 255, 0.8); }
 
 /* Relier en glissant (linkdrop.js) : le node touché depuis une demi-seconde s'allume, le lien se fera au relâcher. */
 .node-group.gardien-link-armed { filter: drop-shadow(0 0 6px #1E90FF) drop-shadow(0 0 14px rgba(184, 154, 242, 0.9)); animation: gardien-link-armed 0.8s ease-in-out infinite alternate; }
@@ -1130,7 +1130,7 @@ body.gardien-ready #notificationButton { display: block !important; }
 .gr-badge.due { border-color: #FF4D6D; color: #fff; background: rgba(120, 16, 40, 0.9); box-shadow: 0 0 14px rgba(255, 77, 109, 0.6); }
 .gr-badge.due::before { background: #FF4D6D; }
 @keyframes gr-pulse { 50% { box-shadow: 0 0 16px rgba(255, 180, 84, 0.75); } }
-body:has(.universe.lightmode) .gr-badge:not(.due) { color: #440852; background: rgba(255, 255, 255, 0.9); }
+body.nz-light .gr-badge:not(.due) { color: #440852; background: rgba(255, 255, 255, 0.9); }
 
 #gardien-reminder-cards { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 10px;
     width: min(420px, calc(100vw - 32px)); font: 12px 'Cascadia Code', monospace; }
@@ -1225,8 +1225,8 @@ li.soon .gr-left { color: #ffb454; }
 .gsal-cursor span b { font-weight: 600; }
 #shareButton.gardien-room-live { box-shadow: 0 0 0 2px #33FF99, 0 0 12px rgba(51, 255, 153, 0.5); }
 #shareButton.gardien-room-live::before { content: attr(data-count); position: absolute; top: -4px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; font: 10px/15px 'Cascadia Code', monospace; color: #050c17; background: #33FF99; border-radius: 8px; text-align: center; }
-body:has(.universe.lightmode) #gardien-room { color: #440852; background: rgba(255, 255, 255, 0.94); }
-body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #gardien-room .gsal-link input, body:has(.universe.lightmode) #gardien-room .gsal-name { color: #440852; background: #fff; }
+body.nz-light #gardien-room { color: #440852; background: rgba(255, 255, 255, 0.94); }
+body.nz-light #gardien-room p, body.nz-light #gardien-room .gsal-link input, body.nz-light #gardien-room .gsal-name { color: #440852; background: #fff; }
 
 /* Branches (branches.js) : descendants repliés cachés (!important : en déplaçant la vue, Nodz pose display:block sur
    chaque node à l'écran), pastille +N pour déplier, menu Branche de la pastille d'un node. */
@@ -1245,7 +1245,7 @@ body:has(.universe.lightmode) #gardien-room p, body:has(.universe.lightmode) #ga
 :is(#gardien-branch, #gardien-pick) button { text-align: left; padding: 6px 10px; font: inherit; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
 :is(#gardien-branch, #gardien-pick) button:hover:not(:disabled) { background: rgba(104, 72, 166, 0.45); }
 #gardien-branch small { margin: 4px 10px 0; color: #94a3b8; font-size: 10px; letter-spacing: 0.06em; }
-body:has(.universe.lightmode) :is(#gardien-branch, #gardien-pick) { color: #440852; background: rgba(255, 255, 255, 0.96); }
+body.nz-light :is(#gardien-branch, #gardien-pick) { color: #440852; background: rgba(255, 255, 255, 0.96); }
 
 /* Texte des nodes (textfit.js) : interligne à la mesure de chaque police (Nodz fixait la hauteur de ligne à la plus
    grande taille du texte : les lignes d'une grande police se chevauchaient) ; un mot n'est coupé que s'il ne tient
@@ -1273,12 +1273,12 @@ body:has(.universe.lightmode) :is(#gardien-branch, #gardien-pick) { color: #4408
 #gardien-exchange .gxx-primary { justify-self: start; background: #6848A6 !important; }
 #gardien-exchange .gxx-seg, #gardien-exchange .gxx-formats { display: flex; flex-wrap: wrap; gap: 6px; }
 #gardien-exchange .gxx-seg button.on { color: #050c17; background: #33FF99; border-color: #33FF99; font-weight: 600; }
-body:has(.universe.lightmode) #gardien-exchange { color: #440852; background: rgba(255, 255, 255, 0.96); }
-body:has(.universe.lightmode) #gardien-exchange .gxx-note { color: #5b4a78; }
+body.nz-light #gardien-exchange { color: #440852; background: rgba(255, 255, 255, 0.96); }
+body.nz-light #gardien-exchange .gxx-note { color: #5b4a78; }
 
 /* Sélection rectangle (Ctrl + glisser) : plus de voile translucide sur les nodes, un trait fin seulement. */
 .selectionBox { fill: none; stroke: #b89af2; stroke-width: 1.5px; stroke-dasharray: 6 5; }
-body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }
+body.nz-light .selectionBox { stroke: #6848A6; }
 
 /* Agents & modèles (library.js) : fenêtre sombre à barre latérale, comme le guide et les autres panneaux. Tout est
    limité à .ga-window : les consoles d'administration (admin.js) gardent les mêmes classes .gl-* sans changer. */
@@ -1492,8 +1492,8 @@ body:has(.universe.lightmode) .selectionBox { stroke: #6848A6; }
 #gardien-spark .gsp-x:hover { color: #fff; }
 @keyframes gsp-in { from { opacity: 0; transform: translate(-50%, -46%); } }
 @media (prefers-reduced-motion: reduce) { #gardien-spark { animation: none; } }
-body:has(.universe.lightmode) #gardien-spark { color: #440852; background: rgba(255, 255, 255, 0.95); }
-body:has(.universe.lightmode) #gardien-spark b, body:has(.universe.lightmode) #gardien-spark input { color: #440852; }
+body.nz-light #gardien-spark { color: #440852; background: rgba(255, 255, 255, 0.95); }
+body.nz-light #gardien-spark b, body.nz-light #gardien-spark input { color: #440852; }
 /* Mode compact (compact.js) : formes effacées, seul le contenu reste, en texte net à la couleur du node. */
 #compactButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5'/%3E%3C/svg%3E") no-repeat center / 90%; }
 #compactButton.on { box-shadow: 0 0 0 2px #1E90FF, 0 0 14px rgba(30, 144, 255, 0.6); }
@@ -1525,9 +1525,9 @@ body.gardien-compact .gc-out { opacity: 0.06; pointer-events: none; }
 #gardien-compact-bar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 #gardien-compact-bar .gc-quit { color: #fff; background: rgba(104, 72, 166, 0.55); border-color: #b89af2; }
 @media (max-width: 720px) { #gardien-compact-bar button span { display: none; } }
-body:has(.universe.lightmode) #gardien-compact-bar { color: #440852; background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+body.nz-light #gardien-compact-bar { color: #440852; background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
     linear-gradient(135deg, #b89af2, #6848A6 45%, #1E90FF) border-box; }
-body:has(.universe.lightmode) #gardien-compact-bar button:not(.on, .gc-quit) { color: #440852; }
+body.nz-light #gardien-compact-bar button:not(.on, .gc-quit) { color: #440852; }
 /* Plafond du compte gratuit (quota.js) : carte qui propose Premium. */
 .gq-card { position: relative; width: min(440px, calc(100vw - 32px)); box-sizing: border-box; padding: 26px 26px 22px; display: grid; gap: 12px;
     font: 13px/1.6 'Cascadia Code', monospace; color: #e2e8f0; border-radius: 22px; border: 1px solid transparent;
@@ -1544,6 +1544,6 @@ body:has(.universe.lightmode) #gardien-compact-bar button:not(.on, .gc-quit) { c
 .gq-actions button { font: inherit; padding: 8px 16px; border-radius: 999px; cursor: pointer; color: #cbd5e1; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.28); }
 .gq-actions .gq-go { color: #050c17; font-weight: 600; background: linear-gradient(135deg, #b89af2, #33FF99); border: 0; box-shadow: 0 0 18px rgba(51, 255, 153, 0.35); }
 .gq-x { position: absolute; top: 12px; right: 14px; border: 0; background: none; color: #94a3b8; font-size: 18px; cursor: pointer; }
-body:has(.universe.lightmode) .gq-card { color: #1e1b4b; background: linear-gradient(rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.97)) padding-box,
+body.nz-light .gq-card { color: #1e1b4b; background: linear-gradient(rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.97)) padding-box,
     linear-gradient(135deg, #b89af2, #6848A6 50%, #1E90FF) border-box; }
-body:has(.universe.lightmode) .gq-card :is(h3, li) { color: #1e1b4b; }
+body.nz-light .gq-card :is(h3, li) { color: #1e1b4b; }

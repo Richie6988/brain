@@ -445,6 +445,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
         dark = false;
         const dropdowns = themed('.select-dropdown')
         layer.classList.add('lightmode');
+        document.body.classList.add('nz-light');  // le thème clair se lit sur le body : un body:has() recalculait toute la page à chaque image
         for (let i = 0; i < dropdowns.length; i++) {
             dropdowns[i].className = 'selectlight';       
         }
@@ -530,6 +531,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
         dark = true;
         const dropdowns = themed('.selectlight')
         layer.classList.remove('lightmode');
+        document.body.classList.remove('nz-light');
         for (let i = 0; i < dropdowns.length; i++) {
             dropdowns[i].className = 'select-dropdown';  
         }

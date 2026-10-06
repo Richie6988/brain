@@ -71,6 +71,19 @@ const follow = {
 svg.addEventListener('mousedown', () => document.body.classList.add('gardien-gesture'), true);
 window.addEventListener('mouseup', () => requestAnimationFrame(() => document.body.classList.remove('gardien-gesture')), true);
 
+// États de Nodz lus par le CSS sur le body, en classes : un body:has() (#smileys[style*="flex"]…) fait recalculer le
+// style de toute la page à chaque style.display écrit par le dispatcher, soit des centaines de ms par image à 1000 nodes.
+const mirror = () => {
+    const shown = id => document.getElementById(id)?.style.display === 'flex';
+    document.body.classList.toggle('nz-smileys', shown('smileys'));
+    document.body.classList.toggle('nz-templates', shown('templates'));
+    document.body.classList.toggle('nz-login', !!document.getElementById('loginPopup'));
+};
+const watched = new MutationObserver(mirror);
+watched.observe(document.body, { childList: true });
+['smileys', 'templates'].forEach(id => { const el = document.getElementById(id); if (el) watched.observe(el, { attributes: true, attributeFilter: ['style'] }); });
+mirror();
+
 // Échap ferme la fenêtre de Nodz ouverte au-dessus de l'univers (galerie de modèles, profil, export, smileys,
 // calendrier), comme les panneaux du Gardien ; avant, la galerie restait ouverte et couvrait le dock.
 document.addEventListener('keydown', event => {
