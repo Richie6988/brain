@@ -998,13 +998,26 @@ function navigationLabels(navigationCounters) {
     const counters = document.querySelectorAll('.counter');
     // Loop through each counter
     counters.forEach(counter => {
-        const index = ['top-left-corner', 'top-right-corner', 'bottom-left-corner'].indexOf(counter.id);
-        const value = String(navigationCounters[index === -1 ? 3 : index]);
-        const zero = value === '0';
-        if (counter.textContent === value && counter.classList.contains('counter-zero') === zero) return;  // inchangé (appelé à chaque image)
-        counter.textContent = value;
-        counter.classList.toggle('counter-zero', zero);
-        counter.parentElement.classList.toggle('counter-zero', zero);
+        if (counter.id === 'top-left-corner') {
+            counter.textContent = navigationCounters[0];
+        } else if (counter.id === 'top-right-corner') {
+            counter.textContent = navigationCounters[1];
+        } else if (counter.id === 'bottom-left-corner') {
+            counter.textContent = navigationCounters[2];
+        } else {
+            counter.textContent = navigationCounters[3];
+        }
+        const triangleContainer = counter.parentElement;
+        // Check if counter value is 0
+        if (counter.textContent.trim() === '0') {
+            // Add class to make counter transparent
+            counter.classList.add('counter-zero');
+            triangleContainer.classList.add('counter-zero');
+        } 
+        else {
+            counter.classList.remove('counter-zero');
+            triangleContainer.classList.remove('counter-zero');
+        }
     });
 }
 

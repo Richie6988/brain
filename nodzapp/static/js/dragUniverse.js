@@ -31,13 +31,12 @@ function dispatcher() {
     const links = document.querySelectorAll('.link');
     categoryCounts = [0, 0, 0, 0]; 
 
-    const onScreen = new Map();  // catégorie de chaque node, calculée une fois : chaque lien la relisait pour ses deux bouts
     nodeGroups.forEach(node => {
-        onScreen.set(node, nodeGestion (node));
+        nodeGestion (node);
     }) 
     links.forEach(link => {
         if(link.getAttribute('multiverse') !== "true"){
-            linkGestion (link, onScreen);
+            linkGestion (link);
         }        
     });
     navigationLabels(categoryCounts);
@@ -45,21 +44,21 @@ function dispatcher() {
 
 function nodeGestion (node) {
     const category = isOnScreen(node);   
-    // N'écrire que ce qui change : réécrire display, même identique, recalcule le style de tout le node à chaque image
-    const display = category !== 4 ? 'none' : 'block';
-    if (category !== 4) categoryCounts[category]++;
-    if (node.style.display !== display) node.style.display = display;
-    return category;
+    if (category !== 4) {
+        node.style.display = 'none'; 
+        categoryCounts[category]++;    
+    } else {
+        node.style.display = 'block';        
+    }
 }
 
-function linkGestion (link, onScreen) {
+function linkGestion (link) {
     const node1 = document.getElementById(link.getAttribute('Node1'));
     const node2 = document.getElementById(link.getAttribute('Node2'));
-    const category = node => onScreen.get(node) ?? isOnScreen(node);
 
-    if (category(node1) !== 4 && category(node2) !== 4 && !lineIsOnScreen(node1, node2)) {
-        if (link.style.display !== 'none') link.style.display = 'none';
-    } else if (linkState !== 2 && link.style.display !== 'block') {
+    if (isOnScreen(node1) !== 4 && isOnScreen(node2) !== 4 && !lineIsOnScreen(node1, node2)) {
+        link.style.display = 'none';
+    } else if (linkState !== 2) {
         link.style.display = 'block';
     }
 }
