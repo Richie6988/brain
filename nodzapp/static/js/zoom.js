@@ -4,6 +4,9 @@ const defaultZoom = 1;
 let currentZoom = defaultZoom;
 let prevZoom;
 const zoomStep = 0.95; 
+// Pincement : le zoom suit l'amplitude du geste (facteur exp(-deltaY x PINCH) : à 0.01, exactement l'écart des doigts,
+// comme le zoom natif du navigateur), au plus un pas de zoomStep par événement. Plus petit : moins sensible.
+const PINCH = 0.01;
 let isZooming = false;
 
 // Event listener for the wheel event (pinch-to-zoom)
@@ -14,7 +17,8 @@ svg.addEventListener('wheel', function(event) {
     const deltaX = event.deltaX;
 
     const mouse = mouseWheel(event);
-    if (deltaY === Math.round(deltaY) && (!mouse || event.shiftKey)) {
+    // Ctrl + molette sans touche Ctrl enfoncée : un pincement du trackpad, même à deltaY entier (sinon il glissait la vue)
+    if (deltaY === Math.round(deltaY) && (!mouse || event.shiftKey) && !event.ctrlKey) {
         // Two-finger movement detected (or Shift + mouse wheel)
         dragUniverse(-deltaX,-deltaY,false)
          
@@ -28,9 +32,16 @@ svg.addEventListener('wheel', function(event) {
                 zoomY = -Math.round((event.clientY - centerY) - parseFloat(root.getAttribute('y')))/currentZoom;    
                 isZooming = true;
             }  
-            // A mouse notch zooms several steps at once, a pinch one step per event
-            const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
-            for (let i = 0; i < steps; i++) zoom(event);
+            // Pincement du trackpad : Ctrl + molette envoyé par le navigateur (touche Ctrl relâchée, sinon on n'arrive pas
+            // ici), souvent avec wheelDeltaY = -120 comme un cran de souris : il zoomait de 5 % par événement, près de
+            // 7 fois le geste. Il suit maintenant les doigts. Les molettes simulées (Tab, caméra du Gardien) gardent
+            // leur pas exact : leurs boucles comptent dessus. A mouse notch zooms several steps at once.
+            if (event.ctrlKey && event.isTrusted) {
+                zoom(event, Math.min(1 / zoomStep, Math.max(zoomStep, Math.exp(-deltaY * PINCH))));
+            } else {
+                const steps = mouse ? Math.min(4, Math.max(1, Math.round(event.deltaMode === 1 ? Math.abs(deltaY) : Math.abs(deltaY) / 40))) : 1;
+                for (let i = 0; i < steps; i++) zoom(event);
+            }
         } else {
             event.stopPropagation();
         }     
@@ -61,7 +72,7 @@ function mouseWheel(event) {
     return !event.deltaX && !!notch && notch % 120 === 0 && notch !== -3 * event.deltaY;
 }
 
-function zoom(event) {  
+function zoom(event, rate) {  // rate : facteur de zoom d'un pincement ; sans lui, un pas de zoomStep
     // Get the delta value to determine the direction of the scroll (positive for zooming out, negative for zooming in)
     const delta = event.deltaY || event.detail || event.wheelDelta;
     const zoomOut = delta > 0;    
@@ -71,7 +82,9 @@ function zoom(event) {
     // areaHeight = window.innerHeight; 
 
     var prev = currentZoom;
-    if (zoomOut) {
+    if (rate) {
+        currentZoom = Math.min(maxZoom, Math.max(minZoom, currentZoom * rate)).toFixed(4);
+    } else if (zoomOut) {
         currentZoom = Math.max(minZoom, currentZoom * zoomStep).toFixed(3); // Decrease the zoom level for zooming out
     } else {
         currentZoom = Math.min(maxZoom, currentZoom / zoomStep).toFixed(3); // Increase the zoom level for zooming in 

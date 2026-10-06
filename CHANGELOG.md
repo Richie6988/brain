@@ -264,6 +264,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Ancienne flèche des liens retirée** : le curseur flèche bleu de Nodz au survol d'un lien (et son clic de voyage, qui s'ajoutait à chaque survol) apparaissait sous la nouvelle flèche de saut ; seule celle-ci reste.
 
+**Pincement qui suit les doigts** : Chrome envoie le pincement du trackpad en Ctrl + molette avec `wheelDeltaY = -120`, comme un cran de souris ; Nodz le prenait pour tel et zoomait de 5 % par événement, près de 7 fois le geste (un pincement qui divise par 2 divisait le zoom par 6,7), et un pincement à deltaY entier glissait la vue au lieu de zoomer. Le pincement (Ctrl + molette sans la touche Ctrl) zoome maintenant du facteur exp(-deltaY × 0,01), exactement l'écart des doigts (`PINCH` dans zoom.js pour le régler). Molette souris, Tab et caméra du Gardien inchangés (bancs identiques).
+
 **Dock toujours au-dessus** : la barre de boutons du bas passe devant tout le reste (nodes, flèches, pastilles, chat, cartes et fenêtres du Gardien).
 
 **Pastilles des branches repliées** : elles passaient par-dessus le profil, la galerie ou l'export ; cachées tant qu'une fenêtre de Nodz est ouverte, et en mode compact.
