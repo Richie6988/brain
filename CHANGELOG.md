@@ -264,6 +264,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Ancienne flèche des liens retirée** : le curseur flèche bleu de Nodz au survol d'un lien (et son clic de voyage, qui s'ajoutait à chaque survol) apparaissait sous la nouvelle flèche de saut ; seule celle-ci reste.
 
+**Pastilles et poignée séparées, zone de saisie à jour** : la pastille « +N » d'une branche repliée passe au coin bas-gauche du node (elle était sous la poignée de taille, au coin bas-droit). La zone de saisie allumée au survol s'éteint dès que son node quitte la carte (Suppr, menu, Gardien, rechargement) au lieu d'attendre un mouvement de souris.
+
 **Pincement : un pas à la fois, plus petit** : un pas de pincement accepté bloque les suivants tant qu'il n'est pas traité (appliqué puis affiché, `pinchBusy` dans zoom.js), et ce pas vaut 1 % : un grand geste fait un petit zoom (un pincement qui divise l'écart des doigts par deux : zoom × 0,85). Les événements en retard restent ignorés : le zoom s'arrête avec le geste.
 
 **Messages du Gardien redessinés** : une carte de verre à son nom, avec son orbe en petit qui cligne des yeux, « GARDIEN » en dégradé et un liseré de la couleur du message (violet pour le guide, vert pour les agents, bleu pour les notes, rouge pour les erreurs) vers le violet et le bleu de Nodz ; elle apparaît en montant et s'efface en douceur.

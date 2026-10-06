@@ -234,8 +234,8 @@ export function createBranches({ say }) {
             const node = byId(badge.dataset.node);
             const box = node && (node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1]).getBoundingClientRect();
             show(badge, !!box?.width);
-            // Au coin bas-droit du node : à droite au milieu, la pastille du node (Gardien, Branche) la recouvrirait.
-            if (box?.width) setStyle(badge, 'transform', `translate(${(box.right - 10).toFixed(1)}px, ${(box.bottom - 12).toFixed(1)}px)`);
+            // Au coin bas-gauche du node : le bas-droit est à la poignée de taille, la droite à la pastille du node.
+            if (box?.width) setStyle(badge, 'transform', `translate(calc(${(box.left + 10).toFixed(1)}px - 100%), ${(box.bottom - 12).toFixed(1)}px)`);
         });
         requestAnimationFrame(track);
     })();

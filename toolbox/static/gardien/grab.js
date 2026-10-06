@@ -62,4 +62,6 @@ export function createGrab() {
     svg.addEventListener('mousemove', queue);
     svg.addEventListener('mouseleave', () => { last = null; queue(); });
     svg.addEventListener('wheel', queue, { passive: true });
+    // Un node retiré (Suppr, menu, Gardien, dimension rechargée) : sa zone s'éteint sans attendre un mouvement de souris.
+    new MutationObserver(queue).observe(universe, { childList: true });
 }
