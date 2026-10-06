@@ -266,7 +266,7 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Pastilles et poignée séparées, zone de saisie à jour** : la pastille « +N » d'une branche repliée passe au coin bas-gauche du node (elle était sous la poignée de taille, au coin bas-droit). La zone de saisie allumée au survol s'éteint dès que son node quitte la carte (Suppr, menu, Gardien, rechargement) au lieu d'attendre un mouvement de souris.
 
-**Pincement : un pas à la fois, plus petit** : un pas de pincement accepté bloque les suivants tant qu'il n'est pas traité (appliqué puis affiché, `pinchBusy` dans zoom.js), et ce pas vaut 1 % : un grand geste fait un petit zoom (un pincement qui divise l'écart des doigts par deux : zoom × 0,85). Les événements en retard restent ignorés : le zoom s'arrête avec le geste.
+**Pincement en 10 niveaux** : le pincement du trackpad ne zoome plus pas à pas mais par niveaux : dix zooms, du plus loin (0,08) au plus près (8,6), chacun 1,7 fois plus proche que le précédent. Un geste fait passer au niveau voisin en un glissé de 200 ms, autour du même point que le zoom de Nodz ; le reste du geste est ignoré (un geste se termine après 150 ms sans événement), comme tout événement en retard : peu de calculs, rendu fluide, aucun reste après le geste. Molette souris, Tab et caméra du Gardien gardent leur zoom (`PINCH_LEVELS`, `PINCH_GLIDE` et `PINCH_GAP` dans zoom.js).
 
 **Messages du Gardien redessinés** : une carte de verre à son nom, avec son orbe en petit qui cligne des yeux, « GARDIEN » en dégradé et un liseré de la couleur du message (violet pour le guide, vert pour les agents, bleu pour les notes, rouge pour les erreurs) vers le violet et le bleu de Nodz ; elle apparaît en montant et s'efface en douceur.
 
