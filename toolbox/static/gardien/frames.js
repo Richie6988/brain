@@ -3,6 +3,7 @@
 // Une seule fois par image suffit : les appels d'une même image sont regroupés, juste avant qu'elle soit dessinée.
 export function createFrames() {
     const run = window.dispatcher;
+    window.dispatcherNow = run;  // tout de suite, pour qui tourne déjà juste avant l'image (lot de pincement, zoom.js)
     let pending = 0;
     window.dispatcher = () => {
         if (!pending) pending = requestAnimationFrame(() => { pending = 0; run(); });
