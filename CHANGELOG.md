@@ -264,13 +264,13 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Ancienne flèche des liens retirée** : le curseur flèche bleu de Nodz au survol d'un lien (et son clic de voyage, qui s'ajoutait à chaque survol) apparaissait sous la nouvelle flèche de saut ; seule celle-ci reste.
 
-**Pincement continu, image par image** : tant que les doigts bougent, le zoom avance d'un pas de 2 % à chaque image (60 par seconde), dans le sens du dernier événement, quel que soit le nombre d'événements reçus ; une image sans événement l'arrête net. Un seul déplacement de la vue par image, jamais de file d'attente. Molette, Tab, dispatcher et caméra du Gardien inchangés (`PINCH_STEP` dans zoom.js).
+**Pincement continu, image par image** (retiré, voir « Zoom d'origine rétabli ») : tant que les doigts bougent, le zoom avance d'un pas de 2 % à chaque image (60 par seconde), dans le sens du dernier événement, quel que soit le nombre d'événements reçus ; une image sans événement l'arrête net. Un seul déplacement de la vue par image, jamais de file d'attente. Molette, Tab, dispatcher et caméra du Gardien inchangés (`PINCH_STEP` dans zoom.js).
 
 **Univers fluide à 1000 nodes, première cause trouvée** : les règles CSS `body:has(.universe.lightmode)`, `body:has(#smileys[style*="flex"])`, `body:has(#templates[style*="flex"])` et `body:has(#loginPopup)` obligeaient Chrome à recalculer le style de toute la page à chaque `style.display` écrit par le dispatcher, donc à chaque image de déplacement ou de zoom (5000 éléments, 250 à 320 ms par image à 1000 nodes). Ces états sont maintenant des classes du body (`nz-light`, `nz-smileys`, `nz-templates`, `nz-login`). Image de déplacement à 1000 nodes : 300 → 117 ms (banc `tests/perf/thousand.mjs`, chiffres dans `docs/PERF.md`).
 
 **Dispatcher allégé, toujours synchrone** : la catégorie de chaque node (à l'écran ou dans quel coin) est calculée une fois par passe et relue par ses liens, au lieu de trois fois par lien ; `display` des nodes et des liens et les compteurs de coin ne sont réécrits que s'ils changent ; le repère de l'écran est lu une fois par passe. Un pas de zoom ne lance plus qu'une passe au lieu de deux. Dispatcher à 1000 nodes : 41 → 30 ms par image de déplacement, 88 → 31 ms par pas de zoom.
 
-**Pincement sous Windows** : un pincement du trackpad dont le `deltaY` est entier (Brave, Chrome sous Windows) était pris pour un glissé à deux doigts et déplaçait la vue ; tout Ctrl + molette venant du navigateur zoome désormais.
+**Pincement sous Windows** (retiré, voir « Zoom d'origine rétabli ») : un pincement du trackpad dont le `deltaY` est entier (Brave, Chrome sous Windows) était pris pour un glissé à deux doigts et déplaçait la vue ; tout Ctrl + molette venant du navigateur zoome désormais.
 
 **Node léger** : un node texte passe de 33 à 11 éléments dans la page.
 - L'iframe d'aperçu de fichier n'entre dans le DOM qu'au premier fichier (`previewOf(node)`). Une iframe branchée est un document entier, avec son propre contexte JS, qui suit le cycle de rendu à chaque image, même masquée.
@@ -279,6 +279,8 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 - Les index d'enfants d'origine sont conservés dès que ces parties existent.
 
 À 1000 nodes : chargement 14,3 → 2,3 s, tas JS 361 → 10 Mo, 1000 iframes → 0, image de déplacement 100 → 67 ms en rendu logiciel.
+
+**Zoom d'origine rétabli** : `zoom.js` revient octet pour octet à sa version d'origine. Chaque événement de pincement fait un pas de 5 %, et la molette fait plusieurs crans. Le pincement image par image et la correction Windows à `deltaY` entier sont retirés. Les gains de fluidité restent, car ils ne touchent pas au geste : classes du body à la place de `body:has()`, node léger, dispatcher allégé. Le premier des deux déplacements d'un pas de zoom ne relance pas le dispatcher.
 
 **Zoom en un seul déplacement** : les pas d'un geste de pincement (14) ou d'un cran de molette (3) s'appliquent d'un coup à la valeur du zoom, puis la vue se déplace et les nodes à l'écran se recalculent une seule fois, au lieu d'une fois par pas (28 recalculs de toute la carte pour un pincement). Même zoom et même position au pixel près ; sur la dimension Gardien, un pincement passe de 60 à 6 ms de calcul.
 
