@@ -44,6 +44,7 @@ body:has(.universe.lightmode) {
     padding: 0 10px; gap: 2px; justify-content: center; bottom: 14px;
     background: rgba(5, 12, 23, 0.72); border: 1px solid var(--nz-line); border-radius: 14px;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: none;
+    z-index: 70;  /* toujours au-dessus : nodes, flèches, pastilles, chat, cartes et fenêtres du Gardien */
 }
 
 /* Son et Export perdent la classe menuBtn quand Nodz change leur état (className = 'soundon', 'save'…) :

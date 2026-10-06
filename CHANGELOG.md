@@ -260,9 +260,11 @@ Ce qui a changé pour l'utilisateur : sur `/next`, une barre en bas de l'écran 
 
 **Visite** : chaque flèche posée sur son lien, dans sa direction exacte (liens presque parallèles : la suivante recule le long du sien).
 
-**Pincement fluide** : le dispatcher de Nodz réécrivait à chaque image l'affichage de chaque node et lien et les quatre compteurs de coin, même inchangés, ce qui recalculait le style de toute la carte (25 ms par image à 300 nodes). Il n'écrit plus que ce qui change ; les pas d'un pincement reçus pendant une image s'appliquent d'un seul coup (même zoom, arrondis compris). Pincement à 300 nodes : image médiane de 33-50 ms à 16,7 ms, recalcul de style presque divisé par deux. Un cran de molette zoome de 4 pas au lieu de 3.
+**Pincement fluide** : le dispatcher de Nodz réécrivait à chaque image l'affichage de chaque node et lien et les quatre compteurs de coin, même inchangés, ce qui recalculait le style de toute la carte (25 ms par image à 300 nodes). Il n'écrit plus que ce qui change (recalcul de style presque divisé par deux à 300 nodes). Le regroupement des pas d'un pincement par image, essayé en même temps, est retiré : il décalait d'une image l'affichage des nodes qui entrent à l'écran et dégradait la sensation ; le zoom est celui d'origine (cran de molette à 3 pas).
 
 **Ancienne flèche des liens retirée** : le curseur flèche bleu de Nodz au survol d'un lien (et son clic de voyage, qui s'ajoutait à chaque survol) apparaissait sous la nouvelle flèche de saut ; seule celle-ci reste.
+
+**Dock toujours au-dessus** : la barre de boutons du bas passe devant tout le reste (nodes, flèches, pastilles, chat, cartes et fenêtres du Gardien).
 
 **Pastilles des branches repliées** : elles passaient par-dessus le profil, la galerie ou l'export ; cachées tant qu'une fenêtre de Nodz est ouverte, et en mode compact.
 
