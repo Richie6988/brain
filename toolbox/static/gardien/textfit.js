@@ -4,13 +4,17 @@
 // Ici, dès que le texte d'un node déborde (après la frappe, au chargement, après un changement de police), le node
 // grandit juste assez : la largeur garde le mot le plus long entier, puis la plus petite forme qui contient tout le
 // texte (un rond : son carré inscrit ; un rectangle : plus large que haut). Jamais plus petit qu'avant : la taille
-// choisie à la main reste. Un rectangle étiré à la main (ratio) garde ses proportions.
+// choisie à la main reste. Un rectangle vise 1,6 de large pour 1 de haut ; un mot plus large que WORD (JSON, adresse)
+// se coupe au lieu de laisser le node étroit, le texte coupé lettre à lettre et rogné. Un rectangle étiré à la main
+// (ratio) garde ses proportions et grandit à proportions égales jusqu'à contenir son texte.
 
 const STEP = 1.12;     // largeurs essayées : +12 % à chaque pas
 const LIMIT = 1600;    // largeur au plus
 const PAD = 8;         // marge autour du texte
+const WORD = 600;      // largeur au-delà de laquelle un mot trop long se coupe
 
-const textNode = node => node.getAttribute('type') === 'text' && !(node.getAttribute('shape') === 'square' && parseFloat(node.getAttribute('ratio')) > 0);
+const textNode = node => node.getAttribute('type') === 'text';
+const stretched = node => node.getAttribute('shape') === 'square' && parseFloat(node.getAttribute('ratio')) > 0;
 
 const candidate = node => node.isConnected && textNode(node) && !node.classList.contains('gardien-folded')
     && Boolean(node.children[0]?.children[0]?.textContent.trim());
@@ -46,12 +50,25 @@ export function fit(node) {
         input.style.overflowWrap = '';
         return false;
     }
+    // Un mot plus large que WORD : la recherche se fait texte coupé (retour à la ligne normal du node).
+    const breaks = !measure(Math.max(width, WORD)).wide;
+    input.style.overflowWrap = breaks ? '' : 'normal';
+    const fits = w => { const m = measure(w); if (breaks) m.wide = true; return m; };
+    if (stretched(node)) {  // à proportions égales, jusqu'à contenir le texte
+        const ratio = parseFloat(node.getAttribute('ratio'));
+        let area = width * height;
+        for (let k = 0; k < 40 && fits(Math.sqrt(area * ratio)).h > Math.sqrt(area / ratio) + PAD; k++) area *= STEP * STEP;
+        restore();
+        if (area === width * height) return false;
+        nodeSizing(node, Math.sqrt(area * ratio), Math.sqrt(area / ratio));
+        return true;
+    }
     const square = node.getAttribute('shape') === 'square';
     // Rond : le côté du carré inscrit (max de largeur et hauteur) ; rectangle : plutôt large que haut.
     const cost = m => (square ? Math.max(m.w, m.h * 1.6) : Math.max(m.w, m.h));
     let best = null;
     for (let w = Math.max(width, 40); w <= LIMIT; w *= STEP) {
-        const m = measure(w);
+        const m = fits(w);
         if (m.wide && (!best || cost(m) < cost(best))) best = m;
         if (m.wide && m.h <= m.w * (square ? 0.62 : 1)) break;  // au-delà, la forme ne fait que s'élargir
     }
