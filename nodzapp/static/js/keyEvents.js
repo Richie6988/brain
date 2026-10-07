@@ -744,12 +744,14 @@ function createLink(nodeGroup1, nodeGroup2,id) {
     const x2 = endpoint2.x;
     const y2 = endpoint2.y;
 
-    // Set link attributes
+    // Set link attributes (same tiny offset as updateLink: a perfectly horizontal or vertical line has an empty
+    // bounding box, and its objectBoundingBox gradient stroke is then not drawn at all)
+    const offset = 0.01;
     link.setAttribute('id', linkID);
-    link.setAttribute('x1', x1);
-    link.setAttribute('y1', y1);
-    link.setAttribute('x2', x2);
-    link.setAttribute('y2', y2);
+    link.setAttribute('x1', x1 + offset);
+    link.setAttribute('y1', y1 + offset);
+    link.setAttribute('x2', x2 - offset);
+    link.setAttribute('y2', y2 - offset);
     link.setAttribute('Node1', nodeGroup1.getAttribute('id'));
     link.setAttribute('Node2', nodeGroup2.getAttribute('id'));
     link.setAttribute('layer', layerNumber);
