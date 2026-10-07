@@ -52,6 +52,7 @@ class NodzUser(AbstractUser):
     premium_date = models.DateTimeField(null=True, blank=True)
     premium_type = models.CharField(max_length=2, null=True, blank=True)
     premium_days = models.IntegerField(default=0)
+    premium_until = models.DateTimeField(null=True, blank=True)  # fin du Premium offert par parrainage (toolbox/premium.py)
 
     verifcode = models.IntegerField(default=0)
     referrer = models.IntegerField(default=0)
@@ -189,6 +190,21 @@ class Template(models.Model):
     class Meta:
         ordering = ['user', 'template_id']
         unique_together = ('user', 'template_id') 
+
+
+class ContactMessage(models.Model):
+    """Message du formulaire de contact (page publique, sans compte) : lu et suivi dans l'admin Django."""
+    name = models.CharField(max_length=100)
+    email = models.EmailField()
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    handled = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.name} <{self.email}>'
 
 
 class Feedback(models.Model):

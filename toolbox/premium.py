@@ -12,6 +12,7 @@ réveillent), un e-mail le dit. Chaque changement d'état n'a lieu qu'une fois :
 
 import logging
 import re
+from datetime import timedelta
 
 import stripe
 from django.conf import settings
@@ -24,6 +25,8 @@ from .models import Agent, LocalModel, Preference
 logger = logging.getLogger(__name__)
 ACTIVE = ('active', 'trialing')  # états d'abonnement qui gardent le Premium
 GUEST = re.compile(r'^guest\d+@nodz\.com$')  # comptes invités : pas d'abonnement (pas de vraie adresse)
+REFERRAL_DAYS = 30   # Premium offert au parrain par filleul inscrit
+REFERRAL_CAP = 365   # jours offerts devant soi, au plus
 
 
 class PremiumError(Exception):
@@ -81,7 +84,7 @@ def _mail(user, subject, body):
         logger.exception('e-mail Premium')
 
 
-def activate(user):
+def activate(user, mail=True):
     if user.premium:
         return False
     user.premium, user.premium_date = True, timezone.now()
@@ -89,23 +92,55 @@ def activate(user):
     premium = model()
     if premium:
         Agent.objects.filter(owner=user, role=Agent.Role.ORCHESTRATOR).update(model=premium)
-    _mail(user, 'Ton Gardien Premium est actif',
-          f"Bonjour,\n\nTon abonnement Nodz Premium est actif : ton Gardien utilise maintenant {premium.label or premium.filename if premium else 'le modèle Premium'}.\n"
-          "Ouvre ton univers, il t'attend.\n\nPour gérer ou résilier ton abonnement : Agents & modèles, Mon IA.\n\nNodz")
+    if mail:
+        _mail(user, 'Ton Gardien Premium est actif',
+              f"Bonjour,\n\nTon abonnement Nodz Premium est actif : ton Gardien utilise maintenant {premium.label or premium.filename if premium else 'le modèle Premium'}.\n"
+              "Ouvre ton univers, il t'attend.\n\nPour gérer ou résilier ton abonnement : Agents & modèles, Mon IA.\n\nNodz")
     return True
 
 
-def deactivate(user):
+def deactivate(user, why="Ton abonnement Premium a pris fin"):
     if not user.premium:
         return False
     user.premium = False
     user.save(update_fields=['premium'])
     Agent.objects.filter(owner=user, model__owner=None, model__kind=LocalModel.Kind.TEXT).update(model=None)  # l'IA du serveur
-    _mail(user, 'Ton abonnement Nodz Premium est terminé',
-          "Bonjour,\n\nTon abonnement Premium a pris fin : ton Gardien s'endort, l'IA du serveur est réservée au Premium.\n"
-          "Pour le réveiller : branche ton IA par API avec ta clé, ou réabonne-toi, depuis Agents & modèles, Mon IA.\n"
+    _mail(user, 'Ton Nodz Premium est terminé',
+          f"Bonjour,\n\n{why} : ton Gardien s'endort, l'IA du serveur est réservée au Premium.\n"
+          "Pour le réveiller : branche ton IA par API avec ta clé, ou abonne-toi, depuis Agents & modèles, Mon IA.\n"
           "Ton univers, lui, reste entier et gratuit.\n\nNodz")
     return True
+
+
+def _subscribed(user):
+    return Preference.objects.filter(owner=user).exclude(stripe_subscription='').exists()
+
+
+def gift(user, days=REFERRAL_DAYS):
+    """Premium offert (parrainage) : `days` jours de plus, jamais plus de REFERRAL_CAP jours devant soi. Un abonné
+    Stripe garde son abonnement ; les jours offerts prennent le relais s'il le résilie."""
+    now = timezone.now()
+    start = max(now, user.premium_until or now)
+    user.premium_until = min(start + timedelta(days=days), now + timedelta(days=REFERRAL_CAP))
+    user.save(update_fields=['premium_until'])
+    until = timezone.localtime(user.premium_until).strftime('%d/%m/%Y')
+    if activate(user, mail=False):
+        _mail(user, 'Un ami t\'offre Nodz Premium',
+              f"Bonjour,\n\nUn ami a créé son compte Nodz avec ton lien de parrainage : tu as Nodz Premium jusqu'au {until}.\n"
+              "Chaque nouvel ami inscrit t'offre un mois de plus.\n\nNodz")
+    else:
+        _mail(user, 'Un mois de Nodz Premium en plus',
+              f"Bonjour,\n\nUn ami a créé son compte avec ton lien de parrainage : ton Premium offert court jusqu'au {until}.\n\nNodz")
+    return user.premium_until
+
+
+def expire(user):
+    """Fin du Premium offert à son échéance, sauf si un abonnement Stripe prend le relais."""
+    if not (user.premium and user.premium_until and user.premium_until < timezone.now()) or _subscribed(user):
+        return False
+    user.premium_until = None
+    user.save(update_fields=['premium_until'])
+    return deactivate(user, why='Ton Premium offert par parrainage a pris fin')
 
 
 def handle(payload, signature):
@@ -129,5 +164,11 @@ def handle(payload, signature):
             return 'abonnement inconnu'
         if kind == 'customer.subscription.updated' and obj.get('status') in ACTIVE:
             return 'activé' if activate(pref.owner) else 'déjà actif'
+        if kind == 'customer.subscription.deleted':  # abonnement fini : plus d'abonnement à retrouver ni à respecter
+            pref.stripe_subscription = ''
+            pref.save(update_fields=['stripe_subscription'])
+        until = pref.owner.premium_until
+        if until and until > timezone.now():  # des jours offerts par parrainage restent : le Premium continue jusque-là
+            return 'abonnement terminé, Premium offert jusqu\'à son échéance'
         return 'désactivé' if deactivate(pref.owner) else 'déjà inactif'
     return 'ignoré'

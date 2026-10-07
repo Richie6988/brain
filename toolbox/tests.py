@@ -3245,3 +3245,72 @@ class QuotaTests(TestCase):
         self.assertEqual(Node.objects.filter(user=self.user).count(), 130)
         self.assertFalse(self.client.get('/api/v1/toolbox/quota').json()['limited'])
         self.assertEqual(self.client.post('/api/v1/toolbox/rooms', '{}', content_type='application/json').status_code, 200)
+
+
+class ReferralTests(TestCase):
+    """Parrainage : un filleul inscrit offre un mois de Premium au parrain, une seule fois, jamais à soi-même ni par un
+    compte invité ou ancien ; le Premium offert s'arrête à son échéance, sauf abonnement Stripe."""
+
+    def setUp(self):
+        self.sponsor = NodzUser.objects.create_user(email='parrain@nodz.local', password='pw-123456')
+        self.friend = NodzUser.objects.create_user(email='filleul@nodz.local', password='pw-123456')
+        self.client.force_login(self.friend)
+
+    def refer(self, rid):
+        return self.client.post('/referrer/', json.dumps([{'referrer': str(rid)}]), content_type='application/json')
+
+    def test_a_signup_gives_one_month_once(self):
+        from django.core import mail
+
+        self.assertEqual(self.refer(self.sponsor.id).status_code, 200)
+        self.sponsor.refresh_from_db()
+        self.assertTrue(self.sponsor.premium)
+        self.assertAlmostEqual((self.sponsor.premium_until - timezone.now()).days, 29, delta=1)
+        self.assertEqual(self.sponsor.referree_points, 1)
+        self.assertEqual(len(json.loads(self.sponsor.referrees)), 1)
+        self.assertIn('Premium', mail.outbox[-1].subject)
+        self.assertEqual(self.refer(self.sponsor.id).status_code, 400)  # un seul parrain par compte
+        self.sponsor.refresh_from_db()
+        self.assertEqual(self.sponsor.referree_points, 1)
+
+    def test_refused_for_self_guest_or_old_account(self):
+        self.assertEqual(self.refer(self.friend.id).status_code, 400)
+        NodzUser.objects.filter(pk=self.friend.pk).update(date_joined=timezone.now() - timedelta(days=3))
+        self.assertEqual(self.refer(self.sponsor.id).status_code, 400)
+        guest = NodzUser.objects.create_user(email='guest42@nodz.com', password='pw-123456')
+        self.client.force_login(guest)
+        self.assertEqual(self.refer(self.sponsor.id).status_code, 400)
+        self.sponsor.refresh_from_db()
+        self.assertEqual((self.sponsor.referree_points, self.sponsor.premium), (0, False))
+
+    def test_gifts_are_capped_at_a_year(self):
+        from . import premium
+
+        for _ in range(15):
+            premium.gift(self.sponsor)
+        self.assertLessEqual(self.sponsor.premium_until, timezone.now() + timedelta(days=365))
+
+    def test_gift_expires_unless_subscribed(self):
+        from .models import Preference
+
+        NodzUser.objects.filter(pk=self.sponsor.pk).update(premium=True, premium_until=timezone.now() - timedelta(minutes=1))
+        self.client.force_login(self.sponsor)
+        self.client.get('/api/v1/toolbox/premium')
+        self.sponsor.refresh_from_db()
+        self.assertFalse(self.sponsor.premium)
+        self.assertIsNone(self.sponsor.premium_until)
+        NodzUser.objects.filter(pk=self.sponsor.pk).update(premium=True, premium_until=timezone.now() - timedelta(minutes=1))
+        Preference.objects.update_or_create(owner=self.sponsor, defaults={'stripe_subscription': 'sub_9'})
+        self.client.get('/api/v1/toolbox/premium')
+        self.sponsor.refresh_from_db()
+        self.assertTrue(self.sponsor.premium)  # l'abonnement prend le relais
+
+    def test_contact_form_is_kept_for_the_admin_and_mailed(self):
+        from django.core import mail
+        from nodzapp.models import ContactMessage
+
+        with self.settings(CONTACT_EMAIL='contact@nodz.local'):
+            r = self.client.post('/feedback', {'name': 'Ada', 'email': 'ada@example.com', 'message': 'Bonjour'})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(ContactMessage.objects.get().email, 'ada@example.com')
+        self.assertEqual(mail.outbox[-1].to, ['contact@nodz.local'])

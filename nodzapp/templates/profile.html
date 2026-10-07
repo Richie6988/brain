@@ -148,39 +148,6 @@
     to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Flex container for the charts */
-    .charts-container {
-        position: relative;
-        height: 100%;
-    }
-
-    /* Each chart container */
-    .chart {
-        flex: 1;  /* Ensures both charts take up equal width   */
-        max-width: 69%;
-        overflow-x: auto;
-        margin-top: 10px;
-    }
-
-    /* Set equal height for both charts */
-    #nodeCategoryChart {
-    height: 100px; 
-    width: 100%;
-    }
-
-    /* Responsive behavior for smaller screens */
-    @media (max-width: 768px) {
-    .charts-container {
-        flex-direction: column;  /* Stack charts vertically on smaller screens */
-        gap: 10px;
-    }
-
-    .chart {
-        max-width: 100%;
-        max-height: 120px;
-    }
-    }
-  
     .field-container {
         display: grid;
         grid-template-columns: repeat(3, 1fr); 
@@ -266,7 +233,6 @@
                 <strong id="pf-name"></strong>
                 <small id="pf-email"></small>
             </div>
-            <span id="pf-plan" class="pf-plan"></span>
         </header>
         <!-- Onglets, comme le Guide et Agents & modèles -->
         <nav class="pf-tabs">
@@ -312,18 +278,15 @@
                 <h2 id="nodesKPI" class="message">524</h2>
                 <h2 class="message">nodes</h2>
             </div>            
-            <div class="charts-container" style="grid-column: 2;display: flex; justify-content: center;">                
-                <div class="chart">
-                    <canvas id="nodeCategoryChart"></canvas>
-                </div>
-            </div>
+            <!-- Nodes par type : une barre par type, à la proportion -->
+            <div id="pf-types" class="pf-types"></div>
         </div>
         <br>
         <div class="field-container" data-field="Referee" data-pf-tab="activite" style="display: flex; justify-content:center; gap: 20px;">
             <label class="field-label" style="position:relative;">Parrainages</label>
             <span id="referrerKPI" class="message">0</span>
             <div style="text-align: center; margin-top: 30px; display: flex; align-items: center; margin-bottom: 20px;">
-                <p>Invite d'autres personnes avec ton lien de parrainage :</p>
+                <p>Chaque ami qui crée son compte avec ton lien t'offre 1 mois de Premium (jusqu'à 12 mois d'avance).</p>
                 <button id="copyButton" 
                         class="submit-button">
                     Copier le lien
@@ -514,7 +477,7 @@
         //////////////////// REFERRAL PROGRAM ////////////////////
         document.getElementById("copyButton").addEventListener("click", function() {
             console.log(userID,pseudo)
-            const referralLink = `${window.location}/r-${userID}`; // Referral link to copy
+            const referralLink = `${location.origin}${NODZ_BASE}/universe/r-${userID}/`;  // la page publique du parrainage (views.referree)
         
             // Copy the referral link to clipboard
             navigator.clipboard.writeText(referralLink).then(function() {
@@ -523,7 +486,6 @@
             
             // Optionally, revert the button text after a short delay
             setTimeout(function() {
-                document.getElementById("copyButton").innerText = "Link";
                 document.getElementById("copyMessage").style.display = "none";  // Hide confirmation message
             }, 2000); // Reset after 2 seconds
             }).catch(function(error) {
@@ -532,7 +494,6 @@
         });
 
 
-        let nodeCategoryChart;
         function getProfile() {
             const data = [];      
             const csrfToken = getCookie('nodz_csrftoken');
@@ -577,8 +538,6 @@
                 document.getElementById('pf-name').textContent = pseudo;
                 document.getElementById('pf-email').textContent = email;
                 document.getElementById('pf-avatar').textContent = (pseudo || '?').trim().charAt(0).toUpperCase();
-                document.getElementById('pf-plan').textContent = premium === false ? 'Gratuit' : 'Premium';
-                document.getElementById('pf-plan').classList.toggle('premium', premium !== false);
 
                 // Select the feedback input element and apply improvements
                 var feedbackInput = document.getElementById('feedback-input');
@@ -598,72 +557,24 @@
                 feedbackInput.style.whiteSpace = 'pre-wrap'; // Handle multiple lines properly
                 feedbackInput.style.lineHeight = '1.5'; // Make text more readable
                 
-                // Pie chart for node categories
-                const pieCtx = document.getElementById('nodeCategoryChart').getContext('2d');
-                if (nodeCategoryChart) {
-                    nodeCategoryChart.destroy();  // Free up the canvas
+                // Nodes par type : une barre chacun, proportionnelle au plus fréquent ; les types absents ne s'affichent pas.
+                const p = Object.fromEntries((data.profile || []).map(x => [x.name, x.value]));
+                const types = [['Texte', p.text_nodes, '#FF9F45'], ['Image', p.image_nodes, '#4DD4C6'], ['Fichier', p.file_nodes, '#b89af2'],
+                    ['Dessin', p.sketch_nodes, '#F15BB5'], ['Code', p.code_nodes, '#33FF99']].filter(([, n]) => Number(n) > 0);
+                const most = Math.max(1, ...types.map(([, n]) => Number(n)));
+                document.getElementById('pf-types').replaceChildren(...types.map(([label, n, color]) => {
+                    const row = document.createElement('div');
+                    row.className = 'pf-type';
+                    row.innerHTML = '<span></span><i><b></b></i><em></em>';
+                    row.children[0].textContent = label;
+                    row.querySelector('b').style.cssText = `width:${(100 * Number(n) / most).toFixed(1)}%;background:${color}`;
+                    row.children[2].textContent = n;
+                    return row;
+                }));
+                document.getElementById('referrerKPI').textContent = p.referrals || 0;
+                if (p.premium_until && premium !== false) {
+                    document.getElementById('profile_plan').textContent = `Premium offert jusqu'au ${p.premium_until}`;
                 }
-                nodeCategoryChart = new Chart(pieCtx, {
-                    type: 'doughnut',  // anneau : pas de trait du centre quand une seule catégorie
-                    data: {
-                        labels: ['Texte', 'Image', 'Fichiers', 'Dessin'],  // Node categories
-                        datasets: [{
-                            data: [text_nodes, image_nodes, file_nodes, sketch_nodes],  
-                            backgroundColor: [
-                                'rgba(255, 159, 64, 0.7)',  // Text - Warm Orange
-                                'rgba(75, 192, 192, 0.7)',  // Image - Soft Teal
-                                'rgba(153, 102, 255, 0.7)',  // Files - Purple
-                                'rgba(255, 99, 132, 0.7)'   // Sketch - Light Pink
-                            ],
-                            borderColor: [
-                                'rgba(255, 159, 64, 1)',  // Text - Warm Orange Border
-                                'rgba(75, 192, 192, 1)',  // Image - Soft Teal Border
-                                'rgba(153, 102, 255, 1)', // Files - Purple Border
-                                'rgba(255, 99, 132, 1)'   
-                            ],
-                            borderWidth: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        cutout: '62%',
-                        animation: {
-                            animateScale: true, // Animates scaling of pie chart on load
-                            animateRotate: true // Animates rotation of pie chart on load
-                        },
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                                labels: {
-                                    color: '#a89cc4',
-                                    usePointStyle: true,  // Use point style for better clarity
-                                    font: {
-                                        size: 14,  // Modern font size for clarity
-                                        family: "'Cascadia Code', monospace"  // Use a modern font family
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.7)',  // Dark tooltip background
-                                titleFont: {
-                                    size: 16, 
-                                    family: "'Cascadia Code', monospace"
-                                },
-                                bodyFont: {
-                                    size: 14,  
-                                    family: "'Cascadia Code', monospace"
-                                },
-                                callbacks: {
-                                    label: function(tooltipItem) {
-                                        return tooltipItem.raw + ' nodes';
-                                    }
-                                }
-                            },
-                        }
-                    }
-                });
-
-                
             }).catch(error => {
                 console.error('There was a problem with getting profile:', error);
             });

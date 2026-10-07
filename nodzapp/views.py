@@ -1,5 +1,5 @@
 from django.shortcuts import render, HttpResponse
-from nodzapp.models import NodzUser, Param, Layer, Node, Link, Template, Feedback
+from nodzapp.models import NodzUser, Param, Layer, Node, Link, Template, Feedback, ContactMessage
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.decorators import login_required
 import re
@@ -777,6 +777,9 @@ def get_profile(request):
         formatted_profile.append({'name':'image_nodes', 'value': Node.objects.filter(user=user,type='image',archive=False).count()})
         formatted_profile.append({'name':'file_nodes', 'value': Node.objects.filter(user=user,type='file',archive=False).count()})
         formatted_profile.append({'name':'sketch_nodes', 'value': Node.objects.filter(user=user,type='canvas',archive=False).count()})
+        formatted_profile.append({'name':'code_nodes', 'value': Node.objects.filter(user=user,type='code',archive=False).count()})
+        formatted_profile.append({'name':'referrals', 'value': user.referree_points})
+        formatted_profile.append({'name':'premium_until', 'value': user.premium_until.strftime('%d/%m/%Y') if user.premium_until else ''})
         data = {
             'profile': formatted_profile,   
         }
@@ -1247,54 +1250,38 @@ def referree(request, r_id):
 
 from datetime import date
 def referrer(request):
-    if request.method == 'POST':    
-        user = request.user
-        try:
-            json_data = json.loads(request.body)
-            logger.debug(f'Received JSON data: {json_data}')  # Log the JSON data
-
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON data'}, status=400)
-
-        # Save data to the database
-        for group_data in json_data:
-            
-            if 'referrer' in group_data:
-
-                referrer_id = group_data['referrer']
-                print(user.id,referrer_id)
-                # Validate referrer_id
-                if not referrer_id or not referrer_id.isdigit():
-                    return JsonResponse({"error": "Invalid referrer ID"}, status=400)
-
-                # Get user & referrer safely
-                referree = get_object_or_404(NodzUser, id=user.id)
-                referrer = get_object_or_404(NodzUser, id=int(referrer_id))
-
-                if referree and referrer:
-                    referree.referrer = referrer_id
-                    referrer.referree_points += 1
-
-                    try:
-                        json_data = json.loads(referrer.referrees) if referrer.referrees else []
-                    except json.JSONDecodeError:
-                        json_data = []
-            
-                    if not isinstance(json_data, list):
-                        json_data = []
-                    
-                    if json_data:
-                        today = date.today() 
-                        json_data.append({str(today): str(referree.id)})
-
-                    # Save the updated JSON back to the database
-                    referrer.referrees = json.dumps(json_data)  
-                    referrer.save()  
-                    referree.save()  
-
-                    return JsonResponse({"message": "Referrer updated successfully!"})
-
-    return JsonResponse({"error": "Invalid request"}, status=400)
+    """Le filleul vient de créer son compte avec le lien d'un parrain (/universe/r-<id>/) : un seul parrain par compte,
+    pas soi-même, pas un compte invité, et seulement dans le jour de l'inscription. Le parrain gagne un mois de
+    Premium (toolbox/premium.py gift)."""
+    from toolbox import premium
+    if request.method != 'POST' or not request.user.is_authenticated:
+        return JsonResponse({'error': 'Invalid request'}, status=400)
+    try:
+        json_data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    referrer_id = next((str(g.get('referrer')) for g in json_data if isinstance(g, dict) and 'referrer' in g), '') if isinstance(json_data, list) else ''
+    if not referrer_id.isdigit():
+        return JsonResponse({'error': 'Invalid referrer ID'}, status=400)
+    referree = request.user
+    if (referree.referrer or int(referrer_id) == referree.id or premium.GUEST.match(referree.email or '')
+            or not referree.date_joined or timezone.now() - referree.date_joined > timedelta(days=1)):
+        return JsonResponse({'error': 'Parrainage refusé'}, status=400)
+    referrer = get_object_or_404(NodzUser, id=int(referrer_id))
+    try:
+        sponsored = json.loads(referrer.referrees) if referrer.referrees else []
+    except json.JSONDecodeError:
+        sponsored = []
+    sponsored = sponsored if isinstance(sponsored, list) else []
+    sponsored.append({str(date.today()): str(referree.id)})
+    referree.referrer = referrer.id
+    referree.save(update_fields=['referrer'])
+    referrer.referree_points += 1
+    referrer.referrees = json.dumps(sponsored)
+    referrer.save(update_fields=['referree_points', 'referrees'])
+    if not premium.GUEST.match(referrer.email or ''):
+        premium.gift(referrer)
+    return JsonResponse({'message': 'Referrer updated successfully!'})
      
 
 
@@ -1322,19 +1309,20 @@ def feedback(request):
             email = form.cleaned_data['email']
             message = form.cleaned_data['message']
 
-            # Send email
+            # Gardé dans l'admin Django (Contact messages), puis signalé par e-mail à CONTACT_EMAIL
+            ContactMessage.objects.create(name=name, email=email, message=message)
             try:
                 send_mail(
                     f"New Contact Form Message from {name}",
                     f"Name: {name}\nEmail: {email}\nMessage: {message}",
                     settings.DEFAULT_FROM_EMAIL,
-                    ['recipient-email@example.com'],  # Change this to your own email address
+                    [settings.CONTACT_EMAIL],
                     fail_silently=False,
                 )
-                messages.success(request, "Your message has been sent successfully!")
-                return redirect('contact')
-            except Exception as e:
-                messages.error(request, f"Error: {e}")
+            except Exception:  # un serveur de courrier en panne : le message reste dans l'admin
+                logger.exception('e-mail du formulaire de contact')
+            messages.success(request, "Your message has been sent successfully!")
+            return redirect('contact')
         else:
             messages.error(request, "There was an error with your form.")
     else:

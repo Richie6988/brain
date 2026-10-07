@@ -311,6 +311,19 @@ Un geste finit après 150 ms sans événement.
 - **Première visite :** survol des 8 groupes (nom et rôle, 1,5 s chacun) avant le retour à Home.
 - **Salons :** le bouton Partager devient « Inviter ».
 
+**Console d'administration lisible** : même fenêtre sombre qu'Agents & modèles, sans sa barre latérale (l'en-tête tombait dans une colonne de 220 px). Tableaux sombres au texte contrasté (texte clair sur fond blanc avant), onglet actif lisible, boutons compacts sur une ligne.
+
+**Messages du Gardien en haut de l'écran** (tuto, légendes de visite, erreurs) : le dock et les nodes restent dégagés.
+
+**Profil** :
+- plus de grosse pastille « Gratuit » dans l'en-tête (elle prenait le style des cartes d'offre de l'onglet Premium) ;
+- l'activité montre une barre par type de node (texte, image, fichier, dessin, code) au lieu d'un graphique Chart.js tronqué ; Chart.js n'est plus chargé ;
+- le compteur de parrainages s'affiche enfin ; le lien copié pointe sur la bonne adresse ; l'offre affiche « Premium offert jusqu'au … ».
+
+**Parrainage récompensé** : chaque ami qui crée son compte avec ton lien t'offre 1 mois de Premium, cumulable jusqu'à 12 mois d'avance (`premium_until`, toolbox/premium.py `gift`). Le Premium offert s'arrête à son échéance (`PremiumExpiry`, vérifié à la requête), sauf si un abonnement Stripe prend le relais ; un abonnement résilié laisse courir les jours offerts. Garde-fous : un seul parrain par compte, pas soi-même, pas un compte invité, et seulement le jour de l'inscription (avant, `/referrer/` comptait des points à chaque appel, et la liste des filleuls restait vide).
+
+**Formulaire de contact relié à l'admin** : chaque message est gardé (modèle `ContactMessage`, admin Django « Contact messages », case « traité ») et signalé par e-mail à `CONTACT_EMAIL` (par défaut `DEFAULT_FROM_EMAIL`) ; avant, il partait vers une adresse d'exemple et n'était gardé nulle part. Déploiement : `python manage.py migrate` (migration nodzapp 0019).
+
 **Zoom en un seul déplacement** : les pas d'un geste de pincement (14) ou d'un cran de molette (3) s'appliquent d'un coup à la valeur du zoom, puis la vue se déplace et les nodes à l'écran se recalculent une seule fois, au lieu d'une fois par pas (28 recalculs de toute la carte pour un pincement). Même zoom et même position au pixel près ; sur la dimension Gardien, un pincement passe de 60 à 6 ms de calcul.
 
 **Zoom et dispatcher d'origine** : `zoom.js`, `dragUniverse.js` (dispatcher) et les compteurs de coin (`navigationLabels`) reviennent exactement à leur version d'avant le 5 octobre (`f461152`) : le dispatcher est de nouveau synchrone, appelé à chaque déplacement de la vue. Son report à l'image suivante (`frames.js`, introduit avec « Fluidité à plusieurs centaines de nodes »), ses écritures conditionnelles, son cache et le regroupement des événements de pincement sont retirés. Restent, sans lien avec le zoom : fond sans animation, boucles d'image sans réécriture, chargement par lot.
