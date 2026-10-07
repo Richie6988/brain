@@ -155,6 +155,28 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
         if (list.getBoundingClientRect().right > body.getBoundingClientRect().right - 8) menu.classList.add('ga-more-end');
     }, true);
     document.body.append(modal);
+    // Liens externes (Hugging Face…) ouverts dès l'appui : pendant un téléchargement la fenêtre se redessine toutes les
+    // 1,5 s, et un lien remplacé entre l'appui et le relâchement ne recevait jamais son clic. Le clic qui suit n'ouvre
+    // pas un second onglet ; Ctrl, Maj, Cmd et le clic du milieu restent au navigateur. Tant que le bouton est enfoncé,
+    // le redessin attend le relâchement (les boutons du panneau gardent aussi leurs clics).
+    let pressed = false, stale = false;
+    windowEl.addEventListener('pointerdown', event => {
+        pressed = true;
+        const link = event.target.closest?.('a[target="_blank"]');
+        if (!link || !/^https?:/.test(link.href) || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        window.open(link.href, '_blank', 'noopener');
+        link.dataset.opened = '1';
+    });
+    windowEl.addEventListener('click', event => {
+        const link = event.target.closest?.('a[data-opened]');
+        if (!link) return;
+        event.preventDefault();
+        delete link.dataset.opened;
+    }, true);
+    window.addEventListener('pointerup', () => {
+        pressed = false;
+        if (stale) { stale = false; render(); }
+    });
 
     const guard = () => (state.staff ? {} : { disabled: true, title: "Réservé à l'administrateur du serveur" });
     const report = error => { notice.textContent = error.message; notice.classList.add('error'); };
@@ -195,7 +217,7 @@ export function createLibrary({ onChange = () => {}, monitor = null, onOpenHome 
             ` · budget des poids ${(m.budget_mb / 1024).toFixed(1)} Go · `,
             state.engine ? 'moteur local prêt' : 'moteur local absent (requirements-ai.txt)');
         readOnly.hidden = state.staff;
-        render();
+        if (pressed) stale = true; else render();
         onChange(state);
         clearTimeout(poll);
         if (!modal.hidden && models.some(x => x.status === 'downloading')) poll = setTimeout(() => refresh().catch(report), 1500);
