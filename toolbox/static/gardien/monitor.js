@@ -5,13 +5,14 @@
 // seule la pastille se voit, et un clic déplie le détail (modèle, barres).
 
 import { api } from './api.js';
+import { t } from './i18n.js';
 
 const PERIOD = 3000;
-const ROWS = [['cpu', 'CPU'], ['ram', 'RAM'], ['gpu', 'GPU'], ['vram', 'VRAM'], ['disk', 'Disque']];
+const ROWS = [['cpu', 'CPU'], ['ram', 'RAM'], ['gpu', 'GPU'], ['vram', 'VRAM'], ['disk', t('mon.disk')]];
 const SHORT = { cpu: 'CPU', ram: 'RAM', gpu: 'GPU', vram: 'VRAM', disk: 'DSK' };
 const ARC = 2 * Math.PI * 15;  // périmètre de l'anneau (rayon 15 dans une boîte de 36)
 const level = p => (p < 60 ? 'ok' : p < 85 ? 'warn' : 'high');
-const go = mb => `${(mb / 1024).toFixed(1)} Go`;
+const go = mb => `${(mb / 1024).toFixed(1)} ${t('mon.gb')}`;
 
 function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -35,7 +36,7 @@ export function createMonitor({ onSignedOut = () => {} } = {}) {
         // Stop : coupe ce que le modèle fait pour toi (demande, préchauffage, tâche de fond, mission), même hors du chat.
         const stopButton = () => {
             const stop = el('button', 'gm-stop', '■');
-            Object.assign(stop, { type: 'button', hidden: true, title: 'Arrêter le modèle : ta demande et tes tâches de fond' });
+            Object.assign(stop, { type: 'button', hidden: true, title: t('mon.stop') });
             stop.addEventListener('click', event => {
                 event.stopPropagation();  // l'en-tête ouvre Agents & modèles, la pastille déplie le détail
                 api.request('POST', 'toolbox/command/stop').catch(() => {});
@@ -84,18 +85,18 @@ export function createMonitor({ onSignedOut = () => {} } = {}) {
 
     function paint(view, data) {
         const { cpu, ram, gpu, disk, model, broker, dispatch, engine } = data;
-        set(view.rows.cpu, cpu.percent, `${cpu.cores} cœurs · charge ${cpu.load.join(' ')}`);
+        set(view.rows.cpu, cpu.percent, t('mon.cpu', { cores: cpu.cores, load: cpu.load.join(' ') }));
         set(view.rows.ram, ram?.percent, ram ? `${go(ram.used_mb)} / ${go(ram.total_mb)}` : '');
         set(view.rows.gpu, gpu?.percent, gpu ? `${gpu.name}${gpu.temperature == null ? '' : ` · ${gpu.temperature} °C`}` : '');
         set(view.rows.vram, gpu?.vram_percent, gpu ? `${go(gpu.vram_used_mb)} / ${go(gpu.vram_total_mb)}` : '');
-        set(view.rows.disk, disk?.percent, disk ? `${disk.free_gb} Go libres sur ${disk.total_gb} Go` : '');
+        set(view.rows.disk, disk?.percent, disk ? t('mon.diskFree', { free: disk.free_gb, total: disk.total_gb }) : '');
         view.dot.className = view.pillDot.className = `gm-dot ${model ? (broker.busy ? 'busy' : 'on') : ''}`;
         view.stop.hidden = view.pillStop.hidden = !broker.busy;
-        const queue = dispatch.waiting ? ` · ${dispatch.waiting} en file` : '';  // demandes au Gardien en attente
-        view.name.textContent = model ? `${model.name}${model.api ? ' · par API' : ''}${broker.busy ? ' · au travail' : ''}${queue}`
-            : engine ? 'aucun modèle en mémoire' : 'moteur local absent';
+        const queue = dispatch.waiting ? ` · ${t('mon.queued', { n: dispatch.waiting })}` : '';  // demandes au Gardien en attente
+        view.name.textContent = model ? `${model.name}${model.api ? ` · ${t('mon.api')}` : ''}${broker.busy ? ` · ${t('mon.busy')}` : ''}${queue}`
+            : engine ? t('mon.noModel') : t('mon.noEngine');
         view.pillDot.title = view.name.textContent;
-        view.head.title = `${model?.stats ? `${model.stats.requests} requêtes depuis le chargement · ` : ''}Ouvrir Agents & modèles`;
+        view.head.title = `${model?.stats ? `${t('mon.requests', { n: model.stats.requests })} · ` : ''}${t('mon.open')}`;
         view.root.hidden = false;
         view.root.classList.remove('offline');
     }

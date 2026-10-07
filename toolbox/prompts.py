@@ -86,6 +86,13 @@ AUTOMATION = """Règles des calls (mode Automatisation) :
 - aucun agent équipé : le travail court est fait ici ; say indique comment équiper un agent.
 - langue : français, tutoiement."""
 
+def language_rule(user):
+    """Langue des réponses : le français est déjà la règle des consignes ; un compte en anglais reçoit la sienne."""
+    if getattr(user, 'language', '') == 'en':
+        return "\n- language: the person uses Nodz in English: write every reply, node and caption in English, unless asked otherwise."
+    return ''
+
+
 ROLES = {
     Agent.Role.TEXT: """Tu es le Rédacteur de l'équipage du Gardien. Tu reçois une consigne précise et tu rends
 le texte demandé, prêt à être posé dans un node de Nodz.

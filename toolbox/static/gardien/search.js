@@ -4,15 +4,16 @@
 // Échap ou un champ vidé éteint la recherche.
 
 import { api } from './api.js';
+import { t } from './i18n.js';
 
 export function createSearch({ bridge }) {
     const input = document.getElementById('semanticsearch');
     const back = document.getElementById('prevsearch');
     const ahead = document.getElementById('nextsearch');
-    input.placeholder = 'Rechercher…';
-    input.setAttribute('aria-label', 'Rechercher dans toutes les dimensions');
-    back.dataset.label = 'Précédent';
-    ahead.dataset.label = 'Suivant';
+    input.placeholder = t('search.ph');
+    input.setAttribute('aria-label', t('search.label'));
+    back.dataset.label = t('search.prev');
+    ahead.dataset.label = t('search.next');
     const count = Object.assign(document.createElement('span'), { id: 'gardien-search-count' });
     ahead.after(count);
 
@@ -74,7 +75,7 @@ export function createSearch({ bridge }) {
         if (event.key === 'Enter') {
             event.preventDefault();
             if (event.shiftKey) step(-1);
-            else find().catch(() => { count.textContent = 'recherche indisponible'; });
+            else find().catch(() => { count.textContent = t('search.down'); });
         } else if (event.key === 'Escape') {
             input.value = '';
             clear();

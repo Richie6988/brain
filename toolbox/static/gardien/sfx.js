@@ -4,6 +4,7 @@
 // 40 nodes) montent la gamme au lieu de se répéter, et restent consonantes. Seuls les gestes sonnent (l'historique
 // les signale), jamais le chargement d'une dimension ni un Ctrl+Z rejoué. Bouton du menu : effets ou silence.
 
+import { t } from './i18n.js';
 const KEY = 'gardien-sfx';
 const VOLUME = 0.22;
 const SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];  // pentatonique majeure, demi-tons
@@ -133,7 +134,7 @@ export function createSfx() {
     document.getElementById('soundButton')?.after(button);
     const show = () => {
         button.dataset.state = on ? 'on' : 'off';
-        button.title = on ? 'Effets sonores' : 'Effets coupés';
+        button.title = on ? t('sfx.on') : t('sfx.off');
     };
     button.addEventListener('click', () => {
         on = !on;

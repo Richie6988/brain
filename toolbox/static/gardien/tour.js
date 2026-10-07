@@ -9,6 +9,7 @@
 import { api } from './api.js';
 import { ARROW, overChrome } from './arrows.js';
 import { h } from './library.js';
+import { locale, t } from './i18n.js';
 
 const GAP = 0.42;  // sous cet écart (radians, ~24°), deux flèches se chevaucheraient : la seconde recule sur son lien
 const STEP = 50;   // recul d'une flèche (px)
@@ -24,20 +25,20 @@ function textOf(node) {
 function labelOf(node) {
     const text = textOf(node), type = node.getAttribute('type');
     const name = node.getAttribute('filename');
-    const kind = type === 'file' ? (name && name !== 'null' ? `Fichier · ${name}` : 'Fichier')
-        : type === 'image' ? 'Image' : type === 'canvas' ? 'Dessin' : '';
-    return [kind, text].filter(Boolean).join('\n') || '(node vide)';
+    const kind = type === 'file' ? (name && name !== 'null' ? `${t('tour.file')} · ${name}` : t('tour.file'))
+        : type === 'image' ? t('tour.image') : type === 'canvas' ? t('tour.drawing') : '';
+    return [kind, text].filter(Boolean).join('\n') || t('tour.emptyNode');
 }
-const ORIGIN = { human: 'écrit par', ai: 'créé par', message: 'message de' };
+const ORIGIN = { human: t('tour.byHuman'), ai: t('tour.byAi'), message: t('tour.byMessage') };
 const when = iso => {
     const date = new Date(iso), minutes = Math.round((Date.now() - date) / 60000);
-    if (minutes < 1) return "à l'instant";
-    if (minutes < 60) return `il y a ${minutes} min`;
-    if (minutes < 24 * 60) return `il y a ${Math.round(minutes / 60)} h`;
-    return `le ${date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })}`
-        + ` à ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    if (minutes < 1) return t('time.now');
+    if (minutes < 60) return t('time.ago', { span: `${minutes} min` });
+    if (minutes < 24 * 60) return t('time.ago', { span: `${Math.round(minutes / 60)} h` });
+    return t('time.onAt', { date: date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }),
+        time: date.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) });
 };
-const short = (text, n = 70) => (text.length > n ? `${text.slice(0, n - 1)}…` : text) || '(node vide)';
+const short = (text, n = 70) => (text.length > n ? `${text.slice(0, n - 1)}…` : text) || t('tour.emptyNode');
 
 const parse = raw => {
     try {
@@ -93,15 +94,15 @@ export function createTour({ bridge, say }) {
     // meta : traçabilité (route toolbox/nodes/meta) ; arrows : flèches du node central.
     const state = { trail: [], seen: new Set(), info: new Map(), meta: new Map(), arrows: [], hover: null, moving: false, run: 0 };
 
-    const crumbs = h('nav', { class: 'gt-crumbs', 'aria-label': 'Chemin parcouru' });
+    const crumbs = h('nav', { class: 'gt-crumbs', 'aria-label': t('tour.trail') });
     const swatch = h('span', { class: 'gt-swatch' });
     const tag = h('small', { class: 'gt-tag' });
     const heading = h('b', { class: 'gt-title' });
     const body = h('span', { class: 'gt-body' });
     const meta = h('p', { class: 'gt-meta' });
-    const back = h('button', { type: 'button', class: 'gt-back', title: 'Revenir au node précédent (Retour arrière)', onclick: previous }, '⟲');
-    const quit = h('button', { type: 'button', class: 'gt-quit', title: 'Quitter la visite (Échap)', onclick: stop }, '✕');
-    const card = h('section', { id: 'gardien-tour', hidden: true, role: 'region', 'aria-label': 'Visite' },
+    const back = h('button', { type: 'button', class: 'gt-back', title: t('tour.back'), onclick: previous }, '⟲');
+    const quit = h('button', { type: 'button', class: 'gt-quit', title: t('tour.quit'), onclick: stop }, '✕');
+    const card = h('section', { id: 'gardien-tour', hidden: true, role: 'region', 'aria-label': t('tour.label') },
         h('header', {}, crumbs, back, quit),
         h('div', { class: 'gt-current' }, swatch, h('span', { class: 'gt-text' }, tag, heading, body)), meta);
     const ring = h('div', { id: 'gardien-arrows', hidden: true });
@@ -153,16 +154,16 @@ export function createTour({ bridge, say }) {
         swatch.style.background = color;
         card.style.setProperty('--c', color);
         card.classList.toggle('preview', Boolean(state.hover));
-        tag.textContent = state.hover ? (step.layer !== here().layer ? `Portail · ${layerName(step.layer)}` : state.seen.has(step.id) ? 'Déjà vu' : 'Destination')
-            : `Ici · ${layerName(step.layer)}`;
+        tag.textContent = state.hover ? (step.layer !== here().layer ? `${t('tour.portal')} · ${layerName(step.layer)}` : state.seen.has(step.id) ? t('tour.seen') : t('tour.dest'))
+            : `${t('tour.here')} · ${layerName(step.layer)}`;
         const [first = '', ...rest] = label(step).split('\n');
         heading.textContent = short(first, 90);
         body.textContent = rest.length ? short(rest.join(' · '), 220) : '';
         const facts = state.meta.get(step.id);
         meta.replaceChildren(...(facts ? [
-            h('span', { class: `gt-origin ${facts.origin}` }, `${ORIGIN[facts.origin] || 'par'} ${facts.author}`),
-            h('span', {}, `créé ${when(facts.created)}`),
-            ...(Math.abs(new Date(facts.modified) - new Date(facts.created)) > 60000 ? [h('span', {}, `modifié ${when(facts.modified)}`)] : []),
+            h('span', { class: `gt-origin ${facts.origin}` }, `${ORIGIN[facts.origin] || t('tour.by')} ${facts.author}`),
+            h('span', {}, t('fx.createdAgo', { ago: when(facts.created) })),
+            ...(Math.abs(new Date(facts.modified) - new Date(facts.created)) > 60000 ? [h('span', {}, t('fx.modifiedAgo', { ago: when(facts.modified) }))] : []),
         ] : []));
         back.disabled = state.trail.length < 2;
         // Chemin : les derniers pas, chacun cliquable (on y revient, la suite du chemin est coupée).
@@ -172,7 +173,7 @@ export function createTour({ bridge, say }) {
             const crumb = h('button', { type: 'button', class: index === state.trail.length - 1 ? 'on' : '', title: label(n), onclick: () => jump(index) }, short(label(n).split('\n')[0], 18));
             crumb.style.setProperty('--c', colorOf(n.id));
             const crossed = index > 0 && state.trail[index - 1].layer !== n.layer;  // passage d'un portail
-            return crossed ? [h('span', { class: 'gt-portal', title: `Portail vers ${layerName(n.layer)}` }, '⟿'), crumb] : [crumb];
+            return crossed ? [h('span', { class: 'gt-portal', title: t('tour.portalTo', { name: layerName(n.layer) }) }, '⟿'), crumb] : [crumb];
         }));
     }
 
@@ -194,7 +195,7 @@ export function createTour({ bridge, say }) {
         trace([node.id, ...steps.filter(s => s.layer === layerNumber).map(s => s.id)]);
         state.arrows = steps.map(step => {
             const button = h('button', { type: 'button', class: ['gt-arrow', step.portal ? 'portal' : '', state.seen.has(step.id) ? 'seen' : '',
-                step.id === came?.id ? 'came' : ''].filter(Boolean).join(' '), 'aria-label': `Aller à : ${short(label(step), 60)}` });
+                step.id === came?.id ? 'came' : ''].filter(Boolean).join(' '), 'aria-label': t('tour.goTo', { text: short(label(step), 60) }) });
             button.innerHTML = ARROW;
             if (step.portal && step.layer !== layerNumber) button.append(h('span', {}, `⟿ ${short(layerName(step.layer), 16)}`));
             button.style.setProperty('--c', colorOf(step.id));
@@ -250,7 +251,7 @@ export function createTour({ bridge, say }) {
         release();
         document.dispatchEvent(new MouseEvent('mouseup'));
         if (step.layer !== layerNumber) {
-            say(`Portail : je passe dans « ${layerName(step.layer)} »`, 'guide');
+            say(t('tour.crossing', { name: layerName(step.layer) }), 'guide');
             await bridge.enter(step.layer);
             if (run !== state.run) return;
         }
@@ -258,7 +259,7 @@ export function createTour({ bridge, say }) {
         if (!node) {
             state.moving = false;
             ring.replaceChildren();
-            heading.textContent = 'Ce node n\'existe plus : ⟲ pour revenir';
+            heading.textContent = t('tour.gone');
             return;
         }
         remember(node);

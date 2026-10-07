@@ -1030,6 +1030,10 @@ body.nz-light .node-group[type=code] .node-text-input pre.code-output { color: #
 .gg-tabs button { padding: 6px 14px; white-space: nowrap; color: #94a3b8; background: none; border: 0; border-radius: 999px; transition: color 0.15s, background 0.15s; }
 .gg-tabs button:hover { color: #eef2ff; }
 .gg-tabs button[aria-selected=true] { color: #050c17; background: var(--gg-accent); font-weight: 600; }
+.gg-lang, .nz-lang { display: flex; margin-left: auto; padding: 2px; border-radius: 999px; border: 1px solid rgba(184, 154, 242, 0.2); }
+.gg-lang button, .nz-lang button { padding: 3px 9px; font-size: 11px !important; color: #94a3b8; background: none; border: 0; border-radius: 999px; cursor: pointer; }
+.gg-lang button:hover, .nz-lang button:hover { color: #eef2ff; }
+.gg-lang button.on, .nz-lang button.on { color: #050c17; background: var(--gg-accent, #b89af2); font-weight: 700; }
 .gg-x { position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; color: #94a3b8; background: none; border: 0; border-radius: 50%; font-size: 18px !important; line-height: 1; }
 .gg-x:hover { color: #eef2ff; background: rgba(255, 255, 255, 0.08); }
 .gg-panel { overflow-y: auto; min-height: 0; }

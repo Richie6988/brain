@@ -8,8 +8,9 @@
 
 import { FORMATS, forest } from './branches.js';
 import { describe, download, stamp, toCsv } from './dataset.js';
+import { t } from './i18n.js';
 
-const SCOPES = [['selection', 'Sélection'], ['dimension', 'Dimension'], ['filters', 'Filtres']];
+const SCOPES = [['selection', t('pill.pick')], ['dimension', t('xx.dimension')], ['filters', t('fx.filters')]];
 
 export function createExchange({ dataset, filters }) {
     let scope = 'dimension', bypass = false;
@@ -19,20 +20,19 @@ export function createExchange({ dataset, filters }) {
         return el;
     };
     const panel = make('section', { id: 'gardien-exchange', hidden: true });
-    panel.setAttribute('aria-label', 'Importer / Exporter');
-    const close = make('button', { type: 'button', className: 'gxx-x', title: 'Fermer (Échap)', textContent: '×', onclick: () => toggle(false) });
-    const pick = make('button', { type: 'button', className: 'gxx-primary', textContent: 'Choisir un fichier…',
+    panel.setAttribute('aria-label', t('xx.title'));
+    const close = make('button', { type: 'button', className: 'gxx-x', title: t('fx.close'), textContent: '×', onclick: () => toggle(false) });
+    const pick = make('button', { type: 'button', className: 'gxx-primary', textContent: t('xx.pick'),
         onclick: () => { toggle(false); dataset.pick(); } });
     const scopes = make('div', { className: 'gxx-seg', role: 'group' });
     const formats = make('div', { className: 'gxx-formats' });
     const note = make('p', { className: 'gxx-note' });
     panel.append(
-        make('header', {}, make('b', { textContent: 'Importer / Exporter' }), close),
-        make('h4', { textContent: 'Importer' }),
-        make('p', { className: 'gxx-note', textContent: 'Une carte (Markdown, texte indenté, OPML, FreeMind, XMind) se pose en arbre ; '
-            + 'un tableau (CSV, TSV, JSON, Excel) : une ligne = un node, rangés par groupe. Dans la dimension ouverte.' }),
+        make('header', {}, make('b', { textContent: t('xx.title') }), close),
+        make('h4', { textContent: t('xx.import') }),
+        make('p', { className: 'gxx-note', textContent: t('xx.importNote') }),
         pick,
-        make('h4', { textContent: 'Exporter' }),
+        make('h4', { textContent: t('xx.export') }),
         scopes, formats, note);
     document.body.append(panel);
 
@@ -64,18 +64,18 @@ export function createExchange({ dataset, filters }) {
         scopes.replaceChildren(...SCOPES.map(([key, label]) => {
             const count = key === 'selection' ? ` (${selection().length})` : '';
             const b = make('button', { type: 'button', textContent: label + count, disabled: !available(key),
-                title: key === 'filters' ? 'Les nodes cochés dans les Filtres, sinon ceux qu\'ils gardent, de toutes les dimensions (CSV)' : '',
+                title: key === 'filters' ? t('xx.filtersTitle') : '',
                 onclick: () => { scope = key; render(); } });
             b.classList.toggle('on', key === scope);
             return b;
         }));
         const tree = scope !== 'filters';  // les arbres se lisent dans la dimension ouverte ; les filtres traversent les dimensions
         formats.replaceChildren(
-            make('button', { type: 'button', textContent: 'CSV', title: 'Tableau : texte, type, couleur, position, rappel, liens', onclick: () => save('csv') }),
+            make('button', { type: 'button', textContent: 'CSV', title: t('xx.csvTitle'), onclick: () => save('csv') }),
             ...FORMATS.map(([label, ext]) => make('button', { type: 'button', textContent: label, disabled: !tree,
-                title: `Carte en arbre (.${ext}) : XMind, MindNode, MindMeister, Obsidian…`, onclick: () => save(ext) })),
-            make('button', { type: 'button', textContent: 'PDF', disabled: scope === 'filters', title: 'Le PDF de Nodz (sélection ou dimension)', onclick: pdf }));
-        note.textContent = scope === 'filters' ? 'Les filtres traversent les dimensions : seul le CSV les exporte.' : '';
+                title: t('xx.treeTitle', { ext }), onclick: () => save(ext) })),
+            make('button', { type: 'button', textContent: 'PDF', disabled: scope === 'filters', title: t('xx.pdfTitle'), onclick: pdf }));
+        note.textContent = scope === 'filters' ? t('xx.filtersNote') : '';
     }
 
     function toggle(on = panel.hidden) {
@@ -85,7 +85,7 @@ export function createExchange({ dataset, filters }) {
 
     // Son libellé dit ce qu'il fait (Nodz y affichait « Save » en invité, « Export » sinon).
     const tooltip = window.createTooltip;
-    window.createTooltip = (id, text) => tooltip(id, id === 'exportButton' ? 'Importer / Exporter' : text);
+    window.createTooltip = (id, text) => tooltip(id, id === 'exportButton' ? t('xx.title') : text);
 
     // Le bouton Export du dock ouvre ce panneau à la place de l'ancienne fenêtre de Nodz (gardée pour le PDF).
     document.addEventListener('mousedown', event => {

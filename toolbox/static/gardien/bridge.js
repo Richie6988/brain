@@ -7,6 +7,7 @@
 import { endpoint } from './api.js';
 import { breathe } from './bulk.js';
 import { dragging } from './gesture.js';
+import { t } from './i18n.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -457,11 +458,11 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             const pill = document.createElement('div');
             pill.id = 'gardien-send';
             pill.hidden = true;
-            pill.innerHTML = '<button type="button" class="send"><span class="gt-orb" aria-hidden="true"><i></i><i></i></span><b>Gardien</b><kbd>Ctrl ↵</kbd></button>'
-                + '<button type="button" class="arrange" title="Ordonner ces nodes : ils se repoussent et se posent">Ordonner</button>'
+            pill.innerHTML = `<button type="button" class="send"><span class="gt-orb" aria-hidden="true"><i></i><i></i></span><b>${t('pill.guardian')}</b><kbd>Ctrl ↵</kbd></button>`
+                + `<button type="button" class="arrange" title="${t('pill.arrangeTitle')}">${t('pill.arrange')}</button>`
                 + '<span class="tools">'
-                + `<button type="button" class="branch" title="Branche : ranger en arbre, replier" aria-label="Branche">${ICON_BRANCH}</button>`
-                + `<button type="button" class="pick" title="Sélection : amont, aval ou tout ce qui est relié" aria-label="Sélection">${ICON_PICK}</button>`
+                + `<button type="button" class="branch" title="${t('pill.branchTitle')}" aria-label="${t('pill.branch')}">${ICON_BRANCH}</button>`
+                + `<button type="button" class="pick" title="${t('pill.pickTitle')}" aria-label="${t('pill.pick')}">${ICON_PICK}</button>`
                 + '</span>' + ICON_GRADIENT;
             const [sendButton, arrangeButton, tools] = pill.children;
             const [branchButton, pickButton] = tools.children;
@@ -494,8 +495,8 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             }, true);
             const openPick = node => {
                 const r = pickButton.getBoundingClientRect();
-                pickMenu.replaceChildren(...[['up', '▲ Amont', 'Le node et tous ses parents, de lien en lien'],
-                    ['down', '▼ Aval', 'Le node et tous ses enfants, de lien en lien'], ['all', 'Tout', 'Le node et tout ce qui lui est relié']]
+                pickMenu.replaceChildren(...[['up', `▲ ${t('pick.up')}`, t('pick.upTitle')],
+                    ['down', `▼ ${t('pick.down')}`, t('pick.downTitle')], ['all', t('pick.all'), t('pick.allTitle')]]
                     .map(([way, label, title]) => {
                         const count = kin(node, way).length;
                         return Object.assign(document.createElement('button'), { type: 'button', textContent: `${label} (${count})`, title, disabled: !count,
@@ -529,8 +530,8 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 if (typeof admin !== 'undefined' && admin) return;  // univers d'un autre compte, en lecture
                 group = nodes;
                 pill.classList.toggle('multi', nodes.length > 1);
-                label.textContent = nodes.length > 1 ? `Gardien · ${nodes.length} nodes` : 'Gardien';
-                sendButton.title = nodes.length > 1 ? 'Joindre ces nodes à ta prochaine demande au Gardien (chat)' : 'Envoyer ce node au Gardien (Ctrl+Entrée)';
+                label.textContent = nodes.length > 1 ? `${t('pill.guardian')} · ${nodes.length} nodes` : t('pill.guardian');
+                sendButton.title = nodes.length > 1 ? t('pill.joinTitle') : t('pill.sendTitle');
                 branchButton.hidden = nodes.length > 1 || !kin(node, 'down').length;  // une branche : des enfants
                 pickButton.hidden = nodes.length > 1 || !kin(node, 'all').length;  // rien de relié : rien à sélectionner
                 tools.hidden = branchButton.hidden && pickButton.hidden;

@@ -3,6 +3,7 @@
 // le retour dans cette dimension (gardés dans ce navigateur) et s'y appliquent alors ; ses mouvements de
 // caméra ne dérangent pas l'utilisateur ailleurs.
 
+import { t } from './i18n.js';
 const KEY = 'gardien-pending';
 const CAMERA = new Set(['focus', 'overview', 'travel', 'goto', 'tour', 'frame', 'whisper']);  // ni gardés ni rejoués
 
@@ -38,7 +39,7 @@ export function createPending({ bridge, say, onApplied = () => {} }) {
         }
         replaying = false;
         if (done) {
-            say(`Le Gardien a posé ici ${done} élément${done > 1 ? 's' : ''} préparé${done > 1 ? 's' : ''} pendant ton absence.`, 'guide');
+            say(t(done > 1 ? 'pend.doneN' : 'pend.done1', { n: done }), 'guide');
             onApplied(actions.filter(a => a.op === 'create').map(a => bridge.idOf(a.ref)));
         }
     }

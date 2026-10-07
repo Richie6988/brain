@@ -12,6 +12,7 @@
 // les plus proches, en étiquette les autres, construits au premier passage. Un clic sur l'un y voyage.
 
 import { api } from './api.js';
+import { t } from './i18n.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const DURATION = 1300;
@@ -358,7 +359,7 @@ export function createSide({ bridge, say, filters }) {
             scene.at = null;
             follow({});
         } catch (error) {
-            say(`Vue de côté : ${error.message}`, 'error');
+            say(t('side.error', { error: error.message }), 'error');
             teardown();
         } finally {
             busy = false;

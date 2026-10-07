@@ -224,7 +224,7 @@
 
 <div id="profile" class="overlay">
     <div class="profile-content">
-        <span class="close-btn" onclick="closeProfile()">Fermer</span> 
+        <span class="close-btn" onclick="closeProfile()" data-i18n="rem.close">Fermer</span> 
      
         <!-- En-tête : avatar à l'initiale, nom, e-mail, offre -->
         <header class="pf-hero">
@@ -236,18 +236,18 @@
         </header>
         <!-- Onglets, comme le Guide et Agents & modèles -->
         <nav class="pf-tabs">
-            <button type="button" data-tab="compte" class="active">Compte</button>
-            <button type="button" data-tab="activite">Activité</button>
+            <button type="button" data-tab="compte" class="active" data-i18n="pf.account">Compte</button>
+            <button type="button" data-tab="activite" data-i18n="pf.activity">Activité</button>
             <button type="button" data-tab="premium">Premium</button>
-            <button type="button" data-tab="avis">Ton avis</button>
+            <button type="button" data-tab="avis" data-i18n="pf.feedback">Ton avis</button>
         </nav>
         <p id="pf-notice" class="pf-notice" hidden></p>
 
-        <h3 class="section-title" data-pf-tab="compte">Compte</h3>
+        <h3 class="section-title" data-pf-tab="compte" data-i18n="pf.account">Compte</h3>
 
         <div id="userProfile" data-pf-tab="compte">
             <div class="field-container" data-field="username">
-                <label class="field-label field1">Nom</label>
+                <label class="field-label field1" data-i18n="pf.name">Nom</label>
                 <span id="profile_name" class="field-value field2">Guest</span>
                 <span id="edit-username" class="edit-icon icon field3">✎</span>
             </div>
@@ -257,22 +257,26 @@
                 <span id="edit-email" class="edit-icon icon  field3">✎</span>
             </div>
             <div class="field-container" data-field="country">
-                <label class="field-label field1">Pays</label>
+                <label class="field-label field1" data-i18n="pf.country">Pays</label>
                 <span id="profile_country" class="field-value field2">France</span>
                 <span id="edit-country" class="edit-icon icon field3">✎</span>
             </div>
             <div class="field-container" data-field="joinedDate">
-                <label class="field-label field1">Membre depuis</label>
+                <label class="field-label field1" data-i18n="pf.since">Membre depuis</label>
                 <span id="profile_joined_date" class="field-value field2">Today?</span>
             </div>
             <div class="field-container" data-field="CurrentPlan">
-                <label class="field-label field1">Offre</label>
+                <label class="field-label field1" data-i18n="pf.plan">Offre</label>
                 <span id="profile_plan" class="field-value field2">Free</span>
+            </div>
+            <div class="field-container" data-field="language">
+                <label class="field-label field1">Langue / Language</label>
+                <span id="pf-lang" class="field-value field2"></span>
             </div>
         </div>
 
         <!-- Usage Statistics Section -->
-        <h3 class="section-title" data-pf-tab="activite">Activité</h3>
+        <h3 class="section-title" data-pf-tab="activite" data-i18n="pf.activity">Activité</h3>
         <div class="user-stats" data-pf-tab="activite">
             <div style="display: flex; flex-direction: column; width: 100%; height:fit-content ; grid-column: 1; margin-top: 12px;"> 
                 <h2 id="nodesKPI" class="message">524</h2>
@@ -283,15 +287,15 @@
         </div>
         <br>
         <div class="field-container" data-field="Referee" data-pf-tab="activite" style="display: flex; justify-content:center; gap: 20px;">
-            <label class="field-label" style="position:relative;">Parrainages</label>
+            <label class="field-label" style="position:relative;" data-i18n="pf.referrals">Parrainages</label>
             <span id="referrerKPI" class="message">0</span>
             <div style="text-align: center; margin-top: 30px; display: flex; align-items: center; margin-bottom: 20px;">
-                <p>Chaque ami qui crée son compte avec ton lien t'offre 1 mois de Premium (jusqu'à 12 mois d'avance).</p>
+                <p data-i18n="pf.referralRule">Chaque ami qui crée son compte avec ton lien t'offre 1 mois de Premium (jusqu'à 12 mois d'avance).</p>
                 <button id="copyButton" 
-                        class="submit-button">
+                        class="submit-button" data-i18n="room.copy">
                     Copier le lien
                 </button>
-                <p id="copyMessage" style="color: #663399; font-size: 14px; display: none; margin-top: 10px;">Lien de parrainage copié.</p>
+                <p id="copyMessage" style="color: #663399; font-size: 14px; display: none; margin-top: 10px;" data-i18n="pf.copied">Lien de parrainage copié.</p>
             </div>
         </div>
 
@@ -301,24 +305,24 @@
             <!-- Premium : le compte gratuit et ses plafonds (toolbox/quota.py), l'offre et son paiement Stripe (toolbox/premium.py) -->
             <div class="pf-premium" data-pf-tab="premium">
                 <div class="pf-plan">
-                    <h4>Gratuit</h4>
-                    <p>5 dimensions et 100 nodes, ta dimension Gardien en plus. Le Gardien pense avec ton IA par API (ta clé).</p>
+                    <h4 data-i18n="pf.free">Gratuit</h4>
+                    <p data-i18n="pf.freeText">5 dimensions et 100 nodes, ta dimension Gardien en plus. Le Gardien pense avec ton IA par API (ta clé).</p>
                     <div class="pf-meter"><span>Nodes</span><i><b id="pf-q-nodes"></b></i><em id="pf-q-nodes-n">…</em></div>
                     <div class="pf-meter"><span>Dimensions</span><i><b id="pf-q-dims"></b></i><em id="pf-q-dims-n">…</em></div>
                 </div>
                 <div class="pf-plan pf-plan-premium">
                     <h4>Premium <small id="pf-price"></small></h4>
                     <ul>
-                        <li>Nodes et dimensions illimités</li>
-                        <li>Gardien propulsé par l'IA du serveur, sans clé ni réglage</li>
-                        <li>Salons collaboratifs : invite qui tu veux à créer avec toi</li>
+                        <li data-i18n="quota.perk1">Nodes et dimensions illimités</li>
+                        <li data-i18n="quota.perk2">Gardien propulsé par l'IA du serveur, sans clé ni réglage</li>
+                        <li data-i18n="quota.perk3">Salons collaboratifs : invite qui tu veux à créer avec toi</li>
                     </ul>
-                    <p class="pf-why">Ton abonnement fait vivre l'hébergement de l'IA sur ce serveur. Résiliable à tout moment.</p>
-                    <button type="button" id="pf-premium-go" class="submit-button">Passer Premium</button>
+                    <p class="pf-why" data-i18n="pf.why">Ton abonnement fait vivre l'hébergement de l'IA sur ce serveur. Résiliable à tout moment.</p>
+                    <button type="button" id="pf-premium-go" class="submit-button" data-i18n="quota.go">Passer Premium</button>
                 </div>
             </div>
              <!-- Contact Section -->
-             <h3 class="section-title" data-pf-tab="avis">Ton avis</h3>
+             <h3 class="section-title" data-pf-tab="avis" data-i18n="pf.feedback">Ton avis</h3>
             <div class="subscription" data-pf-tab="avis" style="display: flex; align-items: center;">    
                 <textarea id="feedback-input" type="text" style="width: 100%; min-height: 30px;"></textarea>  
                 <span id="feedback-btn"></span>
@@ -327,7 +331,7 @@
         <!-- Delete account Section -->
         <div class="subscription" data-pf-tab="compte">
             <h3 class="section-title"></h3>      
-            <button id="delete-account" class="danger-button">Supprimer le compte</button>
+            <button id="delete-account" class="danger-button" data-i18n="pf.delete">Supprimer le compte</button>
         </div>
         
     </div>
@@ -389,7 +393,7 @@
                 if (data.status === 'success') {
                     const feedback_input = document.getElementById("feedback-input");                     
                     feedback_input.classList.add('thanks'); 
-                    feedback_input.value = 'Merci !'; 
+                    feedback_input.value = nodzT('pf.thanks'); 
                     setTimeout(() => {
                         document.getElementById("feedback-input").value = ''; 
                         feedback_input.classList.remove('thanks') 
@@ -400,7 +404,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                pfNotice('Ton avis n\'a pas pu être envoyé, réessaie plus tard.', true);
+                pfNotice(nodzT('pf.feedbackFail'), true);
             });
         });
 
@@ -411,7 +415,7 @@
             // bye.className = 'popup'; 
             const message = document.createElement('div');
             message.className = 'smallmessage';          
-            message.textContent = `Supprimer ton compte ? C'est définitif : tes nodes et tes dimensions seront effacés.`;
+            message.textContent = nodzT('pf.deleteAsk');
             bye.appendChild(message);
             const buttonContainer = document.createElement('div');
             bye.classList.add('mail-popup');
@@ -419,7 +423,7 @@
             // buttonContainer.className = 'popupbutton-container'; 
             buttonContainer.style.justifyContent = 'center';
             const confirmButton = document.createElement('button');
-            confirmButton.textContent = 'Supprimer définitivement';
+            confirmButton.textContent = nodzT('pf.deleteGo');
             confirmButton.style.fontSize = '10px';
             confirmButton.className = 'submit-button'; 
             confirmButton.style.padding = '5px';
@@ -528,7 +532,7 @@
                 target.textContent = date_joined;
                 target = document.getElementById('profile_plan');
                 if(premium === false) {
-                    target.textContent = 'Gratuit';
+                    target.textContent = nodzT('pf.free');
                 } else {
                     target.textContent = 'Premium';
                 }
@@ -559,8 +563,8 @@
                 
                 // Nodes par type : une barre chacun, proportionnelle au plus fréquent ; les types absents ne s'affichent pas.
                 const p = Object.fromEntries((data.profile || []).map(x => [x.name, x.value]));
-                const types = [['Texte', p.text_nodes, '#FF9F45'], ['Image', p.image_nodes, '#4DD4C6'], ['Fichier', p.file_nodes, '#b89af2'],
-                    ['Dessin', p.sketch_nodes, '#F15BB5'], ['Code', p.code_nodes, '#33FF99']].filter(([, n]) => Number(n) > 0);
+                const types = [[nodzT('pf.text'), p.text_nodes, '#FF9F45'], [nodzT('tour.image'), p.image_nodes, '#4DD4C6'], [nodzT('tour.file'), p.file_nodes, '#b89af2'],
+                    [nodzT('tour.drawing'), p.sketch_nodes, '#F15BB5'], ['Code', p.code_nodes, '#33FF99']].filter(([, n]) => Number(n) > 0);
                 const most = Math.max(1, ...types.map(([, n]) => Number(n)));
                 document.getElementById('pf-types').replaceChildren(...types.map(([label, n, color]) => {
                     const row = document.createElement('div');
@@ -573,7 +577,7 @@
                 }));
                 document.getElementById('referrerKPI').textContent = p.referrals || 0;
                 if (p.premium_until && premium !== false) {
-                    document.getElementById('profile_plan').textContent = `Premium offert jusqu'au ${p.premium_until}`;
+                    document.getElementById('profile_plan').textContent = nodzT('pf.offeredUntil', { date: p.premium_until });
                 }
             }).catch(error => {
                 console.error('There was a problem with getting profile:', error);
@@ -692,7 +696,7 @@
                         const mailPopup = document.createElement('div');
                         mailPopup.classList.add('mail-popup');
                         mailPopup.classList.add('error');
-                        mailPopup.textContent = 'Adresse e-mail invalide';
+                        mailPopup.textContent = nodzT('pf.badEmail');
                         
                         // Append the mail popup to the DOM
                         document.body.appendChild(mailPopup);
@@ -709,14 +713,14 @@
                         mailPopup.classList.add('mail-popup'); 
                         const mailMessage = document.createElement('div');
                         mailMessage.id = 'mailMessage';
-                        mailMessage.textContent = 'Envoi du code de validation…';                       
+                        mailMessage.textContent = nodzT('pf.sending');                       
                         isTyping = true;
 
                         // Create the code input field
                         const codeInput = document.createElement('input');
                         codeInput.id = 'codeInput';
                         codeInput.type = 'text'; 
-                        codeInput.placeholder = 'Code reçu par e-mail';
+                        codeInput.placeholder = nodzT('pf.codePh');
                         codeInput.classList.add('code-input'); 
                         
                         // Add event listener to only allow numeric input
@@ -727,7 +731,7 @@
 
                         // Create a submit button
                         const submitButton = document.createElement('button');
-                        submitButton.textContent = 'Valider';
+                        submitButton.textContent = nodzT('pf.validate');
                         submitButton.classList.add('submit-button'); 
 
                         mailPopup.appendChild(mailMessage);
@@ -776,7 +780,7 @@
             const result = await response.json();
             
             if (result.status === 'Validation code sent') {
-                document.getElementById('mailMessage').textContent = 'Saisis le code reçu par e-mail';
+                document.getElementById('mailMessage').textContent = nodzT('pf.codeSent');
             } 
         }
 
@@ -786,9 +790,9 @@
             const code = document.getElementById('codeInput').value;
 
             if (!code) {
-                document.getElementById('mailMessage').textContent = 'Saisis le code de validation.';
+                document.getElementById('mailMessage').textContent = nodzT('pf.enterCode');
                 setTimeout(() => {
-                    document.getElementById('mailMessage').textContent = 'Saisis le code reçu par e-mail';
+                    document.getElementById('mailMessage').textContent = nodzT('pf.codeSent');
                 }, 3000);
                 return;
             }
@@ -811,7 +815,7 @@
                 saveProfile({'email': email});                          
                 return true;
             } else if (result.error === 'This email is already used') { 
-                document.getElementById('mailMessage').textContent = 'Cette adresse est déjà utilisée';
+                document.getElementById('mailMessage').textContent = nodzT('pf.emailUsed');
                 return false;   
                 
             } else {
@@ -909,13 +913,13 @@
             if (!quota || !offer) return;
             const meter = (id, used, max) => {
                 document.getElementById(id).style.width = Math.min(100, (100 * used) / max) + '%';
-                document.getElementById(id + '-n').textContent = quota.limited ? used + ' / ' + max : used + ' · illimité';
+                document.getElementById(id + '-n').textContent = quota.limited ? used + ' / ' + max : used + ' · ' + nodzT('pf.unlimited');
             };
             meter('pf-q-nodes', quota.nodes, quota.max_nodes);
             meter('pf-q-dims', quota.dimensions, quota.max_dimensions);
             document.getElementById('pf-price').textContent = offer.price || '';
             const go = document.getElementById('pf-premium-go');
-            go.textContent = offer.active ? 'Gérer mon abonnement' : 'Passer Premium';
+            go.textContent = offer.active ? nodzT('pf.manage') : nodzT('quota.go');
             go.dataset.action = offer.active ? 'portal' : 'checkout';
             document.querySelector('#profile .pf-plan-premium').classList.toggle('on', !!offer.active);
         }
@@ -928,7 +932,7 @@
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('nodz_csrftoken') }, body: '{}' });
                 const data = await response.json();
                 if (data.url) location.href = data.url;
-                else pfNotice('Premium : ' + (data.error || 'indisponible pour le moment'), true);
+                else pfNotice('Premium : ' + (data.error || nodzT('pf.unavailable')), true);
             } finally {
                 go.disabled = false;
             }

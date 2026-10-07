@@ -784,6 +784,7 @@ def get_profile(request):
         formatted_profile.append({'name':'sketch_nodes', 'value': Node.objects.filter(user=user,type='canvas',archive=False).count()})
         formatted_profile.append({'name':'code_nodes', 'value': Node.objects.filter(user=user,type='code',archive=False).count()})
         formatted_profile.append({'name':'referrals', 'value': user.referree_points})
+        formatted_profile.append({'name':'language', 'value': user.language})
         formatted_profile.append({'name':'premium_until', 'value': user.premium_until.strftime('%d/%m/%Y') if user.premium_until else ''})
         data = {
             'profile': formatted_profile,   
@@ -806,6 +807,8 @@ def save_profile(request):
                 user.email = json_data['email']
             elif 'country' in json_data:
                 user.country = json_data['country']
+            elif 'language' in json_data:
+                user.language = json_data['language'] if json_data['language'] in ('fr', 'en') else ''
             user.save()
 
             return JsonResponse({'success': 'Saved to database'})
@@ -1239,10 +1242,14 @@ def contact(request):
 
 def universe(request):   
     r_id = request.GET.get('r')
-    context = {'r': r_id} 
     # Plus de logout ici : un autre onglet, un rechargement ou un préchargement de /universe
-    # déconnectait la page ouverte (sauvegardes, profil et IA refusés). La page affiche toujours
-    # LOGIN / GUEST ; la déconnexion se fait par le profil.
+    # déconnectait la page ouverte. Une session déjà ouverte (compte ou invité) reprend directement,
+    # sans LOGIN / GUEST : un rechargement (changement de langue, F5) ne perd rien ; la déconnexion se
+    # fait par le profil.
+    user = request.user
+    context = {'r': r_id, 'resume': user.is_authenticated,
+               'guest': user.is_authenticated and bool(re.match(r'^guest\d+@nodz\.com$', user.email or '')),
+               'language': user.language if user.is_authenticated else ''}
     return render(request, "universe.html", context)
 
 def referree(request, r_id):

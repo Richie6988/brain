@@ -16,6 +16,7 @@
 // quand un code en amont est enregistré, exécuté ou relié.
 
 import { api } from './api.js';
+import { t } from './i18n.js';
 
 const CM = `${NODZ_BASE}/static/vendor/codemirror-5.65.18`;
 const PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
@@ -116,7 +117,7 @@ onmessage = async ({ data }) => {
             }
             print(data.text, data.kind);
         };
-        worker.onerror = event => { clearTimeout(timer); print(event.message || 'Python indisponible', 'err'); python = null; resolve('erreur'); };
+        worker.onerror = event => { clearTimeout(timer); print(event.message || t('ide.noPython'), 'err'); python = null; resolve('erreur'); };
         worker.postMessage({ code });
     });
 }
@@ -145,14 +146,14 @@ export function createIde({ say }) {
         el.append(...children);
         return el;
     };
-    const language = h('select', { title: 'Langage' }, ...LANGUAGES.map(([value, label]) => h('option', { value }, label)));
-    const where = h('select', { title: "Où l'exécuter" }, h('option', { value: 'browser' }, 'Navigateur'), h('option', { value: 'server' }, 'Serveur'));
-    const run = h('button', { type: 'button', className: 'gi-run', title: 'Exécuter (Ctrl+Entrée)' }, '▶ Exécuter');
-    const clear = h('button', { type: 'button', title: 'Vider la console' }, 'Vider');
-    const done = h('button', { type: 'button', className: 'gi-save', title: 'Enregistrer dans le node et fermer (Échap)' }, 'Enregistrer');
+    const language = h('select', { title: t('ide.language') }, ...LANGUAGES.map(([value, label]) => h('option', { value }, label)));
+    const where = h('select', { title: t('ide.where') }, h('option', { value: 'browser' }, t('ide.browser')), h('option', { value: 'server' }, t('ide.server')));
+    const run = h('button', { type: 'button', className: 'gi-run', title: t('ide.runTitle') }, `▶ ${t('ide.run')}`);
+    const clear = h('button', { type: 'button', title: t('ide.clearTitle') }, t('ide.clear'));
+    const done = h('button', { type: 'button', className: 'gi-save', title: t('ide.saveTitle') }, t('sch.save'));
     const title = h('strong');
     const host = h('div', { className: 'gi-editor' });
-    const preview = h('iframe', { className: 'gi-preview', title: 'Visionneuse HTML' });
+    const preview = h('iframe', { className: 'gi-preview', title: t('ide.preview') });
     preview.setAttribute('sandbox', 'allow-scripts');  // origine opaque : la page ne touche ni Nodz ni ses cookies
     const out = h('pre', { className: 'gi-console' });
     const status = h('span', { className: 'gi-status' });
@@ -224,7 +225,7 @@ export function createIde({ say }) {
         }
         const pre = document.createElement('pre');
         pre.className = 'code-output';
-        pre.textContent = lines.length ? lines.join('\n').split('\n').slice(-OUTPUT_LINES).join('\n') : '(aucune sortie)';
+        pre.textContent = lines.length ? lines.join('\n').split('\n').slice(-OUTPUT_LINES).join('\n') : t('ide.noOutput');
         return pre;
     }
 
@@ -312,7 +313,7 @@ export function createIde({ say }) {
                 target.setAttribute('textcontent', input.innerHTML);
                 save(target);
             }
-        }).catch(error => say(`Sortie de code : ${error.message}`, 'error'));
+        }).catch(error => say(t('ide.outputError', { error: error.message }), 'error'));
         return refreshing;
     }
 

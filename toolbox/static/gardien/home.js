@@ -8,15 +8,14 @@
 import { api } from './api.js';
 import { explode } from './branches.js';
 import { bulk } from './bulk.js';
+import { t } from './i18n.js';
 
 const COLORS = { soul: '#C77DFF', identity: '#FF9F45', user: '#4DD4C6', memory: '#33FF99', skills: '#FFD93D', tools: '#4D96FF',
     dreams: '#F15BB5', exchanges: '#1E90FF' };
 const COLUMN = 700;    // notes et rêves : premières positions à droite de leur groupe, la vue éclatée les affine
 const ROW = 300;
 const QUIET = 10 * 60 * 1000;  // période calme avant un rêve
-const ROLES = { soul: 'mon caractère et mes consignes', identity: 'mon nom et ma façon de parler', user: 'ce que je sais de toi',
-    memory: 'ce que je retiens', skills: 'mes savoir-faire', tools: 'mes outils, famille par famille', dreams: 'ce que je remâche',
-    exchanges: 'nos échanges' };
+const ROLES = Object.fromEntries(['soul', 'identity', 'user', 'memory', 'skills', 'tools', 'dreams', 'exchanges'].map(key => [key, t(`home.role.${key}`)]));
 const STOP = 1500;     // ms sur chaque groupe pendant le survol de la première visite
 
 const escape = text => String(text).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
@@ -120,10 +119,10 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         await ready();
         await once(async () => {
             const back = layerNumber;
-            say('Je m\'installe dans ma dimension « Gardien »…', 'guide');
+            say(t('home.settling'), 'guide');
             await install();
             await bridge.perform({ op: 'overview' });  // tout son cerveau sous les yeux
-            say('Voici mon cerveau. Je te fais visiter ses grandes parties.', 'guide');
+            say(t('home.brain'), 'guide');
             await wait(2500);
             // Le plan de navigation : la caméra passe de groupe en groupe, une légende pour chacun.
             let card = null;
@@ -137,21 +136,21 @@ export function createHome({ bridge, say, filters, chat, branches }) {
             }
             card?.remove();
             await bridge.perform({ op: 'overview' });
-            say('Retrouve-le quand tu veux dans la dimension Gardien : réécris ses nodes pour le régler.', 'guide');
+            say(t('home.findIt'), 'guide');
             await wait(3000);
             await bridge.enterLayer(back);
-            say('À toi maintenant : double-clique dans le vide pour créer ton premier node.', 'guide');
+            say(t('home.yourTurn'), 'guide');
         });
     }
 
     // Bouton du chat et de la bibliothèque : voyage dans la maison (et pose ce qui y manque).
     async function open() {
-        if (!(await fetchHome())) return say('Le Gardien n\'est pas encore là : ouvre Agents & modèles.', 'error');
+        if (!(await fetchHome())) return say(t('home.missing'), 'error');
         await once(async () => {
             const added = await install();
             const delivered = await deliver();
-            await bridge.perform({ op: 'overview', text: delivered ? `${delivered} nouveauté${delivered > 1 ? 's' : ''} : notes et rêves autour de leurs groupes.`
-                : added ? 'Sa maison : réécris ses nodes pour le régler.' : 'La dimension du Gardien : chaque groupe se règle en réécrivant ses nodes.' });
+            await bridge.perform({ op: 'overview', text: delivered ? t(delivered > 1 ? 'home.newN' : 'home.new1', { n: delivered })
+                : added ? t('home.house') : t('home.dimension') });
         });
     }
 

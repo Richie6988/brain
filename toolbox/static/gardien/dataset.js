@@ -8,6 +8,7 @@
 import { endpoint } from './api.js';
 import { arrange, layout } from './branches.js';
 import { bulk } from './bulk.js';
+import { t } from './i18n.js';
 
 const MAX_ROWS = 500;     // nodes posés au plus par import
 const SHOWN_FIELDS = 3;   // colonnes affichées sous le libellé
@@ -88,7 +89,7 @@ export async function readRows(file) {
         const response = await fetch(endpoint('toolbox/dataset'), { method: 'POST', body: form, credentials: 'same-origin',
             headers: { 'X-CSRFToken': (document.cookie.match(/(?:^|;\s*)nodz_csrftoken=([^;]+)/) || [])[1] || '' } });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'fichier Excel illisible');
+        if (!response.ok) throw new Error(data.error || t('ds.badExcel'));
         return data.rows;
     }
     const text = await file.text();
@@ -251,7 +252,7 @@ function nest(items) {
 
 function parseXml(text, tag, label) {
     const doc = new DOMParser().parseFromString(text, 'application/xml');
-    if (doc.querySelector('parsererror')) throw new Error('fichier XML illisible');
+    if (doc.querySelector('parsererror')) throw new Error(t('ds.badXml'));
     const walk = el => ({ text: clean(label(el)), kids: [...el.children].filter(c => c.tagName === tag).map(walk) });
     const start = tag === 'outline' ? doc.querySelector('body') : doc.documentElement;
     const kids = [...(start?.children || [])].filter(c => c.tagName === tag).map(walk);
@@ -268,7 +269,7 @@ export async function readOutline(file) {
         const response = await fetch(endpoint('toolbox/outline'), { method: 'POST', body: form, credentials: 'same-origin',
             headers: { 'X-CSRFToken': (document.cookie.match(/(?:^|;\s*)nodz_csrftoken=([^;]+)/) || [])[1] || '' } });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'fichier XMind illisible');
+        if (!response.ok) throw new Error(data.error || t('ds.badXmind'));
         return data.tree;
     }
     const text = await file.text();
@@ -317,22 +318,22 @@ export function createDataset({ bridge, say, onDone = () => {} }) {
         try {
             if (OUTLINE.test(file.name)) {  // une carte : son arbre tel quel
                 const root = await readOutline(file);
-                say(`Import de la carte ${file.name}…`);
+                say(t('ds.importMap', { name: file.name }));
                 const done = await bulk(() => plantTree(root, file.name.replace(/\.[^.]+$/, ''), { bridge, center: bridge.center() }));  // enregistrés groupés
-                say(`${done.placed} nodes posés, rangés en arbre${done.placed >= MAX_TOPICS ? ` (${MAX_TOPICS} au plus)` : ''}.`);
+                say(t('ds.tree', { n: done.placed, max: done.placed >= MAX_TOPICS ? ` (${t('ds.atMost', { n: MAX_TOPICS })})` : '' }));
                 return onDone(done.refs);
             }
             const rows = await readRows(file);
-            if (!rows.length) return say(`${file.name} : aucune ligne lue.`, 'error');
-            say(`Import de ${file.name} : ${Math.min(rows.length, MAX_ROWS)} nodes…`);
+            if (!rows.length) return say(t('ds.noRows', { name: file.name }), 'error');
+            say(t('ds.importing', { name: file.name, n: Math.min(rows.length, MAX_ROWS) }));
             if (ownExport(rows)) {  // un export de Nodz : les nodes tels qu'ils étaient
                 const back = await bulk(() => restore(rows, { bridge, center: bridge.center() }));
-                say(`${back.placed} nodes restaurés avec leurs liens${back.total > back.placed ? ` (${MAX_ROWS} au plus)` : ''}.`);
+                say(t('ds.restored', { n: back.placed, max: back.total > back.placed ? ` (${t('ds.atMost', { n: MAX_ROWS })})` : '' }));
                 return onDone(back.refs);
             }
             const done = await bulk(() => plant(rows, file.name.replace(/\.[^.]+$/, ''), { bridge, center: bridge.center() }));
-            say(`${done.placed} nodes posés (libellé : ${done.label}${done.group ? `, groupés par ${done.group}` : ''})`
-                + (done.total > done.placed ? ` ; ${done.total - done.placed} lignes laissées (${MAX_ROWS} au plus)` : '') + '.');
+            say(t('ds.placed', { n: done.placed, label: done.label, group: done.group ? t('ds.grouped', { group: done.group }) : '',
+                left: done.total > done.placed ? t('ds.left', { n: done.total - done.placed, max: MAX_ROWS }) : '' }));
             onDone(done.refs);
         } catch (error) {
             say(`${file.name} : ${error.message}`, 'error');

@@ -8,19 +8,20 @@
 // du compte et la marque d'hôte.
 
 import { api } from './api.js';
+import { t } from './i18n.js';
 
 const BASE = document.documentElement.dataset.base || '';
 const COLORS = ['#FF6B6B', '#FFD93D', '#33FF99', '#4D96FF', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5'];
 // Avatars du salon : une couleur et un dessin chacun (la liste est aussi celle du serveur, rooms.AVATARS).
 const AVATARS = {
-    fox: ['Renard', '#FF9F45', '<path d="M4 5l4 4h8l4-4-1 9-7 6-7-6z"/><circle cx="9.5" cy="12" r=".8"/><circle cx="14.5" cy="12" r=".8"/>'],
-    owl: ['Chouette', '#C77DFF', '<circle cx="8.5" cy="11" r="3"/><circle cx="15.5" cy="11" r="3"/><path d="M5 6l3 2M19 6l-3 2M11 15l1 2 1-2"/>'],
-    cat: ['Chat', '#4DD4C6', '<path d="M5 4l3 5h8l3-5v10a7 6 0 0 1-14 0z"/><path d="M9 13h.01M15 13h.01M10 16l2 1 2-1"/>'],
-    bot: ['Robot', '#4D96FF', '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M10 16h4"/>'],
-    star: ['Étoile', '#FFD93D', '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'],
-    leaf: ['Feuille', '#33FF99', '<path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15z"/><path d="M5 19l8-8"/>'],
-    wave: ['Vague', '#7FB3FF', '<path d="M3 14c3-4 6-4 9 0s6 4 9 0M3 9c3-4 6-4 9 0s6 4 9 0"/>'],
-    flame: ['Flamme', '#FF6B6B', '<path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 3-7 1 2 2 3 3 3 0-3 0-5 0-7z"/>'],
+    fox: [t('room.av.fox'), '#FF9F45', '<path d="M4 5l4 4h8l4-4-1 9-7 6-7-6z"/><circle cx="9.5" cy="12" r=".8"/><circle cx="14.5" cy="12" r=".8"/>'],
+    owl: [t('room.av.owl'), '#C77DFF', '<circle cx="8.5" cy="11" r="3"/><circle cx="15.5" cy="11" r="3"/><path d="M5 6l3 2M19 6l-3 2M11 15l1 2 1-2"/>'],
+    cat: [t('room.av.cat'), '#4DD4C6', '<path d="M5 4l3 5h8l3-5v10a7 6 0 0 1-14 0z"/><path d="M9 13h.01M15 13h.01M10 16l2 1 2-1"/>'],
+    bot: [t('room.av.bot'), '#4D96FF', '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M10 16h4"/>'],
+    star: [t('room.av.star'), '#FFD93D', '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'],
+    leaf: [t('room.av.leaf'), '#33FF99', '<path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15z"/><path d="M5 19l8-8"/>'],
+    wave: [t('room.av.wave'), '#7FB3FF', '<path d="M3 14c3-4 6-4 9 0s6 4 9 0M3 9c3-4 6-4 9 0s6 4 9 0"/>'],
+    flame: [t('room.av.flame'), '#FF6B6B', '<path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 3-7 1 2 2 3 3 3 0-3 0-5 0-7z"/>'],
 };
 const glyph = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${(AVATARS[key] || AVATARS.star)[2]}</svg>`;
 const PROFILE = 'gardien-room-profile';
@@ -182,7 +183,7 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
                 data = data.filter(d => !(d && (kept.some(n => n.id === `N-${parseInt(d.id, 10)}`) || ties.has(parseInt(d.linkid, 10)))));
                 kept.forEach(n => send({ t: 'save', to: sender.id, data: [describe(n), ...JSON.parse(n.getAttribute('links') || '[]').map(byId).filter(Boolean)
                     .map(l => ({ linkid: parseInt(l.id.slice(2), 10), linkA: l.getAttribute('Node1'), linkB: l.getAttribute('Node2') }))] }));
-                say(`${sender.name} voulait supprimer un node verrouillé : il reste.`);
+                say(t('room.lockedKept', { name: sender.name }));
             }
         }
         applying += 1;
@@ -341,13 +342,13 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
         }
         const person = meet(who);
         if (!person) return;
-        if (m.t === 'join') say(`${who.name} entre dans le salon.`);
+        if (m.t === 'join') say(t('room.joined', { name: who.name }));
         else if (m.t === 'profile') render();  // meet() a déjà repris son pseudo et son avatar
         else if (m.t === 'hello') {
             send({ t: 'view', ...view(), layer: here() });  // il nous voit aussitôt
             if (role === 'host' && !who.host) share(who.id);
         } else if (m.t === 'leave') {
-            say(who.host ? "L'hôte a quitté le salon : tes gestes ne seront plus enregistrés." : `${who.name} quitte le salon.`);
+            say(who.host ? t('room.hostLeft') : t('room.left', { name: who.name }));
             forget(who.id);
         } else if (m.t === 'state' && role === 'member') settle(m);
         else if (m.t === 'save') apply(m.data, who.host);
@@ -362,9 +363,9 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
             // Seulement dans la même dimension ; sinon l'état de la nouvelle dimension arrive et la caméra le rejoindra.
             if (following === who.id && person.layer === here()) follow(person.view);
         } else if (m.t === 'kick') {
-            if (m.user === me.id) end('Tu as été exclu du salon.');
+            if (m.user === me.id) end(t('room.kicked'));
             else forget(m.user);
-        } else if (m.t === 'close') end("L'hôte a fermé le salon.");
+        } else if (m.t === 'close') end(t('room.closed'));
     }
 
     function connect(token) {
@@ -381,7 +382,7 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
         socket.addEventListener('close', () => {
             if (!socket) return;
             socket = null;
-            if (role === 'member') end('Connexion au salon perdue.');
+            if (role === 'member') end(t('room.lost'));
             render();
         });
     }
@@ -399,13 +400,13 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
     const panel = document.createElement('section');
     panel.id = 'gardien-room';
     panel.hidden = true;
-    panel.innerHTML = '<header><b>Salon</b><span class="gsal-where"></span><button type="button" class="gsal-x" title="Fermer">×</button></header>'
-        + '<div class="gsal-me"><div class="gsal-avatars" role="radiogroup" aria-label="Mon avatar"></div>'
-        + '<input class="gsal-name" maxlength="24" placeholder="Mon pseudo (sinon le nom du compte)" aria-label="Mon pseudo"></div>'
-        + '<p class="gsal-intro">Ouvre cette dimension à d\'autres : ils voient ton univers, vos curseurs et chaque geste en direct, et peuvent l\'éditer. Tout s\'enregistre chez toi.</p>'
-        + '<div class="gsal-link"><input readonly aria-label="Lien du salon"><button type="button" class="gsal-copy">Copier le lien</button></div>'
+    panel.innerHTML = `<header><b>${t('room.title')}</b><span class="gsal-where"></span><button type="button" class="gsal-x" title="${t('room.close')}">×</button></header>`
+        + `<div class="gsal-me"><div class="gsal-avatars" role="radiogroup" aria-label="${t('room.avatar')}"></div>`
+        + `<input class="gsal-name" maxlength="24" placeholder="${t('room.namePh')}" aria-label="${t('room.name')}"></div>`
+        + `<p class="gsal-intro">${t('room.intro')}</p>`
+        + `<div class="gsal-link"><input readonly aria-label="${t('room.link')}"><button type="button" class="gsal-copy">${t('room.copy')}</button></div>`
         + '<ul class="gsal-people"></ul>'
-        + '<div class="gsal-actions"><button type="button" class="gsal-open">Ouvrir un salon</button><button type="button" class="gsal-end">Fermer le salon</button><button type="button" class="gsal-leave">Quitter le salon</button></div>';
+        + `<div class="gsal-actions"><button type="button" class="gsal-open">${t('room.open')}</button><button type="button" class="gsal-end">${t('room.end')}</button><button type="button" class="gsal-leave">${t('room.leave')}</button></div>`;
     document.body.append(panel);
     const $ = selector => panel.querySelector(selector);
     // Choisir son avatar et son pseudo : gardés ici, envoyés au salon s'il est ouvert.
@@ -438,7 +439,7 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
     function render() {
         const live = !!socket, host = role !== 'member';
         const hostName = [...people.values()].find(p => p.host)?.name || room?.host || '';  // son pseudo dès qu'il est là
-        $('.gsal-where').textContent = !room ? '' : host ? ` · ${layers.find(l => l.id === layerNumber)?.name || ''}` : ` de ${hostName}${layer ? ` · ${layer}` : ''}`;
+        $('.gsal-where').textContent = !room ? '' : host ? ` · ${layers.find(l => l.id === layerNumber)?.name || ''}` : ` ${t('room.of', { name: hostName })}${layer ? ` · ${layer}` : ''}`;
         $('.gsal-intro').hidden = live || !host;
         $('.gsal-link').hidden = !live || !host;
         $('.gsal-link input').value = link() || '';
@@ -460,13 +461,13 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
         dot.style.setProperty('--gsal-color', p.color);
         dot.innerHTML = p.avatar ? glyph(p.avatar) : '';
         const name = document.createElement('span');
-        name.textContent = `${p.name}${p.host ? ' · hôte' : ''}${self ? ' (toi)' : ''}`;
+        name.textContent = `${p.name}${p.host ? ` · ${t('room.host')}` : ''}${self ? ` (${t('room.you')})` : ''}`;
         item.append(dot, name);
         if (!self) {
             const look = document.createElement('button');
             look.type = 'button';
-            look.textContent = following === p.id ? 'Suivi' : 'Suivre';
-            look.title = 'Ta caméra suit la sienne ; un clic de plus arrête';
+            look.textContent = following === p.id ? t('room.following') : t('room.follow');
+            look.title = t('room.followTitle');
             look.classList.toggle('on', following === p.id);
             look.addEventListener('click', () => {
                 following = following === p.id ? null : p.id;
@@ -477,7 +478,7 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
             if (role === 'host') {
                 const kick = document.createElement('button');
                 kick.type = 'button';
-                kick.textContent = 'Exclure';
+                kick.textContent = t('room.kick');
                 kick.addEventListener('click', () => {
                     send({ t: 'kick', user: p.id });
                     forget(p.id);
@@ -495,7 +496,7 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
     $('.gsal-copy').addEventListener('click', async () => {
         try {
             await navigator.clipboard.writeText(link());
-            say('Lien du salon copié.');
+            say(t('room.copied'));
         } catch {
             $('.gsal-link input').select();
         }
@@ -508,7 +509,7 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
             render();
         } catch (error) {
             if (/Premium/.test(error.message)) return onPremiumOnly();  // ouvrir un salon : Premium (le rejoindre reste libre)
-            say(`Salon : ${error.message}`, 'error');
+            say(`${t('room.title')} : ${error.message}`, 'error');
         }
     });
     $('.gsal-end').addEventListener('click', async () => {
@@ -542,17 +543,17 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
                     if (role === 'member') {
                         // Dans un salon, la dimension est celle de l'hôte : changer de dimension attend la sortie du salon.
                         // Toutes les portes : liste des dimensions, nouvelle dimension, portail, voyage.
-                        const stay = () => say("Dans un salon, la dimension est celle de l'hôte : quitte le salon pour revenir chez toi.");
+                        const stay = () => say(t('room.stay'));
                         window.load = window.onLayerSelect = window.createNewLayer = stay;
                         const original = window.deleteNode;
                         erase = original;
                         window.deleteNode = nodes => {
                             const free = [...nodes].filter(n => !locked(n));
-                            if (free.length < nodes.length) say("Node verrouillé : seul l'hôte peut le supprimer.");
+                            if (free.length < nodes.length) say(t('room.locked'));
                             if (free.length) original(free);
                         };
                         quietly(rebootUniverse);
-                        say(`Salon de ${found.host} : connexion…`);
+                        say(t('room.connecting', { name: found.host }));
                     }
                     connect(token);
                 } else {
@@ -563,7 +564,7 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
                     }
                 }
             } catch (error) {
-                say(token ? 'Salon fermé ou introuvable.' : `Salon : ${error.message}`, 'error');
+                say(token ? t('room.missing') : `${t('room.title')} : ${error.message}`, 'error');
             }
             render();
         },

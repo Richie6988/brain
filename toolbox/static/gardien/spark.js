@@ -3,8 +3,9 @@
 // parallèles : la valeur de Nodz se voit dans la première minute. La carte s'efface dès qu'un node existe ; × la retire
 // pour de bon dans ce navigateur. Pas sous automatisation (les bancs pilotent un univers vide) ni dans un salon.
 
+import { t } from './i18n.js';
 const KEY = 'gardien-spark-off';
-const EXAMPLES = ['Organiser un voyage au Japon', 'Lancer mon podcast', 'Préparer un entretien d\'embauche'];
+const EXAMPLES = [t('spark.ex1'), t('spark.ex2'), t('spark.ex3')];
 
 export function createSpark({ bridge, onSpark }) {
     let off = false;
@@ -16,9 +17,9 @@ export function createSpark({ bridge, onSpark }) {
     const card = document.createElement('section');
     card.id = 'gardien-spark';
     card.hidden = true;
-    card.innerHTML = '<button type="button" class="gsp-x" title="Ne plus proposer">×</button>'
-        + '<b>Pose ta première idée</b><p>Le Gardien la fait pousser en pistes parallèles, sous tes yeux.</p>'
-        + '<form><input maxlength="120" placeholder="Un projet, une question, un rêve…" aria-label="Ta première idée"><button type="submit">Faire pousser</button></form>'
+    card.innerHTML = `<button type="button" class="gsp-x" title="${t('spark.off')}">×</button>`
+        + `<b>${t('spark.title')}</b><p>${t('spark.lead')}</p>`
+        + `<form><input maxlength="120" placeholder="${t('spark.ph')}" aria-label="${t('spark.label')}"><button type="submit">${t('spark.grow')}</button></form>`
         + '<div class="gsp-examples"></div>';
     document.body.append(card);
     const input = card.querySelector('input');

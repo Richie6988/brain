@@ -7,26 +7,25 @@
 
 import { api } from './api.js';
 import { h } from './library.js';
+import { t } from './i18n.js';
 
-const PERKS = ['Nodes et dimensions illimités', 'Gardien propulsé par l\'IA du serveur, sans clé ni réglage',
-    'Salons collaboratifs : invite qui tu veux à créer avec toi'];
-const TITLES = { nodes: 'Tu as posé tes 100 nodes gratuits', dimensions: 'Tu as ouvert tes 5 dimensions gratuites',
-    rooms: 'Les salons collaboratifs sont Premium' };
+const PERKS = [t('quota.perk1'), t('quota.perk2'), t('quota.perk3')];
+const TITLES = { nodes: t('quota.nodes'), dimensions: t('quota.dimensions'), rooms: t('quota.rooms') };
 
 export function createQuota({ onPremium }) {
     let state = null;  // { limited, nodes, dimensions, max_nodes, max_dimensions, home }
 
     const title = h('h3', {});
     const close = () => { modal.hidden = true; };
-    const card = h('section', { class: 'gq-card', role: 'dialog', 'aria-label': 'Passer Premium' },
-        h('button', { type: 'button', class: 'gq-x', title: 'Fermer', onclick: close }, '×'),
+    const card = h('section', { class: 'gq-card', role: 'dialog', 'aria-label': t('quota.go') },
+        h('button', { type: 'button', class: 'gq-x', title: t('rem.close'), onclick: close }, '×'),
         title,
-        h('p', {}, 'Rien de ce que tu as créé n\'est touché. Pour continuer sans limite, passe Premium :'),
+        h('p', {}, t('quota.intro')),
         h('ul', {}, PERKS.map(perk => h('li', {}, perk))),
-        h('p', { class: 'gq-why' }, 'Ton abonnement fait vivre l\'hébergement de l\'IA sur ce serveur.'),
+        h('p', { class: 'gq-why' }, t('quota.why')),
         h('div', { class: 'gq-actions' },
-            h('button', { type: 'button', class: 'gq-go', onclick: () => { close(); onPremium(); } }, 'Passer Premium'),
-            h('button', { type: 'button', onclick: close }, 'Plus tard')));
+            h('button', { type: 'button', class: 'gq-go', onclick: () => { close(); onPremium(); } }, t('quota.go')),
+            h('button', { type: 'button', onclick: close }, t('g.later'))));
     const modal = h('div', { class: 'gl-modal gq-modal', hidden: true, onmousedown: event => { if (event.target === modal) close(); } }, card);
     modal.addEventListener('keydown', event => { event.stopPropagation(); if (event.key === 'Escape') close(); });
     document.body.append(modal);
@@ -43,7 +42,7 @@ export function createQuota({ onPremium }) {
     const full = kind => limited() && state[kind] >= state[`max_${kind}`];
     const stop = kind => {
         offer(kind);
-        throw new Error(kind === 'nodes' ? 'limite gratuite : 100 nodes (Premium : illimité)' : 'limite gratuite : 5 dimensions (Premium : illimité)');
+        throw new Error(t(kind === 'nodes' ? 'quota.limitNodes' : 'quota.limitDims'));
     };
 
     // Un node neuf (sans identifiant imposé), hors chargement et hors dimension Gardien : compté, refusé au plafond.

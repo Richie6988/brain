@@ -3,6 +3,7 @@
 // à chaque entrée en invité et à la première connexion (pas sous automatisation : les bancs de navigation pilotent un
 // navigateur vierge).
 
+import { lang, langSwitch, t } from './i18n.js';
 import { h } from './library.js';
 
 const KEY = 'gardien-guide-seen';
@@ -23,7 +24,7 @@ const SCENE = {
         + '<path d="M92 32v24m-8-8l8 8 8-8" class="p"/>',
 };
 
-const STEPS = [
+const STEPS_FR = [
     ['idea', 'Pose une idée', 'Chaque idée est un node. Double-clic dans le vide pour en créer un sous le pointeur, ou [Espace] au centre de la vue. '
         + 'Texte, image, fichier, dessin, code ou 3D : un node change de type sans perdre son texte.'],
     ['link', 'Relie tes idées', 'Tiens un node contre un autre une demi-seconde : au relâcher, ils sont reliés. Avec un node sélectionné, [Espace] '
@@ -37,7 +38,7 @@ const STEPS = [
 ];
 
 // Raccourcis : [touche] devient une touche en relief.
-const SHORTCUTS = [
+const SHORTCUTS_FR = [
     ['Créer', [
         ['Double-clic dans le vide', 'Créer un node sous le pointeur'],
         ['[Espace]', 'Créer un node au centre ; un node sélectionné : un enfant relié ; plusieurs : les relier'],
@@ -77,7 +78,7 @@ const SHORTCUTS = [
     ]],
 ];
 
-const CARDS = [
+const CARDS_FR = [
     ['Dimension Gardien', 'Sa maison, posée d\'office : Âme, Identité, Utilisateur, Mémoire, Compétences, Outils, Rêves, Échanges. '
         + 'Il y relit ses clés à chaque demande : réécris un node, ajoute-en un relié sous un groupe ou supprime-le pour le régler. '
         + 'Menu ⋯ du chat : Dimension Gardien.'],
@@ -106,6 +107,90 @@ const CARDS = [
     ['Filtre des pensées', 'Bouton du menu : les pensées du Gardien visibles, estompées ou masquées.'],
 ];
 
+const STEPS_EN = [
+    ['idea', 'Drop an idea', 'Every idea is a node. Double-click empty space to create one under the pointer, or [Space] at the center of the view. '
+        + 'Text, image, file, drawing, code or 3D: a node changes type without losing its text.'],
+    ['link', 'Link your ideas', 'Hold a node against another for half a second: on release, they are linked. With a node selected, [Space] '
+        + 'creates a linked child; with several, it links them. A click on a link takes you to the other end.'],
+    ['portal', 'Dive into a dimension', 'Each dimension is a universe of its own. [Enter] opens a portal: the node goes on to detail its own '
+        + 'dimension. [Shift] lists the dimensions, the side view (cube) shows them all at once.'],
+    ['ai', 'The Guardian thinks with you', 'The AI of your universe, local or by API. Select nodes and open the bubble at the bottom right, '
+        + 'or [Ctrl]+[Enter] in a node. It creates, links, tidies, searches the web, draws. [Ctrl]+[Z] undoes it all.'],
+    ['tidy', 'Tidy, invite, export', 'Branch on a node tidies its branch into a tree or folds it. Invite opens a live room; '
+        + 'Import / Export brings your maps in and out (Markdown, OPML, FreeMind, XMind, CSV, PDF).'],
+];
+
+const SHORTCUTS_EN = [
+    ['Create', [
+        ['Double-click empty space', 'Create a node under the pointer'],
+        ['[Space]', 'Create a node at the center; one node selected: a linked child; several: link them'],
+        ['Hold a node against another', 'On release (0.5 s), the two are linked'],
+        ['[Enter]', 'Open a portal: the selected node moves into a new dimension'],
+        ['Node handle', 'Resize (width and height for a rectangle)'],
+    ]],
+    ['Navigate', [
+        ['Wheel', 'Zoom on the pointer'],
+        ['[Shift] + wheel', 'Scroll'],
+        ['Drag empty space', 'Move the universe'],
+        ['Touchpad', 'Two fingers: move; pinch: zoom'],
+        ['Double-click a node', 'Center and zoom on it'],
+        ['Click a link', 'Travel to the node at the other end'],
+        ['[Tab]', 'Zoom jump: overview, then back'],
+        ['[←] [↑] [→] [↓]', 'Move the view'],
+        ['[Shift]', 'List of dimensions'],
+        ['[Ctrl]+[F]', 'Search all dimensions'],
+    ]],
+    ['Select and edit', [
+        ['Click a node', 'Select it; a second click to write in it'],
+        ['Drag a node', 'Move it, with the whole selection'],
+        ['[Ctrl] + drag empty space', 'Rectangle selection'],
+        ['[Ctrl]+[A]', 'Select all'],
+        ['[Ctrl]+[C] [Ctrl]+[X] [Ctrl]+[V]', 'Copy, cut, paste'],
+        ['[X] + drag', 'Cut the links the stroke crosses (or Scissors); a single Ctrl+Z stitches the gesture back'],
+        ['[Delete]', 'Delete the selection'],
+        ['[Ctrl]+[Z] [Ctrl]+[Y]', 'Undo, redo (any gesture, including the Guardian\'s)'],
+        ['[Esc]', 'Close a panel; refresh the display'],
+        ['[?]', 'This guide'],
+    ]],
+    ['Guardian', [
+        ['[Ctrl]+[Enter] in a node', 'Send it to the Guardian'],
+        ['/web /dessin /image', 'At the start of the message: it goes with that tool'],
+        ['Tour: [←] [↑] [→] [↓] [Backspace] [Esc]', 'Take the arrow in that direction, go back, stop'],
+        ['[C]', 'Compact mode: the selection (or the dimension) tidied as clean text; 1 Tree, 2 Cloud, 3 Horizontal process, 4 vertical; C or Esc: back'],
+    ]],
+];
+
+const CARDS_EN = [
+    ['Guardian dimension', 'Its home, set up for you: Soul, Identity, User, Memory, Skills, Tools, Dreams, Exchanges. '
+        + 'It rereads its keys on every request: rewrite a node, add one linked under a group or delete it to tune it. '
+        + 'Chat ⋯ menu: Guardian dimension.'],
+    ['Dreams', 'After a quiet while, it rereads your latest exchanges and suggests memories and ideas under Dreams. '
+        + 'Link a dream to Memory for it to keep it, delete it otherwise: nothing goes into memory without you.'],
+    ['Choose your AI', 'Agents & models, the HUD pill at the top: an external AI by API with your key, or a local model from '
+        + 'Hugging Face, recommended for your machine. Its tools and agents are set in the same place.'],
+    ['Chat', 'The bubble at the bottom right. Selected nodes go along as context by themselves, × removes them. With two nodes or more, '
+        + 'sending is direct: the selection is the whole context.'],
+    ['Modes', 'Thought: it thinks in nodes. Deep: free reflection first. Auto: web, files, agents and missions.'],
+    ['Web, Drawing, Image', 'The chips above the input: sourced web search, the Guardian\'s sketch on a node, FLUX image '
+        + '(or a drawing if FLUX is missing).'],
+    ['Node pill', 'Branch to tidy its branch into a tree or fold it; Selection to select its lineage: '
+        + 'Upstream (its parents), Downstream (its children) or Everything linked to it.'],
+    ['Tour', 'Dock button: big arrows surround the selected node, one per link. Hover one: the preview at the top '
+        + 'shows the node it leads to; click: the camera glides there. A click on another node makes it the center.'],
+    ['Selection pill', 'Guardian · N nodes attaches them to the chat; Arrange: physics spreads them out, then tidies them.'],
+    ['Import / Export', 'Dock button: a map (Markdown, OPML, FreeMind, XMind) lands as a tree, a table (CSV, Excel, JSON) '
+        + 'as nodes, a CSV exported by Nodz restores its nodes and links; the selection, the dimension or the filters go out as CSV, '
+        + 'Markdown, OPML, FreeMind or PDF.'],
+    ['Room', 'Invite button in the dock: your dimension opens with a link. Live cursors and gestures, everything is saved on your side; '
+        + 'Follow locks your camera on someone else\'s, the host can remove people.'],
+    ['Reminders', 'A node\'s Reminder button, or "remind me Friday at 9…" to the Guardian: countdown on the node, notification '
+        + 'when due, and the dock bell lists them all.'],
+    ['Code', 'A code node runs; linked together, code nodes form a chain and an output node recomputes.'],
+    ['Thought filter', 'Menu button: the Guardian\'s thoughts visible, faded or hidden.'],
+];
+
+const [STEPS, SHORTCUTS, CARDS] = lang() === 'en' ? [STEPS_EN, SHORTCUTS_EN, CARDS_EN] : [STEPS_FR, SHORTCUTS_FR, CARDS_FR];
+
 const scene = markup => {
     const box = h('span', { class: 'gg-scene', 'aria-hidden': 'true' });
     box.innerHTML = `<svg viewBox="0 0 124 88" fill="none" stroke-linecap="round" stroke-linejoin="round">${markup}</svg>`;
@@ -117,28 +202,28 @@ const keys = text => text.split(/(\[[^\]]+\])/).filter(Boolean).map(part =>
 
 export function createGuide() {
     let step = 0;
-    const dots = h('div', { class: 'gg-dots' }, STEPS.map((s, i) => h('button', { type: 'button', 'aria-label': `Étape ${i + 1}`, onclick: () => go(i) })));
+    const dots = h('div', { class: 'gg-dots' }, STEPS.map((s, i) => h('button', { type: 'button', 'aria-label': t('guide.stepN', { n: i + 1 }), onclick: () => go(i) })));
     const stage = h('div', { class: 'gg-stage' });
-    const prev = h('button', { type: 'button', class: 'gg-ghost', onclick: () => go(step - 1) }, 'Précédent');
+    const prev = h('button', { type: 'button', class: 'gg-ghost', onclick: () => go(step - 1) }, t('guide.prev'));
     const next = h('button', { type: 'button', class: 'gg-primary', onclick: () => (step < STEPS.length - 1 ? go(step + 1) : close()) });
     const discover = h('div', { class: 'gg-discover' }, stage, h('footer', {}, dots, h('div', { class: 'gg-nav' }, prev, next)));
 
-    const search = h('input', { type: 'search', class: 'gg-search', placeholder: 'Chercher un geste ou une touche…', 'aria-label': 'Chercher un raccourci',
+    const search = h('input', { type: 'search', class: 'gg-search', placeholder: t('guide.search'), 'aria-label': t('guide.searchLabel'),
         oninput: () => filter(search.value) });
     const groups = SHORTCUTS.map(([title, rows]) => h('section', { class: 'gg-group' }, h('h3', {}, title),
         rows.map(([combo, text]) => h('div', { class: 'gg-row', dataset: { find: `${combo} ${text}`.toLowerCase() } },
             h('span', { class: 'gg-keys' }, keys(combo)), h('span', {}, text)))));
-    const empty = h('p', { class: 'gg-empty', hidden: true }, 'Aucun raccourci ne correspond.');
+    const empty = h('p', { class: 'gg-empty', hidden: true }, t('guide.none'));
     const shortcuts = h('div', { class: 'gg-shortcuts' }, search, h('div', { class: 'gg-groups' }, groups), empty);
 
     const cards = h('div', { class: 'gg-cards' }, CARDS.map(([title, text]) => h('article', {}, h('h3', {}, title), h('p', {}, text))));
 
-    const tabs = [['discover', 'Découvrir', discover], ['keys', 'Raccourcis', shortcuts], ['ai', 'Gardien et IA', cards]];
+    const tabs = [['discover', t('guide.discover'), discover], ['keys', t('guide.keys'), shortcuts], ['ai', t('guide.ai'), cards]];
     const panels = Object.fromEntries(tabs.map(([key, , body]) => [key, h('section', { class: 'gg-panel', dataset: { panel: key } }, body)]));
     const nav = h('nav', { class: 'gg-tabs', role: 'tablist' }, tabs.map(([key, label]) =>
         h('button', { type: 'button', role: 'tab', dataset: { tab: key }, onclick: () => show(key) }, label)));
-    const windowEl = h('div', { class: 'gg-window', role: 'dialog', 'aria-label': 'Guide de Nodz', tabindex: '-1' },
-        h('header', {}, h('h2', {}, 'Guide'), nav, h('button', { type: 'button', class: 'gg-x', title: 'Fermer (Échap)', onclick: close }, '×')),
+    const windowEl = h('div', { class: 'gg-window', role: 'dialog', 'aria-label': t('guide.title'), tabindex: '-1' },
+        h('header', {}, h('h2', {}, t('guide.name')), nav, langSwitch('gg-lang'), h('button', { type: 'button', class: 'gg-x', title: t('guide.close'), onclick: close }, '×')),
         Object.values(panels));
     const modal = h('div', { class: 'gl-modal', hidden: true, onmousedown: event => { if (event.target === modal) close(); } }, windowEl);
     modal.addEventListener('keydown', event => {
@@ -154,13 +239,13 @@ export function createGuide() {
         step = Math.max(0, Math.min(STEPS.length - 1, i));
         const [art, title, text] = STEPS[step];
         stage.replaceChildren(scene(SCENE[art]),
-            h('div', { class: 'gg-copy' }, h('small', {}, `Étape ${step + 1} sur ${STEPS.length}`), h('h3', {}, title), h('p', {}, keys(text))));
+            h('div', { class: 'gg-copy' }, h('small', {}, t('guide.stepOf', { n: step + 1, total: STEPS.length })), h('h3', {}, title), h('p', {}, keys(text))));
         stage.classList.remove('gg-in');
         void stage.offsetWidth;  // relance l'animation d'entrée
         stage.classList.add('gg-in');
         dots.querySelectorAll('button').forEach((b, k) => b.classList.toggle('on', k === step));
         prev.disabled = step === 0;
-        next.textContent = step < STEPS.length - 1 ? 'Suivant' : 'C\'est parti';
+        next.textContent = step < STEPS.length - 1 ? t('guide.next') : t('guide.go');
     }
     function filter(query) {
         const q = query.trim().toLowerCase();
@@ -192,7 +277,7 @@ export function createGuide() {
     // Résolue quand le guide est fermé (tout de suite s'il ne l'est pas) : l'accueil du Gardien attend que l'on ait lu.
     const closed = () => (modal.hidden ? Promise.resolve() : new Promise(resolve => waiting.push(resolve)));
 
-    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'guideButton', title: 'Guide' });
+    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'guideButton', title: t('guide.name') });
     document.getElementById('profileButton')?.before(button);
     button.addEventListener('click', () => open());
     document.addEventListener('keydown', event => {

@@ -3,6 +3,7 @@
 // monte d'une note à chaque coupe enchaînée. Pendant le geste, ni glissé de l'univers ni sélection : la lame passe
 // même par-dessus les nodes. Un geste entier s'annule d'un seul Ctrl+Z. Échap, ou relâcher X, rend la main.
 
+import { t } from './i18n.js';
 const NS = 'http://www.w3.org/2000/svg';
 const TRAIL = 380;  // ms de vie d'un point de la traînée
 
@@ -29,7 +30,7 @@ export function createCutter({ timeline }) {
     const trail = document.createElementNS(NS, 'polyline');
     overlay.append(trail);
     document.body.append(overlay);
-    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'cutButton', title: 'Ciseaux : couper des liens (X)' });
+    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'cutButton', title: t('cut.title') });
     document.getElementById('linksButton')?.after(button);
 
     let held = false, toggled = false, cutting = false, last = null, points = [], frame = 0;

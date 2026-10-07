@@ -806,6 +806,18 @@ window.addEventListener('load', function() {
 });
 
 function login() {
+    // Session already open (account or guest): the universe resumes directly, without LOGIN / GUEST
+    // (a reload, e.g. a language switch, loses nothing; LSD.js loads it when #log says "login").
+    const log = document.getElementById('log');
+    if (log.dataset.resume && !isLoggedIn) {
+        log.dataset.resume = '';
+        if (log.dataset.guest) {
+            guestUser = true;
+            document.getElementById('exportButton').className = 'save';
+        }
+        log.innerHTML = 'login';
+        return;
+    }
     let popup = document.createElement('div');
     popup.id = 'loginPopup'
     popup.className = 'popup'; 
@@ -820,7 +832,7 @@ function login() {
 
     const message = document.createElement('div');
     message.className = 'message';   
-    message.textContent = `Bienvenue dans Nod-Z`;
+    message.textContent = nodzT('login.welcome');
     message.style.marginBottom = '30px';
     message.style.color = '#5753b996';
     message.style.textShadow = `
@@ -841,7 +853,7 @@ function login() {
     buttonContainer.className = 'popupbutton-container'; 
     const loginButton = document.createElement('button');
     loginButton.id = 'loginButton';
-    loginButton.textContent = 'CONNEXION';
+    loginButton.textContent = nodzT('login.login');
     loginButton.className = 'submit-button log-button';  
     loginButton.style.padding = '5px';
     
@@ -858,7 +870,7 @@ function login() {
 
     const guestButton = document.createElement('button');
     guestButton.id = 'guestButton';
-    guestButton.textContent = 'INVITÉ';
+    guestButton.textContent = nodzT('login.guest');
     guestButton.className = 'submit-button log-button secondary'; 
     guestButton.style.padding = '5px';
 

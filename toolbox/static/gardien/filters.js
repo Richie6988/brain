@@ -7,6 +7,7 @@
 
 import { api } from './api.js';
 import { describe } from './dataset.js';
+import { locale, t } from './i18n.js';
 
 const STEPS = 1000;  // crans du double curseur
 const SHOWN = 40;  // nodes affichés par dimension (les plus récents d'abord, selon l'ordre)
@@ -16,7 +17,7 @@ const fold = text => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 export function createFilters({ onAttach = () => {} } = {}) {
     const state = { text: '', off: new Set(), lo: 0, hi: STEPS, basis: 'modified', order: -1 };
     let nodes = {};  // N-12 → {origin, created, modified, layer, text} (serveur, toutes les dimensions)
-    let authors = [{ key: 'ai', label: 'IA' }, { key: 'me', label: 'Moi' }];
+    let authors = [{ key: 'ai', label: t('fx.ai') }, { key: 'me', label: t('fx.me') }];
     let names = {};  // numéro de dimension → nom
     const local = new Map();  // marques posées depuis le chargement, avant la prochaine lecture
     const picked = new Set();  // nodes cochés pour le contexte
@@ -33,8 +34,8 @@ export function createFilters({ onAttach = () => {} } = {}) {
 
     // --- Le panneau
     const panel = make('section', { id: 'gardien-context', hidden: true });
-    panel.setAttribute('aria-label', 'Contexte pour le Gardien');
-    const search = make('input', { type: 'search', placeholder: 'Chercher dans toutes les dimensions…', autocomplete: 'off' });
+    panel.setAttribute('aria-label', t('fx.panel'));
+    const search = make('input', { type: 'search', placeholder: t('fx.search'), autocomplete: 'off' });
     search.addEventListener('input', () => { state.text = fold(search.value.trim()); update(); });
     ['keydown', 'keyup', 'keypress'].forEach(type => search.addEventListener(type, event => {
         event.stopPropagation();  // la saisie ne déclenche pas les raccourcis de Nodz
@@ -43,7 +44,7 @@ export function createFilters({ onAttach = () => {} } = {}) {
 
     // Auteurs : liste à cocher (le dernier coché reste)
     const menu = make('div', { className: 'gx-pop', hidden: true });
-    const who = chip('Auteurs ▾', () => { period.hidden = true; menu.hidden = !menu.hidden; }, { className: 'gx-drop' });
+    const who = chip(`${t('fx.authors')} ▾`, () => { period.hidden = true; menu.hidden = !menu.hidden; }, { className: 'gx-drop' });
     function renderAuthors() {
         menu.replaceChildren(...authors.map(({ key, label }) => {
             const box = make('input', { type: 'checkbox', checked: !state.off.has(key) });
@@ -55,7 +56,7 @@ export function createFilters({ onAttach = () => {} } = {}) {
             });
             return make('label', {}, box, ` ${label}`);
         }));
-        who.textContent = `${state.off.size ? authors.filter(a => !state.off.has(a.key)).map(a => a.label).join(', ') : 'Auteurs'} ▾`;
+        who.textContent = `${state.off.size ? authors.filter(a => !state.off.has(a.key)).map(a => a.label).join(', ') : t('fx.authors')} ▾`;
         who.classList.toggle('on', state.off.size > 0);
     }
 
@@ -64,7 +65,7 @@ export function createFilters({ onAttach = () => {} } = {}) {
     const hi = make('input', { type: 'range', min: 0, max: STEPS, value: STEPS, className: 'hi' });
     const track = make('i', { className: 'track' });
     const span = make('span', { className: 'gx-span' });
-    const basis = chip('modifiés', () => { state.basis = state.basis === 'modified' ? 'created' : 'modified'; update(); }, { className: 'gx-basis' });
+    const basis = chip(t('fx.modified'), () => { state.basis = state.basis === 'modified' ? 'created' : 'modified'; update(); }, { className: 'gx-basis' });
     const period = make('div', { className: 'gx-pop gx-period', hidden: true }, make('span', { className: 'gx-range' }, track, lo, hi), span, basis);
     [lo, hi].forEach(input => input.addEventListener('input', () => {
         if (Number(lo.value) > Number(hi.value)) (input === lo ? hi : lo).value = input.value;
@@ -72,17 +73,17 @@ export function createFilters({ onAttach = () => {} } = {}) {
         state.hi = Number(hi.value);
         update();
     }));
-    const when = chip('Période ▾', () => { menu.hidden = true; period.hidden = !period.hidden; }, { className: 'gx-drop' });
-    const order = chip('Récents', () => { state.order = -state.order; update(); }, { className: 'gx-order', title: 'Ordre des nodes dans chaque dimension' });
-    const close = chip('×', () => toggle(false), { className: 'gx-close', title: 'Fermer (Échap)' });
+    const when = chip(`${t('fx.period')} ▾`, () => { menu.hidden = true; period.hidden = !period.hidden; }, { className: 'gx-drop' });
+    const order = chip(t('fx.recent'), () => { state.order = -state.order; update(); }, { className: 'gx-order', title: t('fx.orderTitle') });
+    const close = chip('×', () => toggle(false), { className: 'gx-close', title: t('fx.close') });
     const head = make('div', { className: 'gx-head' }, search, make('span', { className: 'gx-wrap' }, who, menu),
         make('span', { className: 'gx-wrap' }, when, period), order, close);
 
     const columns = make('div', { className: 'gx-cols' });
     const count = make('span', { className: 'gx-count' });
-    const all = chip('Tout', () => { walk().forEach(hit => picked.add(hit.id)); render(); }, { title: 'Cocher tous les nodes gardés' });
-    const none = chip('Aucun', () => { picked.clear(); render(); });
-    const join = chip('Joindre au Gardien', () => attach(), { className: 'gx-join' });
+    const all = chip(t('fx.all'), () => { walk().forEach(hit => picked.add(hit.id)); render(); }, { title: t('fx.allTitle') });
+    const none = chip(t('fx.none'), () => { picked.clear(); render(); });
+    const join = chip(t('fx.join'), () => attach(), { className: 'gx-join' });
     panel.append(head, columns, make('div', { className: 'gx-foot' }, count, all, none, join));
     document.body.append(panel);
     document.addEventListener('mousedown', event => {
@@ -93,7 +94,7 @@ export function createFilters({ onAttach = () => {} } = {}) {
     }, true);
 
     // Bouton « Filtres » du dock, à côté de la recherche
-    const button = make('button', { type: 'button', id: 'gardien-context-button', className: 'menuBtn', title: 'Filtres' });
+    const button = make('button', { type: 'button', id: 'gardien-context-button', className: 'menuBtn', title: t('fx.filters') });
     button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg>';  // entonnoir
     button.addEventListener('click', () => (open ? finish() : toggle(true)));
     document.getElementById('nextsearch')?.after(button);
@@ -118,12 +119,12 @@ export function createFilters({ onAttach = () => {} } = {}) {
     const at = position => now() - (now() - earliest()) * ((STEPS - position) / STEPS) ** 2;  // plus fin près de maintenant
     const ago = seconds => {
         const s = now() - seconds;
-        if (s < 5) return "à l'instant";
-        if (s < 60) return `il y a ${Math.round(s)} s`;
-        if (s < 3600) return `il y a ${Math.round(s / 60)} min`;
-        if (s < 86400) return `il y a ${Math.round(s / 3600)} h`;
-        if (s < 30 * 86400) return `il y a ${Math.round(s / 86400)} j`;
-        return new Date(seconds * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+        if (s < 5) return t('time.now');
+        if (s < 60) return t('time.ago', { span: `${Math.round(s)} s` });
+        if (s < 3600) return t('time.ago', { span: `${Math.round(s / 60)} min` });
+        if (s < 86400) return t('time.ago', { span: `${Math.round(s / 3600)} h` });
+        if (s < 30 * 86400) return t('time.ago', { span: `${Math.round(s / 86400)} ${t('time.d')}` });
+        return new Date(seconds * 1000).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
     };
     const ranged = () => state.lo > 0 || state.hi < STEPS;
     const active = () => !!state.text || state.off.size > 0 || ranged();
@@ -174,25 +175,25 @@ export function createFilters({ onAttach = () => {} } = {}) {
             const box = make('input', { type: 'checkbox', checked: hits.every(hit => picked.has(hit.id)) });
             box.indeterminate = !box.checked && hits.some(hit => picked.has(hit.id));
             box.addEventListener('change', () => { hits.forEach(hit => (box.checked ? picked.add(hit.id) : picked.delete(hit.id))); render(); });
-            const title = make('label', { className: 'gx-dim' }, box, make('b', { textContent: names[layer] || `Dimension ${layer}` }),
+            const title = make('label', { className: 'gx-dim' }, box, make('b', { textContent: names[layer] || t('fx.dimension', { n: layer }) }),
                 make('small', { textContent: ` ${hits.length}` }));
             const items = hits.slice(0, SHOWN).map(hit => {
                 const check = make('input', { type: 'checkbox', checked: picked.has(hit.id) });
                 check.addEventListener('change', () => { if (check.checked) picked.add(hit.id); else picked.delete(hit.id); render(); });
                 const info = nodes[hit.id];
-                const text = make('button', { type: 'button', className: 'gx-text', textContent: hit.text.slice(0, 80) || '(vide)',
-                    title: `${hit.text.slice(0, 300)}${info ? `\n${state.basis === 'created' ? 'créé' : 'modifié'} ${ago(info[state.basis])}` : ''}\nCliquer : y aller` });
+                const text = make('button', { type: 'button', className: 'gx-text', textContent: hit.text.slice(0, 80) || t('fx.empty'),
+                    title: `${hit.text.slice(0, 300)}${info ? `\n${t(state.basis === 'created' ? 'fx.createdAgo' : 'fx.modifiedAgo', { ago: ago(info[state.basis]) })}` : ''}\n${t('fx.goThere')}` });
                 text.addEventListener('click', () => travel(hit));
                 return make('div', { className: `gx-item${picked.has(hit.id) ? ' on' : ''}` }, check, text);
             });
-            const more = hits.length > SHOWN ? [make('p', { className: 'gx-more', textContent: `+ ${hits.length - SHOWN} (affine la recherche)` })] : [];
+            const more = hits.length > SHOWN ? [make('p', { className: 'gx-more', textContent: t('fx.more', { n: hits.length - SHOWN }) })] : [];
             return make('div', { className: `gx-col${layer === here ? ' here' : ''}` }, title, make('div', { className: 'gx-list' }, ...items, ...more));
-        }) : [make('p', { className: 'gx-empty', textContent: 'Aucun node ne correspond.' })]));
+        }) : [make('p', { className: 'gx-empty', textContent: t('fx.noMatch') })]));
         const chosen = [...picked];
         const dims = new Set(chosen.map(id => layerOf(id)));
         const chars = chosen.reduce((sum, id) => sum + textOf(id).length + 40, 0);  // + l'objet autour du texte
-        count.textContent = chosen.length ? `${chosen.length} node${chosen.length > 1 ? 's' : ''} · ${dims.size} dim. · ~${Math.round(chars / CHARS_PER_TOKEN)} jetons`
-            : `${list.length} node${list.length > 1 ? 's' : ''} trouvé${list.length > 1 ? 's' : ''} : coche ceux à joindre`;
+        count.textContent = chosen.length ? t('fx.chosen', { n: chosen.length, s: chosen.length > 1 ? 's' : '', dims: dims.size, tokens: Math.round(chars / CHARS_PER_TOKEN) })
+            : t(list.length > 1 ? 'fx.foundN' : 'fx.found1', { n: list.length });
         join.disabled = !chosen.length;
         highlight();
     }
@@ -250,7 +251,7 @@ export function createFilters({ onAttach = () => {} } = {}) {
         try {
             const data = await api.request('GET', 'toolbox/marks');
             nodes = data.nodes;
-            authors = data.authors || authors;
+            authors = (data.authors || authors).map(a => (a.key === 'ai' ? { ...a, label: t('fx.ai') } : a));
             names = data.layers || names;
             local.clear();
             renderAuthors();
@@ -259,13 +260,13 @@ export function createFilters({ onAttach = () => {} } = {}) {
     }
 
     function update() {
-        span.textContent = `${state.lo === 0 ? 'toujours' : ago(at(state.lo))} → ${state.hi === STEPS ? 'maintenant' : ago(at(state.hi))}`;
+        span.textContent = `${state.lo === 0 ? t('fx.always') : ago(at(state.lo))} → ${state.hi === STEPS ? t('fx.nowEnd') : ago(at(state.hi))}`;
         track.style.setProperty('--lo', `${(state.lo / STEPS) * 100}%`);
         track.style.setProperty('--hi', `${(state.hi / STEPS) * 100}%`);
-        basis.textContent = state.basis === 'modified' ? 'modifiés' : 'créés';
+        basis.textContent = t(state.basis === 'modified' ? 'fx.modified' : 'fx.created');
         when.classList.toggle('on', ranged());
-        when.textContent = ranged() ? `${span.textContent} ▾` : 'Période ▾';
-        order.textContent = state.order === -1 ? 'Récents' : 'Anciens';
+        when.textContent = ranged() ? `${span.textContent} ▾` : `${t('fx.period')} ▾`;
+        order.textContent = t(state.order === -1 ? 'fx.recent' : 'fx.oldest');
         if (open && Date.now() - fetched > 15000) refresh(); else apply();
     }
 

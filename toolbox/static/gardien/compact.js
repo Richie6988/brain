@@ -5,6 +5,7 @@
 // n'est enregistré : un node réécrit en compact est sauvegardé à sa place éclatée, et le retour (bouton, C, Échap) rend
 // chaque node à sa place exacte. Déplacer un node, changer de dimension ou une action du Gardien ramènent à l'éclaté.
 
+import { t } from './i18n.js';
 const DURATION = 380;  // ms de transition
 const READABLE = 0.75; // zoom minimal du cadrage : en deçà, les textes ne se lisent plus
 const KEEP = 'gardien-compact-layout';
@@ -16,10 +17,10 @@ const ICONS = {
     column: '<rect x="9" y="2.5" width="6" height="5" rx="1.5"/><rect x="9" y="9.5" width="6" height="5" rx="1.5"/><rect x="9" y="16.5" width="6" height="5" rx="1.5"/>',
 };
 const LAYOUTS = [
-    { id: 'tree', label: 'Arbre', title: 'Arbre' },
-    { id: 'cloud', label: 'Nuage', title: 'Nuage de mots' },
-    { id: 'row', label: 'Horizontal', title: 'Processus horizontal' },
-    { id: 'column', label: 'Vertical', title: 'Processus vertical' },
+    { id: 'tree', label: t('cp.tree'), title: t('cp.tree') },
+    { id: 'cloud', label: t('cp.cloud'), title: t('cp.cloudTitle') },
+    { id: 'row', label: t('cp.row'), title: t('cp.rowTitle') },
+    { id: 'column', label: t('cp.column'), title: t('cp.columnTitle') },
 ];
 
 const TRANSFORM = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
@@ -243,7 +244,7 @@ export function createCompact({ bridge, say }) {
         bar.append(b);
         return b;
     });
-    const quit = Object.assign(document.createElement('button'), { type: 'button', className: 'gc-quit', textContent: 'Éclaté', title: 'Retour à la carte (C ou Échap)' });
+    const quit = Object.assign(document.createElement('button'), { type: 'button', className: 'gc-quit', textContent: t('cp.quit'), title: t('cp.quitTitle') });
     quit.addEventListener('click', () => off());
     bar.append(quit);
     document.body.append(bar);
@@ -355,7 +356,7 @@ export function createCompact({ bridge, say }) {
         const shown = node => node.isConnected && !node.classList.contains('gardien-folded');
         const picked = selectedNodes.filter(shown);
         const nodes = picked.length >= 2 ? [...new Set(picked)] : [...document.querySelectorAll('.node-group:not(.gardien-folded)')];
-        if (nodes.length < 2) return say('Le mode compact range plusieurs nodes : sélectionnez-en, ou ouvrez une dimension qui en a.', 'notice');
+        if (nodes.length < 2) return say(t('cp.few'), 'notice');
         layer = layerNumber;
         items = nodes.map(node => ({ node, home: place(node) }));
         // Le reste de la carte s'efface derrière une sélection.
@@ -366,7 +367,7 @@ export function createCompact({ bridge, say }) {
         }
         nodes.forEach(n => n.style.setProperty('--node-color', n.getAttribute('color') || '#33FF99'));  // pastille du texte
         document.body.classList.add('gardien-compact');  // formes effacées d'abord : les tailles mesurées sont celles du texte
-        count.textContent = `${nodes.length} nodes${picked.length >= 2 ? ' sélectionnés' : ''}`;
+        count.textContent = t(picked.length >= 2 ? 'cp.countPicked' : 'cp.count', { n: nodes.length });
         bar.hidden = false;
         button.classList.add('on');
         return arrange(kind);

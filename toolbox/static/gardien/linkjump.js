@@ -4,6 +4,7 @@
 // coupe-liens ou un chargement.
 
 import { ARROW, overChrome } from './arrows.js';
+import { t } from './i18n.js';
 
 // Couleur du node d'arrivée : son attribut, sinon le trait réellement affiché (cercle ou rectangle).
 function colorOf(node) {
@@ -73,7 +74,7 @@ export function createLinkJump() {
         button.hidden = false;
         button.style.setProperty('--c', colorOf(target));
         button.style.transform = `translate(${hit.x}px, ${hit.y}px) translate(-50%, -50%) rotate(${hit.angle}rad)`;
-        button.dataset.label = `Aller à : ${(target.children[0]?.children[0]?.textContent || '').trim().split('\n')[0].slice(0, 60) || '(node vide)'}`;
+        button.dataset.label = t('tour.goTo', { text: (target.children[0]?.children[0]?.textContent || '').trim().split('\n')[0].slice(0, 60) || t('tour.emptyNode') });
     }
     document.addEventListener('mousemove', event => {
         if (!pending) pending = requestAnimationFrame(() => update(event));

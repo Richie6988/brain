@@ -328,6 +328,14 @@ Un geste finit après 150 ms sans événement.
 
 **Pastille « +N » en miroir de la poignée de taille** : au coin haut-droit d'un rectangle, à 45° en haut à droite d'un rond, symétrique de la poignée (bas-droit) par rapport au diamètre horizontal.
 
+**Application en français et en anglais (lot 1 : tout ce que voit un utilisateur)** :
+- langue : celle du compte (nouveau champ `language`, migration nodzapp 0020), sinon le choix gardé dans ce navigateur (le même que la page d'accueil), sinon la langue du navigateur ;
+- bascule FR | EN dans le guide et dans le profil (onglet Compte) : le choix va sur le compte et la page se recharge ;
+- une session ouverte reprend directement au rechargement, sans la fenêtre CONNEXION / INVITÉ (un invité garde son univers) ;
+- textes traduits (`toolbox/static/gardien/i18n.js`, dictionnaires `locales/fr.js` et `en.js`) : guide, chat, pastille et menus Branche / Sélection, barre du node, filtres, dimensions, rappels, salons, mode compact, visite, Importer / Exporter, galerie de modèles (noms et contenu des modèles), IDE, tour CPU/GPU, Premium, profil, connexion, contact ; les infobulles du dock restent en anglais, « Share » devient « Invite » ;
+- le Gardien répond en anglais à un compte en anglais.
+Restent en français pour le lot 2 : consoles administrateur, bibliothèque de modèles, erreurs du serveur, e-mails, maison du Gardien, pages légales.
+
 **Branche et Sélection en ronds « orbe »** : même liseré dégradé violet → bleu que la carte Gardien, icônes tracées en dégradé, nodes en vert lumineux comme les yeux de l'orbe ; ouvert : fond dégradé, icône blanche.
 
 **Nouvelle page d'accueil** (`/`, bilingue FR / EN, choix gardé, langue du navigateur par défaut) :

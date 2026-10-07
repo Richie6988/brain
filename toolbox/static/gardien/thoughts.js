@@ -3,11 +3,12 @@
 // Une pensée se reconnaît à sa forme (sans cadre) et à sa couleur de genre (KINDS et SPARK_COLOR de guardian.py) :
 // rien à ajouter en base. Le choix est gardé par navigateur.
 
+import { t } from './i18n.js';
 const COLORS = new Set(['#8b7fc8', '#c9a24a', '#5a5575', '#b89af2', '#3e6b7a']);
 const STATES = [
-    { name: 'on', label: 'Pensées visibles' },
-    { name: 'dim', label: 'Pensées estompées' },
-    { name: 'off', label: 'Pensées masquées' },
+    { name: 'on', label: t('th.on') },
+    { name: 'dim', label: t('th.dim') },
+    { name: 'off', label: t('th.off') },
 ];
 const KEY = 'gardien-thoughts';
 

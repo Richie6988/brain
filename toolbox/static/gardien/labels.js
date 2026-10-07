@@ -2,7 +2,8 @@
 // infobulles. Couvre les infobulles SVG de Nodz (createTooltip / deleteTooltip, remplacées) et l'attribut title
 // des icônes (boutons sans texte ou presque), repris en data-label pour que le navigateur n'affiche plus le sien.
 
-// Textes de Nodz, en français.
+import { lang } from './i18n.js';
+// Textes de Nodz : traduits en français ; en anglais, Share devient Invite (les salons).
 const FRENCH = {
     'Styled link': 'Liens stylés', 'Neutral link': 'Liens neutres', 'No link': 'Sans liens', 'Back to origin': 'Origine',
     'Dimensions': 'Dimensions', 'Set new origin': 'Drapeau', 'Full screen': 'Plein écran', 'Template gallery': 'Galerie',
@@ -11,6 +12,7 @@ const FRENCH = {
     'Draw line': 'Trait', 'Erase': 'Gomme', 'Clear canvas': 'Tout effacer', 'Undo': 'Annuler', 'Redo': 'Rétablir',
     'Line size': 'Épaisseur', 'Line color': 'Couleur', 'Download file': 'Télécharger',
 };
+const NAMES = lang() === 'fr' ? FRENCH : { Share: 'Invite' };
 const ICON = 'button, [role=button], img, select, input[type=range]';
 const SHORT = 4;  // au-delà, le bouton porte son texte : il garde son infobulle
 
@@ -24,7 +26,7 @@ export function createLabels() {
     function show(element, text, nodz = false) {
         const first = String(text).split('\n')[0].trim();
         if (!element || !first) return;
-        label.textContent = FRENCH[first] || first;
+        label.textContent = NAMES[first] || first;
         label.hidden = false;
         fromNodz = nodz;
         const box = element.getBoundingClientRect();

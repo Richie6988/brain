@@ -3,6 +3,7 @@
 // redessine la liste (renderLayers) ; on la complète à chaque fois.
 
 import { api } from './api.js';
+import { t } from './i18n.js';
 
 const fold = text => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -13,10 +14,10 @@ export function createDimensions() {
     let query = '';
     let busy = false;
 
-    const search = Object.assign(document.createElement('input'), { type: 'search', placeholder: 'Chercher une dimension…', autocomplete: 'off' });
+    const search = Object.assign(document.createElement('input'), { type: 'search', placeholder: t('dim.search'), autocomplete: 'off' });
     search.className = 'gd-search';
-    search.setAttribute('aria-label', 'Chercher une dimension');
-    const empty = Object.assign(document.createElement('p'), { className: 'gd-empty', textContent: 'Aucune dimension de ce nom.' });
+    search.setAttribute('aria-label', t('dim.searchLabel'));
+    const empty = Object.assign(document.createElement('p'), { className: 'gd-empty', textContent: t('dim.none') });
 
     ['keydown', 'keyup', 'keypress'].forEach(type => search.addEventListener(type, event => event.stopPropagation()));
     search.addEventListener('click', event => event.stopPropagation());
@@ -57,7 +58,7 @@ export function createDimensions() {
             const on = pinned.includes(layer.id);
             row.classList.toggle('pinned', on);
             const pin = Object.assign(document.createElement('button'), { type: 'button', className: `gd-pin ${on ? 'on' : ''}`,
-                title: on ? 'Désépingler' : 'Épingler en tête de liste' });
+                title: on ? t('dim.unpin') : t('dim.pin') });
             pin.addEventListener('click', event => {
                 event.stopPropagation();  // pas de voyage vers la dimension
                 pinned = on ? pinned.filter(id => id !== layer.id) : [...pinned, layer.id];

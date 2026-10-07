@@ -3314,3 +3314,33 @@ class ReferralTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(ContactMessage.objects.get().email, 'ada@example.com')
         self.assertEqual(mail.outbox[-1].to, ['contact@nodz.local'])
+
+
+class LanguageTests(TestCase):
+    """Langue de l'interface : gardée sur le compte, donnée à la page (#log) et aux consignes du Gardien."""
+
+    def setUp(self):
+        self.user = NodzUser.objects.create_user(email='lang@nodz.local', password='pw-123456')
+        self.client.force_login(self.user)
+
+    def test_saved_on_the_account(self):
+        self.client.post('/save-profile/', json.dumps({'language': 'en'}), content_type='application/json')
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.language, 'en')
+        self.client.post('/save-profile/', json.dumps({'language': 'de'}), content_type='application/json')
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.language, '')  # langue inconnue : celle du navigateur
+
+    def test_page_resumes_the_session_in_its_language(self):
+        self.user.language = 'en'
+        self.user.save()
+        page = self.client.get('/universe').content.decode()
+        self.assertIn('data-resume="1"', page)
+        self.assertIn('data-lang="en"', page)
+
+    def test_guardian_writes_in_english(self):
+        from . import prompts
+
+        self.assertEqual(prompts.language_rule(self.user), '')
+        self.user.language = 'en'
+        self.assertIn('English', prompts.language_rule(self.user))

@@ -9,6 +9,7 @@
 // Tout se fait à partir de la page : les nodes et les liens de la dimension ouverte.
 
 import { setStyle, show } from './frames.js';
+import { t } from './i18n.js';
 
 const KEY = 'gardien-folds';
 const GAP_X = 160;   // entre le bord d'un node et le bord de ses enfants
@@ -268,7 +269,7 @@ export function createBranches({ say }) {
         // « +0 » (rien en dessous, liens pas encore là) : pas de pastille ; le repli reste noté.
         layer.replaceChildren(...roots.filter(id => !hidden.has(id) && descendants(id).length).map(id => {
             const badge = Object.assign(document.createElement('button'), { type: 'button', className: 'gf-badge',
-                textContent: `+${descendants(id).length}`, title: 'Déplier la branche' });
+                textContent: `+${descendants(id).length}`, title: t('br.unfoldTitle') });
             badge.dataset.node = id;
             badge.addEventListener('click', () => toggle(byId(id)));
             return badge;
@@ -336,11 +337,11 @@ export function createBranches({ say }) {
             const count = descendants(node.id).length;
             const isFolded = folded().has(node.id);
             menu.replaceChildren(
-                item('Ranger en arbre', 'Ses descendants se rangent de gauche à droite, niveau par niveau (Ctrl+Z annule)', () => {
+                item(t('br.tree'), t('br.treeTitle'), () => {
                     if (isFolded) toggle(node);
-                    arrange(node).then(() => say(`Branche rangée : ${count} node${count > 1 ? 's' : ''}.`));
+                    arrange(node).then(() => say(t(count > 1 ? 'br.arrangedN' : 'br.arranged1', { count })));
                 }),
-                item(isFolded ? `Déplier (+${count})` : `Replier (${count})`, isFolded ? 'Montrer ses descendants' : 'Cacher ses descendants (une pastille +N les rappelle)', () => toggle(node)));
+                item(isFolded ? t('br.unfold', { count }) : t('br.fold', { count }), isFolded ? t('br.unfoldHint') : t('br.foldHint'), () => toggle(node)));
             menu.style.left = `${Math.min(innerWidth - 190, anchor.left)}px`;
             menu.style.top = `${anchor.bottom + 6}px`;
             menu.hidden = false;

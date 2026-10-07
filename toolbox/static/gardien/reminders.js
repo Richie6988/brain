@@ -11,6 +11,7 @@
 
 import { api } from './api.js';
 import { h } from './library.js';
+import { locale, t } from './i18n.js';
 
 const TICK = 15000;        // ms entre deux vérifications des échéances
 const SOON = 3600e3;       // dernière heure : le badge pulse
@@ -31,12 +32,12 @@ const fromIso = text => {
 // Le temps qui reste, en mots courts : « dans 12 min », « dans 3 h », « J-3 » ; passé : « il y a 5 min », « échu ».
 export function countdown(date, now = Date.now()) {
     const ms = date - now, abs = Math.abs(ms), min = Math.round(abs / 60e3);
-    const span = min < 1 ? 'moins d\'1 min' : min < 60 ? `${min} min` : min < 1440 ? `${Math.round(min / 60)} h` : null;
-    if (ms >= 0) return span ? `dans ${span}` : `J-${Math.ceil(ms / 864e5)}`;
-    return span ? `il y a ${span}` : 'échu';
+    const span = min < 1 ? t('rem.underMin') : min < 60 ? `${min} min` : min < 1440 ? `${Math.round(min / 60)} h` : null;
+    if (ms >= 0) return span ? t('rem.in', { span }) : t('rem.days', { n: Math.ceil(ms / 864e5) });
+    return span ? t('time.ago', { span }) : t('rem.due');
 }
 
-const when = date => date.toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const when = date => date.toLocaleString(locale(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 export function createReminders({ bridge, say, sfx }) {
     let items = [];       // tous les rappels : { id, layer, dimension, at: Date, text }
@@ -50,7 +51,7 @@ export function createReminders({ bridge, say, sfx }) {
         } catch { /* stockage indisponible */ }
     };
     const key = item => `${item.id}@${iso(item.at)}`;
-    const textOf = node => (node.children[0]?.children[0]?.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 80) || '(node vide)';
+    const textOf = node => (node.children[0]?.children[0]?.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 80) || t('tour.emptyNode');
     // Nodz tient la dimension ouverte tantôt en nombre, tantôt en texte : comparée en nombre, sinon un rappel venait deux fois.
     const current = () => Number(layerNumber);
     const here = item => Number(item.layer) === current();
@@ -139,20 +140,20 @@ export function createReminders({ bridge, say, sfx }) {
         const close = () => el.remove();
         const el = h('section', { class: 'gr-card' },
             h('i', { class: 'gr-bell' }),
-            h('div', {}, h('strong', {}, summary || 'Rappel'), h('p', {}, summary ? 'Échus pendant ton absence : la cloche les liste.' : item.text),
+            h('div', {}, h('strong', {}, summary || t('rem.one')), h('p', {}, summary ? t('rem.whileAway') : item.text),
                 summary ? null : h('small', {}, `${when(item.at)} · ${item.dimension}`)),
-            h('nav', {}, summary ? h('button', { type: 'button', onclick: () => { close(); open(); } }, 'Voir')
-                : [h('button', { type: 'button', onclick: () => { close(); go(item); } }, 'Aller'),
+            h('nav', {}, summary ? h('button', { type: 'button', onclick: () => { close(); open(); } }, t('rem.see'))
+                : [h('button', { type: 'button', onclick: () => { close(); go(item); } }, t('rem.go')),
                     h('button', { type: 'button', onclick: () => { close(); set(item, new Date(Date.now() + 10 * 60e3)); } }, '+10 min'),
-                    h('button', { type: 'button', onclick: () => { close(); set(item, null); } }, 'Fait')],
-            h('button', { type: 'button', class: 'gr-x', title: 'Fermer', onclick: close }, '×')));
+                    h('button', { type: 'button', onclick: () => { close(); set(item, null); } }, t('rem.done'))],
+            h('button', { type: 'button', class: 'gr-x', title: t('rem.close'), onclick: close }, '×')));
         cards.append(el);
     }
     function notify(item) {
         card(item);
         sfx.play('remind');
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
-            const n = new Notification('Rappel Nodz', { body: item.text, tag: key(item) });
+            const n = new Notification(t('rem.notif'), { body: item.text, tag: key(item) });
             n.onclick = () => { window.focus(); go(item); n.close(); };
         }
     }
@@ -163,7 +164,7 @@ export function createReminders({ bridge, say, sfx }) {
         fresh.forEach(r => seen.add(key(r)));
         if (fresh.length) remember();
         // Au chargement, les rappels échus pendant l'absence : une seule annonce, pas une pluie de cartes.
-        if (first && fresh.length > 1) card(null, `${fresh.length} rappels échus`);
+        if (first && fresh.length > 1) card(null, t('rem.dueN', { n: fresh.length }));
         else fresh.forEach(notify);
         first = false;
         paint();
@@ -171,12 +172,12 @@ export function createReminders({ bridge, say, sfx }) {
 
     // --- Panneau de la cloche.
     const bell = document.getElementById('notificationButton');
-    bell.title = 'Rappels';
+    bell.title = t('rem.title');
     const body = h('div', { class: 'gr-list' });
     const allow = h('button', { type: 'button', class: 'gr-allow', onclick: () => Notification.requestPermission().then(list) },
-        'Activer les notifications du navigateur');
-    const panel = h('section', { id: 'gardien-reminders', hidden: true, role: 'dialog', 'aria-label': 'Rappels' },
-        h('header', {}, h('strong', {}, 'Rappels'), h('button', { type: 'button', class: 'gr-x', title: 'Fermer', onclick: () => { panel.hidden = true; } }, '×')),
+        t('rem.allow'));
+    const panel = h('section', { id: 'gardien-reminders', hidden: true, role: 'dialog', 'aria-label': t('rem.title') },
+        h('header', {}, h('strong', {}, t('rem.title')), h('button', { type: 'button', class: 'gr-x', title: t('rem.close'), onclick: () => { panel.hidden = true; } }, '×')),
         allow, body);
     document.body.append(panel);
     function row(item, now) {
@@ -185,22 +186,21 @@ export function createReminders({ bridge, say, sfx }) {
         tomorrow.setHours(9, 0, 0, 0);
         return h('li', { class: item.at <= now ? 'due' : item.at - now < SOON ? 'soon' : '' },
             h('span', { class: 'gr-left', title: when(item.at) }, countdown(item.at, now)),
-            h('button', { type: 'button', class: 'gr-text', title: `Aller à ${item.id}`, onclick: () => { panel.hidden = true; go(item); } },
+            h('button', { type: 'button', class: 'gr-text', title: t('rem.goTo', { id: item.id }), onclick: () => { panel.hidden = true; go(item); } },
                 h('b', {}, item.text), h('small', {}, `${when(item.at)} · ${item.dimension}`)),
             h('span', { class: 'gr-actions' },
-                h('button', { type: 'button', title: 'Reporter d\'une heure', onclick: () => set(item, new Date(Math.max(Date.now(), item.at) + 3600e3)) }, '+1 h'),
-                h('button', { type: 'button', title: 'Demain à 9 h', onclick: () => set(item, tomorrow) }, 'Demain'),
-                h('button', { type: 'button', class: 'gr-x', title: 'Retirer le rappel', onclick: () => set(item, null) }, '×')));
+                h('button', { type: 'button', title: t('rem.hourTitle'), onclick: () => set(item, new Date(Math.max(Date.now(), item.at) + 3600e3)) }, '+1 h'),
+                h('button', { type: 'button', title: t('rem.tomorrowTitle'), onclick: () => set(item, tomorrow) }, t('rem.tomorrow')),
+                h('button', { type: 'button', class: 'gr-x', title: t('rem.remove'), onclick: () => set(item, null) }, '×')));
     }
     function list() {
         const now = Date.now();
         allow.hidden = typeof Notification === 'undefined' || Notification.permission !== 'default';
         const due = items.filter(r => r.at <= now), next = items.filter(r => r.at > now);
         body.replaceChildren(...(items.length ? [
-            ...(due.length ? [h('h4', {}, `Échus · ${due.length}`), h('ul', {}, due.map(r => row(r, now)))] : []),
-            ...(next.length ? [h('h4', {}, `À venir · ${next.length}`), h('ul', {}, next.map(r => row(r, now)))] : []),
-        ] : [h('p', { class: 'gr-empty' }, 'Aucun rappel. Pose-en un depuis la barre d\'un node (Rappel), ou demande au Gardien : '
-            + '« rappelle-moi vendredi à 9 h d\'appeler Paul ».')]));
+            ...(due.length ? [h('h4', {}, `${t('rem.dueHead')} · ${due.length}`), h('ul', {}, due.map(r => row(r, now)))] : []),
+            ...(next.length ? [h('h4', {}, `${t('rem.nextHead')} · ${next.length}`), h('ul', {}, next.map(r => row(r, now)))] : []),
+        ] : [h('p', { class: 'gr-empty' }, t('rem.empty'))]));
     }
     function open() {
         const r = bell.getBoundingClientRect();

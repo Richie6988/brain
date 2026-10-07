@@ -46,8 +46,8 @@
         #loginToggle .toggle-wrapper::before, #loginToggle .toggle-wrapper::after {
             position: relative; z-index: 1; flex: 1; display: grid; place-items: center; color: #94a3b8; transition: color 0.25s;
         }
-        #loginToggle .toggle-wrapper::before { content: 'LOGIN'; }
-        #loginToggle .toggle-wrapper::after { content: 'REGISTER'; }
+        #loginToggle .toggle-wrapper::before { content: attr(data-login); }
+        #loginToggle .toggle-wrapper::after { content: attr(data-register); }
         #loginToggle .input:checked + .toggle-wrapper::before, #loginToggle .input:not(:checked) + .toggle-wrapper::after { color: #fff; }
         #loginToggle .toggle-wrapper .selector {
             top: 3px; left: calc(50% - 1px); width: calc(50% - 2px); height: calc(100% - 8px); transform: none; border-radius: 999px;
@@ -64,7 +64,7 @@
     <div class="col-8 offset-2" id="loginToggle">
         <label for="toggle">
             <input class="input" type="checkbox" id="toggle" onchange="switchLogin()" checked/>
-            <div class="toggle-wrapper">
+            <div class="toggle-wrapper" data-login="LOGIN" data-register="REGISTER">
                 <span class="selector"></span>
             </div>
             <p class="notification"><span class="selected"></span></p>
@@ -77,27 +77,36 @@
     <div id="loginBlock" class="loginblock col-8 offset-2" style="display: none;">
         <form id="loginForm">
             {% csrf_token %}
-            <input type="email" id="email" name="email" placeholder="Email address" style="max-height: 15px;" required>
-            <input type="password" id="password" name="password" placeholder="Password" style="max-height: 15px;" required>
-            <button class="submit-button log-button" hx-post="{% url 'checklogin' %}" hx-swap="outerhtml" hx-target="#err">LOGIN</button>
-            <a href="{% url 'forgot_password' %}" class="forgot-password" onclick="forgot()">Forgot Password?</a>
+            <input type="email" id="email" name="email" placeholder="Email address" data-i18n-placeholder="login.email" style="max-height: 15px;" required>
+            <input type="password" id="password" name="password" placeholder="Password" data-i18n-placeholder="login.password" style="max-height: 15px;" required>
+            <button class="submit-button log-button" hx-post="{% url 'checklogin' %}" hx-swap="outerhtml" hx-target="#err" data-i18n="login.login">LOGIN</button>
+            <a href="{% url 'forgot_password' %}" class="forgot-password" onclick="forgot()" data-i18n="login.forgot">Forgot Password?</a>
         </form>    
     </div>
     
     <div id="registerBlock" class="loginblock col-8 offset-2" style="display: none;">
         <form id="registerForm">
             {% csrf_token %}
-            <input type="text" id="username" name="username" autocomplete="off" style="max-height: 15px;" placeholder="Choose username" required>
-            <input type="email" id="email" name="email" autocomplete="off" style="max-height: 15px;" placeholder="Email address" required>
-            <input type="date" id="birthdate" name="birthdate" autocomplete="off" style="max-height: 15px;" required onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" placeholder="Birth date">
-            <input type="password" id="password1" name="password1" placeholder="Password" autocomplete="new-password" style="max-height: 15px;" required>
-            <input type="password" id="password2" name="password2" placeholder="Confirm password" autocomplete="new-password" style="max-height: 15px;" required>
-            <button class="submit-button reg-button" hx-post="{% url 'register' %}" hx-swap="outerhtml" hx-target="#err">REGISTER</button>
+            <input type="text" id="username" name="username" autocomplete="off" style="max-height: 15px;" placeholder="Choose username" data-i18n-placeholder="login.username" required>
+            <input type="email" id="email" name="email" autocomplete="off" style="max-height: 15px;" placeholder="Email address" data-i18n-placeholder="login.email" required>
+            <input type="date" id="birthdate" name="birthdate" autocomplete="off" style="max-height: 15px;" required onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" placeholder="Birth date" data-i18n-placeholder="login.birthdate">
+            <input type="password" id="password1" name="password1" placeholder="Password" data-i18n-placeholder="login.password" autocomplete="new-password" style="max-height: 15px;" required>
+            <input type="password" id="password2" name="password2" placeholder="Confirm password" data-i18n-placeholder="login.confirm" autocomplete="new-password" style="max-height: 15px;" required>
+            <button class="submit-button reg-button" hx-post="{% url 'register' %}" hx-swap="outerhtml" hx-target="#err" data-i18n="login.register">REGISTER</button>
         </form>
     </div>
 
 <script>
     let loginIndex = 0;
+    // Textes dans la langue de l'app (fenêtre parente, i18n.js).
+    if (window.parent.nodzT) {
+        const t = window.parent.nodzT;
+        document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+        const toggle = document.querySelector('#loginToggle .toggle-wrapper');
+        toggle.dataset.login = t('login.login');
+        toggle.dataset.register = t('login.register');
+    }
     function loginView () {
         const loginBlock = document.getElementById('loginBlock');
         const registerBlock = document.getElementById('registerBlock');
@@ -165,7 +174,7 @@
             confirm.style.textAlign = 'center'; 
             confirm.style.fontSize = '2.5rem';
             confirm.style.color = '#4b0082';
-            confirm.textContent = `Saved successfully`;            
+            confirm.textContent = window.parent.nodzT ? window.parent.nodzT('login.saved') : 'Saved successfully';            
             loginPopup.style.height = 'auto';
             loginPopup.appendChild(confirm);
                   

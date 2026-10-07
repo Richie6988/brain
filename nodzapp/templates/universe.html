@@ -44,7 +44,7 @@
  
       
     <div id="interactive-area">
-        <div id="log" type="hidden" style="display: none;">0</div>
+        <div id="log" type="hidden" style="display: none;" data-resume="{% if resume %}1{% endif %}" data-guest="{% if guest %}1{% endif %}" data-lang="{{ language }}">0</div>
         <div id="layer" style="display: none;">1</div>
     </div>
  
@@ -80,15 +80,15 @@
     <div class="dropdown" id="layersList">            
         <div class="dropdown-content" id="dropdown-content">
             <!-- Universes will be dynamically added here -->
-            <div class="dropdown-item new" id="create-layer-btn">Nouvelle dimension</div>
+            <div class="dropdown-item new" id="create-layer-btn" data-i18n="dim.new">Nouvelle dimension</div>
         </div>
     </div>
 
     <div class="modal" id="edit-modal">
         <div class="modal-content" id="edit">
-            <div>Nom de la dimension</div>
+            <div data-i18n="dim.name">Nom de la dimension</div>
             <div style="display: flex; flex-direction: row;align-items: center;">
-                <input type="text" id="layer-name-input" placeholder="Enter new name" />
+                <input type="text" id="layer-name-input" placeholder="Enter new name" data-i18n-placeholder="dim.namePh" />
                 <span id="delete-layer" class="delete-layer" style="display: none;">
                     <img src="{% static 'img/delete.svg' %}" width="20" height="20" alt="Delete" class="icon">
                 </span>

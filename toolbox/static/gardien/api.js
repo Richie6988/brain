@@ -1,5 +1,6 @@
 // Client de /api/v1 pour le Gardien : requêtes JSON et flux SSE de ses réponses.
 
+import { t } from './i18n.js';
 const BASE = document.documentElement.dataset.base || '';
 // URL absolue : sur /universe, base.js préfixe déjà les fetch('/...') ; une URL complète n'est jamais préfixée deux fois.
 export const endpoint = path => `${window.location.origin}${BASE}/api/v1/${path}`;
@@ -18,8 +19,8 @@ function send(method, path, body) {
     });
 }
 
-export const SIGNED_OUT = 'Session expirée (mot de passe changé ou déconnexion) : recharge la page avec Ctrl+Maj+R puis reconnecte-toi avec LOGIN.';
-const NO_COOKIE = "Le navigateur n'envoie pas le cookie de session au serveur (page en http au lieu de https, ou autre adresse que celle de la connexion) : ouvre Nodz en https://, puis reconnecte-toi.";
+export const SIGNED_OUT = t('api.signedOut');
+const NO_COOKIE = t('api.noCookie');
 
 async function failure(response) {
     const data = await response.json().catch(() => ({}));

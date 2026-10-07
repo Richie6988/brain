@@ -6,9 +6,13 @@
 // nodes et de leurs liens, enregistrée sur le serveur, se repose comme un modèle de la galerie.
 
 import { api } from './api.js';
+import { lang, t } from './i18n.js';
+import SCHEMAS_EN from './locales/schemas-en.js';
 
 const PALETTE = ['#b89af2', '#1E90FF', '#33FF99', '#FFB84D', '#FF6B6B'];
 const Q = { shape: 'square' };  // titre, question, en-tête : un carré
+// Textes d'un modèle dans la langue de l'interface : chaque segment hors balises, s'il est au dictionnaire anglais.
+const tx = html => (lang() === 'en' ? String(html).replace(/(^|>)([^<]+)(?=<|$)/g, (all, tag, text) => tag + (SCHEMAS_EN[text.trim()] ?? text)) : html);
 
 // Arbre rangé : les feuilles à la suite sur l'axe transverse, chaque parent au milieu de ses enfants.
 // `outline` : [texte, enfants?, options?] ; `step` : écart entre profondeurs ; `gap` : écart entre feuilles ;
@@ -255,7 +259,7 @@ function applyFill({ nodes, links }, fill = {}, title = '') {
     let next = nodes.length;
     const removed = new Set();
     for (const slot of [...nodes]) {
-        const value = wanted.get(plain(slot.text));
+        const value = wanted.get(plain(slot.text)) ?? wanted.get(plain(tx(slot.text)));  // intitulé français ou anglais
         if (value === undefined) continue;
         if (!Array.isArray(value)) {
             slot.text = bold(slot.text, value);
@@ -303,7 +307,7 @@ export function layout(schema, fill, title) {
     });
     const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-    nodes.forEach(n => Object.assign(n, { x: n.x - cx, y: n.y - cy, color: PALETTE[n.depth % PALETTE.length] }));
+    nodes.forEach(n => Object.assign(n, { x: n.x - cx, y: n.y - cy, color: PALETTE[n.depth % PALETTE.length], text: tx(n.text) }));
     return { nodes, links, width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
 }
 
@@ -327,10 +331,10 @@ export function createSchemas({ bridge }) {
     const gallery = document.querySelector('#templates .templatesContent');
     let built = 0;
     gallery.querySelector('.close-btn').after(...FAMILIES.flatMap(family => [
-        Object.assign(document.createElement('h3'), { className: 'gt-trees-title', textContent: family }),
+        Object.assign(document.createElement('h3'), { className: 'gt-trees-title', textContent: tx(family) }),
         ...SCHEMAS.filter(s => s.family === family).map(schema => {
-            const card = Object.assign(document.createElement('button'), { type: 'button', className: 'template-tree', title: `${schema.name} : ${schema.hint}` });
-            card.innerHTML = `${preview(schema)}<b>${schema.name}</b><small>${schema.hint}</small>`;
+            const card = Object.assign(document.createElement('button'), { type: 'button', className: 'template-tree', title: t('sch.card', { name: tx(schema.name), hint: tx(schema.hint) }) });
+            card.innerHTML = `${preview(schema)}<b>${tx(schema.name)}</b><small>${tx(schema.hint)}</small>`;
             card.addEventListener('click', () => {
                 closeGallery();
                 build(schema.key, bridge.center(), true);
@@ -341,7 +345,7 @@ export function createSchemas({ bridge }) {
 
     // --- Mes modèles : enregistrer la sélection, la reposer, la retirer (deux clics, sans confirm()).
     const mine = Object.assign(document.createElement('div'), { className: 'gt-mine' });
-    gallery.querySelector('.close-btn').after(Object.assign(document.createElement('h3'), { className: 'gt-trees-title', textContent: 'Mes modèles' }), mine);
+    gallery.querySelector('.close-btn').after(Object.assign(document.createElement('h3'), { className: 'gt-trees-title', textContent: t('sch.mine') }), mine);
     let saved = [];
     function selection() {
         const list = selectedNodes.filter(n => n.isConnected);
@@ -367,8 +371,8 @@ export function createSchemas({ bridge }) {
     };
     function renderMine() {
         const count = selectedNodes.filter(n => n.isConnected).length;
-        const name = Object.assign(document.createElement('input'), { type: 'text', placeholder: 'Nom du modèle', maxLength: 60 });
-        const keep = Object.assign(document.createElement('button'), { type: 'button', className: 'gt-keep', textContent: 'Enregistrer',
+        const name = Object.assign(document.createElement('input'), { type: 'text', placeholder: t('sch.name'), maxLength: 60 });
+        const keep = Object.assign(document.createElement('button'), { type: 'button', className: 'gt-keep', textContent: t('sch.save'),
             disabled: !count });
         name.addEventListener('keydown', event => {
             event.stopPropagation();  // la saisie ne déclenche pas les raccourcis de Nodz
@@ -384,24 +388,24 @@ export function createSchemas({ bridge }) {
             }
         });
         const note = Object.assign(document.createElement('small'), { textContent: count
-            ? `${count} node${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}, avec leurs liens`
-            : 'Sélectionne des nodes (Ctrl + glisser) pour en faire un modèle' });
+            ? t(count > 1 ? 'sch.pickedN' : 'sch.picked1', { n: count })
+            : t('sch.pickHint') });
         const form = Object.assign(document.createElement('div'), { className: 'gt-save' });
-        form.append(Object.assign(document.createElement('b'), { textContent: '+ Nouveau modèle' }), note, name, keep);
+        form.append(Object.assign(document.createElement('b'), { textContent: t('sch.new') }), note, name, keep);
         mine.replaceChildren(form, ...saved.map(model => {
-            const card = Object.assign(document.createElement('div'), { className: 'template-tree gt-own', title: `${model.name} : ${model.nodes.length} nodes` });
+            const card = Object.assign(document.createElement('div'), { className: 'template-tree gt-own', title: t('sch.card', { name: model.name, hint: `${model.nodes.length} nodes` }) });
             card.innerHTML = `${drawing(measured(model))}<b></b><small>${model.nodes.length} nodes · ${model.links.length} liens</small>`;
             card.querySelector('b').textContent = model.name;
             card.addEventListener('click', () => {
                 closeGallery();
                 place(measured(model), bridge.center());
             });
-            const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'gt-remove', textContent: '×', title: 'Retirer ce modèle' });
+            const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'gt-remove', textContent: '×', title: t('sch.remove') });
             remove.addEventListener('click', async event => {
                 event.stopPropagation();
                 if (!remove.dataset.armed) {
                     remove.dataset.armed = '1';
-                    remove.textContent = 'Retirer ?';
+                    remove.textContent = t('sch.confirm');
                     setTimeout(() => { delete remove.dataset.armed; remove.textContent = '×'; }, 3000);
                     return;
                 }

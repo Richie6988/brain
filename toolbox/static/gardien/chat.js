@@ -9,28 +9,22 @@
 
 import { h } from './library.js';
 import { createOrb } from './orb.js';
+import { t } from './i18n.js';
 
 const KEY = 'gardien-chat';
 const MODE_KEY = 'gardien-mode';
-const PLACEHOLDER = { think: 'Consigne optionnelle, puis Entrée…', deep: 'Consigne optionnelle, puis Entrée…', auto: 'Écris au Gardien…' };
-const HINT = {
-    think: 'Sélectionne un node (ou joins-en avec Filtres), ajoute une consigne si tu veux, puis Entrée : la pensée du Gardien '
-        + 'pousse en nodes autour du node, et ses résultats s\'y rattachent.',
-    deep: 'Mode Profond : le Gardien pense d\'abord librement (étincelles bleues), puis sa pensée pousse en nodes, avec '
-        + 'ses doutes, ses pistes écartées et les mots qu\'il a failli dire.',
-    auto: 'Demande-lui de créer, relier, ranger, chercher sur le web, construire une matrice ou une frise, '
-        + 'ou de te faire visiter une branche. Tu peux aussi lui envoyer un node avec sa pastille.',
-};
+const PLACEHOLDER = { think: t('chat.optional'), deep: t('chat.optional'), auto: t('chat.write') };
+const HINT = { think: t('chat.hintThink'), deep: t('chat.hintDeep'), auto: t('chat.hintAuto') };
 const KEEP = 60;
 const THINK_KEEP = 6000;  // caractères de réflexion gardés par message
 // Suggestions en pastilles au-dessus de la saisie : un clic pose la demande dans le champ, à compléter ou envoyer.
-const IDEAS = ['Résume cette dimension', 'Relie les idées proches', 'Fais un SWOT de ', 'Range en kanban'];
+const IDEAS = [t('chat.idea1'), t('chat.idea2'), t('chat.idea3'), t('chat.idea4')];
 
 // Outils imposés : clé envoyée au serveur, puce, infobulle, invite de saisie.
 const TOOLS = [
-    ['web', 'Web', 'Recherche web : le Gardien répond à partir des résultats, sources citées (/web)', 'Que chercher sur le web ?'],
-    ['draw', 'Dessin', 'Le Gardien dessine lui-même un croquis sur un node (/dessin)', 'Que dessiner ?'],
-    ['image', 'Image', 'Image générée par FLUX, ou un dessin si FLUX n\'est pas installé (/image)', 'Quelle image ?'],
+    ['web', 'Web', t('chat.webTitle'), t('chat.webAsk')],
+    ['draw', t('chat.draw'), t('chat.drawTitle'), t('chat.drawAsk')],
+    ['image', 'Image', t('chat.imageTitle'), t('chat.imageAsk')],
 ];
 const SLASH = /^\/(web|dessin|draw|image|img)\b\s*([\s\S]*)$/i;
 const SLASH_TOOLS = { web: 'web', dessin: 'draw', draw: 'draw', image: 'image', img: 'image' };
@@ -61,12 +55,12 @@ export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGot
         input.setSelectionRange(idea.length, idea.length);
         ideas.hidden = true;
     } }, idea.trim())));
-    const input = h('textarea', { rows: 1, placeholder: PLACEHOLDER[mode], 'aria-label': 'Message au Gardien' });
-    const send = h('button', { type: 'submit', class: 'gc-send', title: 'Envoyer (Entrée)' }, '↑');
+    const input = h('textarea', { rows: 1, placeholder: PLACEHOLDER[mode], 'aria-label': t('chat.message') });
+    const send = h('button', { type: 'submit', class: 'gc-send', title: t('chat.send') }, '↑');
     const form = h('form', { class: 'gc-form' }, input, send);
     // Outil imposé pour le prochain message (puce, ou /web, /dessin, /image en tête du message) : une fois, puis il s'éteint.
     let tool = null;
-    const toolChips = h('div', { class: 'gc-tools', role: 'group', 'aria-label': 'Outil du prochain message' },
+    const toolChips = h('div', { class: 'gc-tools', role: 'group', 'aria-label': t('chat.tool') },
         TOOLS.map(([key, label, title]) => h('button', { type: 'button', 'data-tool': key, title, onclick: () => pick(tool === key ? null : key) }, label)));
     function pick(next) {
         tool = next;
@@ -77,7 +71,7 @@ export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGot
     let ignored = '';  // sélection retirée du contexte par ×, tant qu'elle ne change pas
     let working = false;  // une demande est en cours : le bouton d'envoi l'arrête
     const tray = h('div', { class: 'gc-attach' });
-    const nodeText = node => node.children[0]?.children[0]?.innerText?.trim() || '(vide)';
+    const nodeText = node => node.children[0]?.children[0]?.innerText?.trim() || t('chat.empty');
     const item = node => ({ id: node.id, text: nodeText(node) });  // un node joint : son id et son texte (autre dimension comprise)
     const selection = () => (typeof selectedNodes !== 'undefined' ? selectedNodes : []).filter(n => n.isConnected);
     const signature = nodes => nodes.map(n => n.id).sort().join(',');
@@ -91,26 +85,26 @@ export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGot
         const nodes = context();
         tray.replaceChildren(...(nodes.length
             ? [h('span', { class: 'gc-chip', title: nodes.map(n => `${n.id} : ${n.text.slice(0, 60)}`).join('\n') },
-                `${nodes.length} node${nodes.length > 1 ? 's' : ''} en contexte : `,
-                nodes.slice(0, 3).map(n => (n.text || '(vide)').slice(0, 18)).join(', ') + (nodes.length > 3 ? '…' : ''),
-                h('button', { type: 'button', title: 'Retirer du contexte', onclick: () => { attached = []; ignored = signature(selection()); renderTray(); } }, '×'))]
+                t(nodes.length > 1 ? 'chat.inContextN' : 'chat.inContext1', { n: nodes.length }),
+                nodes.slice(0, 3).map(n => (n.text || t('chat.empty')).slice(0, 18)).join(', ') + (nodes.length > 3 ? '…' : ''),
+                h('button', { type: 'button', title: t('chat.unattach'), onclick: () => { attached = []; ignored = signature(selection()); renderTray(); } }, '×'))]
             : []));
     }
     // La sélection change (clic, rectangle, Ctrl+A, amont / aval) : le contexte suit, chat ouvert.
     ['mouseup', 'keyup'].forEach(type => document.addEventListener(type, () => setTimeout(() => { if (!panel.hidden) renderTray(); }), true));
     // Sa dimension Gardien (âme, mémoire, outils, rêves, échanges) : ses notes et rêves en attente s'y posent à l'arrivée.
-    const exchanges = h('button', { type: 'button', class: 'gc-exchanges', title: 'Sa dimension : âme, ce qu\'il sait de toi, mémoire, outils, rêves, échanges',
-        onclick: () => { toggle(false); onHome(); } }, 'Dimension Gardien');
+    const exchanges = h('button', { type: 'button', class: 'gc-exchanges', title: t('chat.homeTitle'),
+        onclick: () => { toggle(false); onHome(); } }, t('chat.home'));
     // Dimension Gardien, Effacer : dans le menu ⋯ de l'en-tête (il s'allume quand des notes ou des rêves attendent).
     const menu = h('div', { class: 'gc-menu', hidden: true },
         exchanges,
-        h('button', { type: 'button', class: 'gc-clear', title: 'Effacer la conversation', onclick: () => { menu.hidden = true; clear(); } }, 'Effacer'));
-    const more = h('button', { type: 'button', class: 'gc-more', title: 'Plus', onclick: () => { menu.hidden = !menu.hidden; } }, '⋯');
-    const state = h('small', { class: 'gc-state' }, 'en ligne');
-    const modes = h('div', { class: 'gc-mode', role: 'group', 'aria-label': 'Mode du Gardien' },
-        h('button', { type: 'button', 'data-mode': 'think', title: 'Pensée : l\'IA pense à voix haute en nodes, autour du node source' }, 'Pensée'),
-        h('button', { type: 'button', 'data-mode': 'deep', title: 'Profond : réflexion libre d\'abord, puis la pensée (plus long)' }, 'Profond'),
-        h('button', { type: 'button', 'data-mode': 'auto', title: 'Automatisation : web, fichiers, agents et missions' }, 'Auto'));
+        h('button', { type: 'button', class: 'gc-clear', title: t('chat.clearTitle'), onclick: () => { menu.hidden = true; clear(); } }, t('chat.clear')));
+    const more = h('button', { type: 'button', class: 'gc-more', title: t('chat.more'), onclick: () => { menu.hidden = !menu.hidden; } }, '⋯');
+    const state = h('small', { class: 'gc-state' }, t('chat.online'));
+    const modes = h('div', { class: 'gc-mode', role: 'group', 'aria-label': t('chat.mode') },
+        h('button', { type: 'button', 'data-mode': 'think', title: t('chat.thinkTitle') }, t('chat.think')),
+        h('button', { type: 'button', 'data-mode': 'deep', title: t('chat.deepTitle') }, t('chat.deep')),
+        h('button', { type: 'button', 'data-mode': 'auto', title: t('chat.autoTitle') }, 'Auto'));
     modes.addEventListener('click', event => {
         const next = event.target.closest?.('button')?.dataset.mode;
         if (!next || next === mode) return;
@@ -126,14 +120,14 @@ export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGot
         input.placeholder = PLACEHOLDER[mode];
         log.querySelector('.gc-hint p')?.replaceChildren(HINT[mode]);
     }
-    const panel = h('section', { class: 'gc-panel', hidden: true, role: 'dialog', 'aria-label': 'Chat du Gardien' },
-        h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, 'Gardien'), state), modes,
+    const panel = h('section', { class: 'gc-panel', hidden: true, role: 'dialog', 'aria-label': t('chat.title') },
+        h('header', {}, h('i', { class: 'gc-avatar' }), h('div', {}, h('strong', {}, t('chat.guardian')), state), modes,
             h('span', { class: 'gc-more-wrap' }, more, menu),
-            h('button', { type: 'button', class: 'gc-close', title: 'Réduire', onclick: () => toggle(false) }, '×')),
+            h('button', { type: 'button', class: 'gc-close', title: t('chat.minimize'), onclick: () => toggle(false) }, '×')),
         log, status, tray, ideas, toolChips, form);
     // Deux nodes ou plus sélectionnés (Pensée, Profond) : la pastille envoie aussitôt, la sélection est le contexte.
-    const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: 'Gardien', onclick: () => {
-        if (mode !== 'auto' && !working && selection().length > 1) onSend('Pense à partir de ces nodes.', [], true);
+    const bubble = h('button', { type: 'button', id: 'gardien-chat-button', title: t('chat.guardian'), onclick: () => {
+        if (mode !== 'auto' && !working && selection().length > 1) onSend(t('chat.fromNodes'), [], true);
         else toggle();
     } }, h('span', { class: 'go-body' }, h('i', { class: 'go-eye' }), h('i', { class: 'go-eye' })), h('b', { hidden: true }));
     const root = h('div', { id: 'gardien-chat' }, panel, bubble);
@@ -166,7 +160,7 @@ export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGot
         const slash = input.value.trim().match(SLASH);
         if (slash) pick(SLASH_TOOLS[slash[1].toLowerCase()]);
         // Pensée : la consigne est optionnelle, un node en contexte suffit.
-        const text = (slash ? slash[2] : input.value).trim() || (mode !== 'auto' && nodes.length ? 'Pense à partir de ce node.' : '');
+        const text = (slash ? slash[2] : input.value).trim() || (mode !== 'auto' && nodes.length ? t('chat.fromNode') : '');
         if (!text) return;
         input.value = '';
         grow();
@@ -213,18 +207,18 @@ export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGot
             area.remove();
         }
         button.classList.add('done');
-        button.title = 'Copié';
-        setTimeout(() => { button.classList.remove('done'); button.title = 'Copier'; }, 1200);
+        button.title = t('chat.copied');
+        setTimeout(() => { button.classList.remove('done'); button.title = t('chat.copy'); }, 1200);
     }
     const copyButton = entry => {
-        const button = h('button', { type: 'button', class: 'gc-copy', title: 'Copier' });
+        const button = h('button', { type: 'button', class: 'gc-copy', title: t('chat.copy') });
         button.addEventListener('click', () => copy(entry.text, button));
         return button;
     };
 
     // Réflexion du Gardien, comme Poséidon : son plan s'écrit en direct dans un bloc qui se replie à la fin.
     function thinking(entry) {
-        const label = h('span', { class: 'gc-think-label' }, entry.label || 'Réflexion', entry.label ? null : h('i', { class: 'gc-dots' }, h('i'), h('i'), h('i')));
+        const label = h('span', { class: 'gc-think-label' }, entry.label || t('chat.reflection'), entry.label ? null : h('i', { class: 'gc-dots' }, h('i'), h('i'), h('i')));
         const body = h('pre', {}, entry.text);
         const details = h('details', { open: !entry.label }, h('summary', {}, h('span', { class: 'gc-spark' }, '✦'), label), body);
         return h('li', { class: `gc-think${entry.label ? '' : ' live'}` }, details, copyButton(entry));
@@ -250,7 +244,7 @@ export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGot
     // Nodes créés ou modifiés par le Gardien : un lien par node, qui y voyage (même depuis une autre dimension).
     function refs(entry) {
         return h('li', { class: 'gc-links' }, h('small', {}, entry.text), h('div', {}, entry.items.map(item =>
-            h('button', { type: 'button', title: `Aller à ${item.id}`, onclick: () => onGoto(item.id, item.layer) },
+            h('button', { type: 'button', title: t('chat.goTo', { id: item.id }), onclick: () => onGoto(item.id, item.layer) },
                 h('b', {}, item.id), item.label ? ` ${item.label}` : ''))));
     }
 
@@ -349,21 +343,21 @@ export function createChat({ onSend, onStop = () => {}, onHome = () => {}, onGot
         },
         // Notes et rêves du Gardien pas encore posés dans sa dimension.
         unread(count) {
-            exchanges.textContent = count ? `Dimension Gardien · ${count}` : 'Dimension Gardien';
+            exchanges.textContent = count ? `${t('chat.home')} · ${count}` : t('chat.home');
             exchanges.classList.toggle('on', !!count);
             more.classList.toggle('on', !!count);
         },
-        status(text) { statusText.textContent = text || 'le Gardien écrit'; },
+        status(text) { statusText.textContent = text || t('chat.writing'); },
         busy(on) {
             working = on;
             send.textContent = on ? '■' : '↑';
-            send.title = on ? 'Arrêter le Gardien' : 'Envoyer (Entrée)';
+            send.title = on ? t('chat.stop') : t('chat.send');
             send.classList.toggle('stop', on);
             root.classList.toggle('busy', on);
             status.classList.toggle('on', on);
-            state.textContent = on ? 'réfléchit…' : 'en ligne';
+            state.textContent = on ? t('chat.thinking') : t('chat.online');
             ideas.hidden = on || !!input.value.trim();
-            statusText.textContent = on ? 'le Gardien écrit' : '';
+            statusText.textContent = on ? t('chat.writing') : '';
         },
         open: () => toggle(true),
         // Entrée en invité : conversation neuve, gardée en mémoire seulement (ni celle de l'invité précédent, ni celle

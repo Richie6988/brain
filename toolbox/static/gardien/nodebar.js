@@ -14,6 +14,7 @@
 
 import { setStyle, show } from './frames.js';
 import { dragging as gesture } from './gesture.js';
+import { t } from './i18n.js';
 
 const TYPE = 'type', TEXT = 'text', FILE = 'file', CANVAS = 'canvas';  // barres d'outils du node (node.tools, elementsCreation.js)
 
@@ -50,45 +51,45 @@ function removeFile(node) {
 
 const TOOLS = {
     params: [
-        { kind: 'type', group: TYPE, index: 0, title: 'Type du node' },
-        { icon: 'colorpicking', title: 'Couleur', group: TYPE, index: 2, on: 'mousedown' },
-        { icon: node => ({ square: 'square', none: 'hide' })[node.getAttribute('shape')] || 'circle', title: 'Forme : cercle, carré, sans', group: TYPE, index: 5, on: 'click' },
-        { icon: 'calendar', title: 'Rappel', group: TYPE, index: 6, on: 'click' },
-        { icon: node => (node.getAttribute('lock') === '1' ? 'lock' : 'unlock'), title: 'Verrouiller', group: TYPE, index: 7, on: 'click' },
-        { icon: 'layer', title: 'Portail vers une nouvelle dimension', group: TYPE, index: 8, on: 'click' },
+        { kind: 'type', group: TYPE, index: 0, title: t('nb.type') },
+        { icon: 'colorpicking', title: t('nb.color'), group: TYPE, index: 2, on: 'mousedown' },
+        { icon: node => ({ square: 'square', none: 'hide' })[node.getAttribute('shape')] || 'circle', title: t('nb.shape'), group: TYPE, index: 5, on: 'click' },
+        { icon: 'calendar', title: t('nb.reminder'), group: TYPE, index: 6, on: 'click' },
+        { icon: node => (node.getAttribute('lock') === '1' ? 'lock' : 'unlock'), title: t('nb.lock'), group: TYPE, index: 7, on: 'click' },
+        { icon: 'layer', title: t('nb.portal'), group: TYPE, index: 8, on: 'click' },
     ],
     text: [
-        { icon: 'bold', title: 'Gras', group: TEXT, index: 0, on: 'mousedown' },
-        { icon: 'italic', title: 'Italique', group: TEXT, index: 1, on: 'mousedown' },
-        { icon: 'underline', title: 'Souligné', group: TEXT, index: 2, on: 'mousedown' },
-        { kind: 'font', step: -1, label: 'A−', title: 'Plus petit', group: TEXT, index: 3 },
-        { kind: 'font', step: 1, label: 'A+', title: 'Plus grand', group: TEXT, index: 3 },
-        { kind: 'family', label: 'Aa', title: 'Police' },
-        { icon: 'colorpicking', title: 'Couleur du texte', group: TEXT, index: 4, on: 'mousedown' },
-        { icon: 'smiley', title: 'Emoji', group: TEXT, index: 5, on: 'mousedown' },
+        { icon: 'bold', title: t('nb.bold'), group: TEXT, index: 0, on: 'mousedown' },
+        { icon: 'italic', title: t('nb.italic'), group: TEXT, index: 1, on: 'mousedown' },
+        { icon: 'underline', title: t('nb.underline'), group: TEXT, index: 2, on: 'mousedown' },
+        { kind: 'font', step: -1, label: 'A−', title: t('nb.smaller'), group: TEXT, index: 3 },
+        { kind: 'font', step: 1, label: 'A+', title: t('nb.bigger'), group: TEXT, index: 3 },
+        { kind: 'family', label: 'Aa', title: t('nb.font') },
+        { icon: 'colorpicking', title: t('nb.textColor'), group: TEXT, index: 4, on: 'mousedown' },
+        { icon: 'smiley', title: t('nb.emoji'), group: TEXT, index: 5, on: 'mousedown' },
     ],
     canvas: [
-        { icon: 'line', title: 'Trait', group: CANVAS, index: 4, on: 'mousedown' },
-        { icon: 'circle', title: 'Cercle', group: CANVAS, index: 5, on: 'mousedown' },
-        { icon: 'eraser', title: 'Gomme', group: CANVAS, index: 0, on: 'mousedown' },
-        { icon: 'undo', title: 'Annuler le trait', group: CANVAS, index: 2, on: 'mousedown' },
-        { icon: 'redo', title: 'Rétablir le trait', group: CANVAS, index: 1, on: 'mousedown' },
-        { icon: 'eraseall', title: 'Tout effacer', group: CANVAS, index: 3, on: 'mousedown' },
-        { icon: 'colorpicking', title: 'Couleur du trait', group: CANVAS, index: 7, on: 'click' },
-        { kind: 'size', title: 'Épaisseur', group: CANVAS, index: 6 },
+        { icon: 'line', title: t('nb.line'), group: CANVAS, index: 4, on: 'mousedown' },
+        { icon: 'circle', title: t('nb.circle'), group: CANVAS, index: 5, on: 'mousedown' },
+        { icon: 'eraser', title: t('nb.eraser'), group: CANVAS, index: 0, on: 'mousedown' },
+        { icon: 'undo', title: t('nb.undo'), group: CANVAS, index: 2, on: 'mousedown' },
+        { icon: 'redo', title: t('nb.redo'), group: CANVAS, index: 1, on: 'mousedown' },
+        { icon: 'eraseall', title: t('nb.clear'), group: CANVAS, index: 3, on: 'mousedown' },
+        { icon: 'colorpicking', title: t('nb.strokeColor'), group: CANVAS, index: 7, on: 'click' },
+        { kind: 'size', title: t('nb.size'), group: CANVAS, index: 6 },
     ],
     code: [  // nodes de code : l'IDE (ide.js) s'ouvre par un événement
-        { kind: 'action', action: 'ide', label: '</> IDE', title: "Ouvrir l'IDE" },
-        { kind: 'action', action: 'run', label: '▶', title: 'Exécuter (résultat dans le node)' },
+        { kind: 'action', action: 'ide', label: '</> IDE', title: t('nb.ide') },
+        { kind: 'action', action: 'run', label: '▶', title: t('nb.run') },
     ],
     image: [  // changer ou retirer l'image déjà chargée (Nodz ne le permettait que par double-clic)
-        { kind: 'do', icon: 'newimg', title: "Changer l'image", run: pickImage },
-        { kind: 'do', svg: TRASH, title: "Retirer l'image", run: removeImage },
+        { kind: 'do', icon: 'newimg', title: t('nb.changeImage'), run: pickImage },
+        { kind: 'do', svg: TRASH, title: t('nb.removeImage'), run: removeImage },
     ],
     file: [
-        { icon: 'upload', title: 'Importer ou changer le fichier', group: FILE, index: 0, on: 'mousedown', pick: 'div' },
-        { icon: 'download', title: 'Télécharger', group: FILE, index: 1, on: 'mousedown', pick: 'div' },
-        { kind: 'do', svg: TRASH, title: 'Retirer le fichier', run: removeFile },
+        { icon: 'upload', title: t('nb.upload'), group: FILE, index: 0, on: 'mousedown', pick: 'div' },
+        { icon: 'download', title: t('nb.download'), group: FILE, index: 1, on: 'mousedown', pick: 'div' },
+        { kind: 'do', svg: TRASH, title: t('nb.removeFile'), run: removeFile },
     ],
 };
 
@@ -97,9 +98,9 @@ const FAMILIES = [
     ['Cascadia Code', "'Cascadia Code', monospace"],
     ['Sans', "system-ui, 'Segoe UI', Roboto, sans-serif"],
     ['Serif', "Georgia, 'Times New Roman', serif"],
-    ['Manuscrite', "'Segoe Script', 'Bradley Hand', 'Comic Sans MS', cursive"],
-    ['Machine', "'Courier New', Courier, monospace"],
-    ['Affiche', "Impact, 'Arial Black', sans-serif"],
+    [t('nb.fontHand'), "'Segoe Script', 'Bradley Hand', 'Comic Sans MS', cursive"],
+    [t('nb.fontType'), "'Courier New', Courier, monospace"],
+    [t('nb.fontPoster'), "Impact, 'Arial Black', sans-serif"],
 ];
 
 const img = name => `${NODZ_BASE}/static/img/${name}${typeof dark !== 'undefined' && !dark ? '-light' : ''}.svg`;
@@ -115,7 +116,7 @@ function createSizer() {
     const knob = document.createElement('button');
     knob.type = 'button';
     knob.id = 'gardien-sizer';
-    knob.setAttribute('aria-label', 'Taille du node');  // pas d'infobulle : le geste parle de lui-même
+    knob.setAttribute('aria-label', t('nb.knob'));  // pas d'infobulle : le geste parle de lui-même
     knob.hidden = true;
     knob.innerHTML = ARROWS;
     document.body.append(knob);
@@ -253,7 +254,7 @@ export function createNodebar() {
     // s'applique à la sélection comme le gras (execCommand, balise font face), Nodz l'enregistre en quittant le node.
     function family() {
         const wrap = Object.assign(document.createElement('span'), { className: 'gn-family' });
-        const b = Object.assign(document.createElement('button'), { type: 'button', title: 'Police', textContent: 'Aa' });
+        const b = Object.assign(document.createElement('button'), { type: 'button', title: t('nb.font'), textContent: 'Aa' });
         const menu = Object.assign(document.createElement('div'), { className: 'gn-menu', hidden: true });
         FAMILIES.forEach(([name, stack]) => {
             const item = Object.assign(document.createElement('button'), { type: 'button', textContent: name, title: name });

@@ -43,6 +43,7 @@ import { createTextFit } from './textfit.js';
 import { createThoughts } from './thoughts.js';
 import { createTheme } from './theme.js';
 import { createTour } from './tour.js';
+import { lang, langSwitch, locale, syncAccount, t, translateDom } from './i18n.js';
 
 const toast = document.getElementById('gardien-toast');
 
@@ -50,7 +51,7 @@ const toast = document.getElementById('gardien-toast');
 function say(text, kind = '') {
     const line = document.createElement('p');
     line.className = kind;
-    line.innerHTML = '<span class="gt-orb" aria-hidden="true"><i></i><i></i></span><span class="gt-body"><b>Gardien</b><span></span></span>';
+    line.innerHTML = `<span class="gt-orb" aria-hidden="true"><i></i><i></i></span><span class="gt-body"><b>${t('pill.guardian')}</b><span></span></span>`;
     line.querySelector('.gt-body span').textContent = text;
     toast.append(line);
     setTimeout(() => line.classList.add('fade'), kind === 'guide' ? 6000 : 4500);
@@ -61,7 +62,7 @@ function say(text, kind = '') {
 // Fil de suivi : la mascotte le dit, dans la bulle de l'orbe (réflexion en direct, puis chaque geste) ; plus de
 // liste d'étapes dans la pastille des jauges.
 const follow = {
-    start() { chat.mascot.say('Je réfléchis…'); },
+    start() { chat.mascot.say(t('g.thinking')); },
     step(text) { chat.mascot.say(text); },
     end(text) { chat.mascot.say(text); },
 };
@@ -106,6 +107,7 @@ const signedIn = setInterval(() => {
     library.refresh().catch(() => {});  // IA locale ou non : la tour CPU/GPU s'affiche ou se cache
     quota.refresh();
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
+    if (typeof guestUser === 'undefined' || !guestUser) syncAccount();  // langue du compte et de ce navigateur
     guide.welcome();  // première visite : le guide s'ouvre
     guardianHome.ensure(guide.closed).catch(() => {});  // dimension Gardien posée d'office, une fois le guide fermé
     room.start();  // salon du lien (?room=) ou le sien resté ouvert
@@ -120,6 +122,8 @@ createGrab();  // zone de saisie du node allumée au survol
 createTextFit();  // le texte d'un node n'est jamais rogné : le node grandit juste assez
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
 createLabels();  // libellés d'icônes au style HYPERSPACE, à la place des infobulles
+translateDom();  // textes des gabarits (profil, liste des dimensions, export) dans la langue choisie
+document.getElementById('pf-lang')?.append(langSwitch());  // bascule FR | EN du profil
 createThoughts();  // filtre des pensées de l'IA dans le dock : visibles, estompées, masquées
 createTheme();  // bouton jour / nuit : Nuit ou Ardoise (gris-bleu sombre), plus d'univers blanc
 const sfx = createSfx();  // effets sonores des gestes : création, lien, suppression, portail…
@@ -133,21 +137,20 @@ const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node 
     onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); sfx.play('arrange'); physics.arrange(nodes); },
     // Le code du Codeur échoue : le Gardien le reprend une fois (pas de boucle de corrections).
     onCodeError: (node, error) => {
-        if (fixed.has(node.id)) return chat.add('notice', `Le code de ${node.id} échoue encore : ${error.split('\n').pop()}`);
+        if (fixed.has(node.id)) return chat.add('notice', t('g.codeStillFails', { id: node.id, error: error.split('\n').pop() }));
         fixed.add(node.id);
-        queue = queue.then(() => ask(node, `Le code de ce node (${node.id}) échoue à l'exécution :\n${error}\nCorrige-le : `
-            + `confie-le au Codeur (delegate, ref ${node.id}).`, [], true));
+        queue = queue.then(() => ask(node, t('g.codeFix', { id: node.id, error }), [], true));
     } });
 const fixed = new Set();  // nodes de code déjà renvoyés une fois au Gardien pour correction
 const reminders = createReminders({ bridge, say, sfx });  // rappels : compte à rebours, notifications, panneau de la cloche
 const tour = createTour({ bridge, say });
 // Visite : bouton du dock, à partir du node sélectionné (le dernier d'une multisélection).
-const visitButton = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'visitButton', title: 'Visite' });
+const visitButton = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'visitButton', title: t('g.visit') });
 document.getElementById('originButton')?.after(visitButton);
 visitButton.addEventListener('click', () => {
     const node = selectedNodes.filter(n => n.isConnected).at(-1);
     if (node) tour.start(node);
-    else say('Sélectionne le node d\'où part la visite.');
+    else say(t('g.visitPick'));
 });
 const compact = createCompact({ bridge, say });  // mode compact : sélection ou dimension rangée en arbre, nuage ou processus, en texte net (C)
 const room = createRoom({ bridge, say, onPremiumOnly: () => quota.offer('rooms') });  // salons multijoueur : bouton Inviter, curseurs, gestes en direct
@@ -203,7 +206,7 @@ svg.addEventListener('pointerup', event => {
 document.addEventListener('gardien-node-click', ({ detail }) => { if (Number(currentZoom) < ALTITUDE) clickNode(detail.node, true); });
 function clickNode(node, high) {
     if (high) bridge.perform({ op: 'focus', ref: node.id, zoom: 1 }).catch(() => {});
-    else if (node.getAttribute('type') === 'code') ide.open(node).catch(error => say(`IDE : ${error.message}`, 'error'));
+    else if (node.getAttribute('type') === 'code') ide.open(node).catch(error => say(t('g.ide', { error: error.message }), 'error'));
 }
 
 const monitor = createMonitor({ onSignedOut: message => say(message, 'error') });
@@ -218,7 +221,7 @@ const library = createLibrary({
 
 const button = document.getElementById('agentsButton');
 button.addEventListener('click', () => library.open());
-button.addEventListener('mouseover', () => createTooltip('agentsButton', 'Agents & modèles'));
+button.addEventListener('mouseover', () => createTooltip('agentsButton', t('g.agents')));
 
 // Tour de contrôle : les gestes la traversent (sélection, glissé) ; son en-tête ouvre la bibliothèque.
 const tower = monitor.panel('gm-hud');
@@ -240,8 +243,8 @@ let queue = Promise.resolve();
 async function ask(node, text, attached = [], direct = !!node, tool = null) {  // tool : web, draw, image (outil imposé, mode Pensée)
     let actions = Promise.resolve();
     const history = chat.recent();  // la conversation jusqu'ici : le Gardien la suit
-    chat.add('user', text, node ? `node ${node.id}` : attached.length ? `${attached.length} node${attached.length > 1 ? 's' : ''} en contexte` : '');
-    if (typeof admin !== 'undefined' && admin) return chat.add('notice', 'Univers d\'un autre compte, en lecture : le Gardien n\'y agit pas.');
+    chat.add('user', text, node ? `node ${node.id}` : attached.length ? t(attached.length > 1 ? 'g.contextN' : 'g.context1', { n: attached.length }) : '');
+    if (typeof admin !== 'undefined' && admin) return chat.add('notice', t('g.readOnly'));
     const reply = (kind, message) => {
         chat.add(kind === 'text' ? 'guardian' : kind, message);
         if (node) say(message, kind);
@@ -254,15 +257,14 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
     try {
         if (!guardian) await loadGuardian();
         if (!guardian?.enabled || !guardian.model) {
-            chat.offer('Je dors : pour penser avec toi, il me faut un grand modèle. Passe Premium, ou branche ton IA par API avec ta clé.',
-                'Réveiller le Gardien', () => library.open('start'));
-            if (node) say('Le Gardien dort : Premium ou ta clé API le réveillent (Agents & modèles, Mon IA).', 'notice');
+            chat.offer(t('g.asleep'), t('g.wake'), () => library.open('start'));
+            if (node) say(t('g.asleepToast'), 'notice');
             return;
         }
         node?.classList.add('gardien-thinking');
         if (node) filters.mark([node.id], 'message');
         follow.start();
-        chat.status('Le Gardien réfléchit…');
+        chat.status(t('g.busy'));
         const created = [], changed = [];
         let timing = null, stopped = false;
         const home = layerNumber;  // la demande reste liée à cette dimension
@@ -270,15 +272,15 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
         const perform = data => pending.run(home, data).then(waiting => {
             if (!waiting || away) return;
             away = true;
-            const name = layers.find(l => l.id === home)?.name || 'sa dimension';
-            chat.add('notice', `Tu as changé de dimension : le Gardien continue ; ce qu'il pose attend ton retour dans « ${name} ».`);
+            const name = layers.find(l => l.id === home)?.name || t('g.itsDimension');
+            chat.add('notice', t('g.away', { name }));
         });
         const thought = ({ round: r, text: piece }) => {
             if (!think) {
                 think = chat.think();
                 thinkStart = performance.now();
             }
-            if (r !== round) think.append(`\n\n· tour ${r + 1} ·\n`);
+            if (r !== round) think.append(`\n\n· ${t('g.round', { n: r + 1 })} ·\n`);
             round = r;
             pieces += 1;
             think.append(piece);
@@ -286,7 +288,7 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
         const context = bridge.context();
         const now = new Date();  // l'heure de l'humain : ses rappels (« vendredi 9 h »)
         const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} `
-            + `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}, ${now.toLocaleDateString('fr-FR', { weekday: 'long' })}`;
+            + `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}, ${now.toLocaleDateString(locale(), { weekday: 'long' })}`;
         await api.command({ prompt: text, context: { ...context, now: stamp, mode: tool ? 'think' : chat.mode(), ...(tool ? { tool } : {}), ...(node ? { origin: node.id } : {}), ...(attached.length ? { attached } : {}),
             source: direct ? 'node' : 'chat', ...(history.length && !direct ? { history } : {}) } }, (type, data) => {
             if (type === 'thinking') {
@@ -296,7 +298,7 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
             else if (type === 'stopped') stopped = true;
             else if (type === 'text' || type === 'notice') reply(type, data.text);
             else if (type === 'queued') {
-                const where = data.position === 1 ? 'Tu es le prochain : le Gardien finit une autre demande' : `En file d'attente : ${data.position}e`;
+                const where = data.position === 1 ? t('g.next') : t('g.queued', { n: data.position });
                 follow.step(where, 'waiting');
                 chat.status(where);
             }
@@ -304,11 +306,11 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
             // Intentions et gestes s'enchaînent : chaque étape s'affiche quand la page l'exécute.
             else if (type === 'intent') actions = actions.then(() => { follow.step(data.text); chat.status(data.text); });
             // Note pour plus tard : annoncée dans le chat, posée dans Échanges quand l'humain l'ouvre.
-            else if (type === 'note') actions = actions.then(() => { chat.add('guardian', `Note laissée dans la dimension Gardien (Échanges) : ${data.text}`, '', data.choices); guardianHome.refresh(); });
+            else if (type === 'note') actions = actions.then(() => { chat.add('guardian', t('g.note', { text: data.text }), '', data.choices); guardianHome.refresh(); });
             // Question à l'humain : ses choix sont des boutons dans le chat, qui s'ouvre.
             else if (type === 'ask') actions = actions.then(() => { chat.add('guardian', data.text, '', data.choices); chat.open(); if (node) say(data.text, 'text'); });
             else if (type === 'error') actions = actions.then(() => { follow.step(data.message, 'error'); chat.add('error', data.message); });
-            else if (type === 'agent') actions = actions.then(() => follow.step(`${data.agent} ${data.role === 'image' ? 'dessine' : 'écrit'} : ${data.task}`, 'agent'));
+            else if (type === 'agent') actions = actions.then(() => follow.step(t(data.role === 'image' ? 'g.agentDraws' : 'g.agentWrites', { agent: data.agent, task: data.task }), 'agent'));
             else if (type === 'action') {
                 actions = actions.then(() => perform(data))
                     .then(() => chat.mascot.visit(bridge.idOf(data.ref || data.target || data.source)))
@@ -317,12 +319,12 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
                 else if (['update', 'style'].includes(data.op)) changed.push(data.ref);
             }
         });
-        think?.end(`${stopped ? 'Arrêté après' : 'A réfléchi'} (${pieces} jetons, ${Math.round((performance.now() - thinkStart) / 1000)} s)`);
+        think?.end(t(stopped ? 'g.thoughtStopped' : 'g.thought', { n: pieces, s: Math.round((performance.now() - thinkStart) / 1000) }));
         think = null;
         await actions;
         if (stopped) {
-            follow.end('Arrêté');
-            chat.add('notice', 'Gardien arrêté : ce qu\'il avait déjà posé reste (Ctrl+Z pour l\'annuler).');
+            follow.end(t('g.stopped'));
+            chat.add('notice', t('g.stoppedNote'));
             return;
         }
         filters.mark(created.map(bridge.idOf).filter(id => id.startsWith('N-')), 'ai');
@@ -330,26 +332,21 @@ async function ask(node, text, attached = [], direct = !!node, tool = null) {  /
         const item = id => ({ id, layer: home, label: (document.getElementById(id)?.children[0]?.children[0]?.innerText || '').trim().slice(0, 28) });
         const made = [...new Set(created.map(bridge.idOf).filter(id => id.startsWith('N-')))];
         const touched = [...new Set(changed.map(bridge.idOf).filter(id => id.startsWith('N-') && !made.includes(id)))];
-        chat.links(`${made.length} node${made.length > 1 ? 's' : ''} créé${made.length > 1 ? 's' : ''} :`, made.map(item));
-        chat.links(`${touched.length} node${touched.length > 1 ? 's' : ''} modifié${touched.length > 1 ? 's' : ''} :`, touched.map(item));
-        follow.end(timing ? `Terminé en ${Math.round(timing.total_s)} s` : 'Terminé');
+        chat.links(t(made.length > 1 ? 'g.createdN' : 'g.created1', { n: made.length }), made.map(item));
+        chat.links(t(touched.length > 1 ? 'g.changedN' : 'g.changed1', { n: touched.length }), touched.map(item));
+        follow.end(timing ? t('g.doneIn', { s: Math.round(timing.total_s) }) : t('g.done'));
         // Où passe le temps : lecture du prompt (avant le premier mot) et génération, par appel au modèle.
-        if (timing) chat.add('notice', `${Math.round(timing.total_s)} s · ${timing.calls} appel${timing.calls > 1 ? 's' : ''} au modèle · `
-            + `lecture du prompt ${Math.round(timing.wait_s)} s${timing.prompt_tokens ? ` (${timing.prompt_tokens} jetons)` : ''}`
-            + `${timing.speed ? ` · ${timing.speed} jetons/s` : ''}`);
+        if (timing) chat.add('notice', t(timing.calls > 1 ? 'g.timingN' : 'g.timing1', { s: Math.round(timing.total_s), n: timing.calls, read: Math.round(timing.wait_s) })
+            + (timing.prompt_tokens ? t('g.timingTokens', { n: timing.prompt_tokens }) : '')
+            + (timing.speed ? t('g.timingSpeed', { n: timing.speed }) : ''));
         // Le modèle ne tient pas dans la RAM libre : il relit le disque à chaque mot écrit, c'est là que part le temps.
-        const go = n => String(n).replace('.', ',');
+        const go = n => (lang() === 'en' ? String(n) : String(n).replace('.', ','));
         const m = timing?.memory;
-        if (m?.no_cuda) chat.add('guardian', `Je tourne sur le processeur : une carte NVIDIA est là, mais llama-cpp-python est compilé `
-            + 'sans CUDA. Agents & modèles, Bibliothèque : « Compiler avec CUDA », et j\'écrirai bien plus vite.', 'mémoire');
-        else if (m) chat.add('guardian', `Je suis lent parce que mon modèle (${go(m.model_gb)} Go) ne tient ${m.vram_gb ? 'ni' : 'pas'} dans la mémoire libre `
-            + `(${go(m.free_gb)} Go)${m.vram_gb ? ` ni dans la carte graphique (${go(m.vram_gb)} Go libres)` : ''} : je relis le disque `
-            + `à chaque mot. Donne-moi un modèle d'environ ${go(m.advice_gb)} Go ou moins dans Agents & modèles`
-            + `${m.vram_gb ? ', il tiendra entier sur la carte graphique' : ' (un 3B ou un 1.5B en Q4)'}, ou branche un modèle par API : `
-            + 'j\'écrirai bien plus vite.', 'mémoire');
+        if (m?.no_cuda) chat.add('guardian', t('g.noCuda'), t('g.memory'));
+        else if (m) chat.add('guardian', t(m.vram_gb ? 'g.slowGpu' : 'g.slow', { model: go(m.model_gb), free: go(m.free_gb), vram: go(m.vram_gb), advice: go(m.advice_gb) }), t('g.memory'));
         if (!stopped) sfx.play('done');
     } catch (error) {
-        think?.end('Réflexion interrompue');
+        think?.end(t('g.interrupted'));
         follow.end(error.message);
         reply('error', error.message);
     } finally {
@@ -365,16 +362,16 @@ const chat = createChat({
     // Changer de mode : le modèle lit en arrière-plan le prompt système de ce mode.
     onMode: mode => api.request('POST', 'toolbox/warm', { mode }).catch(() => {}),
     onSend: (text, attached, direct = false, tool = null) => {
-        if (text === 'Plus tard') return chat.add('notice', 'D\'accord, je n\'y touche pas.');  // une note écartée : rien à demander au modèle
+        if (text === 'Plus tard' || text === t('g.later')) return chat.add('notice', t('g.leaveIt'));  // une note écartée : rien à demander au modèle
         queue = queue.then(() => ask(null, text, attached, direct, tool));
     },
     // Stop : le serveur coupe le modèle à son prochain jeton ; la lecture du prompt, elle, va à son terme avant.
     onStop: () => {
-        chat.status('Arrêt demandé : le Gardien s\'arrête à son prochain mot…');
+        chat.status(t('g.stopping'));
         api.request('POST', 'toolbox/command/stop').catch(error => chat.add('error', error.message));
     },
     onHome: () => guardianHome.open().catch(error => say(error.message, 'error')),
-    onGoto: (ref, layer) => bridge.perform({ op: 'goto', ref, layer }).catch(() => say(`${ref} n'existe plus`, 'error')),
+    onGoto: (ref, layer) => bridge.perform({ op: 'goto', ref, layer }).catch(() => say(t('g.gone', { ref }), 'error')),
 });
 const guardianHome = createHome({ bridge, say, filters, chat, branches });  // dimension Gardien : ses clés, réglées en réécrivant ses nodes
 
@@ -392,7 +389,7 @@ document.getElementById('gardien-chat-button').addEventListener('click', event =
 // Retour de Stripe (?premium=ok ou annule) : un mot, puis l'adresse redevient propre.
 const paid = new URLSearchParams(location.search).get('premium');
 if (paid) {
-    say(paid === 'ok' ? 'Merci ! Ton Gardien Premium s\'active dans un instant ; un e-mail te le confirme.' : 'Paiement annulé : rien n\'a changé.', 'guide');
+    say(t(paid === 'ok' ? 'g.paid' : 'g.unpaid'), 'guide');
     history.replaceState(null, '', location.pathname);
     if (paid === 'ok') setTimeout(() => library.refresh().catch(() => {}), 4000);  // le webhook de Stripe arrive en quelques secondes
 }
@@ -406,7 +403,7 @@ document.addEventListener('input', function hint(event) {
         if (localStorage.getItem('gardien-hint')) return;
         localStorage.setItem('gardien-hint', '1');
     } catch { /* stockage indisponible : l'astuce revient à chaque visite */ }
-    say('Astuce : la pastille « Gardien » à côté du node (ou Ctrl+Entrée) l\'envoie au Gardien.', 'notice');
+    say(t('g.hint'), 'notice');
 }, true);
 
 bridge.watchMessages((node, text) => {

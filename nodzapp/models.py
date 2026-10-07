@@ -53,6 +53,7 @@ class NodzUser(AbstractUser):
     premium_type = models.CharField(max_length=2, null=True, blank=True)
     premium_days = models.IntegerField(default=0)
     premium_until = models.DateTimeField(null=True, blank=True)  # fin du Premium offert par parrainage (toolbox/premium.py)
+    language = models.CharField(max_length=2, blank=True, default='')  # langue de l'interface choisie ('fr', 'en' ; vide : celle du navigateur)
 
     verifcode = models.IntegerField(default=0)
     referrer = models.IntegerField(default=0)

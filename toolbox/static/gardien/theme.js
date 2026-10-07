@@ -3,6 +3,7 @@
 // univers blanc : Nodz reste en mode sombre (`dark`), Ardoise n'est qu'une teinte, posée par la classe du body. Le choix
 // est gardé par navigateur ; un compte qui avait choisi le blanc retrouve Ardoise.
 
+import { t } from './i18n.js';
 const KEY = 'gardien-theme';
 
 export function createTheme() {
@@ -36,7 +37,7 @@ export function createTheme() {
     document.addEventListener('mouseover', event => {
         if (event.target !== button) return;
         event.stopImmediatePropagation();
-        window.createTooltip?.('darkButton', slate ? 'Thème Nuit' : 'Thème Ardoise');
+        window.createTooltip?.('darkButton', slate ? t('theme.night') : t('theme.slate'));
     }, true);
     show();
 }

@@ -1415,7 +1415,7 @@ class Guardian(IaquaOps):
         if agent.role == Agent.Role.IMAGE:
             return self.illustrate(agent, task, ref, extra or {})
         messages = [
-            {'role': 'system', 'content': agent.system_prompt or prompts.default(agent.role)},
+            {'role': 'system', 'content': (agent.system_prompt or prompts.default(agent.role)) + prompts.language_rule(self.user)},
             {'role': 'user', 'content': task},
         ]
         written, shown = [], [0]
@@ -1495,7 +1495,7 @@ class Guardian(IaquaOps):
         memory = 'Tu te souviens :\n' + '\n'.join(f'- {f}' for f in guardian.memory) if guardian.memory else ''
         memory = '\n'.join(filter(None, [home.profile(state), memory]))
         return (SYSTEM.replace('{tools}', tools.prompt(self.allowed, self.docs)).replace('{agents}', roster).replace('{memory}', memory)
-                .replace('{guidelines}', '\n'.join([guidelines or prompts.AUTOMATION, DATA_RULE])))
+                .replace('{guidelines}', '\n'.join([guidelines or prompts.AUTOMATION, DATA_RULE])) + prompts.language_rule(self.user))
 
     def plan_call(self, guardian, messages, round_, request, schema=PLAN_SCHEMA, on_text=None, temperature=0.2, on_token=None,
                   max_tokens=None):
