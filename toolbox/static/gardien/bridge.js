@@ -12,6 +12,10 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const SKETCH = 360;  // côté d'un node de croquis posé par l'IA (le canvas de Nodz en fait 750)
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+// Icônes de la pastille d'un node : une branche (un node et ses enfants), une sélection (nodes reliés dans un lasso).
+const svgIcon = body => `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const ICON_BRANCH = svgIcon('<circle cx="3.5" cy="8" r="2"/><circle cx="12.5" cy="3.5" r="2"/><circle cx="12.5" cy="12.5" r="2"/><path d="M5.5 8h2.5M8 3.5v9M8 3.5h2.5M8 12.5h2.5"/>');
+const ICON_PICK = svgIcon('<path d="M2.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 1 1-11 0" stroke-dasharray="2 2"/><circle cx="6" cy="8" r="1.4" fill="currentColor"/><circle cx="10.5" cy="6" r="1.4" fill="currentColor"/><path d="M7.2 7.5l2.1-1"/>');
 
 export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onBranch = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {},
     onCodeError = () => {} }) {
@@ -450,9 +454,13 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             pill.hidden = true;
             pill.innerHTML = '<button type="button" class="send"><i></i><span>Gardien</span><kbd>Ctrl ↵</kbd></button>'
                 + '<button type="button" class="arrange" title="Ordonner ces nodes : ils se repoussent et se posent">Ordonner</button>'
-                + '<button type="button" class="branch" title="Branche : ranger en arbre, replier">Branche ▾</button>'
-                + '<button type="button" class="pick" title="Sélection : amont, aval ou tout ce qui est relié">Sélection ▾</button>';
-            const [sendButton, arrangeButton, branchButton, pickButton] = pill.children;
+                + '<span class="tools">'
+                + `<button type="button" class="branch" title="Branche : ranger en arbre, replier" aria-label="Branche">${ICON_BRANCH}<b>▾</b></button>`
+                + `<button type="button" class="pick" title="Sélection : amont, aval ou tout ce qui est relié" aria-label="Sélection">${ICON_PICK}<b>▾</b></button>`
+                + '</span>';
+            const [sendButton, arrangeButton, tools] = pill.children;
+            const [branchButton, pickButton] = tools.children;
+            const branchMenu = () => document.getElementById('gardien-branch');
             // Les nodes reliés à `node` en remontant (parents : Node1 → Node2 = node), en descendant, ou les deux (tout ce
             // qui lui est relié), de proche en proche, par les seuls liens visibles : un node masqué par les filtres coupe
             // la chaîne (sinon les nodes au-delà semblaient pris sans lien).
@@ -476,7 +484,9 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             const pickMenu = Object.assign(document.createElement('div'), { id: 'gardien-pick', hidden: true });
             document.body.append(pickMenu);
             pickMenu.addEventListener('mousedown', event => event.preventDefault());  // garde le focus : la pastille garde son node
-            document.addEventListener('mousedown', event => { if (!pickMenu.contains(event.target)) pickMenu.hidden = true; }, true);
+            document.addEventListener('mousedown', event => {
+                if (!pickMenu.contains(event.target) && !pill.contains(event.target)) pickMenu.hidden = true;
+            }, true);
             const openPick = node => {
                 const r = pickButton.getBoundingClientRect();
                 pickMenu.replaceChildren(...[['up', '▲ Amont', 'Le node et tous ses parents, de lien en lien'],
@@ -490,6 +500,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 pickMenu.style.top = `${r.bottom + 6}px`;
                 pickMenu.hidden = false;
             };
+            const menusOpen = () => !pickMenu.hidden || branchMenu()?.hidden === false;
             const label = sendButton.querySelector('span');
             document.body.append(pill);
             let target = null;
@@ -497,7 +508,11 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             const place = () => {
                 if (!target || !target.isConnected) return hide();
                 pill.style.visibility = dragging() ? 'hidden' : '';  // pendant un glissé : ni mesure ni suivi
-                if (dragging()) return requestAnimationFrame(place);
+                // Sous le pointeur ou menu ouvert, la pastille ne bouge plus : un node qui s'agrandit (textfit) la
+                // déplaçait entre l'appui et le relâchement, et le clic était perdu.
+                branchButton.classList.toggle('on', branchMenu()?.hidden === false);
+                pickButton.classList.toggle('on', !pickMenu.hidden);
+                if (dragging() || pill.matches(':hover') || menusOpen()) return requestAnimationFrame(place);
                 const shape = target.getAttribute('shape') === 'square' ? target.children[2] : target.children[1];
                 const r = (shape || target).getBoundingClientRect();
                 pill.style.left = `${Math.min(window.innerWidth - pill.offsetWidth - 8, r.right + 8)}px`;
@@ -513,6 +528,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 sendButton.title = nodes.length > 1 ? 'Joindre ces nodes à ta prochaine demande au Gardien (chat)' : 'Envoyer ce node au Gardien (Ctrl+Entrée)';
                 branchButton.hidden = nodes.length > 1 || !kin(node, 'down').length;  // une branche : des enfants
                 pickButton.hidden = nodes.length > 1 || !kin(node, 'all').length;  // rien de relié : rien à sélectionner
+                tools.hidden = branchButton.hidden && pickButton.hidden;
                 if (target === node) return;
                 const idle = !target;
                 target = node;
@@ -553,13 +569,24 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 if (target && !sendButton.disabled) fire(target);
             });
             // Sélection de zone : la physique de répulsion range ces nodes, les autres restent en place.
-            branchButton.addEventListener('click', () => { if (target) onBranch(target, branchButton.getBoundingClientRect()); });
+            // Branche et Sélection s'ouvrent dès l'appui ; un second appui referme.
+            branchButton.addEventListener('pointerdown', event => {
+                if (event.button !== 0 || !target) return;
+                pickMenu.hidden = true;
+                if (branchMenu()?.hidden === false) branchMenu().hidden = true;
+                else onBranch(target, branchButton.getBoundingClientRect());
+            });
             arrangeButton.addEventListener('click', () => {
                 const nodes = group.filter(n => n.isConnected);
                 hide();
                 onArrange(nodes);
             });
-            pickButton.addEventListener('click', () => { if (target) openPick(target); });
+            pickButton.addEventListener('pointerdown', event => {
+                if (event.button !== 0 || !target) return;
+                if (branchMenu()) branchMenu().hidden = true;
+                if (!pickMenu.hidden) pickMenu.hidden = true;
+                else openPick(target);
+            });
             // Sélectionner le node et tous ses parents, ses enfants ou tout ce qui lui est relié, rien d'autre : une
             // sélection précédente est remplacée ; la pastille passe en multisélection.
             const extend = (way, node = target) => {

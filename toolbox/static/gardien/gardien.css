@@ -17,10 +17,18 @@
     box-shadow: 0 0 14px rgba(104, 72, 166, 0.55); transition: filter 0.15s, box-shadow 0.15s;
 }
 #gardien-send .send { padding-left: 5px; }
-#gardien-send:not(.multi) .arrange, #gardien-send.multi :is(.branch, .pick, kbd) { display: none; }
-#gardien-send .arrange, #gardien-send .branch { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
-#gardien-send .pick { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
-#gardien-send button[hidden] { display: none; }
+#gardien-send:not(.multi) .arrange, #gardien-send.multi :is(.tools, kbd) { display: none; }
+#gardien-send .arrange { background: rgba(5, 12, 23, 0.85); border-color: rgba(184, 154, 242, 0.55); box-shadow: none; }
+#gardien-send :is(button, .tools)[hidden] { display: none; }
+/* Branche et Sélection : deux boutons à icône dans une capsule sombre */
+#gardien-send .tools { display: flex; gap: 2px; padding: 2px; border-radius: 999px; background: rgba(5, 12, 23, 0.88);
+    border: 1px solid rgba(184, 154, 242, 0.55); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+#gardien-send .tools button { gap: 1px; height: 24px; padding: 0 6px 0 7px; color: #d8ccff; background: transparent; border: 0; box-shadow: none; }
+#gardien-send .tools button:hover { color: #fff; background: rgba(104, 72, 166, 0.55); box-shadow: none; filter: none; }
+#gardien-send .tools button.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
+#gardien-send .tools b { font-size: 8px; font-weight: normal; opacity: 0.7; }
+body.nz-light #gardien-send .tools { background: rgba(255, 255, 255, 0.92); }
+body.nz-light #gardien-send .tools button:not(.on) { color: #6848A6; }
 #gardien-send kbd { font: inherit; font-size: 9px; opacity: 0.75; padding: 1px 5px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 6px; }
 #gardien-send button:hover:not(:disabled) { filter: brightness(1.12); box-shadow: 0 0 20px rgba(30, 144, 255, 0.7); }
 #gardien-send button:disabled { opacity: 0.55; cursor: progress; }
@@ -1005,6 +1013,8 @@ body.nz-light .node-group[type=code] .node-text-input pre.code-output { color: #
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); animation: gg-rise 0.22s ease-out;
 }
 .gg-window button { font: inherit; cursor: pointer; }
+.gg-window:focus, .gg-window button:focus:not(:focus-visible) { outline: none; }
+.gg-window button:focus-visible { outline: 2px solid var(--gg-accent); outline-offset: 2px; }
 .gg-window header { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; padding-right: 36px; }
 .gg-window h2 { margin: 0; font-size: 15px; letter-spacing: 0.08em; color: var(--gg-accent); }
 .gg-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(184, 154, 242, 0.2); }
@@ -1180,7 +1190,7 @@ li.soon .gr-left { color: #ffb454; }
 .gr-actions button { padding: 2px 8px !important; font-size: 11px !important; }
 .gr-empty { margin: 14px 6px; color: #94a3b8; line-height: 1.6; }
 
-/* Salon multijoueur (room.js) : panneau du bouton Partager, curseurs nommés des autres. */
+/* Salon multijoueur (room.js) : panneau du bouton Inviter, curseurs nommés des autres. */
 #gardien-room {
     position: fixed; top: 76px; left: 56px; z-index: 45; width: min(340px, calc(100vw - 32px)); box-sizing: border-box;
     display: grid; gap: 10px; padding: 12px 14px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
@@ -1233,7 +1243,7 @@ body.nz-light #gardien-room p, body.nz-light #gardien-room .gsal-link input, bod
 .node-group.gardien-folded, .link.gardien-folded { display: none !important; }
 #gardien-folds { position: fixed; inset: 0; z-index: 25; pointer-events: none; }
 #gardien-folds[hidden], body.gardien-compact #gardien-folds { display: none; }
-#gardien-folds .gf-badge { position: absolute; left: 0; top: 0; pointer-events: auto; min-width: 26px; height: 20px; padding: 0 7px; cursor: pointer;
+#gardien-folds .gf-badge { position: absolute; left: 0; top: 0; transform-origin: 100% 0; pointer-events: auto; min-width: 26px; height: 20px; padding: 0 7px; cursor: pointer;
     font: 600 11px 'Cascadia Code', monospace; color: #050c17; background: #b89af2; border: 0; border-radius: 10px; box-shadow: 0 0 10px rgba(184, 154, 242, 0.6); }
 #gardien-folds .gf-badge:hover { background: #33FF99; }
 #gardien-folds .gf-badge[hidden] { display: none; }

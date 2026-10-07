@@ -6,14 +6,18 @@
 // Rêves : après une période calme, la page envoie les derniers échanges du chat ; le serveur rêve en arrière-plan.
 
 import { api } from './api.js';
-import { arrange } from './branches.js';
+import { explode } from './branches.js';
 import { bulk } from './bulk.js';
 
 const COLORS = { soul: '#C77DFF', identity: '#FF9F45', user: '#4DD4C6', memory: '#33FF99', skills: '#FFD93D', tools: '#4D96FF',
     dreams: '#F15BB5', exchanges: '#1E90FF' };
-const COLUMN = 700;    // notes et rêves : premières positions à droite de leur groupe, le rangement en arbre les affine
+const COLUMN = 700;    // notes et rêves : premières positions à droite de leur groupe, la vue éclatée les affine
 const ROW = 300;
 const QUIET = 10 * 60 * 1000;  // période calme avant un rêve
+const ROLES = { soul: 'mon caractère et mes consignes', identity: 'mon nom et ma façon de parler', user: 'ce que je sais de toi',
+    memory: 'ce que je retiens', skills: 'mes savoir-faire', tools: 'mes outils, famille par famille', dreams: 'ce que je remâche',
+    exchanges: 'nos échanges' };
+const STOP = 1500;     // ms sur chaque groupe pendant le survol de la première visite
 
 const escape = text => String(text).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -44,11 +48,12 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         return bridge.idOf(ref);
     };
     const link = (source, target) => bridge.perform({ op: 'link', source, target });
-    // Ranger en arbre (de gauche à droite) une fois les nodes à leur taille (textfit.js les agrandit en 600 ms).
-    const tidy = async id => {
+    // Vue éclatée de toute la maison (racine au centre, groupes en couronne), une fois les nodes à leur taille
+    // (textfit.js les agrandit en 600 ms).
+    const tidy = async () => {
         await wait(1500);
-        const node = document.getElementById(id);
-        if (node) await arrange(node);
+        const root = document.getElementById(data?.home?.root);
+        if (root) await explode(root);
     };
 
     // Pose ce qui manque, d'un bloc : le serveur écrit la dimension, ses nodes et ses liens déjà rangés en arbre
@@ -70,7 +75,7 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         bulk(async () => {
             built.families.forEach(id => branches.fold(document.getElementById(id)));  // les outils se déplient famille par famille
             filters.mark(built.nodes, 'ai');
-            if (built.added) await tidy(home.root);
+            if (built.added) await tidy();
             arranged();
         }).catch(() => arranged());
         await ready;
@@ -88,7 +93,7 @@ export function createHome({ bridge, say, filters, chat, branches }) {
                 posted[kind][item.id] = await create(`home-${kind}-${item.id}`, centre.x + COLUMN, centre.y - ROW * (i + 1), text(item), COLORS[key]);
                 await link(hub, posted[kind][item.id]);
             }
-            await tidy(hub);
+            await tidy();
         };
         await bulk(async () => {
             await place('exchanges', data.letters, 'letters', l => `<font size="2">${escape(l.at)}</font><br>${l.html}${l.choices?.length ? `<br><i>${l.choices.map(escape).join(' / ')}</i>` : ''}`);
@@ -118,8 +123,22 @@ export function createHome({ bridge, say, filters, chat, branches }) {
             say('Je m\'installe dans ma dimension « Gardien »…', 'guide');
             await install();
             await bridge.perform({ op: 'overview' });  // tout son cerveau sous les yeux
-            say('Voici mon cerveau : mon âme, ce que je sais de toi, ma mémoire, mes outils, mes rêves. Retrouve-le quand tu veux dans la dimension Gardien.', 'guide');
-            await wait(5000);  // le temps de lire, la maison sous les yeux
+            say('Voici mon cerveau. Je te fais visiter ses grandes parties.', 'guide');
+            await wait(2500);
+            // Le plan de navigation : la caméra passe de groupe en groupe, une légende pour chacun.
+            let card = null;
+            for (const { key, label } of data.seed?.groups || []) {
+                const ref = data.home?.groups?.[key];
+                if (!ref || !document.getElementById(ref)) continue;
+                await bridge.perform({ op: 'focus', ref, zoom: 0.55 });
+                card?.remove();
+                card = say(`${label} · ${ROLES[key] || ''}`, 'guide');
+                await wait(STOP);
+            }
+            card?.remove();
+            await bridge.perform({ op: 'overview' });
+            say('Retrouve-le quand tu veux dans la dimension Gardien : réécris ses nodes pour le régler.', 'guide');
+            await wait(3000);
             await bridge.enterLayer(back);
             say('À toi maintenant : double-clique dans le vide pour créer ton premier node.', 'guide');
         });

@@ -6,7 +6,7 @@
 const FRENCH = {
     'Styled link': 'Liens stylés', 'Neutral link': 'Liens neutres', 'No link': 'Sans liens', 'Back to origin': 'Origine',
     'Dimensions': 'Dimensions', 'Set new origin': 'Drapeau', 'Full screen': 'Plein écran', 'Template gallery': 'Galerie',
-    'Share': 'Partager', 'Save': 'Sauver', 'Export': 'Exporter', 'Profile': 'Profil', 'Dark': 'Sombre', 'Light': 'Clair',
+    'Share': 'Inviter', 'Save': 'Sauver', 'Export': 'Exporter', 'Profile': 'Profil', 'Dark': 'Sombre', 'Light': 'Clair',
     'Sound On': 'Son', 'Sound Off': 'Muet', 'Font size': 'Taille', 'Double-click': 'Double-clic', 'Draw circle': 'Cercle',
     'Draw line': 'Trait', 'Erase': 'Gomme', 'Clear canvas': 'Tout effacer', 'Undo': 'Annuler', 'Redo': 'Rétablir',
     'Line size': 'Épaisseur', 'Line color': 'Couleur', 'Download file': 'Télécharger',

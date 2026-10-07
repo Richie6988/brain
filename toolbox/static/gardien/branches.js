@@ -14,6 +14,7 @@ const KEY = 'gardien-folds';
 const GAP_X = 160;   // entre le bord d'un node et le bord de ses enfants
 const GAP_Y = 46;    // entre deux sous-arbres voisins
 const SAVE_GAP = 40; // ms entre deux enregistrements d'un rangement
+const MIN_BADGE = 40; // px à l'écran sous lesquels un node replié ne montre plus sa pastille
 const TRANSFORM = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
@@ -156,6 +157,51 @@ export function arrange(rootNode) {
     return glide(spots);
 }
 
+// Vue éclatée (radiale) d'un arbre : la racine reste au centre ; chaque sous-arbre occupe un secteur d'angle
+// proportionnel à son nombre de feuilles, chaque profondeur une couronne, assez grande pour que deux nodes voisins ne
+// se touchent pas. Une branche repliée compte pour son seul node, ses descendants cachés la suivent d'un bloc.
+const RING_GAP = 80;   // entre deux couronnes, et entre deux nodes voisins d'une couronne
+export function explode(rootNode) {
+    const hidden = id => byId(id).classList.contains('gardien-folded');
+    const full = tree(rootNode.id);
+    const visible = t => ({ ...t, kids: t.kids.filter(k => !hidden(k.id)).map(visible) });
+    const shown = visible(full);
+    const leaves = t => (t.leaves = t.kids.length ? t.kids.reduce((sum, k) => sum + leaves(k), 0) : 1);
+    leaves(shown);
+    const depths = [];
+    const walk = (t, d) => { (depths[d] = depths[d] || []).push(t); t.kids.forEach(k => walk(k, d + 1)); };
+    walk(shown, 0);
+    const reach = t => { const s = half(byId(t.id)); return Math.hypot(s.w, s.h); };  // demi-diagonale
+    const radius = [0];
+    for (let d = 1; d < depths.length; d++) {
+        const outer = Math.max(...depths[d].map(reach)), inner = Math.max(...depths[d - 1].map(reach));
+        const room = shown.leaves * (2 * outer + RING_GAP) / (2 * Math.PI);  // une feuille par arc de 2π / feuilles
+        radius[d] = Math.max(radius[d - 1] + inner + outer + RING_GAP, room);
+    }
+    const centre = { x: parseFloat(rootNode.getAttribute('x')), y: parseFloat(rootNode.getAttribute('y')) };
+    const spots = new Map();
+    const put = (t, d, from, to) => {
+        const a = (from + to) / 2;
+        if (d) spots.set(t.id, { x: centre.x + radius[d] * Math.cos(a), y: centre.y + radius[d] * Math.sin(a) });
+        let start = from;
+        t.kids.forEach(k => {
+            const end = start + (to - from) * k.leaves / t.leaves;
+            put(k, d + 1, start, end);
+            start = end;
+        });
+    };
+    put(shown, 0, -Math.PI, Math.PI);
+    const at = id => ({ x: parseFloat(byId(id).getAttribute('x')), y: parseFloat(byId(id).getAttribute('y')) });
+    const carry = (t, shift) => t.kids.forEach(k => {
+        const here = at(k.id);
+        const own = hidden(k.id) ? shift : { x: spots.get(k.id).x - here.x, y: spots.get(k.id).y - here.y };
+        if (hidden(k.id)) spots.set(k.id, { x: here.x + shift.x, y: here.y + shift.y });
+        carry(k, own);
+    });
+    carry(full, { x: 0, y: 0 });
+    return glide(spots);
+}
+
 // --- export
 
 const xml = text => String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -219,7 +265,8 @@ export function createBranches({ say }) {
         nodes().forEach(node => node.classList.toggle('gardien-folded', hidden.has(node.id)));
         universe.querySelectorAll('.link').forEach(link => link.classList.toggle('gardien-folded',
             hidden.has(link.getAttribute('Node1')) || hidden.has(link.getAttribute('Node2'))));
-        layer.replaceChildren(...roots.filter(id => !hidden.has(id)).map(id => {
+        // « +0 » (rien en dessous, liens pas encore là) : pas de pastille ; le repli reste noté.
+        layer.replaceChildren(...roots.filter(id => !hidden.has(id) && descendants(id).length).map(id => {
             const badge = Object.assign(document.createElement('button'), { type: 'button', className: 'gf-badge',
                 textContent: `+${descendants(id).length}`, title: 'Déplier la branche' });
             badge.dataset.node = id;
@@ -233,9 +280,11 @@ export function createBranches({ say }) {
         if (!layer.hidden) layer.querySelectorAll('.gf-badge').forEach(badge => {
             const node = byId(badge.dataset.node);
             const box = node && (node.getAttribute('shape') === 'square' ? node.children[2] : node.children[1]).getBoundingClientRect();
-            show(badge, !!box?.width);
+            // Au dézoom, la pastille rapetisse avec le node (jamais au-delà de sa taille) et disparaît sous MIN_BADGE px.
+            const big = box?.width >= MIN_BADGE;
+            show(badge, big);
             // Au coin bas-gauche du node : le bas-droit est à la poignée de taille, la droite à la pastille du node.
-            if (box?.width) setStyle(badge, 'transform', `translate(calc(${(box.left + 10).toFixed(1)}px - 100%), ${(box.bottom - 12).toFixed(1)}px)`);
+            if (big) setStyle(badge, 'transform', `translate(calc(${(box.left + 10).toFixed(1)}px - 100%), ${(box.bottom - 12).toFixed(1)}px) scale(${Math.min(1, Number(currentZoom)).toFixed(3)})`);
         });
         requestAnimationFrame(track);
     })();
@@ -267,7 +316,10 @@ export function createBranches({ say }) {
     menu.id = 'gardien-branch';
     menu.hidden = true;
     document.body.append(menu);
-    document.addEventListener('mousedown', event => { if (!menu.contains(event.target)) menu.hidden = true; }, true);
+    // Hors du menu et de la pastille du node (son bouton Branche ouvre et referme lui-même le menu).
+    document.addEventListener('mousedown', event => {
+        if (!menu.contains(event.target) && !event.target.closest?.('#gardien-send')) menu.hidden = true;
+    }, true);
     document.addEventListener('keydown', event => { if (event.key === 'Escape') menu.hidden = true; });
     const item = (label, title, run) => Object.assign(document.createElement('button'), { type: 'button', textContent: label, title,
         onclick: () => { menu.hidden = true; run(); } });

@@ -150,7 +150,7 @@ visitButton.addEventListener('click', () => {
     else say('Sélectionne le node d\'où part la visite.');
 });
 const compact = createCompact({ bridge, say });  // mode compact : sélection ou dimension rangée en arbre, nuage ou processus, en texte net (C)
-const room = createRoom({ bridge, say, onPremiumOnly: () => quota.offer('rooms') });  // salons multijoueur : bouton Partager, curseurs, gestes en direct
+const room = createRoom({ bridge, say, onPremiumOnly: () => quota.offer('rooms') });  // salons multijoueur : bouton Inviter, curseurs, gestes en direct
 const dataset = createDataset({ bridge, say, onDone: refs => bridge.perform({ op: 'frame', refs }) });  // import de cartes et de tableaux
 createExchange({ dataset, filters });  // bouton Export du dock : tout l'import et l'export
 createSearch({ bridge });  // recherche du dock : toutes les dimensions, compteur x / y, résultat allumé

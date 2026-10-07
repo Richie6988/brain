@@ -32,7 +32,7 @@ const STEPS = [
         + 'dimension. [Shift] liste les dimensions, la vue de côté (cube) les montre toutes à la fois.'],
     ['ai', 'Le Gardien pense avec toi', 'L\'IA de ton univers, locale ou par API. Sélectionne des nodes et ouvre la bulle en bas à droite, '
         + 'ou [Ctrl]+[Entrée] dans un node. Il crée, relie, range, cherche sur le web, dessine. Tout s\'annule par [Ctrl]+[Z].'],
-    ['tidy', 'Range, partage, exporte', 'Branche ▾ sur un node range sa branche en arbre ou la replie. Partager ouvre un salon en direct ; '
+    ['tidy', 'Range, invite, exporte', 'Branche ▾ sur un node range sa branche en arbre ou la replie. Inviter ouvre un salon en direct ; '
         + 'Importer / Exporter fait entrer et sortir tes cartes (Markdown, OPML, FreeMind, XMind, CSV, PDF).'],
 ];
 
@@ -98,7 +98,7 @@ const CARDS = [
     ['Importer / Exporter', 'Bouton du dock : une carte (Markdown, OPML, FreeMind, XMind) se pose en arbre, un tableau (CSV, Excel, JSON) '
         + 'en nodes, un CSV exporté par Nodz redonne ses nodes et ses liens ; la sélection, la dimension ou les filtres repartent en CSV, '
         + 'Markdown, OPML, FreeMind ou PDF.'],
-    ['Salon', 'Bouton Partager du dock : ta dimension s\'ouvre par un lien. Curseurs et gestes en direct, tout s\'enregistre chez toi ; '
+    ['Salon', 'Bouton Inviter du dock : ta dimension s\'ouvre par un lien. Curseurs et gestes en direct, tout s\'enregistre chez toi ; '
         + 'Suivre cale ta caméra sur celle d\'un autre, l\'hôte peut exclure.'],
     ['Rappels', 'Bouton Rappel d\'un node, ou « rappelle-moi vendredi 9 h… » au Gardien : compte à rebours sur le node, notification '
         + 'à l\'échéance, et la cloche du dock les liste tous.'],
@@ -137,7 +137,7 @@ export function createGuide() {
     const panels = Object.fromEntries(tabs.map(([key, , body]) => [key, h('section', { class: 'gg-panel', dataset: { panel: key } }, body)]));
     const nav = h('nav', { class: 'gg-tabs', role: 'tablist' }, tabs.map(([key, label]) =>
         h('button', { type: 'button', role: 'tab', dataset: { tab: key }, onclick: () => show(key) }, label)));
-    const windowEl = h('div', { class: 'gg-window', role: 'dialog', 'aria-label': 'Guide de Nodz' },
+    const windowEl = h('div', { class: 'gg-window', role: 'dialog', 'aria-label': 'Guide de Nodz', tabindex: '-1' },
         h('header', {}, h('h2', {}, 'Guide'), nav, h('button', { type: 'button', class: 'gg-x', title: 'Fermer (Échap)', onclick: close }, '×')),
         Object.values(panels));
     const modal = h('div', { class: 'gl-modal', hidden: true, onmousedown: event => { if (event.target === modal) close(); } }, windowEl);
@@ -179,7 +179,7 @@ export function createGuide() {
         go(0);
         show(key);
         modal.hidden = false;
-        (key === 'discover' ? next : nav.querySelector('[aria-selected="true"]'))?.focus();
+        windowEl.focus();  // la fenêtre, pas « Suivant » : sinon son anneau de focus restait affiché jusqu'au premier clic
         try {
             localStorage.setItem(KEY, '1');
         } catch { /* stockage indisponible */ }

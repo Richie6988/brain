@@ -1,4 +1,4 @@
-// Salons multijoueur. L'hôte ouvre sa dimension par un lien (bouton Partager) ; ceux qui le suivent voient son
+// Salons multijoueur. L'hôte ouvre sa dimension par un lien (bouton Inviter) ; ceux qui le suivent voient son
 // univers, les curseurs nommés de chacun et chaque geste en direct, et peuvent l'éditer. Le navigateur de l'hôte fait
 // autorité : chaque sauvegarde de Nodz (/save-node/, /delete/) part aussi dans le salon ; l'hôte applique celles des
 // autres et les enregistre dans son univers ; un invité n'écrit jamais rien sur le serveur pendant le salon, ni dans
@@ -395,7 +395,7 @@ export function createRoom({ bridge, say, onPremiumOnly = () => {} }) {
         render();
     }
 
-    // --- panneau du salon (bouton Partager de Nodz)
+    // --- panneau du salon (bouton Inviter, l'ancien Partager de Nodz)
     const panel = document.createElement('section');
     panel.id = 'gardien-room';
     panel.hidden = true;

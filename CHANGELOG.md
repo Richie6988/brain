@@ -293,6 +293,24 @@ Un geste finit après 150 ms sans événement.
 
 **Plus de zoom natif du navigateur** dans toute l'app : Ctrl + molette ou pincement sur les panneaux, le dock ou le chat, Ctrl + / - / 0, gestes de pincement de Safari.
 
+**Liens visibles dès le chargement** : un lien parfaitement horizontal ou vertical (fréquent dans un arbre rangé) n'était pas dessiné avant un survol. Son trait en dégradé (`objectBoundingBox`) ne se dessine pas sur une boîte de hauteur ou de largeur nulle. `createLink` pose le même décalage de 0,01 que `updateLink`.
+
+**Rectangles mis en forme automatiquement** (`textfit.js`) :
+- forme visée de 1,6 de large pour 1 de haut ;
+- un mot plus large que 600 px (JSON, adresse) se coupe au lieu de laisser un node étroit au texte coupé lettre à lettre et rogné ;
+- un rectangle étiré à la main garde ses proportions et grandit jusqu'à contenir son texte ;
+- jamais plus étroit qu'avant.
+
+**Liens externes de la bibliothèque** (Hugging Face) : ouverts dès l'appui. Pendant un téléchargement, la fenêtre se redessine toutes les 1,5 s, et un lien remplacé entre l'appui et le relâchement perdait son clic. Le redessin attend le relâchement, et un seul onglet s'ouvre.
+
+**Interface du Gardien** :
+- **Guide :** plus d'anneau de focus sur « Suivant » à l'ouverture (le focus va à la fenêtre ; Échap et les flèches marchent toujours).
+- **Pastille du node :** Branche et Sélection deviennent deux boutons à icône dans une capsule. Ils s'ouvrent dès l'appui, un second appui les referme, et la pastille ne bouge plus sous le pointeur (un node qui s'agrandissait la déplaçait et le clic était perdu).
+- **Pastilles « +N » des branches repliées :** elles rapetissent avec le zoom, disparaissent sous 40 px, et ne s'affichent plus pour « +0 ».
+- **Maison du Gardien en vue éclatée :** racine au centre, groupes en couronne, chaque branche dans un secteur proportionnel à sa taille (`explode`, branches.js).
+- **Première visite :** survol des 8 groupes (nom et rôle, 1,5 s chacun) avant le retour à Home.
+- **Salons :** le bouton Partager devient « Inviter ».
+
 **Zoom en un seul déplacement** : les pas d'un geste de pincement (14) ou d'un cran de molette (3) s'appliquent d'un coup à la valeur du zoom, puis la vue se déplace et les nodes à l'écran se recalculent une seule fois, au lieu d'une fois par pas (28 recalculs de toute la carte pour un pincement). Même zoom et même position au pixel près ; sur la dimension Gardien, un pincement passe de 60 à 6 ms de calcul.
 
 **Zoom et dispatcher d'origine** : `zoom.js`, `dragUniverse.js` (dispatcher) et les compteurs de coin (`navigationLabels`) reviennent exactement à leur version d'avant le 5 octobre (`f461152`) : le dispatcher est de nouveau synchrone, appelé à chaque déplacement de la vue. Son report à l'image suivante (`frames.js`, introduit avec « Fluidité à plusieurs centaines de nodes »), ses écritures conditionnelles, son cache et le regroupement des événements de pincement sont retirés. Restent, sans lien avec le zoom : fond sans animation, boucles d'image sans réécriture, chargement par lot.
