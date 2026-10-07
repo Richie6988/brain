@@ -159,10 +159,9 @@ def _height(text):
 
 def build(user, guardian, seed):
     """Pose d'un bloc ce qui manque de la maison : la dimension, la racine, chaque groupe absent et ses nodes de départ
-    (les outils rangés par famille, repliées dans la page). Nodes et liens sont écrits en une transaction, rangés en
+    (les outils rangés par famille, tout déplié). Nodes et liens sont écrits en une transaction, rangés en
     arbre de gauche à droite ; la page n'a plus qu'à charger la dimension (une seule passe, au lieu d'une centaine de
-    créations à la suite). Hors quota : rien ne passe par save_node. Rend {layer, name, added, families, nodes,
-    counters}."""
+    créations à la suite). Hors quota : rien ne passe par save_node. Rend {layer, name, added, nodes, counters}."""
     with transaction.atomic():
         param = Param.objects.select_for_update().filter(user=user).first()
         placed = dict(mapping(guardian) or (guardian.brain or {}).get('home') or {})
@@ -177,13 +176,13 @@ def build(user, guardian, seed):
         node_id = max(param.nodecounter if param else 0, Node.objects.filter(user=user).aggregate(top=Max('node_id'))['top'] or 0)
         link_id = max(param.linkcounter if param else 0, Link.objects.filter(user=user).aggregate(top=Max('link_id'))['top'] or 0)
 
-        items, links = {}, []  # ref → {text, color, kids, folded} ; (parent, enfant)
+        items, links = {}, []  # ref → {text, color, kids} ; (parent, enfant)
 
-        def add(text, color, parent=None, folded=False):
+        def add(text, color, parent=None):
             nonlocal node_id
             node_id += 1
             ref = f'N-{node_id}'
-            items[ref] = {'text': text, 'color': color, 'kids': [], 'folded': folded, 'h': _height(text)}
+            items[ref] = {'text': text, 'color': color, 'kids': [], 'h': _height(text)}
             if parent:
                 links.append((parent, ref))
                 if parent in items:
@@ -194,7 +193,7 @@ def build(user, guardian, seed):
         new_root = root is None
         if new_root:
             root = placed['root'] = add(f'<b>{NAME}</b><br><font size="2">Ma maison : réécris mes nodes pour me régler.</font>', '#6848A6')
-        groups, tools_placed, families, added = dict(placed.get('groups') or {}), dict(placed.get('tools') or {}), [], []
+        groups, tools_placed, added = dict(placed.get('groups') or {}), dict(placed.get('tools') or {}), []
         for key, label, hint in GROUPS:
             if alive(groups.get(key)):
                 continue
@@ -213,16 +212,15 @@ def build(user, guardian, seed):
             elif key == 'skills':
                 child(seed['skill'])
                 placed['brain'] = child(seed['brain'])
-            elif key == 'tools':  # une famille par branche, repliée dans la page, ses outils derrière elle
+            elif key == 'tools':  # une famille par branche, ses outils derrière elle
                 for f, family in enumerate(dict.fromkeys(t['category'] for t in seed['tools'])):
                     color = PALETTE[f % len(PALETTE)]
-                    fid = add(_html(family), color, hub, folded=True)
-                    families.append(fid)
+                    fid = add(_html(family), color, hub)
                     for tool in (t for t in seed['tools'] if t['category'] == family):
                         tools_placed[tool['op']] = add(_html(f"{tool['op']}\n{tool['label']}\n\n{tool['usage']}"), color, fid)
 
         # Arbre de gauche à droite : une colonne par profondeur, les feuilles l'une sous l'autre, chaque parent au
-        # milieu de ses enfants ; une famille repliée compte pour une feuille, ses outils empilés à sa droite.
+        # milieu de ses enfants.
         spots = {}
         if new_root:
             origin = {'x': 0.0, 'y': 0.0}
@@ -234,17 +232,12 @@ def build(user, guardian, seed):
         def lay(ref, depth):
             nonlocal cursor
             item, x = items[ref], origin['x'] + COLUMN * depth
-            if item['kids'] and not item['folded']:
+            if item['kids']:
                 ys = [lay(kid, depth + 1) for kid in item['kids']]
                 y = (ys[0] + ys[-1]) / 2
             else:
                 y = cursor - item['h'] / 2
                 cursor -= item['h'] + GAP
-                stack = sum(items[k]['h'] + GAP for k in item['kids']) - GAP
-                top = y + stack / 2
-                for kid in item['kids']:  # outils repliés : ils attendent à droite de leur famille
-                    spots[kid] = (x + COLUMN, top - items[kid]['h'] / 2)
-                    top -= items[kid]['h'] + GAP
             spots[ref] = (x, y)
             return y
 
@@ -281,7 +274,7 @@ def build(user, guardian, seed):
         guardian.brain = {**(guardian.brain or {}), 'home': placed}
         guardian.save(update_fields=['brain'])
     # Les compteurs de la page (prochain node, lien, dimension) : charger une dimension ne les relit pas.
-    return {'layer': layer.layer_id, 'name': layer.layer_name, 'added': len(added), 'families': families, 'nodes': list(items),
+    return {'layer': layer.layer_id, 'name': layer.layer_name, 'added': len(added), 'nodes': list(items),
             'counters': {'node': node_id, 'link': link_id, 'layer': max(param.layercounter or 1, layer.layer_id) if param else layer.layer_id}}
 
 

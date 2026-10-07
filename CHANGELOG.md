@@ -326,6 +326,12 @@ Un geste finit après 150 ms sans événement.
 
 **Pastille du node redessinée** : « Gardien » devient une petite carte au style des messages du Gardien (son orbe, son nom, liseré dégradé, 26 px de haut, raccourci Ctrl ↵ au survol). Dessous, en colonne alignée à gauche, deux ronds Branche et Sélection aux icônes redessinées (un node qui se déploie en trois branches, un lasso autour de nodes reliés). Même fonctionnement : ouverture à l'appui, second appui pour refermer.
 
+**Rectangles, maison du Gardien, dépli, cube** :
+- un rectangle hors de l'écran au chargement d'une dimension n'était jamais mesuré (Nodz le cache, son texte y a une hauteur nulle) : il gardait sa largeur de départ et s'étirait en hauteur ; il s'ajuste maintenant dès qu'il apparaît (et après un dépli) ;
+- la maison du Gardien se pose et s'ouvre entièrement dépliée (familles d'outils comprises, y compris une maison déjà repliée) ;
+- déplier une branche ne range plus que cette branche : le reste de la dimension ne bouge pas et n'est pas réenregistré ; un node déjà à sa place n'est jamais réenregistré par un rangement ;
+- le cube Hyperspace remonte : à 84 px du haut, en miroir de l'orbe du chat (84 px du bas).
+
 **Application en français et en anglais (lot 1 : tout ce que voit un utilisateur)** :
 - langue : celle du compte (nouveau champ `language`, migration nodzapp 0020), sinon le choix gardé dans ce navigateur (le même que la page d'accueil), sinon la langue du navigateur ;
 - bascule FR | EN dans le guide et dans le profil (onglet Compte) : le choix va sur le compte et la page se recharge ;

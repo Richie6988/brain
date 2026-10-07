@@ -887,7 +887,7 @@ body.nz-light .gardien-side-layer .gs-portals path { stroke: #6848A6; filter: dr
 body.nz-light #gardien-cube small { color: #6b5b8a; }
 @keyframes gc3-spin { from { transform: rotateX(-22deg) rotateY(0deg); } to { transform: rotateX(-22deg) rotateY(360deg); } }
 #gardien-cube {
-    position: fixed; top: 108px; right: 22px; z-index: 32; width: 84px; height: 96px; padding: 0; border: 0; background: none; cursor: pointer;
+    position: fixed; top: 74px; right: 22px; z-index: 32;  /* le cube à 84 px du haut, en miroir de l'orbe du chat (84 px du bas) */ width: 84px; height: 96px; padding: 0; border: 0; background: none; cursor: pointer;
     perspective: 240px; display: flex; flex-direction: column; align-items: center; gap: 18px;
 }
 body.nz-login #gardien-cube { display: none; }  /* pas de vue de côté sur l'accueil */

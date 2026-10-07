@@ -16,7 +16,10 @@ const WORD = 600;      // largeur au-delà de laquelle un mot trop long se coupe
 const textNode = node => node.getAttribute('type') === 'text';
 const stretched = node => node.getAttribute('shape') === 'square' && parseFloat(node.getAttribute('ratio')) > 0;
 
-const candidate = node => node.isConnected && textNode(node) && !node.classList.contains('gardien-folded')
+// Un node caché (hors de l'écran : Nodz le met en display none ; ou dans une branche repliée) ne se mesure pas : son
+// texte y a une hauteur nulle. Il est mesuré quand il apparaît.
+const shown = node => node.style.display !== 'none' && !node.classList.contains('gardien-folded');
+const candidate = node => node.isConnected && textNode(node) && shown(node)
     && Boolean(node.children[0]?.children[0]?.textContent.trim());
 
 // Parmi `nodes`, ceux dont le texte déborde : toutes les écritures, puis toutes les lectures (un seul calcul de la page
@@ -83,10 +86,10 @@ export function fit(node) {
 }
 
 export function createTextFit() {
-    const done = new WeakMap();  // node → ce qui a été mesuré (texte, taille, forme)
+    const done = new WeakMap();  // node → ce qui a été mesuré (texte, taille, forme, visible ou non)
     const key = node => {
         const fo = node.children[0];
-        return `${fo?.children[0]?.innerHTML.length}|${fo?.getAttribute('width')}|${fo?.getAttribute('height')}|${node.getAttribute('shape')}|${node.getAttribute('type')}`;
+        return `${fo?.children[0]?.innerHTML.length}|${fo?.getAttribute('width')}|${fo?.getAttribute('height')}|${node.getAttribute('shape')}|${node.getAttribute('type')}|${shown(node)}`;
     };
     function check(node, keep = true) {
         if (done.get(node) === key(node)) return;

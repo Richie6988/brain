@@ -2897,7 +2897,6 @@ class IaquaToolsTests(TestCase):
         self.assertEqual(nodes.count(), 1 + len(homes.GROUPS) + 6 + len(families) + len(ops))
         self.assertEqual(Link.objects.filter(user=self.user, layer=layer).count(), nodes.count() - 1)  # un arbre
         self.assertEqual(len(built['nodes']), nodes.count())
-        self.assertEqual(len(built['families']), len(families))
         self.assertTrue(all(n.node_id > 5 for n in nodes))
         param = Param.objects.get(user=self.user)
         self.assertEqual((param.nodecounter, param.linkcounter), (max(n.node_id for n in nodes), 7 + nodes.count() - 1))

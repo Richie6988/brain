@@ -58,18 +58,6 @@ export function tree(rootId, seen = new Set(), only = null) {
     return { id: rootId, text: textOf(byId(rootId)), kids: kids.map(id => tree(id, seen, only)) };
 }
 
-// La racine de l'arbre d'un node : on remonte ses liens entrants (le premier parent à chaque fois) jusqu'à un node
-// sans parent ; un cycle s'arrête au dernier node pas encore vu.
-function rootOf(id) {
-    const seen = new Set([id]);
-    for (;;) {
-        const parent = [...universe.querySelectorAll('.link')].find(l => l.getAttribute('Node2') === id && byId(l.getAttribute('Node1')))?.getAttribute('Node1');
-        if (!parent || seen.has(parent)) return id;
-        seen.add(parent);
-        id = parent;
-    }
-}
-
 export function descendants(rootId) {
     const all = [];
     const walk = t => t.kids.forEach(k => { all.push(k.id); walk(k); });
@@ -118,10 +106,12 @@ function move(node, x, y) {
     node.setAttribute('y', y);
 }
 
-// Les nodes glissent vers leurs places, les liens suivent ; puis chacun est enregistré.
+// Les nodes glissent vers leurs places, les liens suivent ; puis chacun est enregistré. Un node déjà à sa place ne
+// bouge pas et n'est pas réenregistré.
 export function glide(spots, duration = 450) {
     const moving = [...spots].map(([id, to]) => ({ node: byId(id), to })).filter(m => m.node)
-        .map(m => ({ ...m, from: { x: parseFloat(m.node.getAttribute('x')), y: parseFloat(m.node.getAttribute('y')) } }));
+        .map(m => ({ ...m, from: { x: parseFloat(m.node.getAttribute('x')), y: parseFloat(m.node.getAttribute('y')) } }))
+        .filter(({ from, to }) => Math.hypot(to.x - from.x, to.y - from.y) > 0.5);
     const links = new Set(moving.flatMap(m => JSON.parse(m.node.getAttribute('links') || '[]')));
     return new Promise(resolve => {
         const start = performance.now();
@@ -312,9 +302,9 @@ export function createBranches({ say }) {
         folds[here()] = [...set];
         keep();
         apply();
-        // Déplier : tout l'arbre se range depuis sa racine, les nodes qui reviennent ne s'empilent pas sur les autres.
-        const root = byId(rootOf(node.id));
-        if (unfolding && root) arrange(root);
+        // Déplier : seule la branche rouverte se range (ses nodes qui reviennent), le reste de la dimension ne bouge pas
+        // et n'est pas réenregistré.
+        if (unfolding) arrange(node);
     }
 
     // Menu « Branche » de la pastille d'un node.
@@ -347,7 +337,12 @@ export function createBranches({ say }) {
             menu.hidden = false;
         },
         hasBranch: node => children(node.id).length > 0,
-        fold: node => { if (!folded().has(node.id)) toggle(node); },  // replier sans jamais déplier
+        // Toute la dimension `layer` dépliée (la maison du Gardien se montre en entier), sans rien déplacer.
+        unfoldAll: layer => {
+            delete folds[String(layer)];
+            keep();
+            apply();
+        },
         apply,
     };
 }

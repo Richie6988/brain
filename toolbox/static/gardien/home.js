@@ -57,7 +57,7 @@ export function createHome({ bridge, say, filters, chat, branches }) {
 
     // Pose ce qui manque, d'un bloc : le serveur écrit la dimension, ses nodes et ses liens déjà rangés en arbre
     // (toolbox/home.py build), la page la charge comme toute dimension (une seule passe, au lieu d'une centaine de
-    // créations à la suite), replie les familles d'outils, puis l'arbre s'ajuste aux tailles mesurées par textfit.
+    // créations à la suite), puis l'arbre, tout déplié, s'ajuste aux tailles mesurées par textfit.
     async function install() {
         const { built, home } = await api.request('POST', 'toolbox/home', { build: true });
         data = { ...data, home };
@@ -66,13 +66,13 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         linkCounter = Math.max(Number(linkCounter) || 0, built.counters.link);
         layerCounter = Math.max(Number(layerCounter) || 0, built.counters.layer);
         if (!layers.some(l => Number(l.id) === built.layer)) layers.push({ id: built.layer, name: built.name });
+        branches.unfoldAll(built.layer);  // la maison se montre en entier (les replis d'avant aussi)
         await bridge.enterLayer(built.layer, built.nodes.length > 0);
         // textfit puis le rangement réenregistrent les nodes : en quelques requêtes groupées, qui partent pendant que le
         // Gardien montre sa maison (on n'attend que l'arbre rangé).
         let arranged;
         const ready = new Promise(resolve => { arranged = resolve; });
         bulk(async () => {
-            built.families.forEach(id => branches.fold(document.getElementById(id)));  // les outils se déplient famille par famille
             filters.mark(built.nodes, 'ai');
             if (built.added) await tidy();
             arranged();
