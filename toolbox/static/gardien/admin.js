@@ -24,7 +24,7 @@ export function createAdmin({ say }) {
     const nav = h('nav', { class: 'gl-tabs' });
     const notice = h('p', { class: 'gl-notice', role: 'status' });
     const body = h('div', { class: 'ga-body' });
-    const windowEl = h('div', { class: 'gl-window ga-window', role: 'dialog', tabindex: '-1' },
+    const windowEl = h('div', { class: 'gl-window ga-window ga-console', role: 'dialog', tabindex: '-1' },
         h('header', {}, title, nav, h('button', { type: 'button', class: 'gl-close', onclick: close }, 'Fermer')), notice, body);
     const modal = h('div', { class: 'gl-modal', hidden: true, onmousedown: event => { if (event.target === modal) close(); } }, windowEl);
     modal.addEventListener('keydown', event => {

@@ -314,7 +314,7 @@ body.nz-light .gd-search { color: #440852; background: rgba(68, 8, 82, 0.05); }
 /* Messages courts du Gardien : une carte de verre à son nom, liseré dégradé (couleur du message → violet → bleu), son
    orbe en petit qui cligne des yeux. */
 #gardien-toast {
-    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 30; pointer-events: none;
+    position: fixed; left: 50%; top: 24px; transform: translateX(-50%); z-index: 30; pointer-events: none;  /* en haut : le dock et les nodes restent dégagés */
     display: flex; flex-direction: column; align-items: center; gap: 8px; width: max-content; max-width: min(560px, calc(100vw - 32px));
     font: 13px/1.5 'Cascadia Code', monospace;
 }
@@ -327,7 +327,7 @@ body.nz-light .gd-search { color: #440852; background: rgba(68, 8, 82, 0.05); }
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     animation: gt-in 0.35s cubic-bezier(0.2, 1.3, 0.4, 1); transition: opacity 0.9s ease, transform 0.9s ease;
 }
-#gardien-toast p.fade { opacity: 0; transform: translateY(6px); }
+#gardien-toast p.fade { opacity: 0; transform: translateY(-6px); }
 #gardien-toast .guide { --accent: #b89af2; }
 #gardien-toast .agent { --accent: #33FF99; }
 #gardien-toast .notice { --accent: #1E90FF; }
@@ -344,7 +344,7 @@ body.nz-light .gd-search { color: #440852; background: rgba(68, 8, 82, 0.05); }
 .gt-body b { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
     background: linear-gradient(90deg, var(--accent), #1E90FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .gt-body span { color: #e8e6f0; }
-@keyframes gt-in { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
+@keyframes gt-in { from { opacity: 0; transform: translateY(-10px) scale(0.96); } }
 @keyframes gt-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
 @media (prefers-reduced-motion: reduce) { #gardien-toast p, .gt-orb i { animation: none; } }
 
@@ -1557,3 +1557,24 @@ body.nz-light #gardien-compact-bar button:not(.on, .gc-quit) { color: #440852; }
 body.nz-light .gq-card { color: #1e1b4b; background: linear-gradient(rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.97)) padding-box,
     linear-gradient(135deg, #b89af2, #6848A6 50%, #1E90FF) border-box; }
 body.nz-light .gq-card :is(h3, li) { color: #1e1b4b; }
+
+/* Consoles d'administration (admin.js) : même fenêtre sombre que Agents & modèles, sans sa barre latérale (l'en-tête
+   tombait dans la colonne de 220 px), tableaux sombres lisibles (texte clair sur fond blanc avant). */
+.gl-window.ga-window.ga-console { display: flex; flex-direction: column; padding: 18px 22px; gap: 10px; }
+.ga-console > header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ga-console > header h2 { margin: 0; font-size: 16px; color: var(--ga-accent); letter-spacing: 0.04em; }
+.ga-console > header .gl-close { margin-left: auto; }
+.ga-console .ga-body { flex: 1; min-height: 0; overflow: auto; }
+.ga-window .ga-table-wrap { background: var(--ga-card); border-color: var(--ga-line); }
+.ga-window .ga-table { font-size: 12px; color: var(--ga-text); }
+.ga-window .ga-table th { background: #160f2a; color: var(--ga-accent); border-bottom: 1px solid var(--ga-line); }
+.ga-window .ga-table th.sortable:hover { color: #fff; }
+.ga-window .ga-table td { border-top-color: var(--ga-line); vertical-align: middle; }
+.ga-window .ga-table td strong { color: #fff; font-weight: 600; }
+.ga-window .ga-table td small { color: var(--ga-muted); }
+.ga-window .ga-table tbody tr:hover td { background: rgba(184, 154, 242, 0.06); }
+.ga-window .ga-table tr.bad td { background: rgba(255, 107, 107, 0.08); }
+.ga-window .ga-table input[type=checkbox] { accent-color: var(--ga-accent); }
+.ga-window .ga-actions { flex-wrap: nowrap; }
+.ga-window .ga-table .ga-actions button { padding: 3px 10px; font-size: 11px; white-space: nowrap; }
+.ga-console .gl-tabs button.active { background: var(--ga-accent); color: #050c17; border-color: var(--ga-accent); font-weight: 600; }
