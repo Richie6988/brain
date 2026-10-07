@@ -20,6 +20,7 @@ from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.utils import timezone
 
+from . import i18n
 from .models import Agent, LocalModel, Preference
 
 logger = logging.getLogger(__name__)
@@ -93,22 +94,30 @@ def activate(user, mail=True):
     if premium:
         Agent.objects.filter(owner=user, role=Agent.Role.ORCHESTRATOR).update(model=premium)
     if mail:
-        _mail(user, 'Ton Gardien Premium est actif',
-              f"Bonjour,\n\nTon abonnement Nodz Premium est actif : ton Gardien utilise maintenant {premium.label or premium.filename if premium else 'le modèle Premium'}.\n"
-              "Ouvre ton univers, il t'attend.\n\nPour gérer ou résilier ton abonnement : Agents & modèles, Mon IA.\n\nNodz")
+        name = premium.label or premium.filename if premium else i18n.say(user, 'le modèle Premium', 'the Premium model')
+        _mail(user, i18n.say(user, 'Ton Gardien Premium est actif', 'Your Premium Guardian is active'), i18n.say(
+            user, "Bonjour,\n\nTon abonnement Nodz Premium est actif : ton Gardien utilise maintenant {name}.\n"
+                  "Ouvre ton univers, il t'attend.\n\nPour gérer ou résilier ton abonnement : Agents & modèles, Mon IA.\n\nNodz",
+            "Hello,\n\nYour Nodz Premium subscription is active: your Guardian now uses {name}.\n"
+            "Open your universe, it's waiting for you.\n\nTo manage or cancel your subscription: Agents & models, My AI.\n\nNodz", name=name))
     return True
 
 
-def deactivate(user, why="Ton abonnement Premium a pris fin"):
+def deactivate(user, gifted=False):
     if not user.premium:
         return False
     user.premium = False
     user.save(update_fields=['premium'])
     Agent.objects.filter(owner=user, model__owner=None, model__kind=LocalModel.Kind.TEXT).update(model=None)  # l'IA du serveur
-    _mail(user, 'Ton Nodz Premium est terminé',
-          f"Bonjour,\n\n{why} : ton Gardien s'endort, l'IA du serveur est réservée au Premium.\n"
-          "Pour le réveiller : branche ton IA par API avec ta clé, ou abonne-toi, depuis Agents & modèles, Mon IA.\n"
-          "Ton univers, lui, reste entier et gratuit.\n\nNodz")
+    why = (i18n.say(user, 'Ton Premium offert par parrainage a pris fin', 'Your referral Premium has ended') if gifted
+           else i18n.say(user, 'Ton abonnement Premium a pris fin', 'Your Premium subscription has ended'))
+    _mail(user, i18n.say(user, 'Ton Nodz Premium est terminé', 'Your Nodz Premium has ended'), i18n.say(
+        user, "Bonjour,\n\n{why} : ton Gardien s'endort, l'IA du serveur est réservée au Premium.\n"
+              "Pour le réveiller : branche ton IA par API avec ta clé, ou abonne-toi, depuis Agents & modèles, Mon IA.\n"
+              "Ton univers, lui, reste entier et gratuit.\n\nNodz",
+        "Hello,\n\n{why}: your Guardian falls asleep, the server's AI is reserved for Premium.\n"
+        "To wake it up: plug in your AI via API with your key, or subscribe, from Agents & models, My AI.\n"
+        "Your universe stays whole and free.\n\nNodz", why=why))
     return True
 
 
@@ -125,12 +134,16 @@ def gift(user, days=REFERRAL_DAYS):
     user.save(update_fields=['premium_until'])
     until = timezone.localtime(user.premium_until).strftime('%d/%m/%Y')
     if activate(user, mail=False):
-        _mail(user, 'Un ami t\'offre Nodz Premium',
-              f"Bonjour,\n\nUn ami a créé son compte Nodz avec ton lien de parrainage : tu as Nodz Premium jusqu'au {until}.\n"
-              "Chaque nouvel ami inscrit t'offre un mois de plus.\n\nNodz")
+        _mail(user, i18n.say(user, 'Un ami t\'offre Nodz Premium', 'A friend gives you Nodz Premium'), i18n.say(
+            user, "Bonjour,\n\nUn ami a créé son compte Nodz avec ton lien de parrainage : tu as Nodz Premium jusqu'au {until}.\n"
+                  "Chaque nouvel ami inscrit t'offre un mois de plus.\n\nNodz",
+            "Hello,\n\nA friend created their Nodz account with your referral link: you have Nodz Premium until {until}.\n"
+            "Each new friend who signs up gives you one more month.\n\nNodz", until=until))
     else:
-        _mail(user, 'Un mois de Nodz Premium en plus',
-              f"Bonjour,\n\nUn ami a créé son compte avec ton lien de parrainage : ton Premium offert court jusqu'au {until}.\n\nNodz")
+        _mail(user, i18n.say(user, 'Un mois de Nodz Premium en plus', 'One more month of Nodz Premium'), i18n.say(
+            user, "Bonjour,\n\nUn ami a créé son compte avec ton lien de parrainage : ton Premium offert court jusqu'au {until}.\n\nNodz",
+            "Hello,\n\nA friend created their account with your referral link: your gifted Premium runs until {until}.\n\nNodz",
+            until=until))
     return user.premium_until
 
 
@@ -140,7 +153,7 @@ def expire(user):
         return False
     user.premium_until = None
     user.save(update_fields=['premium_until'])
-    return deactivate(user, why='Ton Premium offert par parrainage a pris fin')
+    return deactivate(user, gifted=True)
 
 
 def handle(payload, signature):

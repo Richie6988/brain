@@ -26,7 +26,7 @@ from graph.models import AIRun
 from nodzapp.models import Link, Node
 
 from . import broker as priorities
-from . import drawing, home, imaging, layouts, monitor, perception, prompts, reminders, tools, web, workspace
+from . import drawing, home, i18n, imaging, layouts, monitor, perception, prompts, reminders, tools, web, workspace
 from .iaqua import IaquaOps
 from .engine import EngineUnavailable
 from .errors import PlanError
@@ -53,6 +53,7 @@ MAX_ROUNDS = 4  # un tour de plus après chaque lecture (inventaire, web, recher
 TYPES = ['text', 'image', 'file', 'canvas', 'code']  # types de node de Nodz
 SHAPES = ['circle', 'square', 'none']
 LAYOUT_NAMES = {'matrix': 'la matrice', 'kanban': 'le kanban', 'timeline': 'la frise', 'pyramid': 'la pyramide', 'tree': "l'arbre", 'list': 'la liste'}
+LAYOUT_NAMES_EN = {'matrix': 'matrix', 'kanban': 'kanban', 'timeline': 'timeline', 'pyramid': 'pyramid', 'tree': 'tree', 'list': 'list'}
 OPS = [t['op'] for t in tools.TOOLS]  # catalogue commun Nodz + iAqua (tools.py)
 ROLES = [Agent.Role.TEXT, Agent.Role.CODE, Agent.Role.TOOLS]  # rôles qu'un agent créé par le Gardien peut prendre
 MAX_MEMORY = 30
@@ -418,15 +419,19 @@ def node_id(ref):
 def memory_lines(text):
     """Souvenirs écrits dans le node « Mémoire » : un par ligne, puces et titre ignorés."""
     lines = [' '.join(line.strip().lstrip('-*• ').split()) for line in (text or '').splitlines()]
-    return [line[:200] for line in lines if line and line.lower() not in ('mémoire', 'mémoire du gardien')][-MAX_MEMORY:]
+    titles = {'mémoire', 'memory', home.MEMORY.lower(), home.EN['memory'].lower()}
+    return [line[:200] for line in lines if line and line.lower() not in titles][-MAX_MEMORY:]
 
 
 def brain_text(agent):
     """Le cerveau du Gardien tel qu'il s'affiche dans son node « Cerveau » (lu par read_my_brain)."""
     brain = agent.brain or {}
     templates = brain.get('templates') or {}
-    lines = ['Cerveau du Gardien', '(réécrit par le Gardien ; ses souvenirs sont dans le node Mémoire)', '',
-             f"Gabarits gardés : {', '.join(f'{name} ({t.get('layout')})' for name, t in templates.items()) or 'aucun'}"]
+    kept = ', '.join(f"{name} ({t.get('layout')})" for name, t in templates.items())
+    if i18n.english(agent.owner):
+        lines = ["Guardian's brain", '(rewritten by the Guardian; its memories are in the Memory node)', '', f"Kept templates: {kept or 'none'}"]
+    else:
+        lines = ['Cerveau du Gardien', '(réécrit par le Gardien ; ses souvenirs sont dans le node Mémoire)', '', f"Gabarits gardés : {kept or 'aucun'}"]
     lines += [f'{key} : {json.dumps(value, ensure_ascii=False)[:300]}' for key, value in brain.items() if key not in ('universe', 'templates', 'letters', 'home', 'dreams', 'dreamt')]
     return '\n'.join(lines)
 
@@ -535,6 +540,56 @@ def intent(action, nodes):
         'overview': lambda a: 'Je prends du recul sur tout le plan',
         'travel': lambda a: f"Cap sur la dimension « {short(a.get('name'))} »",
         'goto': lambda a: f"Je t'emmène vers {a.get('ref')}",
+    }.get(op, lambda a: str(op))(action)
+
+
+def intent_en(action, nodes):
+    """intent() pour un compte en anglais."""
+    name = lambda ref: f'"{short(nodes[ref]['text'], 24)}"' if nodes.get(ref, {}).get('text') else (ref or '?')
+    op = action.get('op')
+    first = lambda text: short(str(text or '').strip().splitlines()[0] if str(text or '').strip() else '')
+    return {
+        'ask': lambda a: "I'm asking you a question",
+        'nodes': lambda a: f"I'm placing {len(a.get('items') or [])} nodes",
+        'draw': lambda a: "I'm drawing",
+        'note': lambda a: "I'm leaving you a note in Exchanges",
+        'grow': lambda a: f'I\'m growing "{first(a.get("text"))}"',
+        'put': lambda a: f"I'm writing {name(a.get('ref'))}" if str(a.get('ref', '')).startswith('N-') else f'I\'m creating "{short(a.get("text"))}"',
+        'create': lambda a: f'I\'m creating "{short(a.get("text"))}"',
+        'update': lambda a: f"I'm rewriting {name(a.get('ref'))}",
+        'style': lambda a: f"I'm changing the look of {name(a.get('ref'))}",
+        'set_type': lambda a: f"I'm turning {name(a.get('ref'))} into {a.get('content_type')}",
+        'link': lambda a: f"I'm linking {name(a.get('source'))} to {name(a.get('target'))}",
+        'unlink': lambda a: f"I'm detaching {name(a.get('source'))} from {name(a.get('target'))}",
+        'portal': lambda a: f'I\'m opening a portal to "{short(a.get("name"))}"',
+        'explore': lambda a: f"I'm handing {name(a.get('ref'))} to another instance of me: {short(a.get('task'), 60)}",
+        'archive': lambda a: f"I'm deleting {name(a.get('ref'))} (Ctrl+Z to undo)",
+        'cleanup': lambda a: "I'm clearing out the empty nodes",
+        'build': lambda a: f'I\'m building the {LAYOUT_NAMES_EN.get(a.get("layout"), "template")} "{short(a.get("title") or a.get("template"))}"',
+        'template_save': lambda a: f'I\'m keeping the template "{short(a.get("name"))}"',
+        'templates': lambda a: "I'm rereading my templates",
+        'template_delete': lambda a: f'I\'m forgetting the template "{short(a.get("name"))}"',
+        'schema': lambda a: f"I'm placing the {a.get('type')} template",
+        'tour': lambda a: f"I'm showing you around the branch of {name(a.get('ref'))}",
+        'mindmap': lambda a: f'I\'m drawing a mind map around "{short(a.get("text") or nodes.get(a.get("ref"), {}).get("text"))}"',
+        'delegate': lambda a: f"I'm handing over to {a.get('agent')}: {short(a.get('task'), 60)}",
+        'plug_agent': lambda a: f"I'm plugging {a.get('model')} into {a.get('agent')}",
+        'create_agent': lambda a: f"I'm creating the agent {a.get('name')}",
+        'update_agent': lambda a: f"I'm tuning the agent {a.get('agent')}",
+        'remember': lambda a: f"I'm remembering: {short(a.get('text'), 60)}",
+        'remind': lambda a: (f"I'm removing the reminder of {name(a.get('ref'))}" if not a.get('at')
+                             else f"I'm setting a reminder ({str(a.get('at')).replace('T', ' ')}) on " + (name(a.get('ref')) if a.get('ref') else f'"{short(a.get("text"))}"')),
+        'reminders': lambda a: "I'm rereading your reminders",
+        'forget': lambda a: f'I\'m forgetting what mentions "{short(a.get("text"))}"',
+        'inventory': lambda a: "I'm taking stock of the dimensions, agents and models",
+        'search_nodes': lambda a: f'I\'m searching your nodes for "{short(a.get("query"))}"',
+        'read_file': lambda a: f"I'm reading the document of {name(a.get('ref'))}",
+        'web_search': lambda a: f"I'm searching the web: {short(a.get('query'), 60)}",
+        'web_fetch': lambda a: f"I'm reading {short(a.get('url'), 60)}",
+        'focus': lambda a: f"I'm taking you to {name(a.get('ref'))}",
+        'overview': lambda a: "I'm stepping back over the whole plane",
+        'travel': lambda a: f'Heading to the dimension "{short(a.get("name"))}"',
+        'goto': lambda a: f"I'm taking you to {a.get('ref')}",
     }.get(op, lambda a: str(op))(action)
 
 
@@ -1148,7 +1203,7 @@ class Guardian(IaquaOps):
     def sync_memory(self):
         """Réécrit le node « Mémoire » de l'univers ; à l'écran tout de suite s'il est dans la dimension affichée."""
         ref = self.home_ref('memory')
-        text = 'Mémoire du Gardien\n' + '\n'.join(f'- {fact}' for fact in self.guardian.memory)
+        text = home.memory_text(home.texts(i18n.lang(self.user))['memory'], self.guardian.memory)
         if ref in self.nodes:
             self.emit('action', {'op': 'update', 'ref': ref, 'text': text_html(text)})
         elif ref:
@@ -1382,7 +1437,7 @@ class Guardian(IaquaOps):
                     action = {**action, 'ref': f'auto{len(self.nodes) + 1}'}  # référence manquante
                 if op == 'create' and action.get('children'):
                     op, action = 'mindmap', {**action, 'op': 'mindmap'}  # un node et ses enfants : une carte mentale
-                self.emit('intent', {'text': intent(action, self.nodes)})
+                self.emit('intent', {'text': (intent_en if i18n.english(self.user) else intent)(action, self.nodes)})
                 reads = len(self.reads)
                 event = getattr(self, f'op_{op}')(action, agents)
                 if event:

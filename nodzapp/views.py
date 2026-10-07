@@ -808,8 +808,16 @@ def save_profile(request):
             elif 'country' in json_data:
                 user.country = json_data['country']
             elif 'language' in json_data:
-                user.language = json_data['language'] if json_data['language'] in ('fr', 'en') else ''
+                language = json_data['language'] if json_data['language'] in ('fr', 'en') else ''
+                changed = language != user.language
+                user.language = language
             user.save()
+            if 'language' in json_data and changed and user.language:
+                from toolbox import home
+                from toolbox.models import Agent
+                guardian = Agent.objects.filter(owner=user, role=Agent.Role.ORCHESTRATOR).first()
+                if guardian:
+                    home.relabel(user, guardian, user.language)  # la maison du Gardien passe dans la nouvelle langue
 
             return JsonResponse({'success': 'Saved to database'})
         except json.JSONDecodeError:
@@ -1401,9 +1409,10 @@ def send_validation_code(request):
         validation_codes[email] = validation_code
 
         # Send email to the user with the validation code
+        from toolbox import i18n
         send_mail(
-            'Your Validation Code',
-            f'Your validation code is: {validation_code}',
+            i18n.say(request.user, 'Ton code de validation Nodz', 'Your Nodz validation code'),
+            i18n.say(request.user, 'Ton code de validation est : {code}', 'Your validation code is: {code}', code=validation_code),
             'no-reply@yourdomain.com',
             [email],
             fail_silently=False,

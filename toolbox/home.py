@@ -13,6 +13,7 @@ s'arrête aux autres groupes et à la racine) :
 Les nodes de la page sont la seule source : le serveur relit la dimension à chaque demande.
 """
 
+import html
 import json
 import math
 import re
@@ -43,6 +44,39 @@ IDENTITY = 'Nom : Gardien\nTon : chaleureux, précis, tutoiement'
 USER = 'Écris ici qui tu es : prénom, métier, projets en cours, ce que tu attends de moi.'
 SKILL = ('Compte rendu : quand je te donne des notes de réunion, fais un arbre Décisions, Actions (qui, quand), '
          'Questions ouvertes.')
+NAME = 'Gardien'
+ROOT = 'Ma maison : réécris mes nodes pour me régler.'
+MEMORY = 'Mémoire du Gardien'  # titre du node Mémoire (ignoré à la lecture des souvenirs)
+
+# La même maison en anglais, pour un compte en anglais (mêmes clés de groupe).
+EN = {
+    'groups': {
+        'soul': ('Soul', 'My character and my instructions. Rewrite this node, or add one linked here: I follow it.'),
+        'identity': ('Identity', 'Who I am for you: my name, how I speak.'),
+        'user': ('User', 'What I know about you. Write your name, your job, your projects, your preferences here.'),
+        'memory': ('Memory', 'My memories, one per line. Link a dream here to turn it into a memory.'),
+        'skills': ('Skills', 'My know-how: one node per skill ("when… do…").'),
+        'tools': ('Tools', 'One node per tool and its instructions; delete a node to cut me off from the tool.'),
+        'dreams': ('Dreams', "What I mull over when you ask me nothing. Link a dream to Memory to keep it, delete it otherwise."),
+        'exchanges': ('Exchanges', 'My notes for you. Answer in a node linked to the note.'),
+    },
+    'soul': ("I am the Guardian of your universe. I think with you in nodes, clearly and plainly. "
+             "I do what you ask, nothing more; I ask when it's ambiguous."),
+    'identity': 'Name: Guardian\nTone: warm, precise, informal',
+    'user': 'Write here who you are: first name, job, current projects, what you expect from me.',
+    'skill': 'Minutes: when I give you meeting notes, make a tree Decisions, Actions (who, when), Open questions.',
+    'name': 'Guardian',
+    'root': 'My home: rewrite my nodes to tune me.',
+    'memory': "Guardian's memory",
+}
+
+
+def texts(lang):
+    """Textes de départ de la maison dans la langue `lang` : groupes (clé, nom, aide), âme, identité, utilisateur,
+    compétence, nom de la dimension, racine, titre de la mémoire."""
+    if lang == 'en':
+        return {**EN, 'groups': [(key, *EN['groups'][key]) for key in KEYS]}
+    return {'groups': GROUPS, 'soul': SOUL, 'identity': IDENTITY, 'user': USER, 'skill': SKILL, 'name': NAME, 'root': ROOT, 'memory': MEMORY}
 
 DREAMS = 12  # rêves gardés en attente
 DREAM_TEXT = 200
@@ -132,7 +166,6 @@ def soul(state):
 
 # --- pose de la maison
 
-NAME = 'Gardien'
 COLORS = {'soul': '#C77DFF', 'identity': '#FF9F45', 'user': '#4DD4C6', 'memory': '#33FF99', 'skills': '#FFD93D', 'tools': '#4D96FF',
           'dreams': '#F15BB5', 'exchanges': '#1E90FF'}
 PALETTE = ['#4D96FF', '#33FF99', '#FF6B6B', '#FFD93D', '#C77DFF', '#FF9F45', '#4DD4C6', '#F15BB5', '#9BE15D', '#7FB3FF']
@@ -147,6 +180,22 @@ def _escape(text):
 
 def _html(text):
     return '<br>'.join(_escape(line) for line in str(text).split('\n'))
+
+
+def root_html(seed):
+    return f'<b>{seed["name"]}</b><br><font size="2">{_escape(seed["root"])}</font>'
+
+
+def hub_html(label, hint):
+    return f'<b>{label}</b><br><font size="2">{_escape(hint)}</font>'
+
+
+def memory_text(title, facts):
+    return title + '\n' + '\n'.join(f'- {fact}' for fact in facts)
+
+
+def tool_text(tool):
+    return f"{tool['op']}\n{tool['label']}\n\n{tool['doc']}"
 
 
 def _height(text):
@@ -169,7 +218,8 @@ def build(user, guardian, seed):
         if layer is None:  # pas encore de maison, ou sa dimension a été supprimée : tout est à poser
             taken = {name.lower() for name in Layer.objects.filter(user=user).values_list('layer_name', flat=True)}
             layer_id = (Layer.objects.filter(user=user).aggregate(top=Max('layer_id'))['top'] or 0) + 1
-            layer = Layer.objects.create(user=user, layer_id=layer_id, layer_name=f'{NAME} 2' if NAME.lower() in taken else NAME)
+            name = seed['name']
+            layer = Layer.objects.create(user=user, layer_id=layer_id, layer_name=f'{name} 2' if name.lower() in taken else name)
             placed = {'layer': layer_id, 'groups': {}, 'tools': {}}
         existing = {f'N-{n.node_id}': n for n in Node.objects.filter(user=user, layer=layer, archive=False)}
         alive = lambda ref: ref in existing
@@ -192,13 +242,13 @@ def build(user, guardian, seed):
         root = placed.get('root') if alive(placed.get('root')) else None
         new_root = root is None
         if new_root:
-            root = placed['root'] = add(f'<b>{NAME}</b><br><font size="2">Ma maison : réécris mes nodes pour me régler.</font>', '#6848A6')
+            root = placed['root'] = add(root_html(seed), '#6848A6')
         groups, tools_placed, added = dict(placed.get('groups') or {}), dict(placed.get('tools') or {}), []
-        for key, label, hint in GROUPS:
+        for key, label, hint in ((g['key'], g['label'], g['hint']) for g in seed['groups']):
             if alive(groups.get(key)):
                 continue
             tint = COLORS[key]
-            hub = groups[key] = add(f'<b>{label}</b><br><font size="2">{_escape(hint)}</font>', tint, root)
+            hub = groups[key] = add(hub_html(label, hint), tint, root)
             added.append(hub)
             child = lambda text, parent=hub, color=tint: add(_html(text), color, parent)
             if key == 'soul':
@@ -208,7 +258,7 @@ def build(user, guardian, seed):
             elif key == 'user':
                 child(seed['user'])
             elif key == 'memory':
-                placed['memory'] = child('Mémoire du Gardien\n' + '\n'.join(f'- {fact}' for fact in seed['memory']))
+                placed['memory'] = child(memory_text(seed['memory_title'], seed['memory']))
             elif key == 'skills':
                 child(seed['skill'])
                 placed['brain'] = child(seed['brain'])
@@ -217,7 +267,7 @@ def build(user, guardian, seed):
                     color = PALETTE[f % len(PALETTE)]
                     fid = add(_html(family), color, hub)
                     for tool in (t for t in seed['tools'] if t['category'] == family):
-                        tools_placed[tool['op']] = add(_html(f"{tool['op']}\n{tool['label']}\n\n{tool['usage']}"), color, fid)
+                        tools_placed[tool['op']] = add(_html(tool_text(tool)), color, fid)
 
         # Arbre de gauche à droite : une colonne par profondeur, les feuilles l'une sous l'autre, chaque parent au
         # milieu de ses enfants.
@@ -276,6 +326,55 @@ def build(user, guardian, seed):
     # Les compteurs de la page (prochain node, lien, dimension) : charger une dimension ne les relit pas.
     return {'layer': layer.layer_id, 'name': layer.layer_name, 'added': len(added), 'nodes': list(items),
             'counters': {'node': node_id, 'link': link_id, 'layer': max(param.layercounter or 1, layer.layer_id) if param else layer.layer_id}}
+
+
+# --- changement de langue
+
+def _plain(text):
+    """Texte d'un node sans balises ni espaces en trop : deux enregistrements du même texte se comparent égaux."""
+    text = re.sub(r'<br\s*/?>|</div>|</p>', '\n', str(text or ''))
+    return ' '.join(html.unescape(re.sub(r'<[^>]+>', '', text)).split())
+
+
+def relabel(user, guardian, lang):
+    """Une maison posée dans l'autre langue passe dans `lang` : chaque node encore identique à son texte de départ
+    (racine, groupes, âme, identité, utilisateur, compétence, familles et outils) est réécrit, le titre de la mémoire et
+    le nom de la dimension aussi s'ils sont restés ceux de départ. Un node réécrit par l'humain ne change pas, rien n'est
+    supprimé. Rend le nombre de nodes réécrits."""
+    from . import tools, tools_en
+    from .guardian import brain_text
+
+    home = mapping(guardian)
+    layer = home and Layer.objects.filter(user=user, layer_id=home.get('layer')).first()
+    if not layer:
+        return 0
+    old, new = texts('fr' if lang == 'en' else 'en'), texts(lang)
+    pairs = [(root_html(old), root_html(new))]
+    pairs += [(hub_html(a[1], a[2]), hub_html(b[1], b[2])) for a, b in zip(old['groups'], new['groups'])]
+    pairs += [(_html(old[key]), _html(new[key])) for key in ('soul', 'identity', 'user', 'skill')]
+    other, mine = ('fr' if lang == 'en' else 'en'), lang
+    for t in tools.TOOLS:
+        before, after = tools_en.tool(t['op'], other), tools_en.tool(t['op'], mine)
+        pairs += [(_html(tool_text({'op': t['op'], **before})), _html(tool_text({'op': t['op'], **after}))),
+                  (_html(before['category']), _html(after['category']))]
+    table = {_plain(a): b for a, b in pairs}
+    changed = []
+    for node in Node.objects.filter(user=user, layer=layer, archive=False):
+        ref, text = f'N-{node.node_id}', None
+        if ref == home.get('memory') and _plain(node.text_content).startswith(old['memory']):
+            text = _html(memory_text(new['memory'], guardian.memory))
+        elif ref == home.get('brain'):
+            text = _html(brain_text(guardian))
+        else:
+            text = table.get(_plain(node.text_content))
+        if text and text != node.text_content:
+            node.text_content = text
+            changed.append(node)
+    Node.objects.bulk_update(changed, ['text_content'])
+    if layer.layer_name == old['name']:
+        layer.layer_name = new['name']
+        layer.save(update_fields=['layer_name'])
+    return len(changed)
 
 
 # --- rêves

@@ -26,7 +26,7 @@ from graph.api import api, unauthenticated
 from graph.services import ChangeError
 from nodzapp.models import Layer, Link, Node
 
-from . import cuda, fit, gguf, home as homes, hub, iaqua, imaging, monitor, params as model_params, premium, prompts, quota, reminders as reminder_store, remote, tools, workspace
+from . import cuda, fit, gguf, home as homes, hub, i18n, iaqua, imaging, monitor, params as model_params, premium, prompts, quota, reminders as reminder_store, remote, tools, tools_en, workspace
 from .broker import BrokerTimeout
 from .dispatcher import Busy
 from .engine import Engine, EngineUnavailable, acting_for
@@ -47,6 +47,13 @@ DEFAULT_AGENTS = [
     ('Codeur', Agent.Role.CODE, 'Écrit et explique du code.'),
     ('Illustrateur', Agent.Role.IMAGE, 'Génère des images.'),
 ]
+DEFAULT_AGENTS_EN = [  # les mêmes, pour un compte créé en anglais (un compte existant garde les noms de ses agents)
+    ('Guardian', Agent.Role.ORCHESTRATOR, 'Answers the nodes sent to it (Guardian pill or Ctrl+Enter): places, links, searches, delegates, guides.'),
+    ('Writer', Agent.Role.TEXT, 'Writes, summarizes, rephrases.'),
+    ('Coder', Agent.Role.CODE, 'Writes and explains code.'),
+    ('Illustrator', Agent.Role.IMAGE, 'Generates images.'),
+]
+DESCRIPTIONS_EN = {role: description for _, role, description in DEFAULT_AGENTS_EN}  # description de départ, en anglais
 
 
 class Forbidden(ChangeError):
@@ -95,7 +102,9 @@ def model_to_dict(m, user):
 
 
 def agent_to_dict(a):
-    return {'id': str(a.id), 'name': a.name, 'role': a.role, 'description': a.description,
+    default = next((d for _, role, d in DEFAULT_AGENTS if role == a.role), None)
+    description = DESCRIPTIONS_EN[a.role] if a.description == default and i18n.english(a.owner) else a.description
+    return {'id': str(a.id), 'name': a.name, 'role': a.role, 'description': description,
             'model': str(a.model_id) if a.model_id else None, 'system_prompt': a.system_prompt,
             # le Gardien : son prompt système en entier (commandes, cas d'usage, ses outils) ; un agent : son rôle
             'default_prompt': guardian_prompt(a, default=True) if a.role == Agent.Role.ORCHESTRATOR else prompts.default(a.role),
@@ -371,7 +380,9 @@ def pack(request, body, key):
 def tool_list(request, body):
     """Catalogue des outils du Gardien (Nodz et iAqua), ceux activés pour l'utilisateur, et les non portés."""
     guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
-    return JsonResponse({'tools': [{**t, 'available': tools.available(t['op'], request.user), 'always': t['op'] in tools.ALWAYS} for t in tools.TOOLS],
+    lang = i18n.lang(request.user)
+    return JsonResponse({'tools': [{**t, **tools_en.tool(t['op'], lang), 'available': tools.available(t['op'], request.user),
+                                    'always': t['op'] in tools.ALWAYS} for t in tools.TOOLS],
                          'enabled': tools.enabled(guardian, request.user) if guardian else [],
                          'guardian': str(guardian.id) if guardian else None, 'shell': settings.GUARDIAN_SHELL})
 
@@ -429,10 +440,13 @@ def home_view(request, body):
         guardian.brain = {**brain, 'home': placed, 'letters': notes, 'dreams': dreams}
         guardian.save(update_fields=['brain'])
     ops = tools.enabled(guardian, request.user)
-    seed = {'groups': [{'key': k, 'label': label, 'hint': hint} for k, label, hint in homes.GROUPS],
-            'soul': guardian.system_prompt or homes.SOUL, 'identity': homes.IDENTITY, 'user': homes.USER, 'skill': homes.SKILL,
+    lang = i18n.lang(request.user)
+    words = homes.texts(lang)
+    seed = {'groups': [{'key': k, 'label': label, 'hint': hint} for k, label, hint in words['groups']],
+            'soul': guardian.system_prompt or words['soul'], 'identity': words['identity'], 'user': words['user'], 'skill': words['skill'],
+            'name': words['name'], 'root': words['root'], 'memory_title': words['memory'],
             'memory': guardian.memory, 'brain': brain_text(guardian),
-            'tools': [{'op': t['op'], 'label': t['label'], 'category': t['category'], 'usage': t['doc']} for t in tools.TOOLS if t['op'] in ops]}
+            'tools': [{'op': t['op'], **tools_en.tool(t['op'], lang)} for t in tools.TOOLS if t['op'] in ops]}
     if request.method == 'POST' and body.get('build'):  # la maison posée d'un bloc par le serveur (home.build)
         return JsonResponse({'built': homes.build(request.user, guardian, seed), 'home': homes.mapping(guardian)})
     waiting = [n for n in notes if not n.get('node')], [d for d in dreams if not d.get('node')]
@@ -824,7 +838,8 @@ def premium_webhook(request):
 def agents(request, body):
     if request.method == 'GET':
         if not Agent.objects.filter(owner=request.user).exists():  # compte neuf : ses agents, sans IA (Premium ou sa clé)
-            Agent.objects.bulk_create([Agent(owner=request.user, name=n, role=r, description=d) for n, r, d in DEFAULT_AGENTS])
+            starters = DEFAULT_AGENTS_EN if i18n.english(request.user) else DEFAULT_AGENTS
+            Agent.objects.bulk_create([Agent(owner=request.user, name=n, role=r, description=d) for n, r, d in starters])
         return JsonResponse({'agents': [agent_to_dict(a) for a in Agent.objects.filter(owner=request.user)]})
     if not body.get('name') or body.get('role', Agent.Role.TEXT) not in Agent.Role.values:
         raise ChangeError('name et role valides requis')
@@ -946,6 +961,8 @@ async def command(request):
     async def stream():
         try:
             while (item := await asyncio.to_thread(events.get)) is not None:
+                if item[0] == 'error':  # message dans la langue du compte
+                    item = ('error', {**item[1], 'message': i18n.error(user, item[1].get('message'))})
                 yield f'event: {item[0]}\ndata: {json.dumps(item[1])}\n\n'
             yield 'event: end\ndata: {}\n\n'
         finally:
@@ -966,37 +983,41 @@ def doctor(request, body):
         return ok
 
     user = request.user
+    say = lambda fr, en, **values: i18n.say(user, fr, en, **values)
     guardian_ = Guardian(user, engine, lambda kind, data: None)
     agents = guardian_.agents()
     orchestrator = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
-    if not check('Gardien actif', orchestrator, 'activé' if orchestrator else 'le Gardien est désactivé dans Agents & modèles'):
+    if not check(say('Gardien actif', 'Guardian on'), orchestrator,
+                 say('activé', 'on') if orchestrator else say('le Gardien est désactivé dans Agents & modèles', 'the Guardian is turned off in Agents & models')):
         return JsonResponse({'checks': checks})
     model = orchestrator.model
-    if not check('Modèle choisi', model, (model.label or model.filename) if model else 'aucun modèle : choisis-en un pour le Gardien'):
+    if not check(say('Modèle choisi', 'Model chosen'), model,
+                 (model.label or model.filename) if model else say('aucun modèle : choisis-en un pour le Gardien', 'no model: pick one for the Guardian')):
         return JsonResponse({'checks': checks})
     n_ctx = None
     if model.endpoint:
         try:
             remote.check(model)
-            check('Modèle par API', True, model.endpoint)
+            check(say('Modèle par API', 'Model via API'), True, model.endpoint)
         except remote.RemoteError as e:
-            check('Modèle par API', False, str(e))
+            check(say('Modèle par API', 'Model via API'), False, i18n.error(user, str(e)))
             return JsonResponse({'checks': checks})
     else:
         present = bool(model.path) and Path(model.path).is_file()
-        if not check('Fichier du modèle', present, model.path if present else
-                     f"{model.path or 'rien'} introuvable : retélécharge-le (Hugging Face) ou réimporte-le (Fichiers du serveur)"):
+        if not check(say('Fichier du modèle', 'Model file'), present, model.path if present else say(
+                '{path} introuvable : retélécharge-le (Hugging Face) ou réimporte-le (Fichiers du serveur)',
+                '{path} not found: download it again (Hugging Face) or import it again (Server files)', path=model.path or say('rien', 'nothing'))):
             return JsonResponse({'checks': checks})
-        if not check('Moteur local', engine.available(), 'llama-cpp-python installé' if engine.available()
-                     else 'llama-cpp-python absent : pip install -r requirements-ai.txt'):
+        if not check(say('Moteur local', 'Local engine'), engine.available(), say('llama-cpp-python installé', 'llama-cpp-python installed') if engine.available()
+                     else say('llama-cpp-python absent : pip install -r requirements-ai.txt', 'llama-cpp-python missing: pip install -r requirements-ai.txt')):
             return JsonResponse({'checks': checks})
         _, placement = fit.resolve(model.path, Engine.options(model), engine.gpu_offload() is not False,
                                    set(model_params.load_options(model.params)))
         n_ctx = placement['n_ctx']
-        go = lambda mb: f"{mb / 1024:.1f} Go".replace('.', ',')
-        check('Mémoire', placement['fits'], f"besoin {go(placement['need_mb'])}, libre {go(placement['ram_free_mb'])}"
-              + (f", {placement['gpu_layers']}/{placement['layers']} couches sur GPU" if placement['gpu_layers'] else ', sur CPU')
-              + ('' if placement['fits'] else " : il relira le disque à chaque mot, prends un modèle plus petit"))
+        go = lambda mb: say('{v} Go', '{v} GB', v=f'{mb / 1024:.1f}'.replace('.', say(',', '.')))
+        check(say('Mémoire', 'Memory'), placement['fits'], say('besoin {need}, libre {free}', 'needs {need}, {free} free', need=go(placement['need_mb']), free=go(placement['ram_free_mb']))
+              + (say(', {on}/{all} couches sur GPU', ', {on}/{all} layers on GPU', on=placement['gpu_layers'], all=placement['layers']) if placement['gpu_layers'] else say(', sur CPU', ', on CPU'))
+              + ('' if placement['fits'] else say(" : il relira le disque à chaque mot, prends un modèle plus petit", ': it will reread the disk for every word, pick a smaller model')))
     # Essai réel : le prompt système du Gardien, une réponse de quelques jetons.
     try:
         system = guardian_.system(agents)
@@ -1004,17 +1025,20 @@ def doctor(request, body):
             engine.chat(model, [{'role': 'system', 'content': system}, {'role': 'user', 'content': 'Réponds seulement : OK'}],
                         owner='diagnostic', max_tokens=8, temperature=0)
     except Exception as e:  # le diagnostic rapporte toute panne au lieu d'échouer
-        check('Essai du modèle', False, f'{type(e).__name__} : {e}'[:300])
+        check(say('Essai du modèle', 'Model test'), False, f'{type(e).__name__} : {i18n.error(user, str(e))}'[:300])
         return JsonResponse({'checks': checks})
     last = (engine.stats.get(model.pk) or {}).get('last') or {}
     prompt = last.get('prompt_tokens')
     if n_ctx and prompt:
-        check('Contexte', prompt + 1024 <= n_ctx, f'{prompt} jetons de consignes, fenêtre de {n_ctx}'
-              + ('' if prompt + 1024 <= n_ctx else ' : augmente le contexte du modèle (réglages) pour laisser la place à sa réponse'))
+        check(say('Contexte', 'Context'), prompt + 1024 <= n_ctx, say('{p} jetons de consignes, fenêtre de {n}', '{p} tokens of instructions, window of {n}', p=prompt, n=n_ctx)
+              + ('' if prompt + 1024 <= n_ctx else say(' : augmente le contexte du modèle (réglages) pour laisser la place à sa réponse',
+                                                       " : increase the model's context (settings) to leave room for its answer")))
     wait, speed = last.get('wait_s'), last.get('speed')
-    check('Essai du modèle', True, f'lecture des consignes {wait} s' + (f', {speed} jetons/s' if speed else ''))
+    check(say('Essai du modèle', 'Model test'), True, say('lecture des consignes {w} s', 'reading the instructions {w} s', w=wait)
+          + (say(', {s} jetons/s', ', {s} tokens/s', s=speed) if speed else ''))
     if speed:
-        check('Vitesse', speed >= 2, f'{speed} jetons/s' + ('' if speed >= 2 else ' : très lent, un plan prendra plusieurs minutes'))
+        check(say('Vitesse', 'Speed'), speed >= 2, say('{s} jetons/s', '{s} tokens/s', s=speed)
+              + ('' if speed >= 2 else say(' : très lent, un plan prendra plusieurs minutes', ': very slow, a plan will take several minutes')))
     return JsonResponse({'checks': checks})
 
 

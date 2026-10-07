@@ -326,6 +326,14 @@ Un geste finit après 150 ms sans événement.
 
 **Pastille du node redessinée** : « Gardien » devient une petite carte au style des messages du Gardien (son orbe, son nom, liseré dégradé, 26 px de haut, raccourci Ctrl ↵ au survol). Dessous, en colonne alignée à gauche, deux ronds Branche et Sélection aux icônes redessinées (un node qui se déploie en trois branches, un lasso autour de nodes reliés). Même fonctionnement : ouverture à l'appui, second appui pour refermer.
 
+**Application en français et en anglais (lot 2)** :
+- Agents & modèles (bibliothèque, réglages, Hugging Face, Mon IA, diagnostic) et consoles administrateur en anglais ; les réglages décrits par le serveur (libellés, aides, choix) aussi ;
+- maison du Gardien dans la langue du compte : groupes, textes de départ, familles et les 84 outils avec leur mode d'emploi (`toolbox/tools_en.py`), nom de la dimension (Guardian) ; un compte qui change de langue voit sa maison réécrite, sauf les nodes qu'il a modifiés ;
+- agents de départ d'un compte en anglais : Guardian, Writer, Coder, Illustrator (un compte existant garde ses noms) ; un invité reçoit la langue de sa page avant que ses agents et sa maison ne naissent ;
+- erreurs du serveur traduites pour un compte en anglais (`toolbox/i18n.py`, intergiciel `TranslateErrors`, flux du Gardien), phrases de suivi du Gardien (« I'm creating… ») ;
+- e-mails Premium et code de validation dans la langue du compte ;
+- pages légales (confidentialité, conditions), remerciements et confirmation de contact en français et en anglais.
+
 **Rectangles, maison du Gardien, dépli, cube** :
 - un rectangle hors de l'écran au chargement d'une dimension n'était jamais mesuré (Nodz le cache, son texte y a une hauteur nulle) : il gardait sa largeur de départ et s'étirait en hauteur ; il s'ajuste maintenant dès qu'il apparaît (et après un dépli) ;
 - la maison du Gardien se pose et s'ouvre entièrement dépliée (familles d'outils comprises, y compris une maison déjà repliée) ;

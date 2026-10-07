@@ -100,16 +100,18 @@ const signedIn = setInterval(() => {
     if (typeof isLoggedIn === 'undefined' || !isLoggedIn) return;
     document.body.classList.add('gardien-ready');
     clearInterval(signedIn);
-    // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
-    api.request('POST', 'toolbox/warm', { mode: chat.mode() }).catch(() => {});
+    // La langue du compte d'abord (invité compris) : ses agents de départ et sa maison naissent dans cette langue.
+    syncAccount().then(() => {
+        // Préchauffage : le modèle du Gardien lit ses consignes en arrière-plan, la première demande ira plus vite.
+        api.request('POST', 'toolbox/warm', { mode: chat.mode() }).catch(() => {});
+        library.refresh().catch(() => {});  // IA locale ou non : la tour CPU/GPU s'affiche ou se cache
+        guardianHome.ensure(guide.closed).catch(() => {});  // dimension Gardien posée d'office, une fois le guide fermé
+    });
     reminders.refresh();
     dimensions.refresh();
-    library.refresh().catch(() => {});  // IA locale ou non : la tour CPU/GPU s'affiche ou se cache
     quota.refresh();
     if (typeof guestUser !== 'undefined' && guestUser) chat.guest();  // chaque invité part d'un chat vide
-    if (typeof guestUser === 'undefined' || !guestUser) syncAccount();  // langue du compte et de ce navigateur
     guide.welcome();  // première visite : le guide s'ouvre
-    guardianHome.ensure(guide.closed).catch(() => {});  // dimension Gardien posée d'office, une fois le guide fermé
     room.start();  // salon du lien (?room=) ou le sien resté ouvert
 }, 400);
 

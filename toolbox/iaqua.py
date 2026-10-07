@@ -677,8 +677,8 @@ class IaquaOps:
 
     def op_delete_agent(self, action, agents):
         agent = self.agent_named(action.get('agent'))
-        from .api import DEFAULT_AGENTS
-        if agent.name in {name for name, _, _ in DEFAULT_AGENTS}:
+        from .api import DEFAULT_AGENTS, DEFAULT_AGENTS_EN
+        if agent.name in {name for name, _, _ in DEFAULT_AGENTS + DEFAULT_AGENTS_EN}:
             raise PlanError(f"{agent.name} est un agent de départ : désactive-le plutôt (update_agent)")
         if agent.name.lower() not in self.request.lower() or not re.search(r'supprim|efface|delete|retire', self.request, re.I):
             raise PlanError(f"suppression irréversible : l'utilisateur doit demander de supprimer {agent.name} en le nommant")

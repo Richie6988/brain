@@ -96,7 +96,7 @@ export function createHome({ bridge, say, filters, chat, branches }) {
         };
         await bulk(async () => {
             await place('exchanges', data.letters, 'letters', l => `<font size="2">${escape(l.at)}</font><br>${l.html}${l.choices?.length ? `<br><i>${l.choices.map(escape).join(' / ')}</i>` : ''}`);
-            await place('dreams', data.dreams, 'dreams', d => `<font size="2">${d.kind === 'souvenir' ? 'Souvenir' : 'Idée'} · ${escape(d.at)}</font><br>${escape(d.text)}`);
+            await place('dreams', data.dreams, 'dreams', d => `<font size="2">${t(d.kind === 'souvenir' ? 'home.memoryDream' : 'home.ideaDream')} · ${escape(d.at)}</font><br>${escape(d.text)}`);
         });
         if (!Object.keys(posted.letters).length && !Object.keys(posted.dreams).length) return 0;
         data = await api.request('POST', 'toolbox/home', posted);

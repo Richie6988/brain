@@ -3343,3 +3343,69 @@ class LanguageTests(TestCase):
         self.assertEqual(prompts.language_rule(self.user), '')
         self.user.language = 'en'
         self.assertIn('English', prompts.language_rule(self.user))
+
+    def english(self):
+        self.user.language = 'en'
+        self.user.save()
+
+    def test_errors_follow_the_account_language(self):
+        url = '/api/v1/toolbox/models/00000000-0000-0000-0000-000000000000'
+        patch = lambda: self.client.patch(url, '{}', content_type='application/json').json()['error']
+        self.assertEqual(patch(), 'modèle introuvable')
+        self.english()
+        self.assertEqual(patch(), 'model not found')
+        from . import i18n
+        self.assertEqual(i18n.error(self.user, 'le Gardien est très demandé (3 en attente) : réessaie dans un moment'),
+                         'the Guardian is in high demand (3 waiting): try again in a moment')
+        self.assertEqual(i18n.error(self.user, 'message inconnu'), 'message inconnu')  # hors table : tel quel
+
+    def test_english_catalog_is_complete(self):
+        from . import tools, tools_en
+
+        for t in tools.TOOLS:
+            entry = tools_en.tool(t['op'], 'en')
+            self.assertEqual(json.JSONDecoder().raw_decode(entry['doc'])[0]['op'], t['op'])
+            self.assertNotEqual(entry['label'], '')
+        self.assertEqual(tools_en.tool('ask', 'fr')['label'], tools.BY_OP['ask']['label'])
+
+    def test_house_in_english_then_back_to_french(self):
+        from nodzapp.models import Layer, Node
+        from . import home as homes
+
+        self.english()
+        self.client.get('/api/v1/toolbox/agents')  # le Gardien et ses agents de départ
+        built = self.client.post('/api/v1/toolbox/home', {'build': True}, content_type='application/json').json()['built']
+        layer = Layer.objects.get(user=self.user, layer_id=built['layer'])
+        self.assertEqual(layer.layer_name, 'Guardian')
+        texts = [homes._plain(n.text_content) for n in Node.objects.filter(user=self.user, layer=layer)]
+        self.assertIn('Soul My character and my instructions. Rewrite this node, or add one linked here: I follow it.', texts)
+        self.assertTrue(any(t.startswith('web_search Web search') for t in texts))
+        # L'humain réécrit un node ; le reste passe en français, ce node-là ne bouge pas.
+        guardian = Agent.objects.get(owner=self.user, role=Agent.Role.ORCHESTRATOR)
+        mine = Node.objects.filter(user=self.user, layer=layer, text_content__contains='Name: Guardian').get()
+        mine.text_content = 'Name: Max'
+        mine.save()
+        self.client.post('/save-profile/', json.dumps({'language': 'fr'}), content_type='application/json')
+        layer.refresh_from_db()
+        self.assertEqual(layer.layer_name, 'Gardien')
+        texts = [homes._plain(n.text_content) for n in Node.objects.filter(user=self.user, layer=layer)]
+        self.assertIn(homes._plain(homes.hub_html('Âme', homes.GROUPS[0][2])), texts)
+        self.assertTrue(any(t.startswith('web_search Recherche web') for t in texts))
+        self.assertIn('Name: Max', texts)
+        self.assertNotIn(homes._plain(homes.hub_html(*homes.EN['groups']['soul'])), texts)
+        self.assertEqual(guardian.memory, [])
+
+    def test_memory_titles_are_not_memories(self):
+        from .guardian import memory_lines
+
+        self.assertEqual(memory_lines("Guardian's memory\n- likes tea"), ['likes tea'])
+        self.assertEqual(memory_lines('Mémoire du Gardien\n- aime le thé'), ['aime le thé'])
+
+    def test_premium_mail_in_english(self):
+        from django.core import mail
+        from . import premium
+
+        self.english()
+        premium.activate(self.user)
+        self.assertEqual(mail.outbox[-1].subject, 'Your Premium Guardian is active')
+        self.assertIn('Hello,', mail.outbox[-1].body)

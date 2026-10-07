@@ -43,8 +43,9 @@ export async function setLang(next) {
     (window.top || window).location.reload();
 }
 
-// Une fois connecté (compte, pas invité) : la langue du compte s'applique (rechargement si elle diffère), sinon le choix
-// de ce navigateur devient celui du compte. Une session reprise a déjà donné la langue du compte (#log).
+// Une fois connecté : la langue du compte s'applique (rechargement si elle diffère), sinon celle de cette page (choix
+// gardé ou langue du navigateur) devient celle du compte, pour les textes du serveur. Une session reprise a déjà donné
+// la langue du compte (#log).
 export async function syncAccount() {
     let saved = account;
     if (saved === null) {
@@ -56,8 +57,8 @@ export async function syncAccount() {
             localStorage.setItem(KEY, saved);
         } catch { /* stockage indisponible */ }
         location.reload();
-    } else if (!DICTS[saved] && stored()) {
-        post('/save-profile/', { language: current }).catch(() => {});
+    } else if (!DICTS[saved]) {
+        await post('/save-profile/', { language: current }).catch(() => {});
     }
 }
 
