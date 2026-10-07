@@ -12,10 +12,11 @@ const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const SKETCH = 360;  // côté d'un node de croquis posé par l'IA (le canvas de Nodz en fait 750)
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
-// Icônes de la pastille d'un node : une branche (un node et ses enfants), une sélection (nodes reliés dans un lasso).
-const svgIcon = body => `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-const ICON_BRANCH = svgIcon('<circle cx="3.5" cy="8" r="2"/><circle cx="12.5" cy="3.5" r="2"/><circle cx="12.5" cy="12.5" r="2"/><path d="M5.5 8h2.5M8 3.5v9M8 3.5h2.5M8 12.5h2.5"/>');
-const ICON_PICK = svgIcon('<path d="M2.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 1 1-11 0" stroke-dasharray="2 2"/><circle cx="6" cy="8" r="1.4" fill="currentColor"/><circle cx="10.5" cy="6" r="1.4" fill="currentColor"/><path d="M7.2 7.5l2.1-1"/>');
+// Icônes de la pastille d'un node : Branche, un node d'où trois branches courbes partent vers leurs enfants ;
+// Sélection, un lasso en pointillés autour de trois nodes reliés.
+const svgIcon = body => `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const ICON_BRANCH = svgIcon('<circle cx="3.2" cy="8" r="1.9" fill="currentColor" stroke="none"/><path d="M5 8C8 8 8 3 11 3M5 8h6M5 8c3 0 3 5 6 5"/><circle cx="12.6" cy="3" r="1.4"/><circle cx="12.6" cy="8" r="1.4"/><circle cx="12.6" cy="13" r="1.4"/>');
+const ICON_PICK = svgIcon('<ellipse cx="8" cy="8" rx="6.6" ry="5.6" stroke-dasharray="1.8 1.9"/><path d="M5.6 9.6L8 5.6l2.4 4"/><circle cx="5.6" cy="9.6" r="1.25" fill="currentColor" stroke="none"/><circle cx="8" cy="5.6" r="1.25" fill="currentColor" stroke="none"/><circle cx="10.4" cy="9.6" r="1.25" fill="currentColor" stroke="none"/>');
 
 export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onBranch = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {},
     onCodeError = () => {} }) {
@@ -452,11 +453,11 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             const pill = document.createElement('div');
             pill.id = 'gardien-send';
             pill.hidden = true;
-            pill.innerHTML = '<button type="button" class="send"><i></i><span>Gardien</span><kbd>Ctrl ↵</kbd></button>'
+            pill.innerHTML = '<button type="button" class="send"><span class="gt-orb" aria-hidden="true"><i></i><i></i></span><b>Gardien</b><kbd>Ctrl ↵</kbd></button>'
                 + '<button type="button" class="arrange" title="Ordonner ces nodes : ils se repoussent et se posent">Ordonner</button>'
                 + '<span class="tools">'
-                + `<button type="button" class="branch" title="Branche : ranger en arbre, replier" aria-label="Branche">${ICON_BRANCH}<b>▾</b></button>`
-                + `<button type="button" class="pick" title="Sélection : amont, aval ou tout ce qui est relié" aria-label="Sélection">${ICON_PICK}<b>▾</b></button>`
+                + `<button type="button" class="branch" title="Branche : ranger en arbre, replier" aria-label="Branche">${ICON_BRANCH}</button>`
+                + `<button type="button" class="pick" title="Sélection : amont, aval ou tout ce qui est relié" aria-label="Sélection">${ICON_PICK}</button>`
                 + '</span>';
             const [sendButton, arrangeButton, tools] = pill.children;
             const [branchButton, pickButton] = tools.children;
@@ -501,7 +502,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 pickMenu.hidden = false;
             };
             const menusOpen = () => !pickMenu.hidden || branchMenu()?.hidden === false;
-            const label = sendButton.querySelector('span');
+            const label = sendButton.querySelector('b');
             document.body.append(pill);
             let target = null;
             let group = [];  // multisélection : ses nodes partent au chat comme contexte de la prochaine demande
