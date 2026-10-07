@@ -11,7 +11,12 @@ from django.db.models import Max
 
 # Create your views here.
 def home(request):
-    return render(request, "home.html")
+    # Page d'accueil : les plafonds du compte gratuit et le prix du Premium viennent du serveur (toolbox/quota.py, réglages).
+    from toolbox import quota
+    return render(request, "home.html", {
+        'landing': {'nodes': quota.NODES, 'dimensions': quota.DIMENSIONS},
+        'premium_price': settings.PREMIUM_PRICE_LABEL,
+    })
 
 
 from django.views.decorators.csrf import csrf_protect

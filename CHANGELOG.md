@@ -324,6 +324,16 @@ Un geste finit après 150 ms sans événement.
 
 **Formulaire de contact relié à l'admin** : chaque message est gardé (modèle `ContactMessage`, admin Django « Contact messages », case « traité ») et signalé par e-mail à `CONTACT_EMAIL` (par défaut `DEFAULT_FROM_EMAIL`) ; avant, il partait vers une adresse d'exemple et n'était gardé nulle part. Déploiement : `python manage.py migrate` (migration nodzapp 0019).
 
+**Pastille du node redessinée** : « Gardien » devient une petite carte au style des messages du Gardien (son orbe, son nom, liseré dégradé, 26 px de haut, raccourci Ctrl ↵ au survol). Dessous, en colonne alignée à gauche, deux ronds Branche et Sélection aux icônes redessinées (un node qui se déploie en trois branches, un lasso autour de nodes reliés). Même fonctionnement : ouverture à l'appui, second appui pour refermer.
+
+**Nouvelle page d'accueil** (`/`, bilingue FR / EN, choix gardé, langue du navigateur par défaut) :
+- un univers vivant en fond (nodes qui respirent, liens qui se dessinent, légère dérive au pointeur) où le Gardien parle ;
+- sections Ce que fait Nodz, Le Gardien (démo d'un arbre qui pousse), Salons (curseurs nommés en direct) et Offres. Les plafonds du gratuit viennent de `toolbox/quota.py`, le prix Premium de `PREMIUM_PRICE_LABEL`, et le parrainage est rappelé ;
+- tous les boutons mènent à `/universe` (l'ancienne page menait à `you`, qui n'existe plus) ;
+- pas de témoignages ni de réseaux sociaux factices ; animations coupées si le système demande moins de mouvement ; lisible sur mobile, sans défilement horizontal.
+
+`home.css` reste aux pages légales ; les logos de réseaux sociaux qui ne servaient qu'à l'ancienne page sont retirés.
+
 **Zoom en un seul déplacement** : les pas d'un geste de pincement (14) ou d'un cran de molette (3) s'appliquent d'un coup à la valeur du zoom, puis la vue se déplace et les nodes à l'écran se recalculent une seule fois, au lieu d'une fois par pas (28 recalculs de toute la carte pour un pincement). Même zoom et même position au pixel près ; sur la dimension Gardien, un pincement passe de 60 à 6 ms de calcul.
 
 **Zoom et dispatcher d'origine** : `zoom.js`, `dragUniverse.js` (dispatcher) et les compteurs de coin (`navigationLabels`) reviennent exactement à leur version d'avant le 5 octobre (`f461152`) : le dispatcher est de nouveau synchrone, appelé à chaque déplacement de la vue. Son report à l'image suivante (`frames.js`, introduit avec « Fluidité à plusieurs centaines de nodes »), ses écritures conditionnelles, son cache et le regroupement des événements de pincement sont retirés. Restent, sans lien avec le zoom : fond sans animation, boucles d'image sans réécriture, chargement par lot.
