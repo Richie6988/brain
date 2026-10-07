@@ -14,9 +14,13 @@ const SKETCH = 360;  // côté d'un node de croquis posé par l'IA (le canvas de
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 // Icônes de la pastille d'un node : Branche, un node d'où trois branches courbes partent vers leurs enfants ;
 // Sélection, un lasso en pointillés autour de trois nodes reliés.
-const svgIcon = body => `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-const ICON_BRANCH = svgIcon('<circle cx="3.2" cy="8" r="1.9" fill="currentColor" stroke="none"/><path d="M5 8C8 8 8 3 11 3M5 8h6M5 8c3 0 3 5 6 5"/><circle cx="12.6" cy="3" r="1.4"/><circle cx="12.6" cy="8" r="1.4"/><circle cx="12.6" cy="13" r="1.4"/>');
-const ICON_PICK = svgIcon('<ellipse cx="8" cy="8" rx="6.6" ry="5.6" stroke-dasharray="1.8 1.9"/><path d="M5.6 9.6L8 5.6l2.4 4"/><circle cx="5.6" cy="9.6" r="1.25" fill="currentColor" stroke="none"/><circle cx="8" cy="5.6" r="1.25" fill="currentColor" stroke="none"/><circle cx="10.4" cy="9.6" r="1.25" fill="currentColor" stroke="none"/>');
+// Couleurs de la carte Gardien : traits en dégradé violet → bleu (dégradé #gd-ig, posé une fois avec la pastille ; en
+// userSpaceOnUse, un trait horizontal resterait sinon invisible), nodes pleins en vert lumineux comme les yeux de l'orbe.
+const svgIcon = body => `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="url(#gd-ig)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const ICON_BRANCH = svgIcon('<path d="M5 8C8 8 8 3 11 3M5 8h6M5 8c3 0 3 5 6 5"/><circle class="dot" cx="3.2" cy="8" r="1.9"/><circle class="dot" cx="12.6" cy="3" r="1.4"/><circle class="dot" cx="12.6" cy="8" r="1.4"/><circle class="dot" cx="12.6" cy="13" r="1.4"/>');
+const ICON_PICK = svgIcon('<ellipse cx="8" cy="8" rx="6.6" ry="5.6" stroke-dasharray="1.8 1.9"/><path d="M5.6 9.6L8 5.6l2.4 4"/><circle class="dot" cx="5.6" cy="9.6" r="1.25"/><circle class="dot" cx="8" cy="5.6" r="1.25"/><circle class="dot" cx="10.4" cy="9.6" r="1.25"/>');
+const ICON_GRADIENT = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="gd-ig" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="16" y2="16">'
+    + '<stop offset="0" stop-color="#b89af2"/><stop offset="1" stop-color="#1E90FF"/></linearGradient></defs></svg>';
 
 export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onBranch = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {},
     onCodeError = () => {} }) {
@@ -458,7 +462,7 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 + '<span class="tools">'
                 + `<button type="button" class="branch" title="Branche : ranger en arbre, replier" aria-label="Branche">${ICON_BRANCH}</button>`
                 + `<button type="button" class="pick" title="Sélection : amont, aval ou tout ce qui est relié" aria-label="Sélection">${ICON_PICK}</button>`
-                + '</span>';
+                + '</span>' + ICON_GRADIENT;
             const [sendButton, arrangeButton, tools] = pill.children;
             const [branchButton, pickButton] = tools.children;
             const branchMenu = () => document.getElementById('gardien-branch');

@@ -283,8 +283,13 @@ export function createBranches({ say }) {
             // Au dézoom, la pastille rapetisse avec le node (jamais au-delà de sa taille) et disparaît sous MIN_BADGE px.
             const big = box?.width >= MIN_BADGE;
             show(badge, big);
-            // Au coin bas-gauche du node : le bas-droit est à la poignée de taille, la droite à la pastille du node.
-            if (big) setStyle(badge, 'transform', `translate(calc(${(box.left + 10).toFixed(1)}px - 100%), ${(box.bottom - 12).toFixed(1)}px) scale(${Math.min(1, Number(currentZoom)).toFixed(3)})`);
+            // En miroir de la poignée de taille (nodebar.js) par rapport au diamètre horizontal : coin haut-droit d'un
+            // rectangle, à 45° en haut à droite d'un rond.
+            if (!big) return;
+            const square = node.getAttribute('shape') === 'square';
+            const dx = square ? box.width / 2 : box.width / 2 * Math.SQRT1_2, dy = square ? box.height / 2 : box.height / 2 * Math.SQRT1_2;
+            const x = box.left + box.width / 2 + dx, y = box.top + box.height / 2 - dy;
+            setStyle(badge, 'transform', `translate(calc(${x.toFixed(1)}px - 50%), calc(${y.toFixed(1)}px - 50%)) scale(${Math.min(1, Number(currentZoom)).toFixed(3)})`);
         });
         requestAnimationFrame(track);
     })();

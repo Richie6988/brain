@@ -30,13 +30,18 @@
 #gardien-send :is(.send, .arrange):hover:not(:disabled) { filter: brightness(1.15); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 18px rgba(30, 144, 255, 0.55); }
 /* Branche et Sélection : deux ronds de verre l'un sous l'autre, sous la carte */
 #gardien-send .tools { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
-#gardien-send .tools button { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; color: #d8ccff; border-radius: 50%;
-    background: rgba(10, 14, 30, 0.9); border: 1px solid rgba(184, 154, 242, 0.5); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35); }
-#gardien-send .tools button:hover { color: #fff; border-color: #b89af2; box-shadow: 0 0 12px rgba(184, 154, 242, 0.5); }
-#gardien-send .tools button.on { color: #fff; border-color: transparent; background: linear-gradient(135deg, #6848A6, #1E90FF); }
+#gardien-send .tools button { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 1px solid transparent;
+    background: linear-gradient(rgba(10, 14, 30, 0.94), rgba(10, 14, 30, 0.94)) padding-box, linear-gradient(135deg, #b89af2, #6848A6 55%, #1E90FF) border-box;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 10px rgba(104, 72, 166, 0.3); }
+#gardien-send .tools .dot { fill: #33FF99; stroke: none; filter: drop-shadow(0 0 1.5px rgba(51, 255, 153, 0.9)); }
+#gardien-send .tools button:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 14px rgba(184, 154, 242, 0.65); }
+#gardien-send .tools button.on { background: linear-gradient(135deg, #6848A6, #1E90FF) padding-box, linear-gradient(135deg, #b89af2, #1E90FF) border-box; }
+#gardien-send .tools button.on svg { stroke: #fff; }
+#gardien-send .tools button.on .dot { fill: #fff; filter: none; }
 body.nz-light #gardien-send :is(.send, .arrange) { background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
     linear-gradient(135deg, #b89af2, #6848A6 55%, #1E90FF) border-box; color: #440852; }
-body.nz-light #gardien-send .tools button:not(.on) { color: #6848A6; background: rgba(255, 255, 255, 0.95); }
+body.nz-light #gardien-send .tools button:not(.on) { background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+    linear-gradient(135deg, #b89af2, #6848A6 55%, #1E90FF) border-box; }
 @keyframes gardien-appear { from { opacity: 0; transform: scale(0.85); } }
 
 
@@ -1247,7 +1252,7 @@ body.nz-light #gardien-room p, body.nz-light #gardien-room .gsal-link input, bod
 .node-group.gardien-folded, .link.gardien-folded { display: none !important; }
 #gardien-folds { position: fixed; inset: 0; z-index: 25; pointer-events: none; }
 #gardien-folds[hidden], body.gardien-compact #gardien-folds { display: none; }
-#gardien-folds .gf-badge { position: absolute; left: 0; top: 0; transform-origin: 100% 0; pointer-events: auto; min-width: 26px; height: 20px; padding: 0 7px; cursor: pointer;
+#gardien-folds .gf-badge { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; pointer-events: auto; min-width: 26px; height: 20px; padding: 0 7px; cursor: pointer;
     font: 600 11px 'Cascadia Code', monospace; color: #050c17; background: #b89af2; border: 0; border-radius: 10px; box-shadow: 0 0 10px rgba(184, 154, 242, 0.6); }
 #gardien-folds .gf-badge:hover { background: #33FF99; }
 #gardien-folds .gf-badge[hidden] { display: none; }

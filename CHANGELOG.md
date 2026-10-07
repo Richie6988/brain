@@ -326,6 +326,10 @@ Un geste finit après 150 ms sans événement.
 
 **Pastille du node redessinée** : « Gardien » devient une petite carte au style des messages du Gardien (son orbe, son nom, liseré dégradé, 26 px de haut, raccourci Ctrl ↵ au survol). Dessous, en colonne alignée à gauche, deux ronds Branche et Sélection aux icônes redessinées (un node qui se déploie en trois branches, un lasso autour de nodes reliés). Même fonctionnement : ouverture à l'appui, second appui pour refermer.
 
+**Pastille « +N » en miroir de la poignée de taille** : au coin haut-droit d'un rectangle, à 45° en haut à droite d'un rond, symétrique de la poignée (bas-droit) par rapport au diamètre horizontal.
+
+**Branche et Sélection en ronds « orbe »** : même liseré dégradé violet → bleu que la carte Gardien, icônes tracées en dégradé, nodes en vert lumineux comme les yeux de l'orbe ; ouvert : fond dégradé, icône blanche.
+
 **Nouvelle page d'accueil** (`/`, bilingue FR / EN, choix gardé, langue du navigateur par défaut) :
 - un univers vivant en fond (nodes qui respirent, liens qui se dessinent, légère dérive au pointeur) où le Gardien parle ;
 - sections Ce que fait Nodz, Le Gardien (démo d'un arbre qui pousse), Salons (curseurs nommés en direct) et Offres. Les plafonds du gratuit viennent de `toolbox/quota.py`, le prix Premium de `PREMIUM_PRICE_LABEL`, et le parrainage est rappelé ;
