@@ -30,6 +30,14 @@ export function t(key, vars = {}) {
 }
 window.nodzT = t;  // pour les scripts de Nodz hors modules (interface.js)
 
+// Recharge pour une nouvelle langue : un témoin d'onglet demande à la page de reprendre la session ouverte, sans le
+// panneau CONNEXION / INVITÉ (un rechargement fait par l'utilisateur, lui, le montre).
+const reload = () => {
+    try {
+        sessionStorage.setItem('nodz-resume', '1');
+    } catch { /* stockage indisponible : le panneau s'affiche */ }
+    (window.top || window).location.reload();
+};
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('nodz_csrftoken') },
     body: JSON.stringify(body) });
 
@@ -40,7 +48,7 @@ export async function setLang(next) {
         localStorage.setItem(KEY, next);
     } catch { /* stockage indisponible */ }
     if (typeof isLoggedIn !== 'undefined' && isLoggedIn) await post('/save-profile/', { language: next }).catch(() => {});
-    (window.top || window).location.reload();
+    reload();
 }
 
 // Une fois connecté : la langue du compte s'applique (rechargement si elle diffère), sinon celle de cette page (choix
@@ -56,7 +64,7 @@ export async function syncAccount() {
         try {
             localStorage.setItem(KEY, saved);
         } catch { /* stockage indisponible */ }
-        location.reload();
+        reload();
     } else if (!DICTS[saved]) {
         await post('/save-profile/', { language: current }).catch(() => {});
     }

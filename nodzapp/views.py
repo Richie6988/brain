@@ -1251,9 +1251,9 @@ def contact(request):
 def universe(request):   
     r_id = request.GET.get('r')
     # Plus de logout ici : un autre onglet, un rechargement ou un préchargement de /universe
-    # déconnectait la page ouverte. Une session déjà ouverte (compte ou invité) reprend directement,
-    # sans LOGIN / GUEST : un rechargement (changement de langue, F5) ne perd rien ; la déconnexion se
-    # fait par le profil.
+    # déconnectait la page ouverte. Une session déjà ouverte (compte ou invité) est signalée à la page,
+    # qui la reprend sans LOGIN / GUEST seulement après un changement de langue (interface.js) ; la
+    # déconnexion se fait par le profil.
     user = request.user
     context = {'r': r_id, 'resume': user.is_authenticated,
                'guest': user.is_authenticated and bool(re.match(r'^guest\d+@nodz\.com$', user.email or '')),

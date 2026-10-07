@@ -806,10 +806,16 @@ window.addEventListener('load', function() {
 });
 
 function login() {
-    // Session already open (account or guest): the universe resumes directly, without LOGIN / GUEST
-    // (a reload, e.g. a language switch, loses nothing; LSD.js loads it when #log says "login").
+    // Session already open (account or guest) and reloaded by a language switch (i18n.js leaves a tab flag): the
+    // universe resumes directly, without LOGIN / GUEST; LSD.js loads it when #log says "login". A reload by hand shows
+    // the panel, as before.
     const log = document.getElementById('log');
-    if (log.dataset.resume && !isLoggedIn) {
+    let resume = false;
+    try {
+        resume = sessionStorage.getItem('nodz-resume') === '1';
+        sessionStorage.removeItem('nodz-resume');
+    } catch (error) { /* storage unavailable: the panel */ }
+    if (log.dataset.resume && resume && !isLoggedIn) {
         log.dataset.resume = '';
         if (log.dataset.guest) {
             guestUser = true;

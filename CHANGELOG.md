@@ -326,6 +326,8 @@ Un geste finit après 150 ms sans événement.
 
 **Pastille du node redessinée** : « Gardien » devient une petite carte au style des messages du Gardien (son orbe, son nom, liseré dégradé, 26 px de haut, raccourci Ctrl ↵ au survol). Dessous, en colonne alignée à gauche, deux ronds Branche et Sélection aux icônes redessinées (un node qui se déploie en trois branches, un lasso autour de nodes reliés). Même fonctionnement : ouverture à l'appui, second appui pour refermer.
 
+**Panneau CONNEXION / INVITÉ à chaque chargement** : un rechargement à la main (F5, Ctrl+Maj+R) montre de nouveau le panneau, comme avant ; seul le rechargement fait par un changement de langue reprend la session ouverte (un témoin d'onglet, `sessionStorage`).
+
 **Application en français et en anglais (lot 2)** :
 - Agents & modèles (bibliothèque, réglages, Hugging Face, Mon IA, diagnostic) et consoles administrateur en anglais ; les réglages décrits par le serveur (libellés, aides, choix) aussi ;
 - maison du Gardien dans la langue du compte : groupes, textes de départ, familles et les 84 outils avec leur mode d'emploi (`toolbox/tools_en.py`), nom de la dimension (Guardian) ; un compte qui change de langue voit sa maison réécrite, sauf les nodes qu'il a modifiés ;
