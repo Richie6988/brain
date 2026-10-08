@@ -11,56 +11,51 @@
     <link rel="stylesheet" href="{% static 'css/interface.css' %}">
     <script src="{% static 'vendor/htmx-2.0.11/htmx.js' %}"></script>    
     <style>
-
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-
+        /* Connexion et inscription au style du Gardien : verre sombre, champs à liseré violet, Cascadia Code,
+           bouton en dégradé violet vers bleu. La page vit dans une iframe : son fond reste transparent. */
+        html, body { background: transparent; color: #e2e8f0; font-family: 'Cascadia Code', monospace; }
+        input[type=date] { color-scheme: dark; }  /* seulement le calendrier : un color-scheme sur la page rendrait l'iframe opaque */
+        form { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 6px; }
         input, textarea {
-            padding: 5px;
-            margin-top: 5px;
-            border: 1px solid #ccd1d9;
-            border-radius: 6px;
-            font-size: 1rem;
-            background-color: #f9f9f9;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
-            text-align: center;
-            width: 70%;
-            margin-left: 15%;
+            box-sizing: border-box; width: 100%; margin: 0; padding: 10px 14px; max-height: none !important;
+            font: 13px 'Cascadia Code', monospace; text-align: left; color: #e2e8f0;
+            background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12px;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
-
-        input:focus, textarea:focus {
-            border-color: #3498db;
-            box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
-            outline: none;
+        input::placeholder { color: #94a3b8; }
+        input:focus, textarea:focus { outline: none; border-color: rgba(184, 154, 242, 0.85); box-shadow: 0 0 0 3px rgba(104, 72, 166, 0.3); }
+        input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #151a2b inset; -webkit-text-fill-color: #e2e8f0; }
+        textarea { resize: vertical; min-height: 6px; }
+        .log-button, .reg-button {
+            position: static; width: 100%; margin-top: 4px; padding: 10px; cursor: pointer;
+            font: 600 13px 'Cascadia Code', monospace; letter-spacing: 0.06em; color: #fff;
+            background: linear-gradient(135deg, #6848A6, #1E90FF); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px;
+            box-shadow: 0 0 14px rgba(104, 72, 166, 0.45); transition: filter 0.15s, box-shadow 0.15s, transform 0.15s;
         }
-
-        textarea {
-            resize: vertical;
-            min-height: 6px;
+        .log-button:hover, .reg-button:hover { filter: brightness(1.12); box-shadow: 0 0 20px rgba(30, 144, 255, 0.6); transform: translateY(-1px); }
+        .forgot-password { position: static; align-self: center; margin-top: 2px; font-size: 11px; color: #94a3b8; text-decoration: none; }
+        .forgot-password:hover { color: #b89af2; }
+        #loginToggle hr { border: 0; height: 1px; background: rgba(148, 163, 184, 0.25); margin: 8px 0 12px; }
+        /* Bascule connexion / inscription en contrôle segmenté : la pastille glisse sous l'onglet actif
+           (case cochée : connexion). */
+        #loginToggle .toggle-wrapper {
+            box-sizing: border-box; display: flex; width: 100%; height: 34px; margin: 2px 0 0; background: rgba(148, 163, 184, 0.12);
+            border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 999px; box-shadow: none;
+            font: 600 11px 'Cascadia Code', monospace; letter-spacing: 0.08em;
         }
-
-        .log-button {
-            position: relative;
-            left: calc(80% - 10px);  
-            text-align: center;
-            width: 20%;
-            padding: 5px;
-            font-size:small;
-            margin-top: 10px;
+        #loginToggle .toggle-wrapper::before, #loginToggle .toggle-wrapper::after {
+            position: relative; z-index: 1; flex: 1; display: grid; place-items: center; color: #94a3b8; transition: color 0.25s;
         }
-
-        .reg-button {
-            position: relative;
-            left: calc(70% - 10px);  
-            text-align: center;
-            width: 30%;
-            padding: 5px;
-            font-size:small;
-            margin-top: 10px;
+        #loginToggle .toggle-wrapper::before { content: attr(data-login); }
+        #loginToggle .toggle-wrapper::after { content: attr(data-register); }
+        #loginToggle .input:checked + .toggle-wrapper::before, #loginToggle .input:not(:checked) + .toggle-wrapper::after { color: #fff; }
+        #loginToggle .toggle-wrapper .selector {
+            top: 3px; left: calc(50% - 1px); width: calc(50% - 2px); height: calc(100% - 8px); transform: none; border-radius: 999px;
+            background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 12px rgba(104, 72, 166, 0.5);
         }
-
+        #loginToggle .input:checked + .toggle-wrapper > .selector { left: 3px; background: linear-gradient(135deg, #6848A6, #1E90FF); }
+        #loginToggle .notification { display: none; }
+        #err { font-size: 11px; color: #FF6B6B; text-align: center; min-height: 0; }
     </style>
 </head>
 
@@ -69,7 +64,7 @@
     <div class="col-8 offset-2" id="loginToggle">
         <label for="toggle">
             <input class="input" type="checkbox" id="toggle" onchange="switchLogin()" checked/>
-            <div class="toggle-wrapper">
+            <div class="toggle-wrapper" data-login="LOGIN" data-register="REGISTER">
                 <span class="selector"></span>
             </div>
             <p class="notification"><span class="selected"></span></p>
@@ -82,27 +77,36 @@
     <div id="loginBlock" class="loginblock col-8 offset-2" style="display: none;">
         <form id="loginForm">
             {% csrf_token %}
-            <input type="email" id="email" name="email" placeholder="Email address" style="max-height: 15px;" required>
-            <input type="password" id="password" name="password" placeholder="Password" style="max-height: 15px;" required>
-            <button class="submit-button log-button" hx-post="{% url 'checklogin' %}" hx-swap="outerhtml" hx-target="#err">LOGIN</button>
-            <a href="{% url 'forgot_password' %}" class="forgot-password" onclick="forgot()">Forgot Password?</a>
+            <input type="email" id="email" name="email" placeholder="Email address" data-i18n-placeholder="login.email" style="max-height: 15px;" required>
+            <input type="password" id="password" name="password" placeholder="Password" data-i18n-placeholder="login.password" style="max-height: 15px;" required>
+            <button class="submit-button log-button" hx-post="{% url 'checklogin' %}" hx-swap="outerhtml" hx-target="#err" data-i18n="login.login">LOGIN</button>
+            <a href="{% url 'forgot_password' %}" class="forgot-password" onclick="forgot()" data-i18n="login.forgot">Forgot Password?</a>
         </form>    
     </div>
     
     <div id="registerBlock" class="loginblock col-8 offset-2" style="display: none;">
         <form id="registerForm">
             {% csrf_token %}
-            <input type="text" id="username" name="username" autocomplete="off" style="max-height: 15px;" placeholder="Choose username" required>
-            <input type="email" id="email" name="email" autocomplete="off" style="max-height: 15px;" placeholder="Email address" required>
-            <input type="date" id="birthdate" name="birthdate" autocomplete="off" style="max-height: 15px;" required onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" placeholder="Birth date">
-            <input type="password" id="password1" name="password1" placeholder="Password" autocomplete="new-password" style="max-height: 15px;" required>
-            <input type="password" id="password2" name="password2" placeholder="Confirm password" autocomplete="new-password" style="max-height: 15px;" required>
-            <button class="submit-button reg-button" hx-post="{% url 'register' %}" hx-swap="outerhtml" hx-target="#err">REGISTER</button>
+            <input type="text" id="username" name="username" autocomplete="off" style="max-height: 15px;" placeholder="Choose username" data-i18n-placeholder="login.username" required>
+            <input type="email" id="email" name="email" autocomplete="off" style="max-height: 15px;" placeholder="Email address" data-i18n-placeholder="login.email" required>
+            <input type="date" id="birthdate" name="birthdate" autocomplete="off" style="max-height: 15px;" required onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" placeholder="Birth date" data-i18n-placeholder="login.birthdate">
+            <input type="password" id="password1" name="password1" placeholder="Password" data-i18n-placeholder="login.password" autocomplete="new-password" style="max-height: 15px;" required>
+            <input type="password" id="password2" name="password2" placeholder="Confirm password" data-i18n-placeholder="login.confirm" autocomplete="new-password" style="max-height: 15px;" required>
+            <button class="submit-button reg-button" hx-post="{% url 'register' %}" hx-swap="outerhtml" hx-target="#err" data-i18n="login.register">REGISTER</button>
         </form>
     </div>
 
 <script>
     let loginIndex = 0;
+    // Textes dans la langue de l'app (fenêtre parente, i18n.js).
+    if (window.parent.nodzT) {
+        const t = window.parent.nodzT;
+        document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+        const toggle = document.querySelector('#loginToggle .toggle-wrapper');
+        toggle.dataset.login = t('login.login');
+        toggle.dataset.register = t('login.register');
+    }
     function loginView () {
         const loginBlock = document.getElementById('loginBlock');
         const registerBlock = document.getElementById('registerBlock');
@@ -170,7 +174,7 @@
             confirm.style.textAlign = 'center'; 
             confirm.style.fontSize = '2.5rem';
             confirm.style.color = '#4b0082';
-            confirm.textContent = `Saved successfully`;            
+            confirm.textContent = window.parent.nodzT ? window.parent.nodzT('login.saved') : 'Saved successfully';            
             loginPopup.style.height = 'auto';
             loginPopup.appendChild(confirm);
                   

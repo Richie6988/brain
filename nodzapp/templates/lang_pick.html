@@ -1,0 +1,14 @@
+{# Pages simples en deux langues : deux blocs .lang-block (lang="en" et lang="fr"), l'un visible. La langue est celle
+   choisie dans Nodz (clé partagée avec l'app et la page d'accueil), sinon celle du navigateur. #}
+<style>.lang-block[hidden] { display: none !important; }</style>
+<script>
+    (() => {
+        let chosen = null;
+        try { chosen = localStorage.getItem('nodz-lang'); } catch (error) { /* stockage indisponible */ }
+        const lang = chosen || ((navigator.language || '').toLowerCase().startsWith('fr') ? 'fr' : 'en');
+        document.documentElement.lang = lang;
+        document.querySelectorAll('.lang-block').forEach(block => { block.hidden = block.lang !== lang; });
+        const title = document.querySelector(`.lang-block[lang="${lang}"] h1`);
+        if (title) document.title = title.textContent;
+    })();
+</script>

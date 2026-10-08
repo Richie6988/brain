@@ -73,33 +73,13 @@ if(!isCtrlPressed) {
                 }
             }); 
         }
-        // Cancel
-        if (event.ctrlKey && (event.key === 'z' || event.key === 'Z') && !isTyping) {
-            event.preventDefault();
-            isCtrlPressed = false;
-            cancel();
-        } 
         // Delete
         if (!isTyping && (event.key === 'Delete' || event.key === 'Backspace')) {
-            if (cancelIndex > 0){
-                cancelList.length = 0;
-                cancelIndex = 0;
-            }
-            if (selectedNodes.length !== 0 && selectedTemplates.length !== 0) {
-                doubleCancel.push([cancelList.length,cancelList.length+1]);
-            }
             if (selectedNodes.length !== 0) {
                 deleteNode(selectedNodes);
             } 
             if (selectedTemplates.length !== 0) {
-                cancelList.push(['templatedeletion', Array.from(selectedTemplates).map(template => template.cloneNode(true))]);
-                var data = [];
-                selectedTemplates.forEach(template => {
-                    data.push({templateid: parseInt(template.getAttribute('id').match(/\d+/)[0], 10)});
-                    template.remove();
-                });
-                deleteFetch(data);
-                selectedTemplates.length = 0; 
+                deleteTemplates(selectedTemplates);
             }                 
         }
         // Refresh view
@@ -156,9 +136,10 @@ document.addEventListener('keydown', function(event) {
         } 
 
     } else if (!isTyping && event.key === ' '){
+        // Sans node sélectionné : au centre de la vue (le double-clic, lui, crée sous le pointeur)
         event.preventDefault();   
         color = getRandomColor(); 
-        newNode = createNode(mouseX,mouseY);
+        newNode = createNode(centerX,centerY);
     }
 });
 
@@ -355,16 +336,16 @@ function pastenodes(tunnel) {
             if(element.getAttribute('shape') === 'none'){
                 pasteNode.children[1].style.stroke = 'transparent';
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
                 }
             } else if(element.getAttribute('shape') === 'circle'){
                 pasteNode.children[1].style.stroke = element.getAttribute('color');
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
                 }
             }  else if(element.getAttribute('shape') === 'square'){
                 pasteNode.children[1].style.stroke = 'transparent';
@@ -372,24 +353,24 @@ function pastenodes(tunnel) {
                 pasteNode.children[2].style.display = 'block';  
                 pasteNode.children[2].setAttribute('class','squareShape'); 
                 if (dark) {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
                 } else {
-                    pasteNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+                    pasteNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
                 }
             }  
 
             pasteNode.setAttribute('lock', element.getAttribute('lock'));
             if(element.getAttribute('lock') === '1'){
                 if (dark) {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
                 } else {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
                 }
             } else {
                 if (dark) {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
                 } else {
-                    pasteNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+                    pasteNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
                 }
             }  
             
@@ -400,11 +381,8 @@ function pastenodes(tunnel) {
             pasteNode.children[0].children[1].src = element.children[0].children[1].src;
             pasteNode.setAttribute('imagecontent',element.children[0].children[1].src);
             // File
-            const filePreview = pasteNode.children[0].children[2].children[0];
-            const spinner = pasteNode.children[0].children[2].children[1];
-            const fileContainer = pasteNode.children[0].children[2];
             const fileName = element.getAttribute('filename');
-            pasteNode.children[5].children[2].children[0].textContent = element.children[5].children[2].children[0].textContent;
+            pasteNode.tools.file.children[2].children[0].textContent = element.querySelector('.filename, .filename-light')?.textContent || '';  // copie : un clone, sans node.tools
             
             // Canvas
             pasteNode.setAttribute('canvascontent',element.getAttribute('canvascontent'));
@@ -414,20 +392,24 @@ function pastenodes(tunnel) {
             redrawCanvas(pasteNode.children[0].children[3].id,0, drawingData);
 
             pasteNode.children[1].setAttribute('r', parseFloat(element.children[1].getAttribute('r')));
+            pasteNode.setAttribute('ratio', element.getAttribute('ratio') || 0);
 
-            pasteNode.children[7].children[0].children[0].value = pasteNode.getAttribute('type'); 
+            pasteNode.tools.type.children[0].children[0].value = pasteNode.getAttribute('type'); 
             var event = new Event('change');
 
             if(pasteNode.getAttribute('type') === "file"){
                 pasteNode.setAttribute('file',element.getAttribute('id'));
                 pasteNode.setAttribute('filename',fileName);
                 console.log(element.getAttribute('id'), fileName)
+                const filePreview = previewOf(pasteNode);
+                const spinner = pasteNode.children[0].children[2].children[1];
+                const fileContainer = pasteNode.children[0].children[2];
                 loadFile(element.getAttribute('id'), fileName, spinner, filePreview, fileContainer);
             }
                     
             // 4D
             if(tunnel) {
-                pasteNode.children[3].style.display = 'block';
+                showPortal(pasteNode);
                 if(!dark){
                     pasteNode.children[3].children[0].children[0].classList.remove('raydark');
                     pasteNode.children[3].children[0].children[0].classList.add('raylight');
@@ -454,12 +436,12 @@ function pastenodes(tunnel) {
                 const id = quantumData[0].node;
                 saveQuantum(id,parseInt(pasteNode.id.match(/\d+/)[0], 10)); 
                 if (parseInt(quantumData[0].layer) === layerNumber) {
-                    document.getElementById(quantumData[0].node).children[3].style.display = 'block';  
+                    showPortal(document.getElementById(quantumData[0].node));  
                 }
             }
 
             if(pasteNode.getAttribute('type') !== "text"){
-                pasteNode.children[7].children[0].children[0].dispatchEvent(event);
+                pasteNode.tools.type.children[0].children[0].dispatchEvent(event);
             }
 
             quickSize(pasteNode); 
@@ -522,21 +504,32 @@ function pastenodes(tunnel) {
 
 //////////////////// CANCEL ////////////////////
 
+// Téléportation quantique : les nodes supprimés de la dimension de départ renaissent dans celle d'arrivée.
 function cancel()   {   
     cancelIndex ++;
     if (cancelIndex > cancelList.length){
         return;
     }
-    const undo = (cancelList[cancelList.length - cancelIndex]);
-    var action = undo[0];
-    var object = undo[1];
+    const nodes = cancelList[cancelList.length - cancelIndex][1];
+    restoreNodes(nodes);
+    // L'origine suit les nodes téléportés, dans leur nouvelle dimension (l'annulation, elle, n'y touche pas).
+    const last = nodes[nodes.length - 1];
+    if (last) {
+        originX = parseFloat(last.getAttribute('x'))/currentZoom;
+        originY = - parseFloat(last.getAttribute('y'))/currentZoom;
+        originLayer = layerNumber;
+    }
+    document.activeElement.blur();
+}
 
-    if (action === 'deletion') {
-        object.forEach(node =>{
+// Fait renaître des nodes supprimés (clones pris avant la suppression) avec leurs liens.
+function restoreNodes(nodes) {
+        nodes.forEach(node =>{
             node.node_id = parseInt(node.getAttribute('id').match(/\d+/)[0], 10);
             node.x_coordinate = parseInt(node.getAttribute('x'));
             node.y_coordinate = parseInt(node.getAttribute('y'));
             node.radius = node.children[1].getAttribute('r')
+            node.ratio = node.getAttribute('ratio');
             node.type = node.getAttribute('type');
             node.color = node.getAttribute('color');
             if(quantum){
@@ -580,18 +573,12 @@ function cancel()   {
                     createLink(document.getElementById(node.getAttribute('id')),connectedNode,linksArray[index]); 
                 }
             });
-            originX = parseFloat(node.getAttribute('x'))/currentZoom;
-            originY = - parseFloat(node.getAttribute('y'))/currentZoom;
         });
-    } if (action === 'linkdeletion') {   
-        const node1 = document.getElementById(object.getAttribute('Node1'));
-        const node2 = document.getElementById(object.getAttribute('Node2'));
-        const linkID = object.id; 
-        console.log(linkID)                 
-        createLink(node1,node2,linkID); 
+}
 
-    } if (action === 'templatedeletion') {   
-        object.forEach(template =>{
+// Fait renaître des gabarits supprimés.
+function restoreTemplates(templates) {
+        templates.forEach(template =>{
             const redoTemplate = createTemplate(parseFloat(template.getAttribute('x')),parseFloat(template.getAttribute('y')),template.getAttribute('type'),template.getAttribute('id'));
             redoTemplate.setAttribute('layer', template.getAttribute('layer'));
             redoTemplate.setAttribute('size', template.getAttribute('size'));
@@ -600,17 +587,16 @@ function cancel()   {
             redoTemplate.setAttribute('lock', template.getAttribute('lock'));
             saveTemplate(redoTemplate);
         });
-    }
+}
 
-    // var event = new MouseEvent('mousedown');
-    // svg.dispatchEvent(event);    
-    // event = new MouseEvent('mouseup');
-    // svg.dispatchEvent(event);
-    document.activeElement.blur();
-
-    if(doubleCancel.some(sublist => sublist.includes(cancelList.length - cancelIndex))) {
-        cancel();
-    } 
+function deleteTemplates(templates) {
+    var data = [];
+    templates.forEach(template => {
+        data.push({templateid: parseInt(template.getAttribute('id').match(/\d+/)[0], 10)});
+        template.remove();
+    });
+    deleteFetch(data);
+    templates.length = 0; 
 }
 
 
@@ -758,12 +744,14 @@ function createLink(nodeGroup1, nodeGroup2,id) {
     const x2 = endpoint2.x;
     const y2 = endpoint2.y;
 
-    // Set link attributes
+    // Set link attributes (same tiny offset as updateLink: a perfectly horizontal or vertical line has an empty
+    // bounding box, and its objectBoundingBox gradient stroke is then not drawn at all)
+    const offset = 0.01;
     link.setAttribute('id', linkID);
-    link.setAttribute('x1', x1);
-    link.setAttribute('y1', y1);
-    link.setAttribute('x2', x2);
-    link.setAttribute('y2', y2);
+    link.setAttribute('x1', x1 + offset);
+    link.setAttribute('y1', y1 + offset);
+    link.setAttribute('x2', x2 - offset);
+    link.setAttribute('y2', y2 - offset);
     link.setAttribute('Node1', nodeGroup1.getAttribute('id'));
     link.setAttribute('Node2', nodeGroup2.getAttribute('id'));
     link.setAttribute('layer', layerNumber);
@@ -848,67 +836,20 @@ function createLink(nodeGroup1, nodeGroup2,id) {
         link.style.display = 'none';
     }
 
-    let travelto;
-    link.addEventListener('mouseover', (e) => {
-        currentLink = link;
-        // Get the coordinates of the line's start and end points
-        const node1 = document.getElementById(link.getAttribute('Node1'));
-        const node2 = document.getElementById(link.getAttribute('Node2'));
-
-        const x1 = node1.getAttribute('x');
-        const y1 = node1.getAttribute('y');
-        const x2 = node2.getAttribute('x');
-        const y2 = node2.getAttribute('y');
-        
-        const mouseX = Math.round((e.clientX - centerX) + parseFloat(root.getAttribute('x')))/currentZoom;
-        const mouseY = -Math.round((e.clientY - centerY) - parseFloat(root.getAttribute('y')))/currentZoom;
-    
-        // Calculate distances from the cursor to the two ends of the line
-        const distToStart = Math.hypot(mouseX - x1, mouseY - y1);
-        const distToEnd = Math.hypot(mouseX - x2, mouseY - y2);    
-        let angle;
-        const nodes = document.querySelectorAll('.node-group');
-        // Check which end of the line the cursor is closer to
-        if (distToStart < distToEnd) {
-            // Cursor is closer to (x1, y1), so point the arrow towards (x2, y2)
-            angle = Math.atan2(y1 - y2, x2 - x1) * (180 / Math.PI); 
-            travelto = node2;
-        } else {
-            // Cursor is closer to (x2, y2), so point the arrow towards (x1, y1)
-            angle = Math.atan2(y2 - y1, x1 - x2) * (180 / Math.PI); 
-            travelto = node1;
-        }
-    
-        // Create the cursor using the Data URL, rotating it to match the calculated angle
-        var cursorURL;
-
-        cursorURL = `data:image/svg+xml;base64,${btoa(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#1E90FF" stroke="transparent" transform="rotate(${angle})">
-                <polygon points="12 2, 20 12, 12 22, 10 20, 14 12, 10 4" />
-            </svg>
-        `)}`; 
-
-        // Apply the custom cursor
-        link.style.cursor = `url(${cursorURL}) 16 16, auto`;
+    link.addEventListener('mouseover', () => {
+        currentLink = link;  // la flèche de saut (gardien/linkjump.js) remplace l'ancien curseur flèche et son clic
         if(currentZoom < 0.5) {
             link.style.strokeWidth = ''+7.5+'px'; 
         } else {
             link.style.strokeWidth ='5px'; 
         }
         
-                           
-        link.addEventListener('mousedown', (event) => {
-            if (event.button === 0){
-                focusNode(travelto,false);
-            }                       
-        }); 
-        
+
         document.addEventListener('keydown', keydownHandler);                    
    
     });
     
     link.addEventListener('mouseout', () => {
-        link.style.cursor = '';
         link.style.strokeWidth = ''+3+'px'; 
         document.removeEventListener('keydown', keydownHandler);
         currentLink = null;
@@ -916,11 +857,6 @@ function createLink(nodeGroup1, nodeGroup2,id) {
 
     function keydownHandler(event) {
         if (!isTyping && (event.key === 'Delete' || event.key === 'Backspace')) {
-            if (cancelIndex > 0){
-                cancelList.length = 0;
-                cancelIndex = 0;
-            }    
-            cancelList.push(['linkdeletion', link.cloneNode(true)]);
             deleteLink(link);
             document.removeEventListener('keydown', keydownHandler);
         }
@@ -1002,8 +938,11 @@ function updateLink(link) {
     link.setAttribute('x2', x2 - offset);
     link.setAttribute('y2', y2 - offset);
     link.style.strokeWidth = ''+3+'px'; 
-    universe.appendChild(link);
-    universe.insertBefore(link, universe.firstChild); 
+    // Le lien passe derrière les nodes : seulement s'il n'y est pas déjà (le retirer et le remettre à chaque pas d'un
+    // glissé forçait le navigateur à tout recalculer, et un glissé de plusieurs nodes ramait).
+    let before = link.previousElementSibling;
+    while (before && before.classList.contains('link')) before = before.previousElementSibling;
+    if (before) universe.insertBefore(link, universe.firstChild); 
 }
 
 function updateLinkColor(link) {
@@ -1091,8 +1030,10 @@ function calculateEndpoint(nodeCenterX, nodeCenterY, nodeRadius, linkAngle, node
     } else if (shape === 'square') {
         // The square has the same center and diameter as the circle, so its side length is 2 * nodeRadius
         // var halfSide = nodeRadius;
-        var halfSideX =  node.children[2].getBoundingClientRect().width/currentZoom/2;
-        var halfSideY = node.children[2].getBoundingClientRect().height/currentZoom/2;
+        // Taille du cadre lue dans ses attributs : getBoundingClientRect forçait une mise en page par lien (au
+        // chargement d'une dimension, une par lien) et valait 0 pour un node caché hors de l'écran.
+        var halfSideX = (parseFloat(node.children[2].getAttribute('width')) || 0)/2;
+        var halfSideY = (parseFloat(node.children[2].getAttribute('height')) || 0)/2;
        
         var dx = Math.cos(angleRad);
         var dy = Math.sin(angleRad);

@@ -5,7 +5,7 @@ document.addEventListener('keydown', function(event) {
         if (JSON.parse(selectedNodes[selectedNodes.length - 1].getAttribute('quantum')).length === 0) {    
             tunnel = true;
             copynodes(tunnel);
-            selectedNodes[selectedNodes.length - 1].children[3].style.display = 'block'; 
+            showPortal(selectedNodes[selectedNodes.length - 1]); 
             // if(!dark){
             //     selectedNodes[selectedNodes.length - 1].children[3].children[0].children[0].classList.remove('raydark');
             //     selectedNodes[selectedNodes.length - 1].children[3].children[0].children[0].classList.add('raylight');
@@ -42,6 +42,7 @@ let editLayer = null;
 // Create a new layer
 function createNewLayer() {
     rebootUniverse();
+    currentNode = null;  // comme load() : le node de l'ancienne dimension ne doit plus être redimensionné au zoom (la sélection reste : le portail la colle)
     layerCounter += 1;
     const newLayer = {id: layerCounter, name: `Dim-${layerCounter}`};
     layers.push(newLayer);
@@ -62,6 +63,7 @@ function createNewLayer() {
 // Show modal to edit layer name
 function showEditModal(layer) {
     colorWheelfo.setAttribute('visibility', 'hidden');
+    dropdownContent.style.display = 'none';  // la liste se ferme : le panneau d'édition est visible
     isTyping = true;
     setTimeout(() => {
         editModal.style.display = 'flex';
@@ -103,13 +105,13 @@ trash.addEventListener('click', () => {
     popup.style.zIndex = 1000;
     const message = document.createElement('div');
     message.className = 'smallmessage';          
-    message.textContent = `Are you sure? Deleting this dimension is permanent.`;
+    message.textContent = `Supprimer cette dimension ? C'est définitif : ses nodes seront effacés.`;
     popup.appendChild(message);
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'popupbutton-container'; 
     buttonContainer.style.justifyContent = 'center';
     const confirmButton = document.createElement('span');
-    confirmButton.textContent = 'CONFIRM';
+    confirmButton.textContent = 'Supprimer définitivement';
     confirmButton.style.fontSize = '10px';
     confirmButton.className = 'submit-button'; 
     confirmButton.style.padding = '5px';

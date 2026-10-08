@@ -102,6 +102,7 @@ function load(layer,nodeID){
             data.nodes.forEach(node => {    
                 displayNode(node);
             });
+            settleSquares();  // hauteurs des textes lues d'un coup, avant que les liens ne visent les bords des rectangles
         } if (data.links) {
             data.links.forEach(link => {    
                 displayLink(link);               
@@ -155,7 +156,7 @@ function load(layer,nodeID){
             if (seeNotification) {
                 currentNode = document.getElementById(nodeID);
                 currentNode.children[1].setAttribute('class', 'selectednode');
-                currentNode.children[7].children[6].children[0].click();
+                currentNode.tools.type.children[6].children[0].click();
                 seeNotification = false;
             }
         } else {
@@ -199,31 +200,33 @@ function displayNode(node) {
     const id = `N-${node.node_id}`;  
     const newNode = createNode(transfoX,transfoY,id);
     newNode.children[1].setAttribute('r',node.radius)
+    newNode.setAttribute('ratio', node.ratio || 0);  // rectangle étiré : ses proportions (nodeSizing)
     newNode.setAttribute('type', node.type);
     newNode.setAttribute('color', node.color);
     newNode.setAttribute('shape', node.shape);
     if(node.shape === 'none'){
         newNode.style.stroke = 'transparent';
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
         }
     } else if(node.shape === 'circle') {
         newNode.style.stroke = node.color;
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
         }
     }  else if(node.shape === 'square') {
         newNode.children[1].style.stroke = 'transparent';
         newNode.children[2].style.display = 'block';  
         newNode.children[2].setAttribute('class','squareShape');  
+        newNode.children[2].style.stroke = node.color;  // le cadre gardait la couleur courante de createNode (vert)
         if (dark) {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
         } else {
-            newNode.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+            newNode.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
         }
     } 
     newNode.setAttribute('layer', node.layer__layer_id);
@@ -233,45 +236,45 @@ function displayNode(node) {
     newNode.setAttribute('canvascontent', node.canvas_content);
     var drawingDataString = newNode.getAttribute('canvascontent');
     var drawingData = JSON.parse(drawingDataString);              
-    redrawCanvas(newNode.children[0].children[3].id,0, drawingData);
+    if (drawingData && drawingData.length) redrawCanvas(newNode.children[0].children[3].id,0, drawingData);  // dessin vide : le canevas neuf l'est déjà
     newNode.setAttribute('filename', node.file_name);
     newNode.setAttribute('file', node.file);
-    newNode.children[5].children[2].children[0].textContent = node.file_name;        
-    const filePreview = newNode.children[0].children[2].children[0];
-    const spinner = newNode.children[0].children[2].children[1];
-    const fileContainer = newNode.children[0].children[2];
+    newNode.tools.file.children[2].children[0].textContent = node.file_name;        
     if (node.file_name !== '') {
-        loadFile(node.node, node.file_name, spinner, filePreview, fileContainer);
+        const filePreview = previewOf(newNode);
+        const spinner = newNode.children[0].children[2].children[1];
+        const fileContainer = newNode.children[0].children[2];
+        loadFile(id, node.file_name, spinner, filePreview, fileContainer);
     }    
     newNode.setAttribute('notification', node.notification);
     if(newNode.getAttribute('notification') !== '') {
-        newNode.children[7].children[6].children[0].setAttribute('src', NODZ_BASE + '/static/img/notification.svg');
+        newNode.tools.type.children[6].children[0].setAttribute('src', NODZ_BASE + '/static/img/notification.svg');
     }
   
     if(node.lock){
         newNode.setAttribute('lock', 1);
         if (dark) {
-            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+            newNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
         } else {
-            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+            newNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
         }
     } else {
         newNode.setAttribute('lock', 0);
         if (dark) {
-            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+            newNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
         } else {
-            newNode.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+            newNode.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
         }
     }
     newNode.setAttribute('quantum', node.quantum);
     if(JSON.parse(newNode.getAttribute('quantum')).length > 0){
-        newNode.children[3].style.display = 'block';
+        showPortal(newNode);
     }
 
     newNode.children[0].children[0].innerHTML = node.text_content;
-    newNode.children[7].children[0].children[0].value = newNode.getAttribute('type');  
+    newNode.tools.type.children[0].children[0].value = newNode.getAttribute('type');  
 
-    newNode.children[7].style.display = 'none';
+    newNode.tools.type.style.display = 'none';
 
     var r = parseFloat(newNode.children[1].getAttribute('r'));
     r = Math.sqrt(2*r*r);
@@ -279,8 +282,8 @@ function displayNode(node) {
 
     var event = new Event('change');
     if(newNode.getAttribute('type') !== "text"){
-        newNode.children[7].children[0].children[0].dispatchEvent(event);        
-        const size = newNode.children[7].children[4];
+        newNode.tools.type.children[0].children[0].dispatchEvent(event);        
+        const size = newNode.tools.type.children[4];
         var event = new MouseEvent('mousedown');
         size.dispatchEvent(event);
         event = new MouseEvent('mouseup');
@@ -295,6 +298,7 @@ function displayLink(link) {
     const linkID = `L-${link.link_id}`;
     const node1 = document.getElementById(link.linkA);
     const node2 = document.getElementById(link.linkB);
+    if (!node1 || !node2) return;  // lien vers un node supprimé : ignoré, les autres liens s'affichent
     createLink(node1,node2,linkID); 
 }
 
@@ -334,10 +338,9 @@ function loadUser(param) {
         userID = param.value;        
     } else if (param.name === "admin") {
         console.log(param.value)
-        if(param.value && !document.getElementById('admin-overlay')) {
+        if(param.value && !document.getElementById('statsButton')) {
             administration();
         }
-        userID = param.value;        
     } else if (param.name === "email") {
         email = param.value;        
     } else if (param.name === "premium") {
@@ -384,6 +387,8 @@ function loadParams(param) {
         originX = param.value;    
     } else if (param.name === "originY") {
         originY = - param.value;
+    } else if (param.name === "originLayer") {
+        originLayer = param.value;
     } else if (param.name === "dark") {
         dark = !param.value;
         document.getElementById('darkButton').dispatchEvent(event);
@@ -403,7 +408,7 @@ function loadFile(nodeID, fileName, spinner, filePreview, fileContainer) {
         headers: {
             'X-CSRFToken': csrfToken,
         },
-        body: JSON.stringify({ nodeID: nodeID, fileName: fileName}), 
+        body: JSON.stringify({ nodeID: parseInt(String(nodeID).match(/\d+/)[0], 10), fileName: fileName}),  // numéro du node, comme à l'envoi
     }).then(response => {
         if (!response.ok) {
             throw new Error('Network response was not ok');
@@ -445,6 +450,8 @@ function loadFile(nodeID, fileName, spinner, filePreview, fileContainer) {
 
 function save(nodeGroup,tunnel){
     if(admin){return}
+    if(nodeGroup.dataset.deleting){return}  // en cours de suppression : le réenregistrer le ferait revenir
+
     if(!isLoading){
         console.log(nodeGroup.id,' SAVED')
         const data = [];
@@ -456,6 +463,7 @@ function save(nodeGroup,tunnel){
         const shape = nodeGroup.getAttribute('shape');
         const likes = nodeGroup.getAttribute('likes');
         const radius = nodeGroup.children[1].getAttribute('r');
+        const ratio = nodeGroup.getAttribute('ratio') || 0;
         const layer = nodeGroup.getAttribute('layer');
         const textContent = nodeGroup.getAttribute('textcontent');
         const imgContent = nodeGroup.getAttribute('imagecontent');
@@ -477,6 +485,7 @@ function save(nodeGroup,tunnel){
             shape: shape,
             likes: likes,
             radius: radius,
+            ratio: ratio,
             layer: layer,
             textContent: textContent,
             imgContent: imgContent,
@@ -509,6 +518,7 @@ function save(nodeGroup,tunnel){
         data.push({zoom: currentZoom,
             originX: Math.round(parseFloat(originX)),
             originY: Math.round(parseFloat(originY)),
+            originLayer: originLayer,
             dark: dark,
             sound: sound,
             layer: layerNumber,
@@ -516,6 +526,7 @@ function save(nodeGroup,tunnel){
         })
 
         const csrfToken = getCookie('nodz_csrftoken');
+        const body = JSON.stringify(data);
 
         fetch('/save-node/', {
             method: 'POST',
@@ -523,7 +534,8 @@ function save(nodeGroup,tunnel){
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken,
             },
-            body: JSON.stringify(data),
+            body: body,
+            keepalive: body.length < 60000,  // survit à la fermeture de la page (limite du navigateur : 64 Ko)
         }).then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -539,6 +551,9 @@ function save(nodeGroup,tunnel){
         });
     }
 }
+
+// Page fermée ou rechargée : le node en cours de frappe perd le focus, donc se sauvegarde.
+window.addEventListener('pagehide', () => document.activeElement.blur());
 
 // SAVE QUANTUM
 
@@ -619,6 +634,7 @@ function deleteNode(nodes) {
         cancelIndex = 0;
     }    
     cancelList.push(['deletion', Array.from(nodes).map(node => node.cloneNode(true))]);
+    nodes.forEach(node => { node.dataset.deleting = '1'; });  // ses liens retirés ne le réenregistrent pas
     if (quantum){
         ids.length = 0;
         cancelList[0][1].forEach(node =>{

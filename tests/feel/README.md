@@ -16,3 +16,7 @@ npm run feel:record               # réenregistre la référence (seulement sur 
 ```
 
 `NODZ_URL` change l'adresse du serveur, `CHROMIUM_PATH` le navigateur.
+
+Scénario `navigation` (`--scenario navigation`, référence `reference-navigation.json`, enregistrée sur
+`/universe`) : focus au double-clic sur l'anneau, Tab (saut de zoom arrière puis avant au pointeur),
+flèches (dont une diagonale).

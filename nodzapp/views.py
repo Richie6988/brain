@@ -1,16 +1,22 @@
 from django.shortcuts import render, HttpResponse
-from nodzapp.models import NodzUser, Param, Layer, Node, Link, Template, Feedback
+from nodzapp.models import NodzUser, Param, Layer, Node, Link, Template, Feedback, ContactMessage
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.decorators import login_required
 import re
 import html
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.db.models import Max
 
 
 # Create your views here.
 def home(request):
-    return render(request, "home.html")
+    # Page d'accueil : les plafonds du compte gratuit et le prix du Premium viennent du serveur (toolbox/quota.py, réglages).
+    from toolbox import quota
+    return render(request, "home.html", {
+        'landing': {'nodes': quota.NODES, 'dimensions': quota.DIMENSIONS},
+        'premium_price': settings.PREMIUM_PRICE_LABEL,
+    })
 
 
 from django.views.decorators.csrf import csrf_protect
@@ -395,11 +401,15 @@ def save_node(request):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON data'}, status=400)
 
+        from toolbox import quota  # compte gratuit : 100 nodes hors dimension Gardien (toolbox/quota.py)
+
         # Save data to the database
         for group_data in json_data:
           
             if 'id' in group_data:
                 # print(user_id,group_data['id']),
+                if not Node.objects.filter(user=user, node_id=group_data['id']).exists() and not quota.room_for_nodes(user, group_data.get('layer'), 1):
+                    continue  # au-delà du quota gratuit : le node n'est pas créé (le navigateur propose Premium)
                 layer_instance, _ = Layer.objects.get_or_create(user=user, layer_id=group_data.get('layer', 1))
                 node, created = Node.objects.get_or_create(
                     user=user, 
@@ -434,6 +444,7 @@ def save_node(request):
                     shape=group_data['shape'],
                     likes=group_data['likes'],
                     radius=group_data['radius'],
+                    ratio=float(group_data.get('ratio') or 0),
                     layer=layer_instance,
                     text_content=group_data['textContent'],
                     image_content=group_data['imgContent'],
@@ -480,6 +491,7 @@ def save_node(request):
                 param.update(
                     originX=group_data['originX'],
                     originY=group_data['originY'],
+                    originLayer=group_data.get('originLayer'),
                     nodecounter=nodecounter,
                     linkcounter=linkcounter,
                     layercounter=layercounter,
@@ -645,9 +657,9 @@ def loading(request):
                 layer = Param.objects.filter(user=user).values('layer').first()['layer']          
             elif json_data['layer'] == -1: #Register
                 Param.objects.create(user=user)
-                params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+                params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
                 formatted_params = []
-                for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter', 'layercounter']:
+                for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter', 'layercounter']:
                     if param_name in params[0]:  # Assuming there's at least one result
                         formatted_params.append({'name': param_name, 'value': params[0][param_name]})
                 layer = Layer.objects.get(user=user)  
@@ -685,15 +697,15 @@ def loading(request):
         layer_instance = Layer.objects.get(user=user, layer_id=layer)                          
         # Retrieve all groups and link data from the database
         nodes = Node.objects.filter(user=user,archive=False, layer=layer_instance).values('node_id', 'x_coordinate', 'y_coordinate', 'layer__layer_id',
-                                          'type', 'color','shape','likes', 'radius', 'rank', 'quantum',
+                                          'type', 'color','shape','likes', 'radius', 'ratio', 'rank', 'quantum',
                                           'text_content','image_content','canvas_content',
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
         templates = Template.objects.filter(user=user,archive=False,layer=layer_instance).values('template_id', 'x_coordinate', 'y_coordinate','type','lock','size')
-        params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+        params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
         formatted_params = []
 
-        for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
+        for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
             if param_name in params[0]:  # Assuming there's at least one result
                 formatted_params.append({'name': param_name, 'value': params[0][param_name]})
         
@@ -770,6 +782,10 @@ def get_profile(request):
         formatted_profile.append({'name':'image_nodes', 'value': Node.objects.filter(user=user,type='image',archive=False).count()})
         formatted_profile.append({'name':'file_nodes', 'value': Node.objects.filter(user=user,type='file',archive=False).count()})
         formatted_profile.append({'name':'sketch_nodes', 'value': Node.objects.filter(user=user,type='canvas',archive=False).count()})
+        formatted_profile.append({'name':'code_nodes', 'value': Node.objects.filter(user=user,type='code',archive=False).count()})
+        formatted_profile.append({'name':'referrals', 'value': user.referree_points})
+        formatted_profile.append({'name':'language', 'value': user.language})
+        formatted_profile.append({'name':'premium_until', 'value': user.premium_until.strftime('%d/%m/%Y') if user.premium_until else ''})
         data = {
             'profile': formatted_profile,   
         }
@@ -791,7 +807,17 @@ def save_profile(request):
                 user.email = json_data['email']
             elif 'country' in json_data:
                 user.country = json_data['country']
+            elif 'language' in json_data:
+                language = json_data['language'] if json_data['language'] in ('fr', 'en') else ''
+                changed = language != user.language
+                user.language = language
             user.save()
+            if 'language' in json_data and changed and user.language:
+                from toolbox import home
+                from toolbox.models import Agent
+                guardian = Agent.objects.filter(owner=user, role=Agent.Role.ORCHESTRATOR).first()
+                if guardian:
+                    home.relabel(user, guardian, user.language)  # la maison du Gardien passe dans la nouvelle langue
 
             return JsonResponse({'success': 'Saved to database'})
         except json.JSONDecodeError:
@@ -1222,11 +1248,16 @@ def terms(request):
 def contact(request): 
     return render(request, "contact.html")
 
-from django.contrib.auth import logout
 def universe(request):   
     r_id = request.GET.get('r')
-    context = {'r': r_id} 
-    logout(request)
+    # Plus de logout ici : un autre onglet, un rechargement ou un préchargement de /universe
+    # déconnectait la page ouverte. Une session déjà ouverte (compte ou invité) est signalée à la page,
+    # qui la reprend sans LOGIN / GUEST seulement après un changement de langue (interface.js) ; la
+    # déconnexion se fait par le profil.
+    user = request.user
+    context = {'r': r_id, 'resume': user.is_authenticated,
+               'guest': user.is_authenticated and bool(re.match(r'^guest\d+@nodz\.com$', user.email or '')),
+               'language': user.language if user.is_authenticated else ''}
     return render(request, "universe.html", context)
 
 def referree(request, r_id):
@@ -1239,54 +1270,38 @@ def referree(request, r_id):
 
 from datetime import date
 def referrer(request):
-    if request.method == 'POST':    
-        user = request.user
-        try:
-            json_data = json.loads(request.body)
-            logger.debug(f'Received JSON data: {json_data}')  # Log the JSON data
-
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON data'}, status=400)
-
-        # Save data to the database
-        for group_data in json_data:
-            
-            if 'referrer' in group_data:
-
-                referrer_id = group_data['referrer']
-                print(user.id,referrer_id)
-                # Validate referrer_id
-                if not referrer_id or not referrer_id.isdigit():
-                    return JsonResponse({"error": "Invalid referrer ID"}, status=400)
-
-                # Get user & referrer safely
-                referree = get_object_or_404(NodzUser, id=user.id)
-                referrer = get_object_or_404(NodzUser, id=int(referrer_id))
-
-                if referree and referrer:
-                    referree.referrer = referrer_id
-                    referrer.referree_points += 1
-
-                    try:
-                        json_data = json.loads(referrer.referrees) if referrer.referrees else []
-                    except json.JSONDecodeError:
-                        json_data = []
-            
-                    if not isinstance(json_data, list):
-                        json_data = []
-                    
-                    if json_data:
-                        today = date.today() 
-                        json_data.append({str(today): str(referree.id)})
-
-                    # Save the updated JSON back to the database
-                    referrer.referrees = json.dumps(json_data)  
-                    referrer.save()  
-                    referree.save()  
-
-                    return JsonResponse({"message": "Referrer updated successfully!"})
-
-    return JsonResponse({"error": "Invalid request"}, status=400)
+    """Le filleul vient de créer son compte avec le lien d'un parrain (/universe/r-<id>/) : un seul parrain par compte,
+    pas soi-même, pas un compte invité, et seulement dans le jour de l'inscription. Le parrain gagne un mois de
+    Premium (toolbox/premium.py gift)."""
+    from toolbox import premium
+    if request.method != 'POST' or not request.user.is_authenticated:
+        return JsonResponse({'error': 'Invalid request'}, status=400)
+    try:
+        json_data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    referrer_id = next((str(g.get('referrer')) for g in json_data if isinstance(g, dict) and 'referrer' in g), '') if isinstance(json_data, list) else ''
+    if not referrer_id.isdigit():
+        return JsonResponse({'error': 'Invalid referrer ID'}, status=400)
+    referree = request.user
+    if (referree.referrer or int(referrer_id) == referree.id or premium.GUEST.match(referree.email or '')
+            or not referree.date_joined or timezone.now() - referree.date_joined > timedelta(days=1)):
+        return JsonResponse({'error': 'Parrainage refusé'}, status=400)
+    referrer = get_object_or_404(NodzUser, id=int(referrer_id))
+    try:
+        sponsored = json.loads(referrer.referrees) if referrer.referrees else []
+    except json.JSONDecodeError:
+        sponsored = []
+    sponsored = sponsored if isinstance(sponsored, list) else []
+    sponsored.append({str(date.today()): str(referree.id)})
+    referree.referrer = referrer.id
+    referree.save(update_fields=['referrer'])
+    referrer.referree_points += 1
+    referrer.referrees = json.dumps(sponsored)
+    referrer.save(update_fields=['referree_points', 'referrees'])
+    if not premium.GUEST.match(referrer.email or ''):
+        premium.gift(referrer)
+    return JsonResponse({'message': 'Referrer updated successfully!'})
      
 
 
@@ -1294,64 +1309,6 @@ def test(request):
     return render(request, "test.html")
 
 
-
-
-############################## PAYMENT ##############################
-
-from django.views.decorators.csrf import csrf_exempt  # Needed to handle POST requests without CSRF tokens (for APIs)
-from django.conf import settings  # Access to Stripe API keys in settings.py
-import stripe
-
-# Set your secret key from settings
-stripe.api_key = settings.STRIPE_SECRET_KEY
-
-@csrf_exempt  # Stripe usually sends POST requests, which can require CSRF exemption
-def process_payment(request):
-    if request.method == 'POST':
-        try:
-            # Get the plan (e.g., 'monthly' or 'yearly') from the request body
-            plan = request.POST.get('plan')  # Or request.body with JSON if using a frontend that sends JSON
-            
-            # Determine the price based on the plan selected
-            price = 1000 if plan == 'monthly' else 10000  # In cents (e.g., $10 or $100)
-            
-            # Create a payment intent using Stripe API
-            intent = stripe.PaymentIntent.create(
-                amount=price,
-                currency='usd',
-                payment_method_types=['card'],  # Accept credit cards
-            )
-            
-            # Return the client secret needed to complete the payment
-            return JsonResponse({'client_secret': intent.client_secret})
-        
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=403)
-    
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-
-@login_required
-def cancel_subscription(request):
-    if request.method == 'POST':
-        # Get the currently logged-in user
-        user = request.user
-
-        if not user.is_premium:
-            return JsonResponse({'error': 'User is not subscribed to any premium plan.'}, status=400)
-
-        # Cancel the Stripe subscription
-        try:
-            stripe.Subscription.delete(user.stripe_subscription_id)
-            user.is_premium = False  # Update the user status to non-premium
-            user.stripe_subscription_id = None  # Clear subscription ID
-            user.save()  # Save the changes to the database
-            return JsonResponse({'status': 'Subscription canceled successfully'})
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-    
-    # If not a POST request, return an error
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 
 ############################## CONTACT ##############################
@@ -1372,19 +1329,20 @@ def feedback(request):
             email = form.cleaned_data['email']
             message = form.cleaned_data['message']
 
-            # Send email
+            # Gardé dans l'admin Django (Contact messages), puis signalé par e-mail à CONTACT_EMAIL
+            ContactMessage.objects.create(name=name, email=email, message=message)
             try:
                 send_mail(
                     f"New Contact Form Message from {name}",
                     f"Name: {name}\nEmail: {email}\nMessage: {message}",
                     settings.DEFAULT_FROM_EMAIL,
-                    ['recipient-email@example.com'],  # Change this to your own email address
+                    [settings.CONTACT_EMAIL],
                     fail_silently=False,
                 )
-                messages.success(request, "Your message has been sent successfully!")
-                return redirect('contact')
-            except Exception as e:
-                messages.error(request, f"Error: {e}")
+            except Exception:  # un serveur de courrier en panne : le message reste dans l'admin
+                logger.exception('e-mail du formulaire de contact')
+            messages.success(request, "Your message has been sent successfully!")
+            return redirect('contact')
         else:
             messages.error(request, "There was an error with your form.")
     else:
@@ -1392,120 +1350,6 @@ def feedback(request):
 
     return render(request, 'contact.html', {'form': form})
 
-
-############################## MULTI-USERS ##############################
-
-from django.shortcuts import get_object_or_404, redirect
-from django.http import JsonResponse
-from django.utils import timezone
-from .models import Node, Invite
-from django.urls import reverse
-from django.db.models import Q
-
-
-from django.shortcuts import redirect, get_object_or_404
-from django.http import JsonResponse
-from django.utils import timezone
-from .models import Invite  # Ensure the Invite model is imported
-
-@login_required
-def invite_access(request, token):
-    # Validate the invite token
-    invite = get_object_or_404(Invite, token=token)
-
-    # Check if the invite is still valid
-    if invite.expires_at < timezone.now():
-        return JsonResponse({'error': 'Invite link has expired'}, status=403)
-
-    # Check if max access has been reached
-    if invite.access_count >= invite.max_access:
-        return JsonResponse({'error': 'Invite link has reached maximum access count'}, status=403)
-
-    # Increment access count and save
-    invite.access_count += 1
-    print('invite',invite.access_count)
-    invite.save()
-
-    # Redirect to the you page with the token in the URL
-    return redirect(f"{reverse('universe')}?token={token}")
-
-def shared_nodes(request):
-    token = request.GET.get('token')
-    
-    if token:
-        # Fetch the invite object based on the token
-        invite = get_object_or_404(Invite, token=token)
-
-        # Fetch nodes based on token
-        # nodes = invite.nodes.exclude(privacy=2)
-        node_data = [{
-            'node': node.node_id,
-            'x_coordinate': node.x_coordinate,
-            'y_coordinate': node.y_coordinate,
-            'type': node.type,
-            'color': node.color,
-            'radius': node.radius,
-            'layer': node.layer,
-            'rank': node.rank,
-            'links': node.links,
-            'quantum': node.quantum,
-            'text_content': node.text_content,
-            'image_content': node.image_content.url if node.image_content else '',
-            'canvas_content': node.canvas_content,
-            'file_name': node.file_name,
-            'notification': node.notification,
-            'lock': node.lock,
-            'shape': node.shape,
-            'likes': node.likes,
-        } for node in invite.nodes.all()]
-
-        link_data = [{
-            'link': link.link,
-            'linkA': link.linkA,
-            'linkB': link.linkB,
-        } for link in invite.links.all()]
-
-        params_data = list(invite.params.values(
-            'rootX', 'rootY', 'layer', 'dark', 'sound', 
-            'nodecounter', 'linkcounter', 'layercounter'
-        ))
-        data = {
-            'nodes': node_data,
-            'links': link_data,
-            'params': params_data,
-        }
-        return JsonResponse(data)
-    return JsonResponse({'error': 'Invalid token'}, status=404)
-
-
-@login_required
-def generate_invite(request, node_ids):
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': 'User must be logged in'}, status=403)
-
-    user = request.user
-    params = Param.objects.filter(user=user)
-    # Parse node_ids and validate nodes belong to the user
-    node_ids = node_ids.split(',')
-    nodes = Node.objects.filter(user=user, node_id__in=node_ids)
-    # Get related links
-    links = Link.objects.filter(Q(user=user) & (Q(linkA__in=node_ids) | Q(linkB__in=node_ids)))
-
-    if not nodes.exists():
-        return JsonResponse({'error': 'No valid nodes selected'}, status=404)
-
-    invite = Invite.objects.create(
-        invited_by=request.user,
-        expires_at=timezone.now() + timezone.timedelta(days=1),  # 1-day expiry
-        max_access=5
-    )
-    invite.params.set(params)
-    invite.nodes.set(nodes)
-    invite.links.set(links)
-
-    # Generate the link
-    invite_link = request.build_absolute_uri(reverse('invite_access', args=[invite.token]))
-    return JsonResponse({'invite_link': invite_link})
 
 ############################## SECURE FILE DOWNLOAD OUTSIDE Nod-Z ##############################
 from itsdangerous import URLSafeTimedSerializer
@@ -1565,9 +1409,10 @@ def send_validation_code(request):
         validation_codes[email] = validation_code
 
         # Send email to the user with the validation code
+        from toolbox import i18n
         send_mail(
-            'Your Validation Code',
-            f'Your validation code is: {validation_code}',
+            i18n.say(request.user, 'Ton code de validation Nodz', 'Your Nodz validation code'),
+            i18n.say(request.user, 'Ton code de validation est : {code}', 'Your validation code is: {code}', code=validation_code),
             'no-reply@yourdomain.com',
             [email],
             fail_silently=False,
@@ -1671,15 +1516,15 @@ def admin_loading(request):
         layer_instance = Layer.objects.get(user=user, layer_id=layer)                          
         # Retrieve all groups and link data from the database
         nodes = Node.objects.filter(user=user,archive=False, layer=layer_instance).values('node_id', 'x_coordinate', 'y_coordinate', 'layer__layer_id',
-                                          'type', 'color','shape','likes', 'radius', 'rank', 'quantum',
+                                          'type', 'color','shape','likes', 'radius', 'ratio', 'rank', 'quantum',
                                           'text_content','image_content','canvas_content',
                                           'file','file_name', 'notification', 'lock')
         links = Link.objects.filter(user=user,archive=False,layer=layer_instance).values('link_id', 'linkA', 'linkB')
         templates = Template.objects.filter(user=user,archive=False,layer=layer_instance).values('template_id', 'x_coordinate', 'y_coordinate','type','lock','size')
-        params = Param.objects.filter(user=user).values('originX', 'originY', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
+        params = Param.objects.filter(user=user).values('originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'nodecounter', 'linkcounter','layercounter')
         formatted_params = []
 
-        for param_name in ['originX', 'originY', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
+        for param_name in ['originX', 'originY', 'originLayer', 'layer', 'dark', 'sound', 'fullscreen', 'nodecounter', 'linkcounter', 'layercounter']:
             if param_name in params[0]:  # Assuming there's at least one result
                 formatted_params.append({'name': param_name, 'value': params[0][param_name]})
         

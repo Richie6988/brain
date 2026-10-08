@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'nodzapp',
     'graph',
+    'toolbox',
     # 'widget_tweaks',
     # 'django_tex',
     # 'wkhtmltopdf',
@@ -98,6 +99,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'toolbox.middleware.PremiumExpiry',
+    'toolbox.middleware.TranslateErrors',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -187,6 +190,25 @@ STORAGES = {
 MEDIA_URL = (FORCE_SCRIPT_NAME or '') + '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'nodzapp/media')
 
+# Boîte à outils IA (modèles locaux GGUF téléchargés depuis Hugging Face).
+MODELS_DIR = Path(os.environ.get('MODELS_DIR') or BASE_DIR / 'var' / 'models')
+HF_TOKEN = os.environ.get('HF_TOKEN', '')
+# Défauts du serveur, comme iAqua : « auto » calcule au chargement (contexte, couches GPU selon la VRAM libre).
+LLM_CTX = os.environ.get('LLM_CTX', 'auto')
+LLM_GPU_LAYERS = os.environ.get('LLM_GPU_LAYERS', 'auto')  # auto, max ou un nombre
+LLM_THREADS = int(os.environ.get('LLM_THREADS', '0'))  # 0 = cœurs physiques
+# Outils portés d'iAqua : espace de travail par utilisateur, environnement Python, shell et MCP (administrateur)
+WORKSPACE_DIR = Path(os.environ.get('WORKSPACE_DIR') or BASE_DIR / 'var' / 'workspace')
+GUARDIAN_PYENV = Path(os.environ.get('GUARDIAN_PYENV') or BASE_DIR / 'var' / 'pyenv')
+GUARDIAN_SHELL = os.environ.get('GUARDIAN_SHELL', '0') == '1'  # shell, Python et outils forgés : coupés par défaut
+MCP_SERVERS = os.environ.get('MCP_SERVERS', '')  # JSON : {"nom": {"url": "https://…/mcp", "headers": {}, "description": "…"}}
+SD_BIN = os.environ.get('SD_BIN', '')  # stable-diffusion.cpp (vide = cherché dans le PATH)
+GUARDIAN_WEB = os.environ.get('GUARDIAN_WEB', '1') == '1'  # recherche et lecture web par le Gardien
+BRAVE_API_KEY = os.environ.get('BRAVE_API_KEY', '')  # recherche web par Brave Search (facultatif, la plus fiable)
+SEARXNG_URL = os.environ.get('SEARXNG_URL', '').rstrip('/')  # instance SearXNG (facultatif, peut être locale)
+GUARDIAN_WORKERS = int(os.environ.get('GUARDIAN_WORKERS', '1'))  # demandes au Gardien traitées en même temps
+GUARDIAN_QUEUE = int(os.environ.get('GUARDIAN_QUEUE', '8'))  # demandes en attente au plus
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -204,7 +226,7 @@ LOGIN_REDIRECT_URL = 'universe'
 LOGOUT_REDIRECT_URL = 'home'
 
 
-# Add your email configuration
+# Courrier. Avec Postfix sur la machine : EMAIL_HOST=localhost, EMAIL_PORT=25, EMAIL_USE_TLS=0, DEFAULT_FROM_EMAIL=...
 EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
 EMAIL_BACKEND = (
     'django.core.mail.backends.smtp.EmailBackend'
@@ -216,6 +238,11 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', '1') == '1'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'nodz@localhost')
+CONTACT_EMAIL = os.environ.get('CONTACT_EMAIL', DEFAULT_FROM_EMAIL)  # où part chaque message du formulaire de contact
 
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
-STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
+# Gardien Premium (toolbox/premium.py) : le prix d'abonnement Stripe, le secret du webhook toolbox/premium/webhook,
+# et le prix tel qu'affiché dans Mon IA.
+STRIPE_PRICE_ID = os.environ.get('STRIPE_PRICE_ID', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+PREMIUM_PRICE_LABEL = os.environ.get('PREMIUM_PRICE_LABEL', '')

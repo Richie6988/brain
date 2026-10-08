@@ -196,109 +196,6 @@ function selectNodes(startX, startY, endX, endY) {
 }
 
 
-//////////////////// SEMENTIC SEARCH ////////////////////
-
-
-
-let semanticsearch = document.getElementById('semanticsearch');
-let prevsearch = document.getElementById('prevsearch');
-let nextsearch = document.getElementById('nextsearch');
-//let results = document.getElementById('results');
-let resultsprio = 0;
-
-semanticsearch.addEventListener('keydown', function(event) {
-    if (event.key === 'Enter') {  // Check if Enter key is pressed
-        event.preventDefault();  // Prevent form submission if inside a form
-        const data = [{
-            search: semanticsearch.value
-        }];
-        searchrequest(data);
-    }
-});
-semanticsearch.addEventListener('mousedown', function() {
-    isTyping = true; 
-});
-
-
-function searchrequest(data){
-    const csrfToken = getCookie('nodz_csrftoken');
-    resultsprio = 0;
-   
-    // Set up headers
-    const headers = {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrfToken
-    };
-
-    // Set up fetch options
-    const fetchOptions = {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(data)
-    };
-
-    // Make the fetch request
-    fetch('/semantic-search/', fetchOptions)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(responseData => {
-            // Handle success
-
-            const rankedNodes = responseData.ranked_nodes;
-            console.log(rankedNodes)
-            if (rankedNodes[resultsprio] && rankedNodes[resultsprio].matching_score != 0) {
-                 /// Display result
-                focus = false;
-                const node = document.getElementById('N-'+rankedNodes[resultsprio].id);
-                if (node) {
-                    focusNode(node,true);
-                } else {
-                    load(rankedNodes[resultsprio].layer,'N-'+rankedNodes[resultsprio].id)
-                }
-                
-            }
-
-            prevsearch.addEventListener('mousedown', function() {
-                resultsprio -=1
-                if (rankedNodes[resultsprio] && rankedNodes[resultsprio].matching_score != 0) {
-                    /// Display result
-                   focus = false;
-                   const node = document.getElementById('N-'+rankedNodes[resultsprio].id);
-                    if (node) {
-                        focusNode(node,true);
-                    } else {
-                        load(rankedNodes[resultsprio].layer,'N-'+rankedNodes[resultsprio].id)
-                    }
-               } else { resultsprio +=1}
-            });
-            nextsearch.addEventListener('mousedown', function() {
-                resultsprio +=1
-                if (rankedNodes[resultsprio] && rankedNodes[resultsprio].matching_score != 0) {
-                    /// Display result
-                   focus = false;
-                   const node = document.getElementById('N-'+rankedNodes[resultsprio].id);
-                    if (node) {
-                        focusNode(node,true);
-                    } else {
-                        load(rankedNodes[resultsprio].layer,'N-'+rankedNodes[resultsprio].id)
-                    }
-               } else { resultsprio -=1}
-            });
-     
-        })
-        .catch(error => {
-            // Handle error
-            console.error('There was a problem with the fetch operation:', error);
-        });
-
-}
-
-
-
 function focusNode(node,val){
     if (node){
         isFocused = true;
@@ -352,13 +249,13 @@ window.addEventListener('click', function(event) {
             popup.className = 'popup'; 
             const message = document.createElement('div');
             message.className = 'smallmessage';          
-            message.textContent = `Open external link?`;
+            message.textContent = `Ouvrir ce lien externe ?`;
             popup.appendChild(message);
             const buttonContainer = document.createElement('div');
             buttonContainer.className = 'popupbutton-container'; 
             buttonContainer.style.justifyContent = 'center';
             const confirmButton = document.createElement('span');
-            confirmButton.textContent = 'CONFIRM';
+            confirmButton.textContent = 'Ouvrir';
             confirmButton.style.fontSize = '10px';
             confirmButton.className = 'submit-button'; 
             confirmButton.style.padding = '5px';
@@ -441,24 +338,26 @@ function nodeUnselection(node){
         node.children[2].style.strokeWidth = '4px';
         node.children[2].style.stroke = node.getAttribute('color'); 
     }
-    node.children[7].style.display = 'none';
+    node.tools.type.style.display = 'none';
 }
 
-let paramColor = 'rgba(39, 9, 39, 0.5)';
-let paramColorLight = 'rgba(232, 232, 232, 0.5)';
+// Plus de voile sur le node sélectionné : un remplissage transparent (toujours peint : le clic au centre le prend,
+// et « fill différent de none » reste la marque d'un node aux outils ouverts).
+let paramColor = 'transparent';
+let paramColorLight = 'transparent';
 
 function showParams(nodeGroup) {    
-    const typeGroup = nodeGroup.children[7];
-    const typeButtonfo = nodeGroup.children[7].children[0];
-    const typeButton = nodeGroup.children[7].children[1];
-    const colorButtonfo = nodeGroup.children[7].children[2];
-    const shapeButtonfo = nodeGroup.children[7].children[5];
-    const calendarButtonfo = nodeGroup.children[7].children[6];
-    const lockButtonfo = nodeGroup.children[7].children[7];
-    const layerButtonfo = nodeGroup.children[7].children[8];
+    const typeGroup = nodeGroup.tools.type;
+    const typeButtonfo = nodeGroup.tools.type.children[0];
+    const typeButton = nodeGroup.tools.type.children[1];
+    const colorButtonfo = nodeGroup.tools.type.children[2];
+    const shapeButtonfo = nodeGroup.tools.type.children[5];
+    const calendarButtonfo = nodeGroup.tools.type.children[6];
+    const lockButtonfo = nodeGroup.tools.type.children[7];
+    const layerButtonfo = nodeGroup.tools.type.children[8];
 
     typeButton.style.pointerEvents = 'auto';
-    const canvasStyleGroup = nodeGroup.children[6];
+    const canvasStyleGroup = nodeGroup.tools.canvas;
     canvasStyleGroup.setAttribute('visibility', 'hidden');
 
     typeGroup.style.display ='block';
@@ -490,13 +389,13 @@ function showParams(nodeGroup) {
 }
 
 function hideParams(nodeGroup) {
-    const typeButtonfo = nodeGroup.children[7].children[0];
-    const typeButton = nodeGroup.children[7].children[1];
-    const colorButtonfo = nodeGroup.children[7].children[2];
-    const shapeButtonfo = nodeGroup.children[7].children[5];
-    const calendarButtonfo = nodeGroup.children[7].children[6];
-    const lockButtonfo = nodeGroup.children[7].children[7];
-    const layerButtonfo = nodeGroup.children[7].children[8];
+    const typeButtonfo = nodeGroup.tools.type.children[0];
+    const typeButton = nodeGroup.tools.type.children[1];
+    const colorButtonfo = nodeGroup.tools.type.children[2];
+    const shapeButtonfo = nodeGroup.tools.type.children[5];
+    const calendarButtonfo = nodeGroup.tools.type.children[6];
+    const lockButtonfo = nodeGroup.tools.type.children[7];
+    const layerButtonfo = nodeGroup.tools.type.children[8];
 
     typeButtonfo.setAttribute('visibility', 'hidden');
     typeButton.setAttribute('visibility', 'hidden');
@@ -536,7 +435,43 @@ function noCurrentNode() {
 //     }
 // });
 
+// Texte des nodes centré verticalement en CSS (modern.css, top 50 % et translateY) : plus de mesure en JavaScript,
+// donc plus de texte décalé quand la police arrive après le calcul. Seuls les rectangles de texte dépendent encore de
+// la hauteur mesurée du texte : ils sont recalculés quand une police finit de charger.
+document.fonts?.addEventListener('loadingdone', () => {
+    document.querySelectorAll('.node-group[shape="square"]:is([type="text"], [type="code"])').forEach(node => {
+        const box = node.children[0];
+        nodeSizing(node, parseFloat(box.getAttribute('width')), parseFloat(box.getAttribute('height')));
+    });
+});
+
+// Chargement d'une dimension : lire la hauteur du texte d'un rectangle (scrollHeight) forçait une mise en page de toute
+// la carte à chaque node. Pendant le chargement, nodeSizing la lit dans measuredText (0 en attendant) et note le node ;
+// settleSquares lit ensuite toutes les hauteurs d'un coup (une seule mise en page) et redonne à chacun sa taille.
+const measuredText = new Map();
+const unsettled = new Map();  // node → [w, h] de son dernier nodeSizing pendant le chargement
+function settleSquares() {
+    const list = [...unsettled].filter(([node]) => node.isConnected);
+    unsettled.clear();
+    list.forEach(([node]) => measuredText.set(node, node.children[0].children[0].scrollHeight));
+    list.forEach(([node, [w, h]]) => nodeSizing(node, w, h));
+    measuredText.clear();
+}
+
 function nodeSizing(nodeGroup,w,h) {  
+    if (isLoading && !measuredText.has(nodeGroup) && nodeGroup.getAttribute('shape') === 'square') {
+        if (!unsettled.size) queueMicrotask(settleSquares);  // filet : une pose sous isLoading hors de load()
+        unsettled.set(nodeGroup, [w, h]);
+    }
+    // Rectangle étiré (attribut ratio = largeur / hauteur) : à surface égale, ses proportions sont gardées quel que
+    // soit l'appel, et sa hauteur n'est plus seulement celle du texte.
+    const ratio = parseFloat(nodeGroup.getAttribute('ratio')) || 0;
+    const stretched = ratio > 0 && nodeGroup.getAttribute('shape') === 'square' && ['text', 'code'].includes(nodeGroup.getAttribute('type'));
+    if (stretched) {
+        const area = w * h;
+        w = Math.sqrt(area * ratio);
+        h = Math.sqrt(area / ratio);
+    }
     var screenSize = window.innerHeight*2;
     if ((w > screenSize || h > screenSize)) {
         console.log('max node size')
@@ -550,8 +485,8 @@ function nodeSizing(nodeGroup,w,h) {
     foreignObject.setAttribute('height',h);  
 
     let input = nodeGroup.children[0].children[0];
+    const textHeight = measuredText.has(nodeGroup) ? measuredText.get(nodeGroup) : isLoading ? 0 : input.scrollHeight;
   
-    input.style.bottom = (foreignObject.getAttribute('height') - input.scrollHeight)/2 +'px';
     input.style.width = '100%';
 
     if (nodeGroup.getAttribute('type') === 'canvas') {
@@ -582,7 +517,7 @@ function nodeSizing(nodeGroup,w,h) {
             if (nodeGroup.getAttribute('shape') === 'square'){
                 reduction_factor = 2*hitboxRadius - w; 
             }                     
-        } else if (nw < nh) {
+        } else if (nw) {  // portrait, ou carrée
             foreignObject.setAttribute('width', h*nw/nh);
             foreignObject.setAttribute('height',h); 
             square.setAttribute('width', h*nw/nh); 
@@ -591,9 +526,9 @@ function nodeSizing(nodeGroup,w,h) {
                 reduction_factor = 2*hitboxRadius - h*nw/nh; 
             }               
         }           
-    } else if (nodeGroup.getAttribute('type') === 'text' && nodeGroup.getAttribute('shape') === 'square') {
+    } else if (['text', 'code'].includes(nodeGroup.getAttribute('type')) && nodeGroup.getAttribute('shape') === 'square') {
         square.setAttribute('width', w + 30); 
-        square.setAttribute('height', input.scrollHeight + 30);
+        square.setAttribute('height', Math.max(textHeight, stretched ? h : 0) + 30);
         reduction_factor = 2*hitboxRadius - w - 30; 
     } else {
         square.setAttribute('width', 2 * hitboxRadius); 
@@ -620,15 +555,15 @@ function nodeSizing(nodeGroup,w,h) {
          
     // TEXT INPUT 
     
-    let boldButtonfo = nodeGroup.children[4].children[0];
-    let italicButtonfo = nodeGroup.children[4].children[1];
-    let underlineButtonfo = nodeGroup.children[4].children[2];
-    let fontSizeButtonfo = nodeGroup.children[4].children[3];
-    let textColorButtonfo = nodeGroup.children[4].children[4];
-    let smileyButtonfo = nodeGroup.children[4].children[5];
+    let boldButtonfo = nodeGroup.tools.text.children[0];
+    let italicButtonfo = nodeGroup.tools.text.children[1];
+    let underlineButtonfo = nodeGroup.tools.text.children[2];
+    let fontSizeButtonfo = nodeGroup.tools.text.children[3];
+    let textColorButtonfo = nodeGroup.tools.text.children[4];
+    let smileyButtonfo = nodeGroup.tools.text.children[5];
 
     if(nodeGroup.getAttribute('shape') === 'square') { 
-        const shift = (input.scrollHeight + 40)/2;       
+        const shift = (textHeight + 40)/2;       
         boldButtonfo.setAttribute('x', centerX -38); 
         boldButtonfo.setAttribute('y', centerY + shift);
 
@@ -670,11 +605,11 @@ function nodeSizing(nodeGroup,w,h) {
 
     // FILE
 
-    let fileButton1fo = nodeGroup.children[5].children[0];
-    let fileButton2fo = nodeGroup.children[5].children[1];
-    let fileButton3fo = nodeGroup.children[5].children[2];
-    let filePreview = nodeGroup.children[0].children[2].children[0];
-    let fileTypeImg = nodeGroup.children[0].children[2].children[2];
+    let fileButton1fo = nodeGroup.tools.file.children[0];
+    let fileButton2fo = nodeGroup.tools.file.children[1];
+    let fileButton3fo = nodeGroup.tools.file.children[2];
+    let filePreview = previewOf(nodeGroup, false);  // sans fichier, l'aperçu reste hors du DOM
+    let fileTypeImg = nodeGroup.children[0].children[2].children[filePreview.parentNode ? 2 : 1];
 
     fileButton3fo.style.width = w;  
     truncateMiddleText(nodeGroup.getAttribute('filename'),fileButton3fo.children[0], w/11);
@@ -709,14 +644,14 @@ function nodeSizing(nodeGroup,w,h) {
   
     // CANVAS
 
-    let canvasEraserButtonfo = nodeGroup.children[6].children[0];
-    let canvasRedoButtonfo = nodeGroup.children[6].children[1];
-    let canvasUndoButtonfo = nodeGroup.children[6].children[2];
-    let canvasClearButtonfo = nodeGroup.children[6].children[3];
-    let canvasLineButtonfo = nodeGroup.children[6].children[4];
-    let canvasCircleButtonfo = nodeGroup.children[6].children[5];
-    let canvassliderfo = nodeGroup.children[6].children[6];
-    let canvasColorButtonfo = nodeGroup.children[6].children[7];
+    let canvasEraserButtonfo = nodeGroup.tools.canvas.children[0];
+    let canvasRedoButtonfo = nodeGroup.tools.canvas.children[1];
+    let canvasUndoButtonfo = nodeGroup.tools.canvas.children[2];
+    let canvasClearButtonfo = nodeGroup.tools.canvas.children[3];
+    let canvasLineButtonfo = nodeGroup.tools.canvas.children[4];
+    let canvasCircleButtonfo = nodeGroup.tools.canvas.children[5];
+    let canvassliderfo = nodeGroup.tools.canvas.children[6];
+    let canvasColorButtonfo = nodeGroup.tools.canvas.children[7];
 
     canvasEraserButtonfo.setAttribute('x', centerX - hitboxRadius - 20); 
     canvasEraserButtonfo.setAttribute('y', centerY + 0);
@@ -745,18 +680,18 @@ function nodeSizing(nodeGroup,w,h) {
 
 
     // NODE PARAMS 
-    let typeButtonfo = nodeGroup.children[7].children[0];
-    let typeButton = nodeGroup.children[7].children[1];
-    let colorButtonfo = nodeGroup.children[7].children[2];
-    let sizeButtonfo = nodeGroup.children[7].children[3];
-    let sizeButton = nodeGroup.children[7].children[4];
-    let shapeButtonfo = nodeGroup.children[7].children[5];
-    let calendarButtonfo = nodeGroup.children[7].children[6];
-    let lockButtonfo = nodeGroup.children[7].children[7];
-    let layerButtonfo = nodeGroup.children[7].children[8];
+    let typeButtonfo = nodeGroup.tools.type.children[0];
+    let typeButton = nodeGroup.tools.type.children[1];
+    let colorButtonfo = nodeGroup.tools.type.children[2];
+    let sizeButtonfo = nodeGroup.tools.type.children[3];
+    let sizeButton = nodeGroup.tools.type.children[4];
+    let shapeButtonfo = nodeGroup.tools.type.children[5];
+    let calendarButtonfo = nodeGroup.tools.type.children[6];
+    let lockButtonfo = nodeGroup.tools.type.children[7];
+    let layerButtonfo = nodeGroup.tools.type.children[8];
 
     if(nodeGroup.getAttribute('shape') === 'square') {
-        const shift = (input.scrollHeight + 40)/2;
+        const shift = (textHeight + 40)/2;
         typeButtonfo.setAttribute('x', centerX - 27); 
         typeButtonfo.setAttribute('y', centerY - shift - 26);
         typeButton.setAttribute('x', centerX - 27); 
@@ -833,22 +768,22 @@ function nodeSizing(nodeGroup,w,h) {
     foreignObject.setAttribute('x', centerX - parseFloat(foreignObject.getAttribute('width'))/2);
     foreignObject.setAttribute('y', centerY - parseFloat(foreignObject.getAttribute('height'))/2);
 
-    // COLORWHEEL
-   
-    colorWheelfo.setAttribute('width', 2*hitboxRadius*currentZoom);
-    colorWheelfo.setAttribute('height', 2*hitboxRadius*currentZoom); 
-    const nodeRect = nodeGroup.children[1].getBoundingClientRect();
-    const x = nodeRect.x;
-    const y = nodeRect.y;
-    colorWheelfo.setAttribute('transform', `translate(${x}, ${y})`);
-    picker.setSize(2*hitboxRadius*currentZoom); 
+    // COLORWHEEL : seulement quand elle est ouverte (chaque ouverture refait ce calage) ; fermée, la redessiner et
+    // mesurer le node forçaient un calcul de mise en page à chaque création, zoom ou redimensionnement.
+    if (colorWheelfo.getAttribute('visibility') !== 'hidden') {
+        colorWheelfo.setAttribute('width', 2*hitboxRadius*currentZoom);
+        colorWheelfo.setAttribute('height', 2*hitboxRadius*currentZoom); 
+        const nodeRect = nodeGroup.children[1].getBoundingClientRect();
+        colorWheelfo.setAttribute('transform', `translate(${nodeRect.x}, ${nodeRect.y})`);
+        picker.setSize(2*hitboxRadius*currentZoom); 
+    }
 
-    // PORTAL
+    // PORTAL : un anneau qui entoure le node (132/100 de son diamètre)
     let quantumButtonfo = nodeGroup.children[3];
-    quantumButtonfo.setAttribute('x', centerX - 0.71*hitboxRadius - 30); 
-    quantumButtonfo.setAttribute('y', centerY - 0.71*hitboxRadius - 30);
-    quantumButtonfo.style.width = 33;
-    quantumButtonfo.style.height = 33;
+    quantumButtonfo.setAttribute('x', centerX - 1.32*hitboxRadius); 
+    quantumButtonfo.setAttribute('y', centerY - 1.32*hitboxRadius);
+    quantumButtonfo.style.width = `${2.64*hitboxRadius}px`;
+    quantumButtonfo.style.height = `${2.64*hitboxRadius}px`;
 
 
     // UPDATE LINKS
@@ -906,134 +841,3 @@ function flipCoin(nodeGroup,duration = 1123) {
      // Start the first flip animation
      requestAnimationFrame((timestamp) => rotate(timestamp, 1));
 }
-
-
-//////////////////// MULTI USERS ////////////////////
-
-function multiUsers() {
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token'); 
-    const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${NODZ_BASE}/ws/?token=${token}`);
-
-    // Listen for socket events
-    socket.onopen = function() {
-        console.log('WebSocket is connected.');
-    };
-
-    socket.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        if (data.mouse_position) {
-            updateUserMousePosition({
-                ID: data.userID,
-                x: data.mouse_position.x,
-                y: data.mouse_position.y,
-                userName: data.userName
-            });  
-        }
-        // Check if a user has disconnected
-        if (data.userDisconnected) {
-            removeUserCursor(data.userDisconnected);
-        }
-    };
-
-    socket.onclose = function() {
-        console.log('WebSocket is closed now.');
-    };
-
-    // Function to remove a user's cursor when they disconnect
-    function removeUserCursor(userID) {
-        if (userMousePositions[userID]) {
-            document.body.removeChild(userMousePositions[userID]);
-            delete userMousePositions[userID];
-        }
-    }
-
-    // Capture mouse position and send it to the server
-    document.addEventListener('mousemove', (event) => {
-        const mousePosition = {
-            x: event.clientX/currentZoom + (parseFloat(root.getAttribute('x'))/currentZoom ),
-            y: event.clientY/currentZoom - (parseFloat(root.getAttribute('y'))/currentZoom),
-        };
-
-        // Send mouse position to server
-        socket.send(JSON.stringify({
-            userID: userID,
-            userName: userName,
-            mouse_position: mousePosition
-        }));
-    });
-
-    // Function to update other users' mouse positions in UI
-    const userMousePositions = {}; // Store positions for different users
-
-    function updateUserMousePosition(position) {
-        const { ID, x, y, userName } = position; 
-        // Skip updating if the userID matches client's one
-        if (ID === userID || !isLoggedIn) return;
-        
-        if (!userMousePositions[ID] && ID !== 0) {
-            // Create a new element for this user's mouse position
-            const userCursor = document.createElement('div');
-            userCursor.className = 'user-cursor';
-            userCursor.style.position = 'absolute';
-            userCursor.style.backgroundColor = getRandomNeonColor();
-            
-            document.body.appendChild(userCursor);
-            userMousePositions[ID] = userCursor;
-
-            const tooltip = document.createElement('span');
-            tooltip.textContent = userName || `User ${ID}`;
-            tooltip.style.color = userCursor.style.backgroundColor; 
-            tooltip.className = 'user-tooltip';
-            tooltip.style.display = 'none'; 
-            userCursor.appendChild(tooltip);
-
-            userCursor.addEventListener('mouseover', () => {
-                tooltip.style.display = 'block'; 
-            });
-            userCursor.addEventListener('mouseout', () => {
-                tooltip.style.display = 'none'; 
-            });
-        }    
-        // Update the cursor's position
-        userMousePositions[ID].style.left = `${x*currentZoom - parseFloat(root.getAttribute('x'))*currentZoom}px`;
-        userMousePositions[ID].style.top = `${y*currentZoom + parseFloat(root.getAttribute('y'))*currentZoom}px`;
-    }
-}
-
-function getRandomNeonColor() {
-    // Array of neon colors in hex format
-    const neonColors = [
-        '#39FF14', // Neon Green
-        '#FF1493', // Neon Pink
-        '#14B3FF', // Neon Blue
-        '#FFFF14', // Neon Yellow
-        '#FF6100', // Neon Orange
-        '#FF00FF', // Neon Fuchsia
-        '#0FFF0F', // Neon Lime
-        '#0D00FF', // Neon Vivid Blue
-        '#F0FF14', // Neon Bright Yellow
-        '#FF0000', // Neon Red
-        '#18FFFF', // Neon Cyan
-        '#FF6EC7', // Neon Light Pink
-        '#FFD700', // Neon Gold
-        '#8AFF00', // Neon Electric Lime
-        '#FF4F00', // Neon Red-Orange
-        '#FF8C00', // Neon Dark Orange
-        '#7CFC00', // Neon Lawn Green
-        '#32CD32', // Neon Lime Green
-        '#00FF7F', // Neon Spring Green
-        '#FF4500', // Neon Orange-Red
-        '#DC143C', // Neon Crimson
-        '#00FA9A', // Neon Medium Spring Green
-        '#00CED1'  // Neon Dark Turquoise
-    ];
-    
-    // Select a random color from the neonColors array
-    const randomIndex = Math.floor(Math.random() * neonColors.length);
-    return neonColors[randomIndex];
-}
-
-
-

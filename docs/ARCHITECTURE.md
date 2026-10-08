@@ -118,7 +118,9 @@ forme, taille, verrou), `set_type`, `move_nodes`, `delete_nodes`, `link_nodes`, 
 
 1. La barre envoie la demande et un **contexte compact** : sélection, nodes visibles (id, type,
    résumé du contenu, position), plan courant, liens entre eux, liste des plans.
-2. Nodz appelle SquidMind (`POST /api/v2/completions`, Phase 4) avec le catalogue en outils.
+2. Le Gardien (agent orchestrateur, app `toolbox`) reçoit la demande et le catalogue ; sa sortie est
+   du JSON contraint par grammaire (fiable même avec un petit modèle sur CPU). Il délègue la
+   production aux agents de la bibliothèque et place les résultats dans l'univers.
 3. Chaque événement SSE `tool_call` est validé contre le schéma puis appliqué via `dispatch` ;
    le résultat repart en `tool_result`. `text` s'affiche au-dessus de la barre ; `thinking` reste replié.
 4. Toute la réponse forme **une seule transaction** : un Ctrl+Z annule tout ce que l'IA vient de faire.
@@ -131,6 +133,27 @@ forme, taille, verrou), `set_type`, `move_nodes`, `delete_nodes`, `link_nodes`, 
 
 Les changements sont animés (apparition, déplacement, caméra qui suit via `focus`) pour que
 l'utilisateur voie l'IA « agir » dans l'espace, au lieu d'un résultat qui apparaît d'un coup.
+
+L'utilisateur est dans un vaisseau que le Gardien pilote : `focus`, `overview` et `travel` sont des
+étapes de caméra jouées dans l'ordre après les écritures (`camera.js`), avec une légende à l'arrivée.
+Le Gardien n'a pas de caméra à lui : il rejoue les gestes de l'humain (`navigation.js` décompose Tab,
+focus, molette et glissé en pas élémentaires ; l'humain les joue d'un coup, le Gardien avec un tempo).
+Pendant la réflexion la caméra recule lentement ; sans travelling prévu, elle cadre les nodes créés.
+Tout geste de l'utilisateur annule la file : il garde toujours la main.
+
+## Boîte à outils IA (app `toolbox`)
+
+La boîte à outils de SquidMind est portée dans Nodz ; plus de service séparé.
+
+- **Bibliothèque de modèles** : recherche Hugging Face (GGUF, tri, rôle et capacités déduits),
+  fichiers d'un dépôt classés par quantisation, recommandations selon la VRAM, téléchargement en
+  tâche de fond vers `MODELS_DIR`. Les modèles sont partagés par le serveur (gestion réservée au staff).
+- **Broker** : un seul modèle en mémoire, un consommateur à la fois, par priorité
+  (chat > image > agent > fond), jeton expiré s'il est tenu trop longtemps.
+- **Moteur** : llama-cpp-python, optionnel (`requirements-ai.txt`) ; sans lui Nodz marche sans IA.
+- **Bibliothèque d'agents** (par utilisateur) : rôle (texte, code, image, outils, orchestrateur),
+  modèle, prompt système, outils autorisés. Le Gardien choisit l'agent et le node où publier ;
+  l'agent publie son résultat en brouillon (`origin=ai`, `AIRun`).
 
 ## Mobile
 
@@ -162,7 +185,7 @@ L'ancien Nodz était pensé souris et molette uniquement. La nouvelle couche vis
    renderer texte : **le banc `tests/feel` doit passer** avant d'aller plus loin.
 3. Sélection, drag, rectangle, liens, copier-coller, annuler, téléportation.
 4. Renderers image, fichier, vidéo, audio, 3D, code ; barres d'outils uniques.
-5. Barre de commande + pont SquidMind (Phase 4) : l'IA pilote le catalogue d'actions.
+5. Barre de commande + Gardien (Phase 4) : l'IA pilote le catalogue d'actions.
 6. Recherche, export, partage, curseurs multi-utilisateurs.
 7. Suppression de l'ancienne couche (`elementsCreation.js`, `LSD.js`, `keyEvents.js`,
    `mouseEvents.js`, `userInteractions.js`, `4D.js`, `canvas.js`, `calendar.js`, templates…).

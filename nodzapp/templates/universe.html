@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="{% static 'css/constelcss.css' %}">
     <link rel="stylesheet" href="{% static 'css/interface.css' %}">
     <link rel="stylesheet" href="{% static 'css/calendar.css' %}">
+    <link rel="stylesheet" href="{% static 'gardien/gardien.css' %}">
+    <link rel="stylesheet" href="{% static 'css/modern.css' %}">
 
     <!-- JS files -->
     <script src="{% static 'js/base.js' %}"></script>
@@ -21,7 +23,6 @@
     <script src="{% static 'js/customSVG.js' %}"></script>
     <script src="{% static 'js/customhtml2canvas.js' %}"></script>
     <script src="{% static 'js/calendar.js' %}"></script>
-    <script src="{% static 'vendor/chartjs-4.5.1/chart.umd.min.js' %}"></script>
     <script src="{% static 'vendor/velocity-1.5.2/velocity.min.js' %}"></script>
 
     <script src="{% static 'vendor/jspdf-2.5.1/jspdf.umd.min.js' %}"></script>
@@ -43,7 +44,7 @@
  
       
     <div id="interactive-area">
-        <div id="log" type="hidden" style="display: none;">0</div>
+        <div id="log" type="hidden" style="display: none;" data-resume="{% if resume %}1{% endif %}" data-guest="{% if guest %}1{% endif %}" data-lang="{{ language }}">0</div>
         <div id="layer" style="display: none;">1</div>
     </div>
  
@@ -69,6 +70,7 @@
         <button class="menuBtn" id="exportButton" class="export"></button>
         <button class="menuBtn" id="shareButton"></button>
         <button class="menuBtn" id="notificationButton" data-count="0"></button>
+        <button class="menuBtn" id="agentsButton"></button>
         <button class="menuBtn" id="profileButton"></button>     
     </div>
 
@@ -78,15 +80,15 @@
     <div class="dropdown" id="layersList">            
         <div class="dropdown-content" id="dropdown-content">
             <!-- Universes will be dynamically added here -->
-            <div class="dropdown-item new" id="create-layer-btn">New dimension</div>
+            <div class="dropdown-item new" id="create-layer-btn" data-i18n="dim.new">Nouvelle dimension</div>
         </div>
     </div>
 
     <div class="modal" id="edit-modal">
         <div class="modal-content" id="edit">
-            <div>Dimension Name</div>
+            <div data-i18n="dim.name">Nom de la dimension</div>
             <div style="display: flex; flex-direction: row;align-items: center;">
-                <input type="text" id="layer-name-input" placeholder="Enter new name" />
+                <input type="text" id="layer-name-input" placeholder="Enter new name" data-i18n-placeholder="dim.namePh" />
                 <span id="delete-layer" class="delete-layer" style="display: none;">
                     <img src="{% static 'img/delete.svg' %}" width="20" height="20" alt="Delete" class="icon">
                 </span>
@@ -117,7 +119,6 @@
     {% include "profile.html" %}  
     {% include "smileys.html" %} 
     {% include "export.html"%} 
-    {% include "admin/users.html"%} 
 
     <script src="{% static 'js/elementsCreation.js' %}"></script>
     <script src="{% static 'js/LSD.js' %}"></script>
@@ -132,6 +133,9 @@
     <script src="{% static 'js/4D.js' %}"></script>
     <script src="{% static 'js/export.js' %}"></script>
     <script src="{% static 'js/admin.js' %}"></script>
+    <!-- Gardien : un node écrit est un message ; le bouton Agents ouvre la bibliothèque -->
+    <div id="gardien-toast" aria-live="polite"></div>
+    <script type="module" src="{% static 'gardien/gardien.js' %}"></script>
     
     
 </body>

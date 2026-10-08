@@ -38,25 +38,13 @@ body, html {
     top: 0;
     left: 0;
     background: #050c17;
-    animation: gradient-animation 1s infinite linear;  
 }
 
 .lightmode {
-    background: #f0f0f0;
+    background: #f4efe6;  /* blanc cassé, ton papier : moins éblouissant que le blanc ou le gris froid */
 }
 
 
-@keyframes gradient-animation {
-    0% {
-        background-position: 100% 100%;
-    }
-    50% {
-        background-position: 200% 350%;
-    }
-    100% {
-        background-position: 500% 500%;
-    }
-}
   
 /* Key element for zoom function */
 .node-group {

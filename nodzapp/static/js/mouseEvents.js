@@ -9,22 +9,22 @@ svg.addEventListener('mousedown', function(event) {
     search.blur();
     isTyping = false; 
 
-    if(currentNode && !currentNode.children[7].contains(event.target)) {        
+    if(currentNode && !currentNode.tools.type.contains(event.target)) {        
         if (selectionArea(event, currentNode, 'up')) {
             initialdragX = event.clientX;    
             initialdragY = event.clientY;
             if(!colorWheelfo.contains(event.target) && !isSizing){
                 isDragging = true;
-                if(!selectedNodes.includes(currentNode) && !currentNode.children[4].contains(event.target) && !currentNode.children[5].contains(event.target) && !currentNode.children[6].contains(event.target)){
+                if(!selectedNodes.includes(currentNode) && !currentNode.tools.text.contains(event.target) && !currentNode.tools.file.contains(event.target) && !currentNode.tools.canvas.contains(event.target)){
                     event.stopPropagation();
                     nodeSelection(currentNode); 
                     svg.style.cursor = 'grabbing';
                     showParams(currentNode);
                     document.activeElement.blur();
                     isTyping = false;
-                    currentNode.children[7].children[3].setAttribute('visibility','hidden'); 
-                    currentNode.children[7].children[3].children[0].setAttribute('visibility','hidden');  
-                } else if (!isCtrlPressed && selectedNodes.includes(currentNode) && !currentNode.children[7].contains(event.target) && !colorWheelfo.contains(event.target)){
+                    currentNode.tools.type.children[3].setAttribute('visibility','hidden'); 
+                    currentNode.tools.type.children[3].children[0].setAttribute('visibility','hidden');  
+                } else if (!isCtrlPressed && selectedNodes.includes(currentNode) && !currentNode.tools.type.contains(event.target) && !colorWheelfo.contains(event.target)){
                     setTimeout(() => {
                         if (!isDragging && currentNode){
                             nodeUnselection(currentNode);   
@@ -36,7 +36,7 @@ svg.addEventListener('mousedown', function(event) {
                 }  
             }         
         } else if(!isCtrlPressed) {           
-            if(svg !== event.target && !currentNode.children[7].contains(event.target) && !colorWheelfo.contains(event.target)){
+            if(svg !== event.target && !currentNode.tools.type.contains(event.target) && !colorWheelfo.contains(event.target) && !currentNode.children[3].contains(event.target)){  // le portail voyage, il n'ouvre pas le texte
                 nodeUnselection(currentNode);
                 setTimeout(() => {
                     currentNode.children[0].children[0].focus();
@@ -44,7 +44,7 @@ svg.addEventListener('mousedown', function(event) {
             } else if(svg === event.target){      
                 (Array.from(document.querySelectorAll('.node-group'))).forEach(node => {
                     nodeUnselection(node);
-                    const canvasStyleGroup = node.children[6];
+                    const canvasStyleGroup = node.tools.canvas;
                     canvasStyleGroup.setAttribute('visibility', 'hidden');
                 }); 
                 colorWheelfo.setAttribute('visibility', 'hidden');
@@ -62,7 +62,7 @@ svg.addEventListener('mousedown', function(event) {
             nodeUnselection(node);
         });            
 
-    } else if (currentNode && currentNode.children[7].children[3].contains(event.target) && currentNode.getAttribute('lock') === '0'){       
+    } else if (currentNode && currentNode.tools.type.children[3].contains(event.target) && currentNode.getAttribute('lock') === '0'){       
         isSizing = true;
         svg.style.cursor = 'grabbing';
         initialdragX = event.clientX;  
@@ -78,11 +78,11 @@ svg.addEventListener('mousemove', function(event) {
         return; 
     }
     if(currentNode) {  
-        const sizeButtonfo = currentNode.children[7].children[3];      
+        const sizeButtonfo = currentNode.tools.type.children[3];      
         if (selectionArea(event, currentNode, 'up')) {          
             svg.style.cursor = 'grab'; 
             if (!selectedNodes.includes(currentNode) && currentNode.getAttribute('lock') === '0') {
-                currentNode.children[7].style.display = 'block';
+                currentNode.tools.type.style.display = 'block';
                 sizeButtonfo.setAttribute('visibility','visible'); 
                 sizeButtonfo.children[0].setAttribute('visibility','visible'); 
                 const pathElement = sizeButtonfo.children[0].querySelector('path');
@@ -217,10 +217,9 @@ svg.addEventListener('mouseup', function() {
 
 //////////////////// PREVENT WEB NATIVE BEHAVIOR ////////////////////
 
-// Zoom
+// Zoom du navigateur (pincement = Ctrl + molette) : bloqué ; le reste défile normalement dans les champs et panneaux
 document.addEventListener('wheel', function(e) {
-    const deltaY = e.deltaY;
-    if(deltaY === Math.round(deltaY)) {
+    if(!e.ctrlKey) {
         return;
     }
     e.preventDefault();
@@ -262,13 +261,17 @@ function selectionArea(event, nodeGroup, up) {
             radius = parseFloat(Math.sqrt(2*(rect.width / 2)*(rect.width / 2)));
         }    
 
-        // Calculate the Euclidean distance from the click point to the center
-        const widthIn = event.clientX < cx+(rect.width/2) && event.clientX > cx-(rect.width/2);
-        const heightIn = event.clientY < cy+(rect.height/2) && event.clientY > cy-(rect.height/2);
+        // Comme le rond : un peu dehors (+ 10 au zoom, en mode up), un peu dedans (une bande le long du bord, 0,3 de la
+        // demi-plus-petite-dimension, toujours saisissable). Le disque du centre reste au texte, rogné au rectangle
+        // intérieur : un rectangle bas se saisit sur toute sa longueur, et plus dans le vide au-dessus ou au-dessous.
+        const margin = up ? 10 * currentZoom : 0;
+        const inset = 0.3 * Math.min(rect.width, rect.height) / 2;
+        const outer = event.clientX > rect.left - margin && event.clientX < rect.right + margin && event.clientY > rect.top - margin && event.clientY < rect.bottom + margin;
+        const inner = event.clientX > rect.left + inset && event.clientX < rect.right - inset && event.clientY > rect.top + inset && event.clientY < rect.bottom - inset;
         const dx = event.clientX - cx;
         const dy = event.clientY - cy;
         const distance = Math.sqrt(dx * dx + dy * dy)/currentZoom;
-        const test = (widthIn && heightIn && distance >= 0.5*radius) || (widthIn && heightIn && !nodeGroup.children[0].contains(event.target));
+        const test = (outer && !(inner && distance < 0.5*radius)) || (outer && !nodeGroup.children[0].contains(event.target));
 
         return (test);
 
@@ -301,7 +304,7 @@ function out(nodeGroup) {
             // nodeGroup.children[0].children[0].blur();
             // save(nodeGroup); 
             svg.style.cursor = 'crosshair';
-            const fileGroup = nodeGroup.children[5];         
+            const fileGroup = nodeGroup.tools.file;         
             fileGroup.setAttribute('visibility', 'hidden');  
             
         } 

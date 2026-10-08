@@ -52,7 +52,8 @@ class NodzUser(AbstractUser):
     premium_date = models.DateTimeField(null=True, blank=True)
     premium_type = models.CharField(max_length=2, null=True, blank=True)
     premium_days = models.IntegerField(default=0)
-    # stripe_subscription_id = models.CharField(max_length=255, null=True, blank=True)
+    premium_until = models.DateTimeField(null=True, blank=True)  # fin du Premium offert par parrainage (toolbox/premium.py)
+    language = models.CharField(max_length=2, blank=True, default='')  # langue de l'interface choisie ('fr', 'en' ; vide : celle du navigateur)
 
     verifcode = models.IntegerField(default=0)
     referrer = models.IntegerField(default=0)
@@ -73,6 +74,7 @@ class Param(models.Model):
     layer = models.IntegerField(default=1)
     originX = models.FloatField(default=0)
     originY = models.FloatField(default=0)
+    originLayer = models.IntegerField(null=True, blank=True)  # dimension du drapeau : le retour à l'origine y ramène
     nodecounter = models.IntegerField(default=0)
     linkcounter = models.IntegerField(default=0)
     layercounter = models.IntegerField(default=1)
@@ -122,6 +124,7 @@ class Node(models.Model):
     shape = models.TextField(default='circle')
     likes = models.IntegerField(default=0)
     radius = models.FloatField(default=0)
+    ratio = models.FloatField(default=0)  # rectangle étiré : largeur / hauteur (0 : taille selon le texte)
     links = models.TextField(default='')
     siblings = models.TextField(default='')
     quantum = models.TextField(default='')
@@ -190,6 +193,21 @@ class Template(models.Model):
         unique_together = ('user', 'template_id') 
 
 
+class ContactMessage(models.Model):
+    """Message du formulaire de contact (page publique, sans compte) : lu et suivi dans l'admin Django."""
+    name = models.CharField(max_length=100)
+    email = models.EmailField()
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    handled = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.name} <{self.email}>'
+
+
 class Feedback(models.Model):
     user = models.ForeignKey('NodzUser', on_delete=models.CASCADE, related_name="feedbacks")
     message = models.TextField()
@@ -200,25 +218,3 @@ class Feedback(models.Model):
 
     def __str__(self):
         return f"Message from {self.user.username if self.user else 'Anonymous'}"
-    
-
-
-import uuid
-
-class Invite(models.Model):
-    nodes = models.ManyToManyField(Node)
-    links = models.ManyToManyField(Link)
-    params = models.ManyToManyField(Param)
-    token = models.CharField(max_length=36, unique=True, default=uuid.uuid4)
-    invited_by = models.ForeignKey(NodzUser, on_delete=models.CASCADE)
-    created_at = models.DateTimeField(default=timezone.now)
-    expires_at = models.DateTimeField(null=True, blank=True)
-    access_count = models.IntegerField(default=0)
-    max_access = models.IntegerField(default=5)
-
-    def is_expired(self):
-        return self.expires_at and timezone.now() > self.expires_at
-
-    def increment_access(self):
-        self.access_count += 1
-        self.save()

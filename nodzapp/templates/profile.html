@@ -148,39 +148,6 @@
     to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Flex container for the charts */
-    .charts-container {
-        position: relative;
-        height: 100%;
-    }
-
-    /* Each chart container */
-    .chart {
-        flex: 1;  /* Ensures both charts take up equal width   */
-        max-width: 69%;
-        overflow-x: auto;
-        margin-top: 10px;
-    }
-
-    /* Set equal height for both charts */
-    #nodeCategoryChart {
-    height: 100px; 
-    width: 100%;
-    }
-
-    /* Responsive behavior for smaller screens */
-    @media (max-width: 768px) {
-    .charts-container {
-        flex-direction: column;  /* Stack charts vertically on smaller screens */
-        gap: 10px;
-    }
-
-    .chart {
-        max-width: 100%;
-        max-height: 120px;
-    }
-    }
-  
     .field-container {
         display: grid;
         grid-template-columns: repeat(3, 1fr); 
@@ -257,130 +224,114 @@
 
 <div id="profile" class="overlay">
     <div class="profile-content">
-        <span class="close-btn" onclick="closeProfile()">&times;</span> 
+        <span class="close-btn" onclick="closeProfile()" data-i18n="rem.close">Fermer</span> 
      
-        <h3 class="section-title">User Profile</h3>
+        <!-- En-tête : avatar à l'initiale, nom, e-mail, offre -->
+        <header class="pf-hero">
+            <span id="pf-avatar" class="pf-avatar"></span>
+            <div class="pf-who">
+                <strong id="pf-name"></strong>
+                <small id="pf-email"></small>
+            </div>
+        </header>
+        <!-- Onglets, comme le Guide et Agents & modèles -->
+        <nav class="pf-tabs">
+            <button type="button" data-tab="compte" class="active" data-i18n="pf.account">Compte</button>
+            <button type="button" data-tab="activite" data-i18n="pf.activity">Activité</button>
+            <button type="button" data-tab="premium">Premium</button>
+            <button type="button" data-tab="avis" data-i18n="pf.feedback">Ton avis</button>
+        </nav>
+        <p id="pf-notice" class="pf-notice" hidden></p>
 
-        <div id="userProfile">
+        <h3 class="section-title" data-pf-tab="compte" data-i18n="pf.account">Compte</h3>
+
+        <div id="userProfile" data-pf-tab="compte">
             <div class="field-container" data-field="username">
-                <label class="field-label field1">Name:</label>
+                <label class="field-label field1" data-i18n="pf.name">Nom</label>
                 <span id="profile_name" class="field-value field2">Guest</span>
                 <span id="edit-username" class="edit-icon icon field3">✎</span>
             </div>
             <div class="field-container" data-field="email">
-                <label class="field-label field1">Email:</label>
+                <label class="field-label field1">E-mail</label>
                 <span id="profile_email" class="field-value field2">john.doe@example.com</span>
                 <span id="edit-email" class="edit-icon icon  field3">✎</span>
             </div>
             <div class="field-container" data-field="country">
-                <label class="field-label field1">Country:</label>
+                <label class="field-label field1" data-i18n="pf.country">Pays</label>
                 <span id="profile_country" class="field-value field2">France</span>
                 <span id="edit-country" class="edit-icon icon field3">✎</span>
             </div>
             <div class="field-container" data-field="joinedDate">
-                <label class="field-label field1">Joined Date:</label>
+                <label class="field-label field1" data-i18n="pf.since">Membre depuis</label>
                 <span id="profile_joined_date" class="field-value field2">Today?</span>
             </div>
             <div class="field-container" data-field="CurrentPlan">
-                <label class="field-label field1">Current Plan:</label>
+                <label class="field-label field1" data-i18n="pf.plan">Offre</label>
                 <span id="profile_plan" class="field-value field2">Free</span>
+            </div>
+            <div class="field-container" data-field="language">
+                <label class="field-label field1">Langue / Language</label>
+                <span id="pf-lang" class="field-value field2"></span>
             </div>
         </div>
 
         <!-- Usage Statistics Section -->
-        <br></br>
-        <div class="user-stats">
+        <h3 class="section-title" data-pf-tab="activite" data-i18n="pf.activity">Activité</h3>
+        <div class="user-stats" data-pf-tab="activite">
             <div style="display: flex; flex-direction: column; width: 100%; height:fit-content ; grid-column: 1; margin-top: 12px;"> 
                 <h2 id="nodesKPI" class="message">524</h2>
-                <h2 class="message">NODES</h2>
+                <h2 class="message">nodes</h2>
             </div>            
-            <div class="charts-container" style="grid-column: 2;display: flex; justify-content: center;">                
-                <div class="chart">
-                    <canvas id="nodeCategoryChart"></canvas>
-                </div>
-            </div>
+            <!-- Nodes par type : une barre par type, à la proportion -->
+            <div id="pf-types" class="pf-types"></div>
         </div>
         <br>
-        <div class="field-container" data-field="Referee" style="display: flex; justify-content:center; gap: 20px;">
-            <label class="field-label" style="position:relative;">Referrees:</label>
+        <div class="field-container" data-field="Referee" data-pf-tab="activite" style="display: flex; justify-content:center; gap: 20px;">
+            <label class="field-label" style="position:relative;" data-i18n="pf.referrals">Parrainages</label>
             <span id="referrerKPI" class="message">0</span>
             <div style="text-align: center; margin-top: 30px; display: flex; align-items: center; margin-bottom: 20px;">
-                <p>Invite others to join using your referral link:</p>
+                <p data-i18n="pf.referralRule">Chaque ami qui crée son compte avec ton lien t'offre 1 mois de Premium (jusqu'à 12 mois d'avance).</p>
                 <button id="copyButton" 
-                        class="submit-button">
-                    Link
+                        class="submit-button" data-i18n="room.copy">
+                    Copier le lien
                 </button>
-                <p id="copyMessage" style="color: #663399; font-size: 14px; display: none; margin-top: 10px;">Referral link copied to clipboard!</p>
+                <p id="copyMessage" style="color: #663399; font-size: 14px; display: none; margin-top: 10px;" data-i18n="pf.copied">Lien de parrainage copié.</p>
             </div>
         </div>
 
 
         <!-- Subscription Section -->
         <div class="subscription">                         
-            <div class="subscription-upgrade">
-                
-                <div class="subscription-upgrade" style="background-color: #f8f8f8; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); max-width: 600px; margin: 30px auto; font-family: 'Cascadia Code', monospace;">
-                    <p style="font-size: 24px; font-weight: bold; color: #663399; text-align: center; margin-bottom: 20px;">Level Up Your Experience with Premium Features</p>
-                    <ul id="feedback" style="font-size: 16px; margin: 0; padding-left: 20px; color: #444;">
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Extended Server Capabilities</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Unlimited Nodes & Dimensions</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ High Document Size</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Multi-User Access</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ New Features Coming (AI, Voice Messages, etc.)</p>
-                        </li>
-                        <li style="margin-bottom: 10px; list-style-type: disc;">
-                            <p class="field-label" style="font-weight: bold; color: #333;">✔️ Premium Support</p> 
-                        </li>
-                    </ul>
-                    <p style="color: #663399; text-align: center; font-size: 14px; margin-top: 20px;">
-                        Your support means the world to us! Not only does it motivate us, but it helps us continue refining and polishing this gem!
-                    </p>
+            <!-- Premium : le compte gratuit et ses plafonds (toolbox/quota.py), l'offre et son paiement Stripe (toolbox/premium.py) -->
+            <div class="pf-premium" data-pf-tab="premium">
+                <div class="pf-plan">
+                    <h4 data-i18n="pf.free">Gratuit</h4>
+                    <p data-i18n="pf.freeText">5 dimensions et 100 nodes, ta dimension Gardien en plus. Le Gardien pense avec ton IA par API (ta clé).</p>
+                    <div class="pf-meter"><span>Nodes</span><i><b id="pf-q-nodes"></b></i><em id="pf-q-nodes-n">…</em></div>
+                    <div class="pf-meter"><span>Dimensions</span><i><b id="pf-q-dims"></b></i><em id="pf-q-dims-n">…</em></div>
                 </div>
-                
-                <form id="payment-form" action="{% url 'process_payment' %}" method="POST">
-                    <!-- Terms Agreement -->
-                    <div class="form-group">
-                        <input type="checkbox" id="agree-terms" name="agree-terms" required>
-                        <span for="agree-terms">
-                            I agree to the 
-                            <a href="{% url 'terms' %}" style="color:#663399" target="_blank">Terms and Conditions</a> 
-                            and 
-                            <a href="{% url 'privacy' %}" style="color:#663399" target="_blank">Privacy Policy</a>.
-                        </span>
-                    </div>
-                    <!-- Plan Selection -->
-                    <div class="form-group" style="display: flex; align-items: center; justify-content: center;">
-                        <select name="plan" id="plan" class="submit-button"
-                        style="background-color: #383838; width:30%; text-align: center; font-family: 'Cascadia Code', monospace; font-size: 14px; border: 1px solid #ccc; padding: 5px; border-radius: 4px;" 
-                        required>
-                            <option value="free" disabled>Free</option>
-                            <option value="monthly" selected>Monthly - 9.90€</option>
-                            <option value="yearly">Yearly - 99€</option>
-                        </select>
-                        <button style="width:180px;" type="submit" id="pay-button" class="submit-button">Upgrade Now</button>
-                    </div>     
-                </form>
+                <div class="pf-plan pf-plan-premium">
+                    <h4>Premium <small id="pf-price"></small></h4>
+                    <ul>
+                        <li data-i18n="quota.perk1">Nodes et dimensions illimités</li>
+                        <li data-i18n="quota.perk2">Gardien propulsé par l'IA du serveur, sans clé ni réglage</li>
+                        <li data-i18n="quota.perk3">Salons collaboratifs : invite qui tu veux à créer avec toi</li>
+                    </ul>
+                    <p class="pf-why" data-i18n="pf.why">Ton abonnement fait vivre l'hébergement de l'IA sur ce serveur. Résiliable à tout moment.</p>
+                    <button type="button" id="pf-premium-go" class="submit-button" data-i18n="quota.go">Passer Premium</button>
+                </div>
             </div>
              <!-- Contact Section -->
-             <h3 class="section-title">Feedback</h3>
-            <div class="subscription" style="display: flex; align-items: center;">    
+             <h3 class="section-title" data-pf-tab="avis" data-i18n="pf.feedback">Ton avis</h3>
+            <div class="subscription" data-pf-tab="avis" style="display: flex; align-items: center;">    
                 <textarea id="feedback-input" type="text" style="width: 100%; min-height: 30px;"></textarea>  
                 <span id="feedback-btn"></span>
             </div>
         </div>
         <!-- Delete account Section -->
-        <div class="subscription">
+        <div class="subscription" data-pf-tab="compte">
             <h3 class="section-title"></h3>      
-            <button id="delete-account" class="danger-button">Delete Account</button>
+            <button id="delete-account" class="danger-button" data-i18n="pf.delete">Supprimer le compte</button>
         </div>
         
     </div>
@@ -389,6 +340,22 @@
                 
 
     <script>
+        // Onglets du profil, et messages dans la fenêtre (à la place des alertes du navigateur).
+        function pfTab(name) {
+            document.querySelectorAll('#profile .pf-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+            document.querySelectorAll('#profile [data-pf-tab]').forEach(el => { el.hidden = el.dataset.pfTab !== name; });
+        }
+        document.querySelectorAll('#profile .pf-tabs button').forEach(b => b.addEventListener('click', () => pfTab(b.dataset.tab)));
+        pfTab('compte');
+        function pfNotice(text, error) {
+            const notice = document.getElementById('pf-notice');
+            notice.textContent = text;
+            notice.classList.toggle('error', !!error);
+            notice.hidden = false;
+            clearTimeout(pfNotice.timer);
+            pfNotice.timer = setTimeout(() => { notice.hidden = true; }, 5000);
+        }
+
         function closeProfile() {
             const profile = document.getElementById('profile');
             profile.style.display = 'none';
@@ -426,7 +393,7 @@
                 if (data.status === 'success') {
                     const feedback_input = document.getElementById("feedback-input");                     
                     feedback_input.classList.add('thanks'); 
-                    feedback_input.value = 'THANK YOU!'; 
+                    feedback_input.value = nodzT('pf.thanks'); 
                     setTimeout(() => {
                         document.getElementById("feedback-input").value = ''; 
                         feedback_input.classList.remove('thanks') 
@@ -437,7 +404,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while submitting the feedback.');
+                pfNotice(nodzT('pf.feedbackFail'), true);
             });
         });
 
@@ -448,7 +415,7 @@
             // bye.className = 'popup'; 
             const message = document.createElement('div');
             message.className = 'smallmessage';          
-            message.textContent = `Are you sure? Deleting account is permanent.`;
+            message.textContent = nodzT('pf.deleteAsk');
             bye.appendChild(message);
             const buttonContainer = document.createElement('div');
             bye.classList.add('mail-popup');
@@ -456,7 +423,7 @@
             // buttonContainer.className = 'popupbutton-container'; 
             buttonContainer.style.justifyContent = 'center';
             const confirmButton = document.createElement('button');
-            confirmButton.textContent = 'CONFIRM';
+            confirmButton.textContent = nodzT('pf.deleteGo');
             confirmButton.style.fontSize = '10px';
             confirmButton.className = 'submit-button'; 
             confirmButton.style.padding = '5px';
@@ -514,7 +481,7 @@
         //////////////////// REFERRAL PROGRAM ////////////////////
         document.getElementById("copyButton").addEventListener("click", function() {
             console.log(userID,pseudo)
-            const referralLink = `${window.location}/r-${userID}`; // Referral link to copy
+            const referralLink = `${location.origin}${NODZ_BASE}/universe/r-${userID}/`;  // la page publique du parrainage (views.referree)
         
             // Copy the referral link to clipboard
             navigator.clipboard.writeText(referralLink).then(function() {
@@ -523,7 +490,6 @@
             
             // Optionally, revert the button text after a short delay
             setTimeout(function() {
-                document.getElementById("copyButton").innerText = "Link";
                 document.getElementById("copyMessage").style.display = "none";  // Hide confirmation message
             }, 2000); // Reset after 2 seconds
             }).catch(function(error) {
@@ -532,7 +498,6 @@
         });
 
 
-        let nodeCategoryChart;
         function getProfile() {
             const data = [];      
             const csrfToken = getCookie('nodz_csrftoken');
@@ -567,12 +532,16 @@
                 target.textContent = date_joined;
                 target = document.getElementById('profile_plan');
                 if(premium === false) {
-                    target.textContent = 'FREE';
+                    target.textContent = nodzT('pf.free');
                 } else {
-                    target.textContent = 'PREMIUM';
+                    target.textContent = 'Premium';
                 }
                 target = document.getElementById('nodesKPI');
                 target.textContent = nodes;
+                document.querySelector('#profile .user-stats').classList.toggle('pf-empty', !Number(nodes));  // pas de graphique vide
+                document.getElementById('pf-name').textContent = pseudo;
+                document.getElementById('pf-email').textContent = email;
+                document.getElementById('pf-avatar').textContent = (pseudo || '?').trim().charAt(0).toUpperCase();
 
                 // Select the feedback input element and apply improvements
                 var feedbackInput = document.getElementById('feedback-input');
@@ -592,70 +561,24 @@
                 feedbackInput.style.whiteSpace = 'pre-wrap'; // Handle multiple lines properly
                 feedbackInput.style.lineHeight = '1.5'; // Make text more readable
                 
-                // Pie chart for node categories
-                const pieCtx = document.getElementById('nodeCategoryChart').getContext('2d');
-                if (nodeCategoryChart) {
-                    nodeCategoryChart.destroy();  // Free up the canvas
+                // Nodes par type : une barre chacun, proportionnelle au plus fréquent ; les types absents ne s'affichent pas.
+                const p = Object.fromEntries((data.profile || []).map(x => [x.name, x.value]));
+                const types = [[nodzT('pf.text'), p.text_nodes, '#FF9F45'], [nodzT('tour.image'), p.image_nodes, '#4DD4C6'], [nodzT('tour.file'), p.file_nodes, '#b89af2'],
+                    [nodzT('tour.drawing'), p.sketch_nodes, '#F15BB5'], ['Code', p.code_nodes, '#33FF99']].filter(([, n]) => Number(n) > 0);
+                const most = Math.max(1, ...types.map(([, n]) => Number(n)));
+                document.getElementById('pf-types').replaceChildren(...types.map(([label, n, color]) => {
+                    const row = document.createElement('div');
+                    row.className = 'pf-type';
+                    row.innerHTML = '<span></span><i><b></b></i><em></em>';
+                    row.children[0].textContent = label;
+                    row.querySelector('b').style.cssText = `width:${(100 * Number(n) / most).toFixed(1)}%;background:${color}`;
+                    row.children[2].textContent = n;
+                    return row;
+                }));
+                document.getElementById('referrerKPI').textContent = p.referrals || 0;
+                if (p.premium_until && premium !== false) {
+                    document.getElementById('profile_plan').textContent = nodzT('pf.offeredUntil', { date: p.premium_until });
                 }
-                nodeCategoryChart = new Chart(pieCtx, {
-                    type: 'pie',  // Pie chart type
-                    data: {
-                        labels: ['Text', 'Image', 'Files', 'Sketch'],  // Node categories
-                        datasets: [{
-                            data: [text_nodes, image_nodes, file_nodes, sketch_nodes],  
-                            backgroundColor: [
-                                'rgba(255, 159, 64, 0.7)',  // Text - Warm Orange
-                                'rgba(75, 192, 192, 0.7)',  // Image - Soft Teal
-                                'rgba(153, 102, 255, 0.7)',  // Files - Purple
-                                'rgba(255, 99, 132, 0.7)'   // Sketch - Light Pink
-                            ],
-                            borderColor: [
-                                'rgba(255, 159, 64, 1)',  // Text - Warm Orange Border
-                                'rgba(75, 192, 192, 1)',  // Image - Soft Teal Border
-                                'rgba(153, 102, 255, 1)', // Files - Purple Border
-                                'rgba(255, 99, 132, 1)'   
-                            ],
-                            borderWidth: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        animation: {
-                            animateScale: true, // Animates scaling of pie chart on load
-                            animateRotate: true // Animates rotation of pie chart on load
-                        },
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                                labels: {
-                                    usePointStyle: true,  // Use point style for better clarity
-                                    font: {
-                                        size: 14,  // Modern font size for clarity
-                                        family: "'Cascadia Code', monospace"  // Use a modern font family
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.7)',  // Dark tooltip background
-                                titleFont: {
-                                    size: 16, 
-                                    family: "'Cascadia Code', monospace"
-                                },
-                                bodyFont: {
-                                    size: 14,  
-                                    family: "'Cascadia Code', monospace"
-                                },
-                                callbacks: {
-                                    label: function(tooltipItem) {
-                                        return tooltipItem.raw + ' nodes';
-                                    }
-                                }
-                            },
-                        }
-                    }
-                });
-
-                
             }).catch(error => {
                 console.error('There was a problem with getting profile:', error);
             });
@@ -773,7 +696,7 @@
                         const mailPopup = document.createElement('div');
                         mailPopup.classList.add('mail-popup');
                         mailPopup.classList.add('error');
-                        mailPopup.textContent = 'Invalid email address';
+                        mailPopup.textContent = nodzT('pf.badEmail');
                         
                         // Append the mail popup to the DOM
                         document.body.appendChild(mailPopup);
@@ -790,14 +713,14 @@
                         mailPopup.classList.add('mail-popup'); 
                         const mailMessage = document.createElement('div');
                         mailMessage.id = 'mailMessage';
-                        mailMessage.textContent = 'Sending validation code...';                       
+                        mailMessage.textContent = nodzT('pf.sending');                       
                         isTyping = true;
 
                         // Create the code input field
                         const codeInput = document.createElement('input');
                         codeInput.id = 'codeInput';
                         codeInput.type = 'text'; 
-                        codeInput.placeholder = 'Validation Code';
+                        codeInput.placeholder = nodzT('pf.codePh');
                         codeInput.classList.add('code-input'); 
                         
                         // Add event listener to only allow numeric input
@@ -808,7 +731,7 @@
 
                         // Create a submit button
                         const submitButton = document.createElement('button');
-                        submitButton.textContent = 'Submit';
+                        submitButton.textContent = nodzT('pf.validate');
                         submitButton.classList.add('submit-button'); 
 
                         mailPopup.appendChild(mailMessage);
@@ -857,7 +780,7 @@
             const result = await response.json();
             
             if (result.status === 'Validation code sent') {
-                document.getElementById('mailMessage').textContent = 'Enter the validation code sent to your email address';
+                document.getElementById('mailMessage').textContent = nodzT('pf.codeSent');
             } 
         }
 
@@ -867,9 +790,9 @@
             const code = document.getElementById('codeInput').value;
 
             if (!code) {
-                document.getElementById('mailMessage').textContent = 'Please enter the validation code.';
+                document.getElementById('mailMessage').textContent = nodzT('pf.enterCode');
                 setTimeout(() => {
-                    document.getElementById('mailMessage').textContent = 'Enter the validation code sent to your email address';
+                    document.getElementById('mailMessage').textContent = nodzT('pf.codeSent');
                 }, 3000);
                 return;
             }
@@ -892,7 +815,7 @@
                 saveProfile({'email': email});                          
                 return true;
             } else if (result.error === 'This email is already used') { 
-                document.getElementById('mailMessage').textContent = 'This email is already used';
+                document.getElementById('mailMessage').textContent = nodzT('pf.emailUsed');
                 return false;   
                 
             } else {
@@ -981,77 +904,40 @@
         });
 
 
-        ////////////////////////////////// PAYMENT //////////////////////////////////
+        ////////////////////////////////// PREMIUM //////////////////////////////////
 
-        // Assume you have the Stripe.js library loaded
-        const stripe = ''// Stripe('your-publishable-key');
-
-        //Handle the subscription upgrade
-        document.getElementById('payment-form').addEventListener('submit', async (e) => {
-            e.preventDefault();    
-            const plan = document.getElementById('plan').value;
-            const csrfToken = getCookie('nodz_csrftoken');
-
-            // Send request to your Django backend to create a PaymentIntent
-            const response = await fetch('/process-payment/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken,  
-                },
-                body: new URLSearchParams({
-                    'plan': plan  // Send the selected plan (monthly or yearly)
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) {
-                alert('Error creating payment: ' + data.error);
-                return;
-            }
-
-            const clientSecret = data.client_secret;
-
-            // Use Stripe.js to handle the payment confirmation
-            const {error} = await stripe.confirmCardPayment(clientSecret, {
-                payment_method: {
-                    card: elements.getElement(CardElement),  // Assuming you're using Stripe Elements
-                    billing_details: {
-                        name: 'Customer Name',
-                        email: 'customer@example.com',
-                    },
-                },
-            });
-
-            if (error) {
-                alert('Payment failed: ' + error.message);
-            } else {
-                alert('Payment successful!');
+        // Onglet Premium : jauges du compte gratuit, prix, et le bouton vers Stripe (paiement, ou gestion de l'abonnement).
+        async function pfPremium() {
+            const get = path => fetch('/api/v1/toolbox/' + path).then(r => r.json());
+            const [quota, offer] = await Promise.all([get('quota'), get('premium')]).catch(() => [null, null]);
+            if (!quota || !offer) return;
+            const meter = (id, used, max) => {
+                document.getElementById(id).style.width = Math.min(100, (100 * used) / max) + '%';
+                document.getElementById(id + '-n').textContent = quota.limited ? used + ' / ' + max : used + ' · ' + nodzT('pf.unlimited');
+            };
+            meter('pf-q-nodes', quota.nodes, quota.max_nodes);
+            meter('pf-q-dims', quota.dimensions, quota.max_dimensions);
+            document.getElementById('pf-price').textContent = offer.price || '';
+            const go = document.getElementById('pf-premium-go');
+            go.textContent = offer.active ? nodzT('pf.manage') : nodzT('quota.go');
+            go.dataset.action = offer.active ? 'portal' : 'checkout';
+            document.querySelector('#profile .pf-plan-premium').classList.toggle('on', !!offer.active);
+        }
+        document.querySelector('#profile .pf-tabs button[data-tab="premium"]').addEventListener('click', pfPremium);
+        document.getElementById('pf-premium-go').addEventListener('click', async () => {
+            const go = document.getElementById('pf-premium-go');
+            go.disabled = true;
+            try {
+                const response = await fetch('/api/v1/toolbox/premium/' + (go.dataset.action || 'checkout'), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('nodz_csrftoken') }, body: '{}' });
+                const data = await response.json();
+                if (data.url) location.href = data.url;
+                else pfNotice('Premium : ' + (data.error || nodzT('pf.unavailable')), true);
+            } finally {
+                go.disabled = false;
             }
         });
 
-        // Handle subscription cancellation
-        // document.getElementById('cancel-subscription').addEventListener('click', function() {
-        //     if (confirm('Are you sure you want to cancel your subscription?')) {
-        //         fetch('/cancel-subscription/', {
-        //             method: 'POST',
-        //             headers: {
-        //                 'X-CSRFToken': csrftoken,  
-        //                 'Content-Type': 'application/json'
-        //             }
-        //         })
-        //         .then(response => response.json())
-        //         .then(data => {
-        //             if (data.status) {
-        //                 alert('Subscription canceled successfully');
-        //                 // Update the UI or redirect the user
-        //             } else {
-        //                 alert('Error: ' + data.error);
-        //             }
-        //         })
-        //         .catch(error => console.error('Error:', error));
-        //     }
-        // });
 
     </script>
 </div>

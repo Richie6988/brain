@@ -56,9 +56,9 @@ svg.addEventListener('dblclick', (event) => {
             if (nodeCounter !== 0){
                 color = getRandomColor();
             }            
-            node = createNode(event.clientX,event.clientY);
-            focusNode(node,false);
+            node = createNode(event.clientX,event.clientY);  // sous le pointeur, la vue ne bouge pas
             CurrentNode(node);
+            event.stopImmediatePropagation();  // le double-clic de focus (mouseEvents.js) ne recentre pas le node qui naît
         }       
     }      
 });
@@ -69,6 +69,7 @@ let zoomX = 0;
 let zoomY = 0;
 let originX = 0;
 let originY = 0;
+let originLayer = null;  // dimension du drapeau : le retour à l'origine y ramène
 let isDragging = false;
 let isTyping = false;
 let isSizing = false;
@@ -77,7 +78,6 @@ let internalLink = false;
 let preview = false;
 let loadimage = false;
 let cancelList = [];
-let doubleCancel = [];
 let cancelIndex = 0;
 let colorContext = '';
 let color = "#33FF99";
@@ -85,6 +85,31 @@ let color = "#33FF99";
 semanticsearch.blur();
 
 //////////////////// NODE CREATION ////////////////////
+
+// Aperçu de fichier d'un node : son iframe n'entre dans le DOM qu'au premier fichier. Une iframe branchée est un document
+// qui suit le cycle de rendu à chaque image, même masquée : 1000 nodes en portaient 1000, un tiers de chaque image de
+// déplacement. Une fois insérée, elle reprend sa place d'origine (premier enfant du conteneur de fichier, avant le
+// chargeur et l'icône du fichier). insert = false : la lire sans l'insérer.
+function previewOf(nodeGroup, insert = true) {
+    const container = nodeGroup.children[0].children[2];
+    let frame = nodeGroup.preview || container.querySelector(':scope > iframe.filepreview');
+    if (!frame) {  // copie d'un node sans aperçu inséré
+        frame = document.createElement('iframe');
+        frame.className = 'filepreview';
+        frame.style.display = 'none';
+    }
+    nodeGroup.preview = frame;
+    if (insert && frame.parentNode !== container) container.prepend(frame);
+    return frame;
+}
+
+// Porte d'un portail : son anneau (gardien/portal.js, un SVG animé et son dégradé) n'est dessiné qu'au premier
+// affichage, au lieu d'être posé caché dans chaque node.
+function showPortal(nodeGroup) {
+    const door = nodeGroup.children[3];
+    if (!door.children[0].firstChild && window.portalRing) door.children[0].innerHTML = window.portalRing();
+    door.style.display = 'block';
+}
 
 function createNode(x,y,id) {
     var nodeID = id;
@@ -169,6 +194,7 @@ function createNode(x,y,id) {
         { text: 'Image' },
         { text: 'File' },
         { text: 'Canvas' },
+        { text: 'Code' },
       ];
       
       options.forEach(option => {
@@ -213,7 +239,7 @@ function createNode(x,y,id) {
                 nodeSizing(nodeGroup,dim,dim);
             } 
             prevtextlength = textContent.length;
-            if(nodeGroup.getAttribute('lock') === '0') { 
+            if(nodeGroup.getAttribute('lock') === '0' && !isLoading && !window.nodzQuiet) {  // pas de focus au chargement ni en masse
                 input.focus();
             } 
             break;
@@ -249,6 +275,7 @@ function createNode(x,y,id) {
         
                             img.onload = function() { 
                                 nodeSizing(nodeGroup,250,250);
+                                save(nodeGroup);  // l'image choisie part en base (sinon elle attendait une autre sauvegarde)
                             };
                             // Set the image source to the data URL of the selected file
                             img.src = e.target.result;
@@ -268,7 +295,7 @@ function createNode(x,y,id) {
                         popup.className = 'popup'; 
                         const message = document.createElement('div');
                         message.className = 'smallmessage';                         
-                        message.textContent = `Please select a valid image file\n(PNG, JPG, GIF, or SVG)`;
+                        message.textContent = `Choisis une image valide\n(PNG, JPG, GIF ou SVG)`;
                         message.style.whiteSpace = 'pre-line';                      
                         popup.appendChild(message);
                         document.body.appendChild(popup);
@@ -284,9 +311,23 @@ function createNode(x,y,id) {
                 } 
             });            
             break;
+        case 'code':
+            // Node de code : le code est dans le texte, sous <code data-lang>, et s'édite dans l'IDE du Gardien (ide.js)
+            nodeGroup.setAttribute('type', 'code');
+            input.style.display = 'block';
+            if (!input.querySelector('code')) {
+                const code = document.createElement('code');
+                code.dataset.lang = 'python';
+                code.textContent = input.innerText.trim();
+                input.replaceChildren(code);
+                nodeGroup.setAttribute('textcontent', input.innerHTML);
+            }
+            save(nodeGroup);  // le type et le code partent en base (le texte, lui, se sauve en quittant le node)
+            break;
         case 'file':
             // console.log('Document option selected');
             nodeGroup.setAttribute('type', 'file');
+            if (fileGroup.parentNode !== nodeGroup) nodeGroup.appendChild(fileGroup);  // nom du fichier, posé au premier passage en fichier
             fileContainer.style.display = 'block';
             fileGroup.style.display = 'block';   
             fileGroup.setAttribute('visibility', 'visible');     
@@ -635,6 +676,13 @@ function createNode(x,y,id) {
     img.setAttribute("height", "100%");
     // img.style.cursor = 'pointer';
     foreignObject.appendChild(img);
+    // Image chargée après la pose du node (chargement, copie, Gardien) : le node et son cadre carré prennent ses
+    // proportions, que nodeSizing ne connaissait pas encore (l'image restait étirée en carré).
+    img.addEventListener('load', () => {
+        if (nodeGroup.getAttribute('type') !== 'image' || img.src.includes(NODZ_BASE + '/static/img/newimg')) return;
+        const side = Math.max(parseFloat(foreignObject.getAttribute('width')) || 0, parseFloat(foreignObject.getAttribute('height')) || 0);
+        if (side) nodeSizing(nodeGroup, side, side);
+    });
 
     /////////////// FILE /////////////////////
 
@@ -647,7 +695,7 @@ function createNode(x,y,id) {
     filePreview.id = `filePreview-${count}`;
     filePreview.className = 'filepreview';
     filePreview.style.display = 'none';
-    fileContainer.appendChild(filePreview);
+    nodeGroup.preview = filePreview;  // inséré par previewOf au premier fichier
  
     // Create spinner
     var spinner = document.createElement('div');
@@ -728,10 +776,7 @@ function createNode(x,y,id) {
     const canvasID = `canvas-${count}`;
     canvas.setAttribute('id', canvasID);
     canvas.setAttribute("width", "750px");
-    canvas.setAttribute("height", "750px");
-    var ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'rgba(255, 255, 255, 0)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    canvas.setAttribute("height", "750px");  // transparent d'origine : rien à peindre, le contexte se prend au premier trait
 
     const canvasStyleGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     canvasStyleGroup.setAttribute('visibility','hidden');
@@ -894,8 +939,9 @@ function createNode(x,y,id) {
 
     var quantumButtonfo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     quantumButtonfo.setAttribute('class', 'stylebutton'); 
-    const quantumButtonimg = document.createElement('img');
-    quantumButtonimg.setAttribute('src', NODZ_BASE + '/static/img/portal.svg');
+    const quantumButtonimg = document.createElement('div');  // anneau vivant autour du node (gardien/portal.js)
+    quantumButtonimg.className = 'portal-door';
+    // anneau dessiné au premier affichage (showPortal)
     quantumButtonimg.style.width = '100%';
     quantumButtonimg.style.height = '100%';
     quantumButtonfo.classList.add("portal");
@@ -906,8 +952,8 @@ function createNode(x,y,id) {
         currentNode = nodeGroup;
         document.addEventListener('keydown', keydownPortal);
     });
-    quantumButtonimg.addEventListener('mouseout', function(){
-        currentNode = null;
+    quantumButtonimg.addEventListener('mouseout', function(event){
+        if (!nodeGroup.contains(event.relatedTarget)) currentNode = null;  // de l'anneau vers l'intérieur : on reste sur le node
         document.removeEventListener('keydown', keydownPortal);
     });
 
@@ -915,10 +961,9 @@ function createNode(x,y,id) {
     nodeGroup.appendChild(hitbox);
     nodeGroup.appendChild(square);
     nodeGroup.appendChild(quantumButtonfo);
-    nodeGroup.appendChild(styleGroup);
-    nodeGroup.appendChild(fileGroup);
-    nodeGroup.appendChild(canvasStyleGroup);
-    nodeGroup.appendChild(typeGroup);      
+    // Barres d'outils du node : gardées hors de la page (la barre HTML du Gardien les pilote), sauf le groupe
+    // fichier (nom du fichier affiché), inséré quand le node devient un fichier. On y accède par node.tools.
+    nodeGroup.tools = { text: styleGroup, file: fileGroup, canvas: canvasStyleGroup, type: typeGroup };
     square.style.display = 'none';   
     universe.appendChild(nodeGroup);
     
@@ -937,6 +982,7 @@ function createNode(x,y,id) {
 
     input.addEventListener('blur', function() {
         styleGroup.setAttribute('visibility', 'hidden'); 
+        nodeGroup.setAttribute('textcontent', input.innerHTML); // avant save : sinon le texte tapé n'est enregistré qu'à la sauvegarde suivante
         save(nodeGroup);
     });
 
@@ -952,7 +998,7 @@ function createNode(x,y,id) {
         typeGroup.style.display = 'none';
     });
 
-    input.focus(); 
+    if (!isLoading && !window.nodzQuiet) input.focus();  // chargement, création en masse : pas de focus (un recalcul de page par node)
       
     function handleInput() {
         nodetypedropdown.value = 'text';    
@@ -961,8 +1007,15 @@ function createNode(x,y,id) {
         isTyping = true;
     }
 
+    // Sauvegarde pendant la frappe : une pause de 800 ms suffit, sans attendre de quitter le node.
     input.addEventListener('input', function() { 
         handleInput();
+        clearTimeout(nodeGroup.typingSave);
+        nodeGroup.typingSave = setTimeout(() => {
+            if (!nodeGroup.isConnected) return;  // dimension quittée entre-temps : le node n'est plus dans la page
+            nodeGroup.setAttribute('textcontent', input.innerHTML);
+            save(nodeGroup);
+        }, 800);
     });
     input.addEventListener('blur', function() { 
         nodeGroup.setAttribute('textcontent', input.innerHTML);      
@@ -985,7 +1038,7 @@ function createNode(x,y,id) {
             const message = document.createElement('div');
             message.className = 'smallmessage';   
             message.style.marginBottom = '0px';       
-            message.textContent = `Paste content cannot exceed 1000 characters`;
+            message.textContent = `Un collage ne peut pas dépasser 1000 caractères`;
             popup.appendChild(message);
             document.body.appendChild(popup);
             popup.addEventListener('wheel', function(event) {
@@ -1221,8 +1274,8 @@ function createNode(x,y,id) {
         setTimeout(function() {            
             input.focus(); 
             restoreSelection(fontSavedSelection);
-            document.execCommand('fontSize', false, selectedOption); 
-            event.target.value = '';
+            document.execCommand('fontSize', false, selectedOption);
+            fontdropdown.value = '';
         }, 200); 
     });
 
@@ -1572,6 +1625,7 @@ function createNode(x,y,id) {
 
     fileButton1input.addEventListener('change', function() {    
         const file = fileButton1input.files[0];
+        previewOf(nodeGroup);
         const fileSize = (file.size / (1024 * 1024)).toFixed(2); // Size in MB
         console.log("File size: " + fileSize + " MB");               
         if (file) {
@@ -1859,7 +1913,7 @@ function createNode(x,y,id) {
             if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/circle.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square.svg');
                         nodeGroup.children[1].style.stroke = 'transparent'; 
                         nodeGroup.setAttribute('shape','square');
                         nodeGroup.children[2].style.display = 'block';  
@@ -1876,7 +1930,7 @@ function createNode(x,y,id) {
             } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/square.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide.svg');
                         nodeGroup.setAttribute('shape','none');
                         nodeGroup.children[2].style.display = 'none';                           
                     }
@@ -1884,7 +1938,7 @@ function createNode(x,y,id) {
             } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/hide.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle.svg');
                         nodeGroup.children[1].style.stroke = '#f3ee58'; 
                         nodeGroup.children[1].setAttribute('class', 'selectednode'); 
                         nodeGroup.setAttribute('shape','circle');
@@ -1895,7 +1949,7 @@ function createNode(x,y,id) {
             if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/circle-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/square-light.svg');
                         nodeGroup.children[1].style.stroke = 'transparent'; 
                         nodeGroup.setAttribute('shape','square');
                         nodeGroup.children[2].style.display = 'block';  
@@ -1912,7 +1966,7 @@ function createNode(x,y,id) {
             } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/square-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/hide-light.svg');
                         nodeGroup.setAttribute('shape','none');
                         nodeGroup.children[2].style.display = 'none';                           
                     }
@@ -1920,7 +1974,7 @@ function createNode(x,y,id) {
             } else if (shapeButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/hide-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
                     if (nodeGroup.getAttribute('lock') === '0') {
-                        nodeGroup.children[7].children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
+                        nodeGroup.tools.type.children[5].children[0].setAttribute('src', NODZ_BASE + '/static/img/circle-light.svg');
                         nodeGroup.children[1].style.stroke = nodeGroup.getAttribute('color'); 
                         nodeGroup.children[1].setAttribute('class', 'hitbox'); 
                         nodeGroup.setAttribute('shape','circle');
@@ -1934,6 +1988,7 @@ function createNode(x,y,id) {
 
     calendarButtonimg.addEventListener('click', function() { 
         const calendarOverlay = document.getElementById('calendarOverlay');
+        CurrentNode(nodeGroup);  // le calendrier lit et écrit le rappel de currentNode
         if(nodeGroup.getAttribute('notification') !== '') {
             fp.setDate(nodeGroup.getAttribute('notification'));
         } else {
@@ -1959,13 +2014,13 @@ function createNode(x,y,id) {
         if(dark) {
             if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/lock.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
+                    nodeGroup.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock.svg');
                     nodeGroup.setAttribute('lock','0');
                     nodetypedropdown.disabled = false;
                 });
             } else if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/unlock.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
+                    nodeGroup.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock.svg');
                     nodeGroup.setAttribute('lock','1');
                     nodetypedropdown.disabled = true;
                 });
@@ -1973,13 +2028,13 @@ function createNode(x,y,id) {
         } else {
             if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/lock-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
+                    nodeGroup.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/unlock-light.svg');
                     nodeGroup.setAttribute('lock','0');
                     nodetypedropdown.disabled = false;
                 });
             } else if (lockButtonimg.getAttribute('src') === NODZ_BASE + '/static/img/unlock-light.svg') {
                 selectedNodes.forEach(nodeGroup => {
-                    nodeGroup.children[7].children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
+                    nodeGroup.tools.type.children[7].children[0].setAttribute('src', NODZ_BASE + '/static/img/lock-light.svg');
                     nodeGroup.setAttribute('lock','1');
                     nodetypedropdown.disabled = true;
                 });

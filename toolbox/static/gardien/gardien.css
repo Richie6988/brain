@@ -1,0 +1,1582 @@
+/* Gardien dans Nodz (/universe) : bouton de la barre de boutons, messages, node en attente de
+   réponse, tour de contrôle et fenêtre « Agents & modèles », dans le langage de Nodz modernisé
+   (Cascadia Code, violet #6848A6, prune #440852, bleu #1E90FF, verre dépoli : voir css/modern.css). */
+
+#agentsButton::after { background: url('agents.svg') no-repeat center / 80%; }
+
+/* Un node message attend la réponse du Gardien */
+@keyframes gardien-pulse { 50% { stroke-opacity: 0.25; } }
+.node-group.gardien-thinking .hitbox, .node-group.gardien-thinking .squareShape { animation: gardien-pulse 1.1s ease-in-out infinite; }
+
+/* Pastille d'un node : la carte « Gardien » (style des messages du Gardien, son orbe, son nom) ; multisélection :
+   « Gardien · N nodes ». */
+#gardien-send { position: fixed; z-index: 31; display: flex; animation: gardien-appear 0.18s ease-out; }
+#gardien-send[hidden] { display: none; }
+#gardien-send button { cursor: pointer; font: 10px 'Cascadia Code', monospace; color: #e8e6f0; transition: filter 0.15s, box-shadow 0.15s, background 0.15s; }
+#gardien-send button:disabled { opacity: 0.55; cursor: progress; }
+#gardien-send .send {
+    display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px 0 3px; border: 1px solid transparent; border-radius: 13px;
+    background: linear-gradient(rgba(10, 14, 30, 0.94), rgba(10, 14, 30, 0.94)) padding-box, linear-gradient(135deg, #b89af2, #6848A6 55%, #1E90FF) border-box;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 14px rgba(104, 72, 166, 0.35);
+}
+#gardien-send .send .gt-orb { width: 20px; height: 20px; gap: 3px; }
+#gardien-send .send .gt-orb i { width: 3px; height: 5px; }
+#gardien-send .send b { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+    background: linear-gradient(90deg, #b89af2, #1E90FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#gardien-send kbd { display: none; font: inherit; font-size: 8px; color: #94a3b8; padding: 0 4px; border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 5px; }
+#gardien-send:not(.multi) .send:hover kbd { display: inline; }
+#gardien-send .send:hover:not(:disabled) { filter: brightness(1.15); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 18px rgba(30, 144, 255, 0.55); }
+body.nz-light #gardien-send .send { background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+    linear-gradient(135deg, #b89af2, #6848A6 55%, #1E90FF) border-box; color: #440852; }
+@keyframes gardien-appear { from { opacity: 0; transform: scale(0.85); } }
+
+
+/* Zone de saisie du node (grab.js) : l'anneau où Nodz prend le node, dessiné par-dessus, sans prendre la souris. */
+#gardien-grab { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 3; pointer-events: none; overflow: visible; }
+#gardien-grab .band { fill: rgba(184, 154, 242, 0.16); stroke: rgba(184, 154, 242, 0.55); stroke-width: 1;
+    filter: drop-shadow(0 0 6px rgba(30, 144, 255, 0.45)); opacity: 0; transition: opacity 0.12s ease; }
+#gardien-grab.on .band { opacity: 1; }
+body.nz-light #gardien-grab .band { fill: rgba(104, 72, 166, 0.12); stroke: rgba(104, 72, 166, 0.5); }
+/* Chat du Gardien, en bas à droite, au-dessus du compteur de nodes hors champ du coin */
+#gardien-chat { position: fixed; right: 20px; bottom: 84px; z-index: 32; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+    font: 12px 'Cascadia Code', monospace; }
+/* Orbe du Gardien (orb.js) : sphère de verre violet → bleu, deux yeux qui suivent le pointeur. Il respire au repos,
+   tourbillonne quand le Gardien réfléchit, pulse quand il répond. Libre, il flotte en fixed et le chat se colle à lui. */
+#gardien-chat.free { right: auto; bottom: auto; }
+#gardien-chat.free .gc-panel { position: fixed; }
+#gardien-chat-button {
+    position: relative; width: 50px; height: 50px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; background: none;
+    touch-action: none; transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1); animation: go-breathe 4.2s ease-in-out infinite;
+}
+#gardien-chat-button:hover { transform: scale(1.08); }
+#gardien-chat-button:active { transform: scale(0.94); }
+.go-body {
+    position: absolute; inset: 0; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 9px;
+    background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 30%),
+        radial-gradient(circle at 50% 60%, #6848A6 0%, #3b2a7a 45%, #1E90FF 100%);
+    box-shadow: inset 0 -6px 14px rgba(30, 144, 255, 0.55), inset 0 4px 10px rgba(184, 154, 242, 0.5), 0 0 18px rgba(104, 72, 166, 0.6),
+        0 6px 18px rgba(0, 0, 0, 0.35);
+}
+/* Le tourbillon : un dégradé conique qui ne se voit qu'en réflexion. */
+.go-body::before { content: ''; position: absolute; inset: -30%; opacity: 0; transition: opacity 0.4s;
+    background: conic-gradient(from 0deg, transparent, rgba(51, 255, 153, 0.5), transparent 35%, rgba(184, 154, 242, 0.6), transparent 70%); }
+.go-eye { position: relative; width: 7px; height: 11px; border-radius: 50%; background: #f8fbff;
+    box-shadow: 0 0 6px #fff, 0 0 12px rgba(51, 255, 153, 0.8); transition: transform 0.12s ease-out, height 0.08s; }
+#gardien-chat-button.blink .go-eye { height: 2px; }
+/* Endormi : yeux clos, respiration lente, un « z » qui monte ; il ne suit plus le pointeur. */
+#gardien-chat-button.asleep .go-eye { height: 2px; box-shadow: 0 0 4px rgba(255, 255, 255, 0.6); }
+#gardien-chat-button.asleep { animation-duration: 7s; }
+#gardien-chat-button.asleep::after { content: 'z'; position: absolute; top: -6px; right: 2px; font: 700 12px 'Cascadia Code', monospace; color: #b89af2;
+    animation: go-z 2.6s ease-in-out infinite; pointer-events: none; }
+@keyframes go-z { 0% { opacity: 0; transform: translate(0, 6px) scale(0.7); } 40% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -12px) scale(1.15); } }
+#gardien-chat.busy #gardien-chat-button.asleep::after { display: none; }
+#gardien-chat-button b { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px;
+    font-size: 10px; line-height: 18px; color: #fff; background: #FF6B6B; }
+#gardien-chat-button b[hidden] { display: none; }
+#gardien-chat.busy .go-body::before { opacity: 1; animation: go-swirl 1.6s linear infinite; }
+#gardien-chat.busy #gardien-chat-button { animation: go-breathe 1.2s ease-in-out infinite; }
+#gardien-chat-button.speak .go-body { animation: go-speak 0.7s ease-out; }
+@keyframes go-breathe { 50% { transform: translateY(-3px) scale(1.04); } }
+@keyframes go-swirl { to { transform: rotate(360deg); } }
+@keyframes go-speak { 0% { box-shadow: 0 0 0 0 rgba(51, 255, 153, 0.8); } 100% { box-shadow: 0 0 0 18px rgba(51, 255, 153, 0); } }
+@media (prefers-reduced-motion: reduce) { #gardien-chat-button, .go-body::before { animation: none !important; } }
+.gc-panel {
+    width: min(380px, calc(100vw - 32px)); height: min(560px, 72vh); display: flex; flex-direction: column; color: #e2e8f0;
+    border: 1px solid transparent; border-radius: 22px;
+    background: linear-gradient(160deg, rgba(20, 16, 44, 0.92), rgba(5, 12, 23, 0.94)) padding-box,
+        linear-gradient(135deg, rgba(184, 154, 242, 0.75), rgba(30, 144, 255, 0.35), rgba(104, 72, 166, 0.6)) border-box;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 0 30px rgba(104, 72, 166, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); animation: gc-open 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes gc-open { from { opacity: 0; transform: translateY(12px) scale(0.97); } }
+@keyframes gc-in { from { opacity: 0; transform: translateY(6px); } }
+.gc-panel[hidden] { display: none; }
+.gc-panel header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+.gc-panel header > div:not(.gc-mode) { display: flex; flex-direction: column; flex: 1; gap: 1px; min-width: 0; }
+.gc-panel header strong { letter-spacing: 0.04em; }
+/* Avatar : tuile de verre comme les icônes du dock ; elle respire quand le Gardien réfléchit. */
+.gc-avatar {  /* le même orbe, en petit, avec ses yeux */
+    position: relative; flex: none; width: 32px; height: 32px; border-radius: 50%;
+    background: radial-gradient(ellipse 2.5px 4px at 38% 50%, #fff 90%, transparent), radial-gradient(ellipse 2.5px 4px at 62% 50%, #fff 90%, transparent),
+        radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 30%), radial-gradient(circle at 50% 60%, #6848A6, #3b2a7a 45%, #1E90FF);
+    box-shadow: inset 0 -4px 10px rgba(30, 144, 255, 0.5), 0 0 12px rgba(104, 72, 166, 0.45);
+}
+#gardien-chat.busy .gc-avatar { animation: gc-breathe 1.4s ease-in-out infinite; }
+@keyframes gc-breathe { 50% { box-shadow: inset 0 0 16px rgba(30, 144, 255, 0.9), 0 0 20px rgba(30, 144, 255, 0.7); } }
+.gc-state { display: inline-flex; align-items: center; gap: 5px; color: #94a3b8; font-size: 10px; }
+.gc-state::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #06ffa5; box-shadow: 0 0 6px #06ffa5; }
+#gardien-chat.busy .gc-state::before { background: #1E90FF; box-shadow: 0 0 6px #1E90FF; animation: gardien-blink 1s ease-in-out infinite; }
+.gc-panel header button { font: inherit; color: #94a3b8; background: transparent; border: 0; cursor: pointer; border-radius: 8px; padding: 3px 8px; }
+.gc-panel header button:hover { color: #fff; background: rgba(104, 72, 166, 0.45); }
+.gc-mode { display: flex; padding: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(184, 154, 242, 0.25); }
+.gc-panel header .gc-mode button { font-size: 10px; padding: 3px 7px; border-radius: 999px; }
+.gc-panel header .gc-mode button.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 10px rgba(30, 144, 255, 0.4); }
+body.nz-light .gc-mode { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.18); }
+.gc-more-wrap { position: relative; }
+/* Mode Pensée : la pensée qui s'écrit encore, un curseur lavande au bout du texte. */
+@keyframes gardien-caret { 50% { opacity: 0; } }
+/* Mots presque dits : ils apparaissent près de la pensée, dérivent en se floutant et s'évaporent (bridge.whisper). */
+@keyframes gardien-whisper {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); filter: blur(2px); }
+    18% { opacity: 0.85; filter: blur(0); }
+    65% { opacity: 0.55; }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.08); filter: blur(3px); }
+}
+.gardien-whisper {
+    position: fixed; z-index: 25; pointer-events: none; opacity: 0; white-space: nowrap;
+    font: italic 11px 'Cascadia Code', monospace; color: #a79fd6; text-shadow: 0 0 8px rgba(104, 72, 166, 0.9);
+    animation: gardien-whisper 4.5s ease-out forwards;
+}
+body.nz-light .gardien-whisper { color: #7a6aa8; text-shadow: 0 0 6px rgba(255, 255, 255, 0.9); }
+.node-group.gardien-forming .node-text-input::after { content: '▍'; margin-left: 1px; color: #b89af2; animation: gardien-caret 0.8s steps(1) infinite; }
+.gc-more { font-size: 16px !important; line-height: 1; letter-spacing: 0.05em; }
+.gc-more.on { color: #fff !important; box-shadow: inset 0 0 0 1px rgba(30, 144, 255, 0.8); }
+.gc-menu {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 2; display: flex; flex-direction: column; min-width: 140px; padding: 5px;
+    border-radius: 12px; background: rgba(12, 14, 32, 0.97); border: 1px solid rgba(184, 154, 242, 0.35); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    animation: gc-in 0.15s ease-out;
+}
+.gc-menu[hidden] { display: none; }
+.gc-menu button { text-align: left; padding: 6px 10px !important; }
+.gc-close { font-size: 18px !important; line-height: 1; }
+.gc-log { flex: 1; overflow-y: auto; list-style: none; margin: 0; padding: 14px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; }
+.gc-log li { max-width: 86%; display: flex; flex-direction: column; gap: 2px; animation: gc-in 0.22s ease-out; }
+.gc-log p { margin: 0; padding: 8px 12px; border-radius: 16px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gc-log small { font-size: 9px; color: #64748b; padding: 0 6px; }
+.gc-user { align-self: flex-end; align-items: flex-end; }
+.gc-user p { background: linear-gradient(135deg, #6848A6, #1E90FF); color: #fff; border-bottom-right-radius: 5px; box-shadow: 0 6px 16px rgba(30, 144, 255, 0.25); }
+.gc-guardian p { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(184, 154, 242, 0.18); border-bottom-left-radius: 5px; }
+.gc-notice p { background: transparent; color: #1E90FF; padding: 2px 6px; font-size: 11px; }
+.gc-error p { background: rgba(255, 107, 107, 0.12); color: #FF6B6B; font-size: 11px; }
+.gc-hint { max-width: 100% !important; }
+.gc-log li { position: relative; }
+/* Copier : icône au survol du message (deux feuilles superposées), coche une fois copié. */
+.gc-copy {
+    position: absolute; top: 2px; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; cursor: pointer; opacity: 0;
+    background: rgba(15, 23, 42, 0.7) no-repeat center / 13px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e2e8f0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='12' height='12' rx='2'/%3E%3Cpath d='M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1'/%3E%3C/svg%3E");
+    transition: opacity 0.15s;
+}
+.gc-log li:hover > .gc-copy, .gc-copy:focus-visible { opacity: 1; }
+.gc-copy:hover { background-color: rgba(104, 72, 166, 0.8); }
+.gc-copy.done { opacity: 1; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2386efac' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E"); }
+.gc-user > .gc-copy { left: -26px; }
+.gc-guardian > .gc-copy, .gc-error > .gc-copy, .gc-think > .gc-copy { right: -26px; }
+/* Réflexion, comme Poséidon : en direct (points animés), puis repliée sur « A réfléchi (N jetons) ». */
+.gc-think { max-width: 86%; }
+.gc-think details { border: 1px solid rgba(184, 154, 242, 0.25); border-radius: 12px; background: rgba(104, 72, 166, 0.08); }
+.gc-think summary { display: flex; align-items: center; gap: 6px; padding: 5px 10px; cursor: pointer; list-style: none; font-size: 10px; color: #b89af2; }
+.gc-think summary::-webkit-details-marker { display: none; }
+.gc-think summary::after { content: '▾'; margin-left: auto; transition: transform 0.2s; }
+.gc-think details:not([open]) summary::after { transform: rotate(-90deg); }
+.gc-spark { color: #f3ee58; }
+.gc-think.live .gc-spark { animation: gc-pulse 1.2s ease-in-out infinite; }
+.gc-think pre {
+    margin: 0; padding: 6px 10px 8px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+    font: 10px/1.45 'Cascadia Code', monospace; color: #94a3b8; border-top: 1px solid rgba(184, 154, 242, 0.15);
+}
+.gc-dots { display: inline-flex; gap: 2px; margin-left: 4px; }
+.gc-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: gc-pulse 1s ease-in-out infinite; }
+.gc-dots i:nth-child(2) { animation-delay: 0.15s; }
+.gc-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes gc-pulse { 50% { opacity: 0.25; } }
+.gc-hint p { color: #94a3b8; font-size: 11px; background: transparent; border: 1px dashed rgba(148, 163, 184, 0.3); }
+.gc-status { display: none; align-items: center; gap: 8px; padding: 0 16px 6px; color: #b89af2; font-size: 10px; }
+.gc-status.on { display: flex; }
+.gc-status > .gc-dots { margin: 0; }
+.gc-status > .gc-dots i { width: 5px; height: 5px; background: #b89af2; }
+.gc-ideas { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 6px; }
+.gc-ideas[hidden] { display: none; }
+.gc-ideas button {
+    font: inherit; font-size: 10px; cursor: pointer; padding: 4px 10px; border-radius: 999px; color: #d8ccff;
+    background: rgba(104, 72, 166, 0.18); border: 1px solid rgba(184, 154, 242, 0.35); transition: background 0.15s, transform 0.15s;
+}
+.gc-ideas button:hover { color: #fff; background: rgba(104, 72, 166, 0.5); transform: translateY(-1px); }
+/* Outil imposé au prochain message (Web, Dessin, Image) : puces au-dessus de la saisie, une allumée au plus. */
+.gc-tools { display: flex; gap: 6px; padding: 0 12px 6px; }
+.gc-tools button { font: inherit; font-size: 10px; cursor: pointer; padding: 3px 10px; border-radius: 999px; color: #94a3b8;
+    background: transparent; border: 1px solid rgba(148, 163, 184, 0.35); transition: background 0.15s, color 0.15s; }
+.gc-tools button:hover { color: #e2e8f0; border-color: rgba(184, 154, 242, 0.6); }
+#gardien-chat .gc-tools button.on { color: #050c17; background: #33FF99; border-color: #33FF99; opacity: 1; font-weight: 600; }
+body.nz-light .gc-tools button:not(.on) { color: #5b4a78; }
+.gc-attach { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; }
+.gc-attach:empty { display: none; }
+.gc-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; font-size: 10px;
+    color: #fff; background: rgba(30, 144, 255, 0.25); border: 1px solid rgba(30, 144, 255, 0.6); overflow: hidden; white-space: nowrap; }
+.gc-chip button { font: inherit; cursor: pointer; border-radius: 999px; }
+.gc-chip button { color: #fff; background: transparent; border: 0; padding: 0 6px; font-size: 13px; }
+/* Saisie flottante : champ et bouton d'envoi dans une même capsule de verre. */
+.gc-form {
+    display: flex; align-items: flex-end; gap: 6px; margin: 4px 12px 12px; padding: 5px 5px 5px 12px; border-radius: 20px;
+    background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(184, 154, 242, 0.3); transition: border-color 0.2s, box-shadow 0.2s;
+}
+.gc-form:focus-within { border-color: rgba(184, 154, 242, 0.85); box-shadow: 0 0 16px rgba(104, 72, 166, 0.35); }
+.gc-form textarea { flex: 1; resize: none; font: inherit; color: #e2e8f0; background: transparent; border: 0; padding: 7px 0; outline: none; max-height: 120px; }
+.gc-send { width: 32px; height: 32px; flex: none; border-radius: 50%; border: 0; cursor: pointer; font: bold 15px 'Cascadia Code', monospace; color: #fff;
+    background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 12px rgba(30, 144, 255, 0.45); transition: transform 0.15s; }
+.gc-send:hover { transform: scale(1.08); }
+.gc-send.stop { background: linear-gradient(135deg, #b9538b, #e11d48); font-size: 13px; box-shadow: 0 0 12px rgba(225, 29, 72, 0.5); }
+body.nz-light .gc-panel { color: #440852;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(250, 246, 238, 0.96)) padding-box,
+        linear-gradient(135deg, rgba(104, 72, 166, 0.55), rgba(30, 144, 255, 0.3)) border-box; }
+body.nz-light .gc-guardian p { background: rgba(68, 8, 82, 0.05); border-color: rgba(68, 8, 82, 0.12); }
+body.nz-light .gc-menu { background: rgba(255, 255, 255, 0.98); border-color: rgba(68, 8, 82, 0.2); }
+body.nz-light .gc-ideas button { color: #6848A6; background: rgba(104, 72, 166, 0.08); }
+body.nz-light .gc-form { background: rgba(68, 8, 82, 0.04); border-color: rgba(68, 8, 82, 0.2); }
+body.nz-light .gc-think pre { color: #6b4a7a; }
+body.nz-light .gc-form textarea { color: #440852; }
+@media (max-width: 700px) { #gardien-chat { right: 12px; bottom: 140px; } }  /* au-dessus du dock, sur deux ou trois lignes */
+
+/* Visite pilotée (tour.js) : l'overview en haut (chemin parcouru, carte du node courant ou de la destination
+   survolée, liseré à sa couleur --c), et les grosses flèches autour du node central, une par lien. */
+#gardien-tour {
+    position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 31; width: min(560px, calc(100vw - 32px)); box-sizing: border-box;
+    padding: 12px 16px 14px; display: grid; gap: 8px; font: 11px 'Cascadia Code', monospace; color: #e2e8f0; border-radius: 20px; border: 1px solid transparent;
+    background: linear-gradient(rgba(8, 13, 28, 0.94), rgba(8, 13, 28, 0.94)) padding-box, linear-gradient(135deg, var(--c, #6848A6), #6848A6 45%, #1E90FF) border-box;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), 0 0 28px color-mix(in srgb, var(--c, #6848A6) 35%, transparent);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); animation: gardien-appear 0.18s ease-out; transition: box-shadow 0.4s ease;
+}
+#gardien-tour[hidden], #gardien-arrows[hidden] { display: none; }
+#gardien-tour header { display: flex; align-items: center; gap: 6px; }
+.gt-crumbs { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; overflow: hidden; color: #64748b; }
+.gt-crumbs .gt-portal { flex: none; color: #b89af2; font-size: 14px; text-shadow: 0 0 8px #1E90FF; }
+#gardien-tour button { font: inherit; color: #cbd5e1; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 999px; padding: 2px 8px; cursor: pointer; }
+#gardien-tour button:hover:not(:disabled) { color: #fff; background: rgba(104, 72, 166, 0.5); }
+#gardien-tour button:disabled { opacity: 0.3; cursor: default; }
+.gt-crumbs button { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px !important;
+    border-color: color-mix(in srgb, var(--c) 55%, transparent) !important; }
+.gt-crumbs button.on { color: #0b1020 !important; background: var(--c) !important; border-color: var(--c) !important; font-weight: 600; }
+.gt-back { font-size: 14px !important; }
+.gt-quit { border: 0 !important; background: transparent !important; font-size: 13px !important; }
+.gt-current { display: flex; gap: 12px; align-items: flex-start; }
+.gt-swatch { flex: none; width: 14px; height: 14px; margin-top: 18px; border-radius: 50%; box-shadow: 0 0 10px currentColor; transition: background 0.2s; }
+.gt-text { display: grid; gap: 3px; min-width: 0; }
+.gt-tag { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #94a3b8; }
+#gardien-tour.preview .gt-tag { color: var(--c, #1E90FF); }
+.gt-title { font-size: 16px; line-height: 1.3; font-weight: 600; color: #f8fafc; }
+.gt-body { font-size: 12px; line-height: 1.5; color: #94a3b8; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.gt-body:empty, .gt-meta:empty { display: none; }
+.gt-meta { margin: 0 0 0 26px; display: flex; flex-wrap: wrap; gap: 6px; }
+.gt-meta span { padding: 3px 9px; border-radius: 999px; font-size: 10px; color: #cbd5e1; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.18); }
+.gt-origin::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; vertical-align: 1px; background: #b89af2; }
+.gt-origin.ai::before { background: #1E90FF; }
+.gt-origin.message::before { background: #33FF99; }
+#gardien-arrows { position: fixed; inset: 0; z-index: 30; pointer-events: none; transition: opacity 0.2s; }
+#gardien-arrows.moving { opacity: 0; }
+#gardien-jump { position: fixed; inset: 0; z-index: 29; pointer-events: none; }
+#gardien-jump .gt-arrow[hidden] { display: none; }
+.gt-arrow { position: absolute; left: 0; top: 0; width: 46px; height: 46px; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; }
+.gt-arrow svg { width: 100%; height: 100%; overflow: visible; transition: transform 0.18s ease; }
+/* Pastille de verre liserée à la couleur du node d'arrivée, chevron fin dedans */
+.gt-arrow circle { fill: rgba(8, 13, 28, 0.62); stroke: color-mix(in srgb, var(--c, #1E90FF) 70%, transparent); stroke-width: 1.5;
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c, #1E90FF) 45%, transparent)); transition: fill 0.18s ease; }
+.gt-arrow path { fill: none; stroke: var(--c, #1E90FF); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.gt-arrow:hover svg, .gt-arrow:focus-visible svg { transform: scale(1.18); }
+.gt-arrow:hover circle { fill: color-mix(in srgb, var(--c, #1E90FF) 30%, rgba(8, 13, 28, 0.8)); stroke: var(--c, #1E90FF); }
+.gt-arrow:hover path { stroke: #fff; }
+.gt-arrow.seen { opacity: 0.55; }
+.gt-arrow.came circle { stroke-dasharray: 3 4; }
+.gt-arrow.portal circle { stroke: #b89af2; stroke-dasharray: 2 4; }
+.gt-arrow span { position: absolute; left: 50%; top: 100%; margin-left: -60px; width: 120px; text-align: center; font: 10px 'Cascadia Code', monospace; color: #b89af2; pointer-events: none; }
+.node-group.gardien-visiting .hitbox, .node-group.gardien-visiting .squareShape { stroke-width: 6px; filter: drop-shadow(0 0 10px #f3ee58); }
+.node-group.gardien-choice-hover .hitbox, .node-group.gardien-choice-hover .squareShape { filter: drop-shadow(0 0 16px #1E90FF); }
+body.nz-light #gardien-tour { color: #440852; background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+    linear-gradient(135deg, var(--c, #6848A6), #6848A6 45%, #1E90FF) border-box; }
+body.nz-light .gt-title { color: #1e1b4b; }
+body.nz-light .gt-meta span { color: #440852; }
+
+body.gardien-gesture :is(#gardien-chat, #gardien-send, #gardien-tour, #gardien-arrows, #gardien-jump) { pointer-events: none; }
+body:not(.gardien-ready) :is(#gardien-chat, #gardien-context-button) { display: none; }
+
+/* Liste des dimensions : recherche, épinglées, nombre de nodes */
+#dropdown-content { max-height: min(62vh, 520px); overflow-y: auto; }
+.gd-search { display: block; width: 100%; box-sizing: border-box; margin: 2px 0 6px; padding: 7px 11px; font: 12px 'Cascadia Code', monospace;
+    color: #e2e8f0; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 10px; outline: none; }
+.gd-search:focus { border-color: rgba(184, 154, 242, 0.8); }
+.gd-empty { margin: 6px 4px; color: #94a3b8; font: 11px 'Cascadia Code', monospace; }
+.gd-empty[hidden], #dropdown-content .dropdown-item[hidden] { display: none !important; }
+.gd-pin { flex: none; width: 14px; height: 14px; padding: 0; border: 0; cursor: pointer; opacity: 0.35; transition: opacity 0.15s;
+    background: currentColor; -webkit-mask: url('pin.svg') no-repeat center / contain; mask: url('pin.svg') no-repeat center / contain; }
+.dropdown-item:hover .gd-pin { opacity: 0.6; }
+.gd-pin.on { opacity: 1 !important; background: #f3ee58; }
+.gd-count { margin-left: auto; font: 10px 'Cascadia Code', monospace; color: #94a3b8; font-variant-numeric: tabular-nums; }
+.gd-count:empty { display: none; }
+#dropdown-content .dropdown-item[data-layer] { justify-content: flex-start; gap: 10px; text-align: left; }
+#dropdown-content .dropdown-item[data-layer] .icon { margin-left: 4px !important; }
+#dropdown-content .dropdown-item.gd-last-pin { border-bottom: 1px dashed rgba(148, 163, 184, 0.3); border-radius: 10px 10px 4px 4px; }
+body.nz-light .gd-search { color: #440852; background: rgba(68, 8, 82, 0.05); }
+
+/* Messages courts du Gardien : une carte de verre à son nom, liseré dégradé (couleur du message → violet → bleu), son
+   orbe en petit qui cligne des yeux. */
+#gardien-toast {
+    position: fixed; left: 50%; top: 24px; transform: translateX(-50%); z-index: 30; pointer-events: none;  /* en haut : le dock et les nodes restent dégagés */
+    display: flex; flex-direction: column; align-items: center; gap: 8px; width: max-content; max-width: min(560px, calc(100vw - 32px));
+    font: 13px/1.5 'Cascadia Code', monospace;
+}
+#gardien-toast p {
+    --accent: #b89af2;
+    margin: 0; display: flex; align-items: center; gap: 12px; padding: 10px 18px 10px 10px; border-radius: 18px; border: 1px solid transparent;
+    background: linear-gradient(rgba(10, 14, 30, 0.94), rgba(10, 14, 30, 0.94)) padding-box,
+        linear-gradient(135deg, var(--accent), #6848A6 55%, #1E90FF) border-box;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), 0 0 22px color-mix(in srgb, var(--accent) 28%, transparent);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    animation: gt-in 0.35s cubic-bezier(0.2, 1.3, 0.4, 1); transition: opacity 0.9s ease, transform 0.9s ease;
+}
+#gardien-toast p.fade { opacity: 0; transform: translateY(-6px); }
+#gardien-toast .guide { --accent: #b89af2; }
+#gardien-toast .agent { --accent: #33FF99; }
+#gardien-toast .notice { --accent: #1E90FF; }
+#gardien-toast .error { --accent: #FF6B6B; }
+.gt-orb {
+    flex: none; position: relative; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; gap: 5px;
+    background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 30%),
+        radial-gradient(circle at 50% 60%, #6848A6 0%, #3b2a7a 45%, #1E90FF 100%);
+    box-shadow: inset 0 -4px 8px rgba(30, 144, 255, 0.55), inset 0 3px 6px rgba(184, 154, 242, 0.5), 0 0 12px rgba(104, 72, 166, 0.6);
+}
+.gt-orb i { width: 4px; height: 7px; border-radius: 50%; background: #f8fbff; box-shadow: 0 0 4px #fff, 0 0 8px rgba(51, 255, 153, 0.8);
+    animation: gt-blink 4s infinite; }
+.gt-body { display: grid; gap: 1px; min-width: 0; }
+.gt-body b { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    background: linear-gradient(90deg, var(--accent), #1E90FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gt-body span { color: #e8e6f0; }
+@keyframes gt-in { from { opacity: 0; transform: translateY(-10px) scale(0.96); } }
+@keyframes gt-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
+@media (prefers-reduced-motion: reduce) { #gardien-toast p, .gt-orb i { animation: none; } }
+
+/* Tour de contrôle du serveur (comme iAqua) : vert < 60 %, ambre < 85 %, rouge au-delà */
+.gm { font-family: 'Cascadia Code', monospace; font-size: 10px; display: grid; gap: 5px; }
+.gm[hidden] { display: none; }
+.gm.offline { opacity: 0.5; }
+.gm-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.gm-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: rgba(148, 163, 184, 0.35); transition: background 0.2s, box-shadow 0.2s; }
+.gm-dot.on { background: #06ffa5; box-shadow: 0 0 6px rgba(6, 255, 165, 0.55); }
+.gm-dot.busy { background: #1E90FF; box-shadow: 0 0 6px rgba(30, 144, 255, 0.7); animation: gardien-blink 1s ease-in-out infinite; }
+@keyframes gardien-blink { 50% { opacity: 0.35; } }
+.gm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm-stop { flex: none; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #fff; font-size: 8px;
+    background: linear-gradient(135deg, #b9538b, #e11d48); box-shadow: 0 0 8px rgba(225, 29, 72, 0.5); }
+.gm-stop:hover { filter: brightness(1.2); }
+.gm-row { display: flex; align-items: center; gap: 8px; }
+.gm-row[hidden] { display: none; }
+.gm-label { width: 40px; flex: none; letter-spacing: 0.06em; opacity: 0.75; }
+.gm-bar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; background: rgba(148, 163, 184, 0.18); }
+.gm-bar i { display: block; height: 100%; width: 0; border-radius: 3px; transition: width 0.6s ease, background 0.6s; }
+.gm-bar i.ok { background: #06ffa5; }
+.gm-bar i.warn { background: #FBBF24; }
+.gm-bar i.high { background: #FF6B6B; }
+.gm-value { width: 34px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* À droite du compteur de nodes hors champ du coin haut gauche : une pastille de verre (point du modèle, un anneau de
+   jauge par ressource), qu'un clic déplie (modèle, barres). Les gestes sur l'univers la traversent (sélection
+   rectangle, glissé) : seuls la pastille et l'en-tête sont cliquables. */
+.gm-pill { display: none; }
+.gm-hud.gm-off { display: none !important; }
+.gm-hud {
+    position: fixed; top: 14px; left: 56px; padding: 7px 10px; box-sizing: border-box; pointer-events: none;
+    color: #cbd5e1; border: 1px solid transparent; border-radius: 16px; user-select: none;
+    background: linear-gradient(rgba(5, 12, 23, 0.78), rgba(5, 12, 23, 0.78)) padding-box,
+        linear-gradient(135deg, rgba(184, 154, 242, 0.6), rgba(30, 144, 255, 0.35)) border-box;
+    box-shadow: inset 0 0 12px rgba(30, 144, 255, 0.12), 0 0 14px rgba(104, 72, 166, 0.25);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.gm-hud.open { width: 230px; }
+.gm-hud:not(.open) .gm-head, .gm-hud .gm-row { display: none; }  /* les anneaux disent déjà CPU, RAM, VRAM… (détail au survol) */
+.gm-hud .gm-pill { display: flex; align-items: center; gap: 8px; pointer-events: auto; cursor: pointer; }
+.gm-hud.open .gm-pill .gm-stop { display: none; }
+.gm-rings { display: flex; gap: 7px; }
+.gm-ring { position: relative; display: grid; justify-items: center; gap: 1px; width: 30px; }
+.gm-ring[hidden] { display: none; }
+.gm-ring svg { width: 30px; height: 30px; transform: rotate(-90deg); }
+.gm-ring circle { fill: none; stroke-width: 3.5; stroke: rgba(148, 163, 184, 0.18); }
+.gm-ring circle + circle { stroke: #06ffa5; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease, stroke 0.6s; filter: drop-shadow(0 0 2px currentColor); }
+.gm-ring circle.warn { stroke: #FBBF24; }
+.gm-ring circle.high { stroke: #FF6B6B; }
+.gm-ring b { position: absolute; top: 0; height: 30px; line-height: 30px; font-size: 9px; font-weight: 600; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.gm-ring small { font-size: 7px; letter-spacing: 0.1em; color: #94a3b8; }
+.gm-hud.open .gm-pill { padding-bottom: 6px; margin-bottom: 2px; border-bottom: 1px solid rgba(148, 163, 184, 0.15); }
+.gm-hud .gm-head { pointer-events: auto; cursor: pointer; border-radius: 8px; margin: -3px -5px; padding: 3px 5px; transition: background-color 0.2s; }
+.gm-hud .gm-head:hover { background: rgba(104, 72, 166, 0.35); }
+.gm-hud .gm-name { color: #e2e8f0; }
+
+.gm-window { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 16px; margin: 10px 0 2px; padding: 8px 12px; background: #0b1220; color: #cbd5e1; border-radius: 12px; }
+.gm-window .gm-head { grid-column: 1 / -1; color: #e2e8f0; }
+
+/* Sélecteur de contexte (au-dessus du dock) : choisir des nodes de toutes les dimensions pour le Gardien */
+#gardien-context-button::after { content: none; }
+#gardien-context-button svg { width: 18px; height: 18px; fill: none; stroke: #eef2ff; stroke-width: 1.8; stroke-linejoin: round; }
+#gardien-context-button.on { background: var(--nz-violet, #6848A6); box-shadow: 0 0 0 1px rgba(184, 154, 242, 0.7), 0 6px 18px rgba(104, 72, 166, 0.45); }
+body.nz-light #gardien-context-button:not(.on) svg { stroke: #6848A6; }
+#gardien-context {
+    position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 40; width: min(980px, calc(100vw - 32px));
+    display: grid; gap: 8px; padding: 10px 12px; box-sizing: border-box; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: rgba(5, 12, 23, 0.94); border: 1px solid rgba(104, 72, 166, 0.6); border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(104, 72, 166, 0.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+#gardien-context[hidden] { display: none; }
+#gardien-context button { font: inherit; color: #cbd5e1; background: rgba(148, 163, 184, 0.1); border: 1px solid transparent; border-radius: 10px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+#gardien-context button:hover { color: #fff; background: rgba(104, 72, 166, 0.4); }
+#gardien-context button.on { color: #fff; background: rgba(104, 72, 166, 0.6); border-color: rgba(184, 154, 242, 0.5); }
+#gardien-context input[type=checkbox] { accent-color: #6848A6; margin: 0; pointer-events: auto; flex: none; }
+.gx-head { display: flex; align-items: center; gap: 6px; }
+.gx-head input[type=search] { flex: 1; min-width: 120px; font: inherit; color: #e2e8f0; background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 10px; padding: 6px 10px; outline: none; }
+.gx-head input[type=search]:focus { border-color: rgba(184, 154, 242, 0.8); }
+#gardien-context .gx-close { background: none; font-size: 15px; padding: 2px 8px; }
+.gx-wrap { position: relative; }
+.gx-pop { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 2; display: grid; gap: 6px; min-width: 150px; padding: 10px 12px;
+    background: rgba(5, 12, 23, 0.98); border: 1px solid rgba(104, 72, 166, 0.6); border-radius: 12px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
+.gx-pop[hidden] { display: none; }
+.gx-pop label { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.gx-period { min-width: 230px; justify-items: start; }
+.gx-span { white-space: nowrap; color: #cbd5e1; }
+/* double curseur : deux curseurs superposés, seule leur poignée capte la souris */
+.gx-range { position: relative; width: 210px; height: 18px; }
+.gx-range .track { position: absolute; left: 0; right: 0; top: 8px; height: 3px; border-radius: 2px;
+    background: linear-gradient(90deg, rgba(148, 163, 184, 0.25) var(--lo, 0%), #b89af2 var(--lo, 0%), #1E90FF var(--hi, 100%), rgba(148, 163, 184, 0.25) var(--hi, 100%)); }
+.gx-range input[type=range] { position: absolute; inset: 0; width: 100%; margin: 0; background: none; pointer-events: none; appearance: none; -webkit-appearance: none; }
+.gx-range input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: #fff; border: 2px solid #6848A6; box-shadow: 0 0 6px rgba(104, 72, 166, 0.7); cursor: grab; }
+.gx-range input[type=range]::-moz-range-thumb { pointer-events: auto; width: 11px; height: 11px; border-radius: 50%; background: #fff; border: 2px solid #6848A6; cursor: grab; }
+.gx-range input[type=range]::-webkit-slider-runnable-track { background: none; }
+/* résultats : une colonne par dimension, la dimension ouverte d'abord */
+.gx-cols { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.gx-col { flex: 0 0 220px; display: grid; grid-template-rows: auto 1fr; gap: 4px; min-width: 0; padding: 6px; border-radius: 12px; background: rgba(148, 163, 184, 0.06); }
+.gx-col.here { background: rgba(104, 72, 166, 0.14); }
+.gx-dim { display: flex; align-items: center; gap: 6px; padding: 2px 4px; cursor: pointer; }
+.gx-dim b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b89af2; }
+.gx-dim small { color: #94a3b8; }
+.gx-list { display: grid; gap: 2px; max-height: 26vh; overflow-y: auto; align-content: start; }
+.gx-item { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 8px; }
+.gx-item.on { background: rgba(30, 144, 255, 0.16); }
+#gardien-context .gx-text { flex: 1; min-width: 0; text-align: left; background: none; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; color: #e2e8f0; }
+#gardien-context .gx-text:hover { background: none; color: #b89af2; text-decoration: underline; }
+.gx-more, .gx-empty { margin: 4px; color: #94a3b8; font-style: italic; }
+.gx-foot { display: flex; align-items: center; gap: 6px; }
+.gx-count { flex: 1; color: #f3ee58; }
+#gardien-context .gx-join { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); font-weight: 700; }
+#gardien-context .gx-join:disabled { opacity: 0.4; cursor: default; }
+body.nz-light #gardien-context { color: #440852; background: rgba(255, 255, 255, 0.97); border-color: rgba(104, 72, 166, 0.35); box-shadow: 0 16px 40px rgba(68, 8, 82, 0.18); }
+body.nz-light #gardien-context button { color: #6848A6; background: rgba(104, 72, 166, 0.08); }
+body.nz-light #gardien-context button.on { color: #fff; background: #6848A6; }
+body.nz-light :is(.gx-head input[type=search], #gardien-context .gx-text) { color: #440852; }
+body.nz-light .gx-pop { background: rgba(255, 255, 255, 0.98); border-color: rgba(104, 72, 166, 0.35); }
+body.nz-light .gx-span, body.nz-light .gx-count { color: #6848A6; }
+.node-group.gardien-filtered, .link.gardien-filtered { opacity: 0.08; pointer-events: none; transition: opacity 0.3s; }
+.node-group.gardien-picked > :is(circle, rect) { filter: drop-shadow(0 0 10px #1E90FF) drop-shadow(0 0 4px #1E90FF); }
+/* Recherche du dock (search.js) : le résultat courant pulse, le compteur « x / y » suit les flèches. */
+@keyframes gardien-found { from { filter: drop-shadow(0 0 6px #b89af2) drop-shadow(0 0 2px #b89af2); } to { filter: drop-shadow(0 0 18px #1E90FF) drop-shadow(0 0 6px #1E90FF); } }
+.node-group.gardien-found > :is(circle, rect) { animation: gardien-found 0.9s ease-in-out infinite alternate; }
+#gardien-search-count { min-width: 0; margin: 0 4px; white-space: nowrap; font: 600 11px 'Cascadia Code', monospace; color: #b89af2; }
+#gardien-search-count:empty { display: none; }
+body.nz-light #gardien-search-count { color: #6848A6; }
+
+/* Mode clair de Nodz */
+body.nz-light .gm-hud { color: #5b4a78; box-shadow: 0 8px 24px rgba(68, 8, 82, 0.12);
+    background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)) padding-box, linear-gradient(135deg, rgba(104, 72, 166, 0.45), rgba(30, 144, 255, 0.3)) border-box; }
+body.nz-light .gm-ring b { color: #440852; }
+body.nz-light .gm-ring circle { stroke: rgba(68, 8, 82, 0.1); }
+body.nz-light .gm-ring circle + circle { stroke: #10b981; }
+body.nz-light .gm-ring circle.warn { stroke: #d97706; }
+body.nz-light .gm-ring circle.high { stroke: #dc2626; }
+body.nz-light .gm-hud .gm-name { color: #440852; }
+body.nz-light .gm-hud .gm-bar { background: rgba(68, 8, 82, 0.1); }
+body.nz-light .gm-hud .gm-bar i.ok { background: #10b981; }
+body.nz-light #gardien-toast p { background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+    linear-gradient(135deg, var(--accent), #6848A6 55%, #1E90FF) border-box; box-shadow: 0 10px 28px rgba(68, 8, 82, 0.16); }
+body.nz-light .gt-body span { color: #440852; }
+
+/* Fenêtre Agents & modèles */
+.gl-modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(5, 12, 23, 0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.gl-modal[hidden] { display: none; }
+.gl-window {
+    width: min(920px, 92vw); max-height: 88vh; overflow-y: auto; padding: 16px 20px 20px; box-sizing: border-box;
+    background: #fbfaff; color: #333; border: 1px solid rgba(68, 8, 82, 0.2); border-radius: 22px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    font-family: 'Cascadia Code', monospace; font-size: 12px;
+}
+.gl-window header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.gl-window h2 { margin: 0; font-size: 17px; color: #440852; }
+.gl-window h3 { margin: 14px 0 6px; font-size: 12px; color: #6848A6; display: flex; align-items: center; gap: 10px; }
+.gl-tabs { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+.gl-window button, .gl-window select, .gl-window input, .gl-window textarea {
+    font: 11px 'Cascadia Code', monospace; color: #440852; background: ivory; border: 1px solid #c9b8e0; border-radius: 12px; padding: 4px 10px;
+}
+.gl-window button { cursor: pointer; }
+.gl-window input[type=checkbox], .gl-window input[type=range] { padding: 0; margin: 0; background: none; border: 0; }
+.gl-window label { pointer-events: auto; }  /* Nodz coupe les clics sur tous les label (interface.css) */
+.gl-window button:hover:not(:disabled) { box-shadow: 0 -2px 6px #f0c8f3a9; }
+.gl-window button:disabled { opacity: 0.45; cursor: not-allowed; }
+.gl-tabs button.active { background: #440852; color: ivory; border-color: #440852; }
+.gl-close { margin-left: auto; }
+.gl-machine { margin: 8px 0 2px; color: #6848A6; font-size: 11px; }
+.gl-notice { margin: 2px 0 8px; min-height: 14px; color: #0f9f6e; font-size: 11px; }
+.gl-notice.error { color: #c0392b; }
+.gl-hint { color: #666; font-size: 11px; }
+.gl-hint code { color: #440852; }
+.gl-empty { color: #888; text-align: center; padding: 14px; }
+.gl-warning { color: #b45309; background: #fff7e6; border-radius: 10px; padding: 6px 10px; }
+.gl-cuda { display: grid; gap: 6px; }
+.gl-cuda p { margin: 0; }
+.gl-cuda pre { margin: 0; max-height: 160px; overflow: auto; padding: 8px 10px; border-radius: 10px; background: #0b1220; color: #cbd5e1; font-size: 10px; white-space: pre-wrap; }
+.gl-primary { background: #1E90FF !important; color: #fff !important; border-color: #1E90FF !important; }
+.gl-danger { color: #c0392b !important; }
+
+.gl-agent { border: 1px solid #e3dcef; border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; display: grid; gap: 6px; }
+.gl-agent.is-guardian { border-color: #6848A6; box-shadow: inset 3px 0 0 #6848A6; }
+.gl-agent-head { display: flex; justify-content: space-between; gap: 10px; }
+.gl-agent-head div { display: flex; flex-direction: column; gap: 2px; }
+.gl-agent-head small { color: #6848A6; }
+.gl-role { font-size: 10px; color: #888; }
+.gl-switch { display: flex; align-items: center; gap: 4px; color: #6848A6; }
+.gl-agent textarea { width: 100%; box-sizing: border-box; resize: vertical; margin: 6px 0; line-height: 1.5; }
+.gl-agent summary { cursor: pointer; color: #6848A6; }
+
+.gl-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.gl-column { border: 1px solid #e3dcef; border-top: 3px solid; border-radius: 12px; padding: 8px; min-height: 120px; display: flex; flex-direction: column; gap: 8px; }
+.gl-column.over { background: #f1eafb; }
+.gl-column-head { display: flex; justify-content: space-between; font-weight: bold; }
+.gl-column > small { color: #888; }
+.gl-drop-here { border: 1px dashed #c9b8e0; border-radius: 10px; padding: 18px; text-align: center; color: #aaa; }
+.gl-card { background: #fff; border: 1px solid #e3dcef; border-radius: 12px; padding: 8px; display: grid; gap: 6px; cursor: grab; }
+.gl-card.is-loaded { border-color: #0f9f6e; }
+.gl-card.dragging { opacity: 0.5; }
+.gl-card-head { display: flex; justify-content: space-between; gap: 6px; }
+.gl-card-head div { display: flex; flex-direction: column; min-width: 0; }
+.gl-card-head strong, .gl-card-head small { overflow-wrap: anywhere; }
+.gl-card-head small, .gl-used { color: #888; font-size: 10px; }
+.gl-size { color: #6848A6; white-space: nowrap; font-size: 10px; }
+.gl-badges, .gl-meta { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.gl-meta { color: #888; font-size: 10px; }
+.gl-meta a { color: #1E90FF; text-decoration: none; }
+.gl-cap, .gl-badge { font-size: 9px; padding: 1px 6px; border: 1px solid #c9b8e0; border-radius: 8px; white-space: nowrap; }
+.gl-badge.loaded { color: #0f9f6e; border-color: #0f9f6e; }
+.gl-badge.best { color: #1E90FF; border-color: #1E90FF; }
+.gl-badge.heavy { color: #b45309; border-color: #f0b35a; background: #fff7e6; cursor: help; }
+.gl-params { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10px; color: #888; }
+.gl-params b { color: #440852; }
+.gl-params-form { display: grid; gap: 8px; font-size: 10px; color: #6848A6; }
+.gl-params-form fieldset { margin: 0; padding: 6px 10px 10px; border: 1px solid #e3dcef; border-radius: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px 10px; }
+.gl-params-form legend { padding: 0 6px; font-weight: bold; color: #440852; }
+.gl-params-form label { display: flex; flex-direction: column; gap: 2px; }
+.gl-params-form input, .gl-params-form select { width: 100%; box-sizing: border-box; }
+.gl-params b.on { color: #0f9f6e; }
+.gl-params b.off { color: #94a3b8; }
+.gl-runtime { padding-top: 4px; border-top: 1px dashed #e3dcef; }
+
+/* Réglages de chargement : le dialogue « Edit Params » d'iAqua, par-dessus la bibliothèque */
+.gl-window { position: relative; }
+.gl-window:focus { outline: none; }  /* focus donné à l'ouverture, pour Échap et la saisie */
+.gl-dialog { position: fixed; inset: 0; z-index: 41; display: grid; place-items: center; background: rgba(5, 12, 23, 0.45); }
+.gl-dialog-card { width: min(620px, 90vw); max-height: 86vh; overflow-y: auto; padding: 14px 18px 16px; box-sizing: border-box; background: #fbfaff;
+    border: 1px solid #6848A6; border-radius: 18px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+.gl-dialog-card h3 { margin: 0; color: #440852; font-size: 13px; }
+.gl-load { display: grid; gap: 7px; }
+.gl-load-row { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: center; }
+.gl-load-row > label { color: #440852; }
+.gl-load-row > div { display: grid; gap: 4px; }
+.gl-load-row input[type=text], .gl-load-row input[type=number] { width: 100%; box-sizing: border-box; }
+.gl-check { display: flex; align-items: center; gap: 6px; color: #555; cursor: pointer; }
+.gl-check input { accent-color: #6848A6; }
+.gl-accent { color: #6848A6; font-size: 10px; line-height: 1.45; }
+.gl-gpu-quick { display: flex; align-items: center; gap: 6px; }
+.gl-gpu-quick input[type=range] { flex: 1; accent-color: #6848A6; }
+.gl-estimate { display: grid; gap: 4px; padding: 9px 12px; border: 1px solid #1E90FF55; border-radius: 12px; background: #eef6ff; }
+.gl-estimate strong { color: #440852; }
+.gl-estimate div { display: grid; grid-template-columns: 90px auto 1fr; gap: 8px; align-items: baseline; }
+.gl-estimate span { color: #6848A6; }
+.gl-estimate b { color: #0f9f6e; }
+.gl-estimate b.warn { color: #b45309; }
+.gl-estimate b.high { color: #c0392b; }
+.gl-estimate small { color: #666; }
+.gl-load .gl-params-form, .gl-load fieldset { margin: 0; padding: 6px 10px 10px; border: 1px solid #e3dcef; border-radius: 12px; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px 10px; font-size: 10px; color: #6848A6; }
+.gl-load fieldset label { display: flex; flex-direction: column; gap: 2px; }
+.gl-load fieldset input, .gl-load fieldset select { width: 100%; box-sizing: border-box; }
+.gl-load legend { display: none; }
+.gl-load footer { justify-content: flex-end; align-items: center; margin-top: 4px; }
+.gl-load footer .gl-status { margin-right: auto; color: #6848A6; }
+@media (max-width: 600px) { .gl-load-row { grid-template-columns: 1fr; gap: 3px; } }
+.gl-toolgroup { margin-bottom: 6px; }
+.gl-toolgroup summary { cursor: pointer; color: #6848A6; font-weight: bold; margin: 12px 0 6px; }
+.gl-tool { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 8px 10px; border: 1px solid #e3dcef; border-radius: 12px; margin-bottom: 6px; background: #fff; cursor: pointer; }
+.gl-tool.off { opacity: 0.55; background: transparent; }
+.gl-tool div { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.gl-tool small { flex-basis: 100%; color: #666; }
+.gl-tool code { color: #440852; font-size: 10px; }
+.gl-tool input { margin-top: 3px; accent-color: #6848A6; }
+.gl-advanced summary { cursor: pointer; color: #6848A6; font-weight: bold; margin-bottom: 6px; }
+.gl-tuning { border: 1px solid #6848A6; border-radius: 14px; padding: 4px 14px 14px; margin-bottom: 12px; background: #fff; }
+.gl-tuning h3 { color: #440852; }
+.gl-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.gl-rename[hidden] { display: none; }
+
+.gl-wizard { text-align: center; }
+.gl-step-recs .gl-rec { margin: 6px 0; max-width: none; }
+.gl-image-help { display: grid; gap: 6px; justify-items: center; text-align: center; }
+.gl-image-help small { color: #888; overflow-wrap: anywhere; }
+.gl-rec { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid #e3dcef; border-radius: 12px; padding: 8px 12px; margin: 6px auto; max-width: 560px; text-align: left; }
+.gl-rec.best { border-color: #1E90FF; }
+.gl-rec div { display: flex; flex-direction: column; }
+.gl-rec small { color: #888; }
+
+.gl-search { display: flex; gap: 6px; margin-bottom: 8px; }
+.gl-search input { flex: 1; }
+.gl-filters, .gl-sizes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.gl-sizes span { color: #888; }
+.gl-sizes button.active { background: #6848A6; color: ivory; border-color: #6848A6; }
+.gl-list { display: flex; flex-direction: column; gap: 3px; }
+.gl-results { max-height: 42vh; overflow-y: auto; }
+.gl-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid transparent; border-radius: 10px; }
+.gl-row.best { border-color: #1E90FF55; background: #eef6ff; }
+.gl-result { cursor: pointer; }
+.gl-result:hover, .gl-result.open { background: #f1eafb; border-color: #c9b8e0; }
+.gl-result-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.gl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-size-hint { margin-left: 6px; font-size: 9px; color: #6848A6; background: #f1eafb; border-radius: 6px; padding: 1px 5px; }
+.gl-open { color: #1E90FF; font-size: 16px; }
+.gl-quant { font-weight: bold; min-width: 58px; }
+.gl-files { border: 1px solid #c9b8e0; border-radius: 12px; padding: 10px; display: grid; gap: 6px; }
+.gl-files-head { display: flex; justify-content: space-between; align-items: center; }
+.gl-files-head a { color: #1E90FF; text-decoration: none; }
+.gl-downloads { margin-top: 10px; }
+.gl-download { padding: 4px 0; border-bottom: 1px solid #eee; }
+.gl-status.downloading { color: #1E90FF; }
+.gl-status.error { color: #c0392b; }
+.gl-status.cancelled { color: #888; }
+.gl-bar { height: 5px; background: #e3dcef; border-radius: 3px; overflow: hidden; margin: 3px 0; }
+.gl-bar div { height: 100%; background: linear-gradient(90deg, #6848A6, #1E90FF); transition: width 0.4s; }
+
+@media (max-width: 700px) { .gl-board { grid-template-columns: 1fr; } }
+
+/* Consoles administrateur : Console IA (ancien Nod-Z Data) et Utilisateurs (ancien Nod-Z Users) */
+.ga-window { width: min(1080px, 94vw); }
+.ga-body { display: grid; gap: 10px; }
+.ga-body > h3 { margin-bottom: 0; }
+.ga-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.ga-tile { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid #e3dcef; border-radius: 14px; background: #fff; }
+.ga-tile b { font-size: 20px; color: #440852; }
+.ga-tile span { color: #888; font-size: 10px; }
+.ga-tile.bad b { color: #c0392b; }
+.ga-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ga-card { padding: 4px 14px 12px; border: 1px solid #e3dcef; border-radius: 14px; background: #fff; min-width: 0; }
+.ga-card h3 small { color: #888; font-weight: normal; margin-left: auto; }
+.ga-chart { position: relative; height: 180px; }
+.ga-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ga-queue li { display: flex; align-items: center; gap: 8px; }
+.ga-queue li small { margin-left: auto; color: #888; }
+.ga-queue i { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+.ga-queue li.running i { background: #1E90FF; box-shadow: 0 0 6px #1E90FF; animation: gardien-blink 1s ease-in-out infinite; }
+.ga-bars { display: grid; gap: 4px; }
+.ga-bars button { display: grid; grid-template-columns: minmax(120px, 34%) 1fr 40px; gap: 8px; align-items: center; text-align: left; background: transparent !important; border-color: transparent !important; }
+.ga-bars span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ga-bars i { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #6848A6, #1E90FF); }
+.ga-bars b { text-align: right; color: #440852; }
+.ga-table-wrap { overflow-x: auto; border: 1px solid #e3dcef; border-radius: 12px; background: #fff; }
+.ga-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.ga-table th { position: sticky; top: 0; background: #f6f2fc; color: #440852; text-align: left; font-weight: bold; padding: 7px 8px; white-space: nowrap; }
+.ga-table th.sortable { cursor: pointer; }
+.ga-table th.sortable:hover { color: #1E90FF; }
+.ga-table td { padding: 6px 8px; border-top: 1px solid #f0ebf7; vertical-align: top; }
+.ga-table td small { display: block; color: #888; font-size: 10px; }
+.ga-table tr.bad td { background: #fff5f4; }
+.ga-table .nowrap { white-space: nowrap; }
+.ga-table input[type=checkbox] { accent-color: #6848A6; }
+.ga-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.ga-link { background: transparent !important; border: 0 !important; padding: 0 !important; color: #1E90FF !important; text-align: left; }
+.gl-cap.running { color: #1E90FF; border-color: #1E90FF; }
+.gl-cap.failed, .gl-cap.aborted { color: #c0392b; border-color: #c0392b; }
+.gl-cap.done { color: #0f9f6e; border-color: #0f9f6e; }
+@media (max-width: 760px) { .ga-grid { grid-template-columns: 1fr; } }
+
+/* Univers d'un autre compte, en lecture */
+#ga-watching {
+    position: fixed; top: 58px; left: 50%; transform: translateX(-50%); z-index: 31; display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px 6px 14px; font: 11px 'Cascadia Code', monospace; color: #fff; background: rgba(192, 57, 43, 0.9);
+    border-radius: 999px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+#ga-watching[hidden] { display: none; }
+#ga-watching button { font: inherit; color: #c0392b; background: #fff; border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+
+/* Question du Gardien : ses choix en pastilles cliquables sous la bulle ; la réponse choisie reste marquée. */
+.gc-question p { border: 1px solid rgba(184, 154, 242, 0.45); }
+.gc-choices { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 2px 0; }
+.gc-choices button {
+    font: 11px 'Cascadia Code', monospace; color: #e2e8f0; cursor: pointer; padding: 5px 12px; border-radius: 999px;
+    background: rgba(104, 72, 166, 0.25); border: 1px solid rgba(184, 154, 242, 0.55); transition: background-color 0.15s, transform 0.15s;
+}
+.gc-choices button:hover:not(:disabled) { background: linear-gradient(135deg, #6848A6, #1E90FF); transform: translateY(-1px); }
+.gc-choices button:disabled { cursor: default; opacity: 0.45; }
+.gc-choices button.on { opacity: 1; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); border-color: transparent; }
+body.nz-light .gc-choices button { color: #440852; background: rgba(68, 8, 82, 0.06); }
+
+/* Bulle de la mascotte (orb.js) : la réflexion du Gardien en direct, puis ses gestes ; elle ne prend pas la souris. */
+.go-say { position: absolute; right: calc(100% + 10px); bottom: 18px; width: max-content; max-width: min(300px, 70vw); padding: 7px 11px;
+    border-radius: 14px 14px 4px 14px; font: 11px/1.45 'Cascadia Code', monospace; color: #e9e3ff; text-align: left; white-space: normal;
+    background: rgba(20, 16, 44, 0.92); border: 1px solid rgba(184, 154, 242, 0.55); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 14px rgba(104, 72, 166, 0.35);
+    pointer-events: none; opacity: 0; transform: translateY(4px) scale(0.97); transition: opacity 0.25s, transform 0.25s; }
+#gardien-chat-button.saying .go-say { opacity: 1; transform: none; }
+#gardien-chat.open .go-say { display: none; }  /* chat ouvert : la réflexion s'y écrit déjà */
+#gardien-chat.flying { transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1), top 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+body.nz-light .go-say { color: #440852; background: rgba(255, 255, 255, 0.95); border-color: rgba(104, 72, 166, 0.35); }
+
+/* Barre d'outils du node (nodebar.js), au style de la pastille du Gardien : une pilule de verre au-dessus du node
+   actif, et la poignée de taille HTML. Elles remplacent les barres SVG de Nodz, gardées hors de la page (node.tools) ;
+   seul le groupe fichier reste dans le node pour le nom du fichier : ses boutons importer et télécharger sont masqués. */
+.node-group > g:nth-child(5) > :nth-child(-n+2) { display: none !important; }
+#gardien-sizer {
+    position: fixed; left: 0; top: 0; z-index: 30; width: 28px; height: 28px; padding: 0; display: grid; place-items: center;
+    cursor: nwse-resize; border-radius: 50%; background: rgba(15, 23, 42, 0.92); border: 2px solid var(--c, #b89af2);
+    box-shadow: 0 0 10px rgba(104, 72, 166, 0.55); transition: box-shadow 0.15s, background-color 0.15s; touch-action: none;
+}
+#gardien-sizer[hidden] { display: none; }
+#gardien-sizer svg { width: 14px; height: 14px; fill: none; stroke: #f8fafc; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#gardien-sizer:hover, body.gardien-sizing #gardien-sizer { background: linear-gradient(135deg, #6848A6, #1E90FF); box-shadow: 0 0 16px rgba(30, 144, 255, 0.8); }
+body.gardien-sizing, body.gardien-sizing * { cursor: nwse-resize !important; }
+body.nz-light #gardien-sizer { background: rgba(255, 255, 255, 0.95); }
+body.nz-light #gardien-sizer svg { stroke: #440852; }
+#gardien-nodebar {
+    position: fixed; left: 0; top: 0; z-index: 31; display: flex; align-items: center; gap: 2px; padding: 4px 6px;
+    background: rgba(15, 23, 42, 0.82); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 999px;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 0 14px rgba(104, 72, 166, 0.45);
+    animation: gardien-appear 0.18s ease-out;
+}
+#gardien-nodebar[hidden] { display: none; }
+#gardien-nodebar button {
+    width: 28px; height: 28px; padding: 0; border: 1px solid rgba(184, 154, 242, 0.4); border-radius: 7px; cursor: pointer; color: #e2e8f0;
+    font: 600 11px 'Cascadia Code', monospace; background: rgba(104, 72, 166, 0.22) no-repeat center / 16px;
+    box-shadow: inset 0 0 8px rgba(30, 144, 255, 0.22);
+    transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.3s cubic-bezier(0.65, 0, 0.35, 1);
+}
+#gardien-nodebar button:hover { background-color: rgba(104, 72, 166, 0.5); border-color: #1E90FF;
+    box-shadow: inset 0 0 12px rgba(30, 144, 255, 0.55), 0 0 10px rgba(30, 144, 255, 0.45); transform: perspective(120px) rotateX(14deg) rotateY(-18deg); }
+#gardien-nodebar button > svg { width: 16px; height: 16px; vertical-align: middle; fill: none; stroke: #eef2ff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+body.nz-light #gardien-nodebar button > svg { stroke: #440852; }
+#gardien-nodebar button > svg .dot { fill: #33FF99; stroke: none; }  /* Branche, Sélection : nodes pleins en vert */
+body.nz-light #gardien-nodebar button > svg .dot { fill: #0f9d63; }
+#gardien-nodebar select {
+    height: 24px; padding: 0 22px 0 10px; border-radius: 999px; cursor: pointer; font: 11px 'Cascadia Code', monospace;
+    color: #e2e8f0; background: rgba(104, 72, 166, 0.3); border: 1px solid rgba(184, 154, 242, 0.55); appearance: auto;
+}
+#gardien-nodebar select:disabled { opacity: 0.5; cursor: not-allowed; }
+#gardien-nodebar input[type=range] { width: 70px; accent-color: #b89af2; cursor: pointer; }
+#gardien-nodebar .gn-family { position: relative; display: flex; }
+#gardien-nodebar .gn-family > button { font-family: Georgia, serif; font-size: 13px; }
+#gardien-nodebar .gn-menu {
+    position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 2px;
+    padding: 6px; min-width: 150px; background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 14px rgba(104, 72, 166, 0.35); animation: gardien-appear 0.15s ease-out;
+}
+#gardien-nodebar .gn-menu[hidden] { display: none; }
+#gardien-nodebar .gn-menu button { width: auto; height: 30px; padding: 0 12px; border-radius: 10px; text-align: left; font-size: 14px; font-weight: 400; }
+body.nz-light #gardien-nodebar .gn-menu { background: rgba(255, 255, 255, 0.97); border-color: rgba(68, 8, 82, 0.2); }
+#gardien-nodebar .sep { width: 1px; height: 18px; margin: 0 4px; background: rgba(184, 154, 242, 0.35); }
+body.nz-light #gardien-nodebar { background: rgba(255, 255, 255, 0.92); border-color: rgba(68, 8, 82, 0.2); }
+body.nz-light #gardien-nodebar button, body.nz-light #gardien-nodebar select { color: #440852; }
+
+/* Liens vers les nodes posés ou retouchés par le Gardien : pastilles cliquables qui y voyagent. */
+.gc-links { max-width: 100% !important; }
+.gc-links > div { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 4px; }
+.gc-links button {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; padding: 3px 9px; border-radius: 999px;
+    font: 10px 'Cascadia Code', monospace; color: #cbd5e1; background: rgba(30, 144, 255, 0.1); border: 1px solid rgba(30, 144, 255, 0.4);
+}
+.gc-links button b { color: #1E90FF; font-weight: 600; }
+.gc-links button:hover { color: #fff; background: rgba(30, 144, 255, 0.35); }
+body.nz-light .gc-links button { color: #440852; }
+
+/* Correspondance : le bouton Échanges du chat s'allume quand le Gardien a laissé des notes. */
+.gc-panel header .gc-exchanges.on { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
+
+/* Portail : un anneau vivant autour du node (portal.js). Deux contours bruités se déforment en boucle : l'un respire en
+   dégradé, l'autre, en pointillés, tourne à contre-sens. Seul l'anneau prend la souris (survol, clic : voyage), le node
+   garde son intérieur. La visite le traverse (tour.js) : bouton de choix et passage « ⟿ » dans le fil d'Ariane. */
+@keyframes pr-spin { to { transform: rotate(-360deg); } }
+@keyframes pr-flow { to { stroke-dashoffset: -16; } }
+foreignObject.portal.stylebutton { overflow: visible; animation: none; pointer-events: none; background: none; }
+foreignObject.portal.stylebutton > div.portal-door { display: block; width: 100%; height: 100%; border: 0; border-radius: 0; background: none;
+    box-shadow: none; pointer-events: none; }
+foreignObject.portal.stylebutton > div.portal-door svg.pr { display: block; width: 100%; height: 100%; overflow: visible; }
+.portal-door .pr path { fill: none; }
+.portal-door .pr-breath path { stroke-width: 3.2; stroke-linejoin: round; filter: drop-shadow(0 0 3px #1E90FF); transition: stroke-width 0.25s; }
+.portal-door .pr-drift { animation: pr-spin 24s linear infinite; }
+.portal-door .pr-drift path { stroke: #b89af2; stroke-width: 1.4; stroke-dasharray: 2 6; stroke-linecap: round; opacity: 0.85; animation: pr-flow 3s linear infinite; }
+.portal-door .pr-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
+.portal-door:hover .pr-breath path { stroke-width: 5; filter: drop-shadow(0 0 8px #1E90FF); }
+.portal-door:hover .pr-drift { animation-duration: 5s; }
+.gt-crumbs .gt-portal { flex: none; color: #b89af2; font-size: 14px; text-shadow: 0 0 8px #1E90FF; }
+
+/* Galerie : schémas faits de nodes et de liens (schemas.js), par famille, cartes sombres à l'aperçu dessiné. */
+#templates .templatesContent { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+#templates .gt-trees-title { grid-column: 1 / -1; justify-self: start; margin: 4px 0 -6px; font: 600 12px 'Cascadia Code', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #b89af2; }
+#templates .template-tree {
+    display: flex; flex-direction: column; align-items: center; gap: 2px; width: 200px; height: 200px; padding: 8px 10px 10px; cursor: pointer;
+    font-family: 'Cascadia Code', monospace; color: #e2e8f0; text-align: center;
+    background: radial-gradient(circle at 50% 40%, rgba(104, 72, 166, 0.35), rgba(5, 12, 23, 0.95) 70%);
+    border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 14px; transition: transform 0.25s, box-shadow 0.25s;
+}
+#templates .gt-mine { grid-column: 1 / -1; justify-self: stretch; display: flex; flex-wrap: wrap; gap: 14px; justify-content: flex-start; }
+/* Galerie ouverte (la sélection y devient un modèle) : ni pastille ni barre d'outils du node par-dessus. */
+body.nz-templates :is(#gardien-send, #gardien-nodebar, #gardien-sizer) { display: none !important; }
+#templates .gt-save { display: flex; flex-direction: column; gap: 8px; justify-content: center; width: 220px; padding: 14px; box-sizing: border-box;
+    border: 1px dashed rgba(184, 154, 242, 0.6); border-radius: 18px; color: #e2e8f0; font: 12px 'Cascadia Code', monospace; }
+#templates .gt-save b { color: #b89af2; }
+#templates .gt-save small { color: #94a3b8; line-height: 1.4; }
+#templates .gt-save input { font: inherit; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(184, 154, 242, 0.5); background: #050c17; color: #fff; }
+#templates .gt-keep { font: inherit; padding: 6px 12px; border-radius: 999px; border: 0; cursor: pointer; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
+#templates .gt-keep:disabled { opacity: 0.4; cursor: not-allowed; }
+#templates .gt-own { position: relative; }
+#templates .gt-remove { position: absolute; top: 8px; right: 8px; font: 11px 'Cascadia Code', monospace; padding: 2px 8px; border-radius: 999px; cursor: pointer;
+    color: #e2e8f0; background: rgba(5, 12, 23, 0.8); border: 1px solid rgba(255, 107, 107, 0.6); }
+#templates .gt-remove[data-armed] { background: #c0392b; color: #fff; }
+#templates .template-tree:hover { transform: translateY(-4px); box-shadow: 0 0 0 2px #6848A6, 0 0 18px rgba(30, 144, 255, 0.45); }
+#templates .template-tree svg { width: 130px; height: 130px; flex: none; }
+#templates .template-tree .gt-lines line { stroke: rgba(184, 154, 242, 0.55); stroke-width: 2; }
+#templates .template-tree .gt-dots :is(circle, rect) { fill: #050c17; stroke-width: 2.5; transition: transform 0.3s; transform-box: fill-box; transform-origin: center; }
+#templates .template-tree:hover .gt-dots :is(circle, rect) { transform: scale(1.25); }
+#templates .template-tree b { font-size: 12px; }
+#templates .template-tree small { font-size: 10px; color: #94a3b8; }
+
+/* Vue de côté (side.js) : répliques des nodes dans le groupe universe de Nodz (mêmes déplacements), nodes réels
+   cachés le temps de la vue ; colonnes des dimensions, liens, portails en arcs qui s'écoulent. Le cube, en haut à
+   droite, l'ouvre et la ferme : il tourne sur lui-même, plus vite au survol, et se tourne de profil quand la vue est
+   ouverte. */
+body.gardien-side-on :is(.node-group, .link, .triangle-container, #gardien-nodebar, #gardien-send, #gardien-sizer) { visibility: hidden !important; }
+.gardien-side-layer .gs-shape { fill: #050c17; stroke: var(--c); stroke-width: 4px; }
+.gardien-side-layer .gs-shape.bare { stroke: transparent; fill: transparent; }
+.gardien-side-layer .gs-node { cursor: pointer; }
+.gardien-side-layer .gs-node:hover .gs-shape { stroke-width: 6px; filter: drop-shadow(0 0 12px var(--c)); }
+.gardien-side-layer .gs-text { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.gardien-side-layer .gs-text .node-text-input { position: static; left: auto; top: auto; transform: none; cursor: pointer; }
+.gardien-side-layer .gs-image { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.gardien-side-layer .gs-image.round { border-radius: 50%; }
+.gardien-side-layer .gs-file { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    font: 12px 'Cascadia Code', monospace; color: #e2e8f0; text-align: center; overflow: hidden; }
+.gardien-side-layer .gs-file b { padding: 10px 8px 14px; border-radius: 4px 14px 4px 4px; background: linear-gradient(135deg, #6848A6, #1E90FF); color: #fff; font-size: 11px; letter-spacing: 0.06em; }
+.gardien-side-layer .gs-file span { max-width: 100%; overflow-wrap: anywhere; line-height: 1.3; }
+.gardien-side-layer .gs-doc { width: 100%; height: 100%; border: 0; border-radius: 6px; background: #fff; pointer-events: none; }
+body.nz-light .gardien-side-layer .gs-file { color: #440852; }
+/* filtres du haut appliqués aux répliques : l'opacité posée par l'animation cède */
+.gardien-side-layer .gs-out { opacity: 0.08 !important; pointer-events: none; }
+.gardien-side-layer .gs-links line { stroke: rgba(184, 154, 242, 0.75); stroke-width: 3px; }
+@keyframes gs-flow { to { stroke-dashoffset: -48; } }
+.gardien-side-layer .gs-portals path { fill: none; stroke: #b89af2; stroke-width: 4px; stroke-dasharray: 14 12; filter: drop-shadow(0 0 6px #1E90FF); animation: gs-flow 1.4s linear infinite; }
+.gardien-side-layer .gs-guides line { stroke: rgba(184, 154, 242, 0.22); stroke-width: 2px; stroke-dasharray: 6 14; }
+.gardien-side-layer .gs-guides line.here { stroke: rgba(30, 144, 255, 0.6); stroke-dasharray: none; }
+.gardien-side-layer .gs-guides text { fill: #94a3b8; font: 600 34px 'Cascadia Code', monospace; text-anchor: middle; }
+.gardien-side-layer .gs-guides text.here { fill: #1E90FF; }
+/* mode clair : répliques claires, texte, colonnes et liens foncés, comme les nodes réels en mode clair */
+body.nz-light .gardien-side-layer .gs-shape { fill: #ffffff; }
+body.nz-light .gardien-side-layer .gs-shape.bare { fill: transparent; }
+body.nz-light .gardien-side-layer .gs-links line { stroke: rgba(68, 8, 82, 0.45); }
+body.nz-light .gardien-side-layer .gs-guides line { stroke: rgba(68, 8, 82, 0.2); }
+body.nz-light .gardien-side-layer .gs-guides line.here { stroke: rgba(104, 72, 166, 0.6); }
+body.nz-light .gardien-side-layer .gs-guides text { fill: #6b5b8a; }
+body.nz-light .gardien-side-layer .gs-guides text.here { fill: #6848A6; }
+body.nz-light .gardien-side-layer .gs-portals path { stroke: #6848A6; filter: drop-shadow(0 0 4px rgba(104, 72, 166, 0.5)); }
+body.nz-light #gardien-cube small { color: #6b5b8a; }
+@keyframes gc3-spin { from { transform: rotateX(-22deg) rotateY(0deg); } to { transform: rotateX(-22deg) rotateY(360deg); } }
+#gardien-cube {
+    position: fixed; top: 74px; right: 22px; z-index: 32;  /* le cube à 84 px du haut, en miroir de l'orbe du chat (84 px du bas) */ width: 84px; height: 96px; padding: 0; border: 0; background: none; cursor: pointer;
+    perspective: 240px; display: flex; flex-direction: column; align-items: center; gap: 18px;
+}
+body.nz-login #gardien-cube { display: none; }  /* pas de vue de côté sur l'accueil */
+#gardien-cube .gc3 { position: relative; width: 52px; height: 52px; margin-top: 10px; transform-style: preserve-3d; animation: gc3-spin 14s linear infinite; }
+#gardien-cube .gc3 i {
+    position: absolute; inset: 0; border: 1.5px solid rgba(184, 154, 242, 0.85); border-radius: 4px;
+    background: linear-gradient(135deg, rgba(104, 72, 166, 0.45), rgba(30, 144, 255, 0.25)); box-shadow: inset 0 0 12px rgba(30, 144, 255, 0.45), 0 0 10px rgba(104, 72, 166, 0.35);
+}
+#gardien-cube .gc3 i:nth-child(1) { transform: translateZ(26px); }
+#gardien-cube .gc3 i:nth-child(2) { transform: rotateY(180deg) translateZ(26px); }
+#gardien-cube .gc3 i:nth-child(3) { transform: rotateY(90deg) translateZ(26px); }
+#gardien-cube .gc3 i:nth-child(4) { transform: rotateY(-90deg) translateZ(26px); }
+#gardien-cube .gc3 i:nth-child(5) { transform: rotateX(90deg) translateZ(26px); }
+#gardien-cube .gc3 i:nth-child(6) { transform: rotateX(-90deg) translateZ(26px); }
+/* Libellé d'icône au survol (labels.js), le même que HYPERSPACE sous le cube. */
+#gardien-label { position: fixed; z-index: 60; pointer-events: none; padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+    font: 600 9px 'Cascadia Code', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #b89af2;
+    background: rgba(5, 12, 23, 0.72); text-shadow: 0 0 6px rgba(104, 72, 166, 0.8); }
+#gardien-label[hidden] { display: none; }
+body.nz-light #gardien-label { color: #6848A6; background: rgba(255, 255, 255, 0.85); text-shadow: none; }
+#gardien-cube small { font: 600 9px 'Cascadia Code', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8; }
+#gardien-cube:hover .gc3 { animation-duration: 3s; }
+#gardien-cube:hover small, #gardien-cube.on small { color: #b89af2; }
+#gardien-cube.on .gc3 { animation: none; transform: rotateX(-22deg) rotateY(90deg); transition: transform 1.3s cubic-bezier(0.65, 0, 0.35, 1); }
+#gardien-cube.on .gc3 i { border-color: #1E90FF; box-shadow: inset 0 0 16px rgba(30, 144, 255, 0.7), 0 0 16px rgba(30, 144, 255, 0.6); }
+
+/* Onglet « Par API » de la bibliothèque : raccourcis de serveurs, formulaire en grille, modèles branchés. */
+.gl-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.gl-presets button { padding: 4px 12px; border-radius: 999px; font-size: 11px; }
+.gl-api-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; align-items: end; margin-bottom: 14px; }
+.gl-api-form .gl-primary { grid-column: 1 / -1; justify-self: start; padding: 8px 18px; border-radius: 999px; }
+.gl-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #94a3b8; }
+.gl-field input { padding: 8px 10px; border-radius: 10px; }
+.gl-row input[type=password] { width: 180px; }
+
+
+/* Nodes de code : bloc monospace aligné à gauche dans le node ; IDE (ide.js) en verre sombre, CodeMirror au thème de
+   Nodz, console sous l'éditeur. */
+.node-group[type=code] .node-text-input { text-align: left; }
+.node-group[type=code] .node-text-input code {
+    display: block; white-space: pre; overflow: hidden; font: 11px/1.4 'Cascadia Code', ui-monospace, monospace; color: #c4b5fd; tab-size: 4;
+}
+body.nz-light .node-group[type=code] .node-text-input code { color: #440852; }
+/* Résultat de la dernière exécution, sous le code (ide.js) : il se regarde, le node se glisse toujours. */
+.node-group[type=code] .node-text-input .code-output {
+    display: block; margin: 6px 0 0; padding: 6px 8px; border-radius: 6px; border-left: 2px solid #33FF99; text-align: left; white-space: pre-wrap;
+    font: 11px/1.4 'Cascadia Code', ui-monospace, monospace; color: #cbd5e1; background: rgba(3, 7, 15, 0.7); pointer-events: none; user-select: none;
+}
+.node-group[type=code] .node-text-input iframe.code-output { width: 100%; height: 200px; box-sizing: border-box; padding: 0; border: 0; border-left: 2px solid #33FF99; background: #fff; }
+body.nz-light .node-group[type=code] .node-text-input pre.code-output { color: #440852; background: rgba(68, 8, 82, 0.06); }
+#gardien-nodebar .gn-action { width: auto; padding: 0 10px; border-radius: 999px; font-weight: 600; }
+#gardien-ide {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 45; width: min(960px, calc(100vw - 40px)); height: min(680px, calc(100vh - 80px));
+    display: grid; grid-template-rows: auto 1fr auto minmax(90px, 28%); font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: linear-gradient(rgba(8, 13, 28, 0.97), rgba(8, 13, 28, 0.97)) padding-box, linear-gradient(135deg, #6848A6, #1E90FF) border-box;
+    border: 1px solid transparent; border-radius: 20px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 30px rgba(104, 72, 166, 0.35); overflow: hidden;
+    animation: gardien-appear 0.2s ease-out;
+}
+#gardien-ide[hidden] { display: none; }
+#gardien-ide header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid rgba(148, 163, 184, 0.15); }
+#gardien-ide header strong { flex: 1; color: #b89af2; letter-spacing: 0.04em; }
+#gardien-ide .gi-logo { padding: 2px 8px; border-radius: 8px; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); font-weight: 700; }
+#gardien-ide select, #gardien-ide button {
+    font: inherit; color: #e2e8f0; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+}
+#gardien-ide button:hover:not(:disabled) { background: rgba(104, 72, 166, 0.5); }
+#gardien-ide button:disabled { opacity: 0.5; cursor: progress; }
+#gardien-ide .gi-run { color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); border: 0; font-weight: 700; box-shadow: 0 0 14px rgba(104, 72, 166, 0.5); }
+#gardien-ide .gi-save { border-color: rgba(51, 255, 153, 0.5); }
+#gardien-ide .gi-main { display: grid; grid-template-columns: 1fr; min-height: 0; }
+#gardien-ide.html .gi-main { grid-template-columns: 1fr 1fr; }
+#gardien-ide .gi-preview { display: none; width: 100%; height: 100%; border: 0; border-left: 1px solid rgba(148, 163, 184, 0.15); background: #fff; }
+#gardien-ide.html .gi-preview { display: block; }
+#gardien-ide .gi-editor { min-height: 0; }
+#gardien-ide .gi-editor .CodeMirror { height: 100%; font: 13px/1.55 'Cascadia Code', ui-monospace, monospace; }
+#gardien-ide footer { display: flex; justify-content: space-between; padding: 6px 14px; color: #94a3b8; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    border-top: 1px solid rgba(148, 163, 184, 0.15); background: rgba(5, 12, 23, 0.6); }
+#gardien-ide .gi-status { text-transform: none; letter-spacing: 0; }
+#gardien-ide .gi-status.ok { color: #33FF99; }
+#gardien-ide .gi-status.bad { color: #FF6B6B; }
+#gardien-ide .gi-console { margin: 0; padding: 10px 14px; overflow: auto; white-space: pre-wrap; background: #03070f; font: 12px/1.5 'Cascadia Code', ui-monospace, monospace; }
+#gardien-ide .gi-console .err { color: #FF6B6B; }
+#gardien-ide .gi-console .info { color: #b89af2; }
+/* Thème CodeMirror « nodz » */
+.cm-s-nodz.CodeMirror { background: #070d1c; color: #e2e8f0; }
+.cm-s-nodz .CodeMirror-gutters { background: #050a16; border-right: 1px solid rgba(148, 163, 184, 0.12); }
+.cm-s-nodz .CodeMirror-linenumber { color: #475569; }
+.cm-s-nodz .CodeMirror-cursor { border-left: 2px solid #b89af2; }
+.cm-s-nodz .CodeMirror-activeline-background { background: rgba(104, 72, 166, 0.14); }
+.cm-s-nodz .CodeMirror-selected, .cm-s-nodz.CodeMirror-focused .CodeMirror-selected { background: rgba(30, 144, 255, 0.28); }
+.cm-s-nodz .CodeMirror-matchingbracket { color: #33FF99 !important; text-decoration: underline; }
+.cm-s-nodz .cm-keyword { color: #c084fc; }
+.cm-s-nodz .cm-def, .cm-s-nodz .cm-variable-2 { color: #60a5fa; }
+.cm-s-nodz .cm-builtin { color: #22d3ee; }
+.cm-s-nodz .cm-string, .cm-s-nodz .cm-string-2 { color: #33FF99; }
+.cm-s-nodz .cm-number, .cm-s-nodz .cm-atom { color: #FFB84D; }
+.cm-s-nodz .cm-comment { color: #64748b; font-style: italic; }
+.cm-s-nodz .cm-operator { color: #f472b6; }
+.cm-s-nodz .cm-property, .cm-s-nodz .cm-attribute { color: #93c5fd; }
+
+/* Diagnostic du Gardien (Agents & modèles) : une ligne par vérification, pastille verte ou rouge */
+.gl-doctor-box { display: grid; gap: 8px; }
+.gl-doctor-box > button { justify-self: start; }
+.gl-doctor { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
+.gl-doctor:empty { display: none; }
+.gl-doctor li { padding: 6px 10px 6px 26px; border-radius: 10px; background: rgba(148, 163, 184, 0.08); position: relative; line-height: 1.4; }
+.gl-doctor li::before { content: ''; position: absolute; left: 10px; top: 11px; width: 8px; height: 8px; border-radius: 50%; }
+.gl-doctor li.ok::before { background: #06ffa5; box-shadow: 0 0 6px rgba(6, 255, 165, 0.6); }
+.gl-doctor li.bad { background: rgba(225, 29, 72, 0.12); }
+.gl-doctor li.bad::before { background: #e11d48; box-shadow: 0 0 6px rgba(225, 29, 72, 0.6); }
+.gl-doctor li.wait::before { background: #1E90FF; animation: gardien-blink 1s ease-in-out infinite; }
+
+/* Filtre des pensées de l'IA (thoughts.js), à côté du style des liens : visibles, estompées, masquées. */
+#thoughtsButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M12 4c4.4 0 8 2.7 8 6s-3.6 6-8 6c-.9 0-1.8-.1-2.6-.3L5.5 17.5l.9-3.1C4.9 13.3 4 11.7 4 10c0-3.3 3.6-6 8-6z'/%3E%3Ccircle cx='5' cy='21' r='1.3'/%3E%3Ccircle cx='9' cy='11' r='.6' fill='%23000'/%3E%3Ccircle cx='12' cy='11' r='.6' fill='%23000'/%3E%3Ccircle cx='15' cy='11' r='.6' fill='%23000'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#thoughtsButton[data-state="dim"]::after { opacity: 0.5; }
+#sfxButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V6l10-2v12'/%3E%3Ccircle cx='6.5' cy='18' r='2.5'/%3E%3Ccircle cx='16.5' cy='16' r='2.5'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#sfxButton[data-state="off"]::after { opacity: 0.4; }
+#sfxButton[data-state="off"]::before { content: ''; position: absolute; left: 18%; right: 18%; top: 50%; height: 1.5px; z-index: 1;
+    background: #fff; transform: rotate(-35deg); box-shadow: 0 0 3px rgba(184, 154, 242, 0.85); }
+/* Le bouton Visite (42 px) est pris sur la recherche : le dock garde sa largeur, la zone des gestes de l'univers aussi. */
+@media (min-width: 901px) { #button-container #semanticsearch { width: 133px; min-width: 0; } }  /* Visite et Compact : -42 px chacun */
+#visitButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 2.5l2.5 3h-5zM12 21.5l2.5-3h-5zM2.5 12l3-2.5v5zM21.5 12l-3-2.5v5z' fill='%23000'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#exportButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 4v13M4 13l4 4 4-4M16 20V7M12 11l4-4 4 4'/%3E%3C/svg%3E") no-repeat center / 80% !important; }
+#guideButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7'/%3E%3Ccircle cx='12' cy='17' r='.7' fill='%23000'/%3E%3C/svg%3E") no-repeat center / 90%; }
+/* Guide (guide.js) : fenêtre sombre comme les autres panneaux, parcours de découverte, raccourcis, cartes. */
+.gg-window {
+    --gg-accent: #b89af2; --gg-ok: #33FF99;
+    position: relative; width: min(780px, calc(100vw - 32px)); max-height: 86vh; overflow: hidden; display: flex; flex-direction: column;
+    box-sizing: border-box; padding: 18px 22px 20px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: linear-gradient(160deg, rgba(23, 14, 42, 0.96), rgba(5, 12, 23, 0.96)); border: 1px solid rgba(104, 72, 166, 0.55);
+    border-radius: 22px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 28px rgba(104, 72, 166, 0.3);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); animation: gg-rise 0.22s ease-out;
+}
+.gg-window button { font: inherit; cursor: pointer; }
+.gg-window:focus, .gg-window button:focus:not(:focus-visible) { outline: none; }
+.gg-window button:focus-visible { outline: 2px solid var(--gg-accent); outline-offset: 2px; }
+.gg-window header { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; padding-right: 36px; }
+.gg-window h2 { margin: 0; font-size: 15px; letter-spacing: 0.08em; color: var(--gg-accent); }
+.gg-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(184, 154, 242, 0.2); }
+.gg-tabs button { padding: 6px 14px; white-space: nowrap; color: #94a3b8; background: none; border: 0; border-radius: 999px; transition: color 0.15s, background 0.15s; }
+.gg-tabs button:hover { color: #eef2ff; }
+.gg-tabs button[aria-selected=true] { color: #050c17; background: var(--gg-accent); font-weight: 600; }
+.gg-lang, .nz-lang { display: flex; margin-left: auto; padding: 2px; border-radius: 999px; border: 1px solid rgba(184, 154, 242, 0.2); }
+.gg-lang button, .nz-lang button { padding: 3px 9px; font-size: 11px !important; color: #94a3b8; background: none; border: 0; border-radius: 999px; cursor: pointer; }
+.gg-lang button:hover, .nz-lang button:hover { color: #eef2ff; }
+.gg-lang button.on, .nz-lang button.on { color: #050c17; background: var(--gg-accent, #b89af2); font-weight: 700; }
+.gg-x { position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; color: #94a3b8; background: none; border: 0; border-radius: 50%; font-size: 18px !important; line-height: 1; }
+.gg-x:hover { color: #eef2ff; background: rgba(255, 255, 255, 0.08); }
+.gg-panel { overflow-y: auto; min-height: 0; }
+.gg-panel[hidden] { display: none; }
+.gg-window kbd {
+    display: inline-block; min-width: 1.4em; padding: 2px 7px; margin: 0 1px; box-sizing: border-box; text-align: center;
+    font: 600 11px 'Cascadia Code', monospace; color: #eef2ff; background: linear-gradient(#2a1f45, #1a1330);
+    border: 1px solid rgba(184, 154, 242, 0.45); border-bottom-width: 3px; border-radius: 7px;
+}
+
+/* Découvrir */
+.gg-stage { display: grid; grid-template-columns: 220px 1fr; gap: 26px; align-items: center; min-height: 220px; padding: 6px 4px 10px; }
+.gg-stage.gg-in { animation: gg-slide 0.28s ease-out; }
+.gg-scene { display: grid; place-items: center; aspect-ratio: 1; border-radius: 20px;
+    background: radial-gradient(circle at 50% 45%, rgba(104, 72, 166, 0.45), rgba(104, 72, 166, 0.06) 70%); border: 1px solid rgba(184, 154, 242, 0.18); }
+.gg-scene svg { width: 78%; }
+.gg-scene .n { stroke: var(--gg-accent); stroke-width: 2; fill: rgba(184, 154, 242, 0.12); }
+.gg-scene .n.on { stroke: var(--gg-ok); fill: rgba(51, 255, 153, 0.14); }
+.gg-scene .l { stroke: rgba(184, 154, 242, 0.7); stroke-width: 2; stroke-dasharray: 60; animation: gg-draw 0.9s ease-out both 0.1s; }
+.gg-scene .t { stroke: var(--gg-ok); stroke-width: 2.4; }
+.gg-scene .p { stroke: #eef2ff; stroke-width: 2.4; }
+.gg-copy small { color: #94a3b8; letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px; }
+.gg-copy h3 { margin: 6px 0 10px; font-size: 20px; color: #f8fafc; }
+.gg-copy p { margin: 0; font-size: 13px; line-height: 1.7; color: #cbd5e1; }
+.gg-discover footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.gg-dots { display: flex; gap: 8px; }
+.gg-dots button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 999px; background: rgba(184, 154, 242, 0.3); transition: width 0.2s, background 0.2s; }
+.gg-dots button.on { width: 24px; background: var(--gg-accent); }
+.gg-nav { display: flex; gap: 8px; }
+.gg-ghost, .gg-primary { padding: 8px 18px; border-radius: 999px; }
+.gg-ghost { color: #cbd5e1; background: none; border: 1px solid rgba(184, 154, 242, 0.35); }
+.gg-ghost:disabled { opacity: 0.3; cursor: default; }
+.gg-primary { color: #050c17; background: var(--gg-ok); border: 1px solid var(--gg-ok); font-weight: 600; }
+.gg-ghost:hover:not(:disabled), .gg-primary:hover { filter: brightness(1.12); }
+
+/* Raccourcis */
+.gg-search { width: 100%; box-sizing: border-box; padding: 9px 14px; margin-bottom: 12px; font: inherit; color: #eef2ff;
+    background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(184, 154, 242, 0.3); border-radius: 12px; outline: none; }
+.gg-search:focus { border-color: var(--gg-accent); box-shadow: 0 0 0 3px rgba(184, 154, 242, 0.15); }
+.gg-groups { columns: 2 300px; column-gap: 22px; }
+.gg-group { break-inside: avoid; margin-bottom: 16px; }
+.gg-group[hidden], .gg-row[hidden], .gg-empty[hidden] { display: none; }
+.gg-group h3 { margin: 0 0 6px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gg-accent); }
+.gg-row { display: grid; grid-template-columns: minmax(120px, 44%) 1fr; gap: 12px; align-items: baseline; padding: 6px 0; line-height: 1.5;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05); color: #cbd5e1; }
+.gg-keys { color: #eef2ff; }
+.gg-empty { color: #94a3b8; text-align: center; }
+
+/* Gardien et IA */
+.gg-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.gg-cards article { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(184, 154, 242, 0.18);
+    transition: border-color 0.15s, transform 0.15s; }
+.gg-cards article:hover { border-color: rgba(184, 154, 242, 0.5); transform: translateY(-1px); }
+.gg-cards h3 { margin: 0 0 6px; font-size: 12px; color: var(--gg-ok); }
+.gg-cards p { margin: 0; line-height: 1.55; color: #cbd5e1; }
+
+@keyframes gg-rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@keyframes gg-slide { from { opacity: 0; transform: translateX(14px); } }
+@keyframes gg-draw { from { stroke-dashoffset: 60; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .gg-window, .gg-stage.gg-in, .gg-scene .l { animation: none; } }
+@media (max-width: 600px) {
+    .gg-window { padding: 14px 16px 16px; }
+    .gg-window header { flex-wrap: wrap; gap: 10px; }
+    .gg-stage { grid-template-columns: 1fr; gap: 14px; }
+    .gg-scene { width: 150px; justify-self: center; }
+    .gg-row { grid-template-columns: 1fr; gap: 4px; }
+}
+#thoughtsButton[data-state="off"]::before { content: ''; position: absolute; left: 18%; right: 18%; top: 50%; height: 1.5px; z-index: 1;
+    background: #fff; transform: rotate(-40deg); box-shadow: 0 0 3px rgba(184, 154, 242, 0.85); }
+body.gardien-thoughts-dim .gardien-thought, body.gardien-thoughts-dim .gardien-thought-link { opacity: 0.15; transition: opacity 0.3s; }
+body.gardien-thoughts-off .gardien-thought, body.gardien-thoughts-off .gardien-thought-link { display: none !important; }  /* Nodz pose display en ligne */
+
+/* Une seule mascotte, l'orbe du Gardien : le logo animé de Nodz n'est plus affiché. */
+#brand-container { display: none !important; }
+
+/* Vue hyperspace chargée (plus de 1 500 nodes) : le contenu en étiquette légère plutôt qu'en vignette. */
+.gardien-side-layer .gs-label { fill: #e2e8f0; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: rgba(5, 12, 23, 0.8); stroke-width: 3px; }
+body.nz-light .gardien-side-layer .gs-label { fill: #440852; stroke: rgba(255, 255, 255, 0.8); }
+
+/* Relier en glissant (linkdrop.js) : le node touché depuis une demi-seconde s'allume, le lien se fera au relâcher. */
+.node-group.gardien-link-armed { filter: drop-shadow(0 0 6px #1E90FF) drop-shadow(0 0 14px rgba(184, 154, 242, 0.9)); animation: gardien-link-armed 0.8s ease-in-out infinite alternate; }
+@keyframes gardien-link-armed { to { filter: drop-shadow(0 0 10px #1E90FF) drop-shadow(0 0 22px rgba(184, 154, 242, 1)); } }
+
+/* Thème Ardoise (theme.js) : gris-bleu sombre, panneaux un ton au-dessus ; nodes, liens et néons inchangés. */
+body.gardien-slate {
+    --nz-glass: rgba(39, 49, 65, 0.78);
+    --nz-glass-strong: rgba(39, 49, 65, 0.95);
+    --nz-card: rgba(39, 49, 65, 0.96);
+    --nz-line: rgba(176, 190, 210, 0.24);
+    --nz-text: #e6edf3;
+}
+body.gardien-slate .universe { background: #1e2633; }
+body.gardien-slate .node-text-input { text-shadow: 0 0 4px #1e2633, 0 0 2px #1e2633, 0 1px 1px #1e2633; }
+
+/* Coupe-liens (cutter.js) : traînée de la lame, étincelle au point de coupe, curseur et bouton Ciseaux. */
+#gardien-cutter { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 30; }
+#gardien-cutter polyline { fill: none; stroke: #e9ddff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+    filter: drop-shadow(0 0 4px #1E90FF) drop-shadow(0 0 10px #b89af2); }
+body.gardien-cutting .universe, body.gardien-cutting .universe * { cursor: crosshair !important; }
+@keyframes gardien-spark { from { transform: translate(-50%, -50%) scale(0.3); opacity: 1; } to { transform: translate(-50%, -50%) scale(2.4); opacity: 0; } }
+.gardien-spark { position: fixed; z-index: 31; width: 22px; height: 22px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, #fff 0 18%, #b89af2 30%, rgba(30, 144, 255, 0.6) 50%, transparent 70%);
+    animation: gardien-spark 0.55s ease-out forwards; }
+#cutButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Cpath d='M8.1 8.1 20 20M8.1 15.9 20 4'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#cutButton.on, body.gardien-cutting #cutButton { box-shadow: var(--nz-glow); }
+
+/* Rappels (reminders.js) : la cloche reste dans le dock (Nodz la cachait sans rappel échu) et ouvre son panneau ;
+   compte à rebours au-dessus des nodes ; cartes de notification en haut, au centre. */
+body.gardien-ready #notificationButton { display: block !important; }
+#notificationButton:not(.gr-has) { opacity: 0.55; }
+#gardien-countdowns { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+.gr-badge { position: absolute; left: 0; top: 0; padding: 2px 8px; border-radius: 999px; white-space: nowrap; font: 600 10px/14px 'Cascadia Code', monospace;
+    color: #e9e3ff; background: rgba(20, 16, 44, 0.85); border: 1px solid rgba(184, 154, 242, 0.6); box-shadow: 0 0 10px rgba(104, 72, 166, 0.4); }
+.gr-badge::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; vertical-align: 1px; background: #b89af2; }
+.gr-badge.soon { border-color: #ffb454; color: #ffe2b8; animation: gr-pulse 1.4s ease-in-out infinite; }
+.gr-badge.soon::before { background: #ffb454; }
+.gr-badge.due { border-color: #FF4D6D; color: #fff; background: rgba(120, 16, 40, 0.9); box-shadow: 0 0 14px rgba(255, 77, 109, 0.6); }
+.gr-badge.due::before { background: #FF4D6D; }
+@keyframes gr-pulse { 50% { box-shadow: 0 0 16px rgba(255, 180, 84, 0.75); } }
+body.nz-light .gr-badge:not(.due) { color: #440852; background: rgba(255, 255, 255, 0.9); }
+
+#gardien-reminder-cards { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 10px;
+    width: min(420px, calc(100vw - 32px)); font: 12px 'Cascadia Code', monospace; }
+.gr-card { position: relative; display: grid; grid-template-columns: 34px 1fr; gap: 6px 12px; padding: 14px 16px; border-radius: 16px; color: #e2e8f0;
+    background: linear-gradient(160deg, rgba(20, 16, 44, 0.95), rgba(5, 12, 23, 0.96)) padding-box,
+        linear-gradient(135deg, #FF4D6D, #b89af2 50%, #1E90FF) border-box; border: 1px solid transparent;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 77, 109, 0.25); animation: gr-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+@keyframes gr-in { from { opacity: 0; transform: translateY(-14px) scale(0.96); } }
+.gr-card strong { display: block; margin-bottom: 2px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; color: #FF8FA3; }
+.gr-card p { margin: 0; font-size: 13px; color: #fff; }
+.gr-card small { color: #94a3b8; }
+.gr-card nav { grid-column: 2; display: flex; gap: 6px; margin-top: 6px; }
+.gr-bell { grid-row: span 3; width: 34px; height: 34px; border-radius: 50%; background: rgba(255, 77, 109, 0.18) url('../img/notification.svg') no-repeat center / 60%;
+    animation: gr-ring 1.2s ease-in-out 2; }
+@keyframes gr-ring { 15%, 45% { transform: rotate(14deg); } 30%, 60% { transform: rotate(-14deg); } 75% { transform: none; } }
+#gardien-reminder-cards button, #gardien-reminders button { font: inherit; color: #e2e8f0; cursor: pointer; border-radius: 999px; padding: 4px 10px;
+    background: rgba(104, 72, 166, 0.3); border: 1px solid rgba(184, 154, 242, 0.4); }
+#gardien-reminder-cards button:hover, #gardien-reminders button:hover { background: rgba(104, 72, 166, 0.6); }
+#gardien-reminder-cards .gr-x, #gardien-reminders .gr-x { border: 0; background: transparent; color: #94a3b8; font-size: 16px; padding: 0 6px; }
+.gr-card > .gr-x { position: absolute; top: 6px; right: 6px; }
+
+#gardien-reminders { position: fixed; z-index: 55; width: min(360px, calc(100vw - 32px)); max-height: min(520px, 70vh); display: flex; flex-direction: column;
+    font: 12px 'Cascadia Code', monospace; color: #e2e8f0; border-radius: 18px; border: 1px solid transparent;
+    background: linear-gradient(160deg, rgba(20, 16, 44, 0.95), rgba(5, 12, 23, 0.96)) padding-box,
+        linear-gradient(135deg, rgba(184, 154, 242, 0.75), rgba(30, 144, 255, 0.35)) border-box;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); animation: gc-open 0.22s ease-out; }
+#gardien-reminders[hidden] { display: none; }
+#gardien-reminders header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+#gardien-reminders header strong { letter-spacing: 0.06em; }
+#gardien-reminders .gr-allow { margin: 10px 14px 0; }
+#gardien-reminders .gr-allow[hidden] { display: none; }
+.gr-list { overflow-y: auto; padding: 4px 10px 12px; }
+.gr-list h4 { margin: 12px 4px 6px; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7aa8; }
+.gr-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gr-list li { display: grid; grid-template-columns: 76px 1fr; gap: 4px 8px; align-items: center; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.14); }
+.gr-list li.due { border-color: rgba(255, 77, 109, 0.5); background: rgba(255, 77, 109, 0.08); }
+.gr-list li.soon { border-color: rgba(255, 180, 84, 0.5); }
+.gr-left { font-weight: 700; color: #b89af2; }
+li.due .gr-left { color: #FF8FA3; }
+li.soon .gr-left { color: #ffb454; }
+#gardien-reminders .gr-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; border: 0; background: none; padding: 0; text-align: left; border-radius: 6px; }
+.gr-text b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.gr-text small { color: #94a3b8; }
+#gardien-reminders .gr-text:hover { background: none; }
+#gardien-reminders .gr-text:hover b { color: #fff; text-decoration: underline; }
+.gr-actions { grid-column: 2; display: flex; gap: 6px; }
+.gr-actions button { padding: 2px 8px !important; font-size: 11px !important; }
+.gr-empty { margin: 14px 6px; color: #94a3b8; line-height: 1.6; }
+
+/* Salon multijoueur (room.js) : panneau du bouton Inviter, curseurs nommés des autres. */
+#gardien-room {
+    position: fixed; top: 76px; left: 56px; z-index: 45; width: min(340px, calc(100vw - 32px)); box-sizing: border-box;
+    display: grid; gap: 10px; padding: 12px 14px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: rgba(5, 12, 23, 0.88); border: 1px solid rgba(104, 72, 166, 0.55); border-radius: 14px;
+    box-shadow: 0 0 18px rgba(104, 72, 166, 0.25); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+#gardien-room[hidden], #gardien-room [hidden] { display: none !important; }
+#gardien-room header { display: flex; align-items: center; gap: 4px; }
+#gardien-room header b { color: #b89af2; letter-spacing: 0.06em; }
+#gardien-room .gsal-where { flex: 1; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gardien-room .gsal-x { background: none; border: 0; color: #94a3b8; font-size: 16px; cursor: pointer; }
+#gardien-room p { margin: 0; color: #cbd5e1; line-height: 1.5; }
+#gardien-room .gsal-link { display: flex; gap: 6px; }
+#gardien-room .gsal-link input { flex: 1; min-width: 0; padding: 6px 8px; font: inherit; color: #e2e8f0; background: #0b1220; border: 1px solid #1e293b; border-radius: 8px; }
+#gardien-room button:not(.gsal-x) { padding: 6px 10px; font: inherit; color: #eef2ff; background: rgba(104, 72, 166, 0.35); border: 1px solid rgba(184, 154, 242, 0.45); border-radius: 8px; cursor: pointer; }
+#gardien-room button:not(.gsal-x):hover, #gardien-room button.on { background: #6848A6; }
+#gardien-room .gsal-end { background: rgba(255, 107, 107, 0.18) !important; border-color: rgba(255, 107, 107, 0.5) !important; }
+#gardien-room .gsal-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+#gardien-room .gsal-people:empty { display: none; }
+#gardien-room .gsal-people li { display: flex; align-items: center; gap: 8px; }
+#gardien-room .gsal-people i { width: 22px; height: 22px; border-radius: 50%; flex: none; display: grid; place-items: center; color: #050c17; background: var(--gsal-color); }
+#gardien-room .gsal-people i svg, .gsal-cursor span i svg { width: 70%; height: 70%; }
+/* Moi : avatar et pseudo, avant d'ouvrir ou de rejoindre un salon et pendant. */
+#gardien-room .gsal-me { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(184, 154, 242, 0.2); }
+#gardien-room .gsal-avatars { display: flex; flex-wrap: wrap; gap: 4px; }
+#gardien-room .gsal-avatars button { width: 28px; height: 28px; padding: 0 !important; display: grid; place-items: center; border-radius: 50% !important;
+    color: var(--gsal-color); background: rgba(255, 255, 255, 0.05) !important; border: 1px solid rgba(184, 154, 242, 0.25) !important; }
+#gardien-room .gsal-avatars button svg { width: 16px; height: 16px; }
+#gardien-room .gsal-avatars button[aria-checked=true] { color: #050c17; background: var(--gsal-color) !important; border-color: var(--gsal-color) !important; box-shadow: 0 0 10px var(--gsal-color); }
+#gardien-room .gsal-name { padding: 7px 10px; font: inherit; color: #e2e8f0; background: #0b1220; border: 1px solid #1e293b; border-radius: 8px; }
+#gardien-room .gsal-name:focus { outline: none; border-color: #b89af2; }
+#gardien-room .gsal-people span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gardien-room .gsal-people button { padding: 3px 8px !important; font-size: 11px !important; }
+#gardien-room .gsal-actions { display: flex; gap: 6px; justify-content: flex-end; }
+#gardien-room-cursors { position: fixed; inset: 0; z-index: 30; pointer-events: none; overflow: hidden; }
+.gsal-cursor { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 2px; transition: transform 0.08s linear; }
+.gsal-cursor[hidden] { display: none; }
+.gsal-cursor svg { width: 14px; height: 18px; fill: var(--gsal-color); stroke: rgba(5, 12, 23, 0.8); stroke-width: 1.2; filter: drop-shadow(0 0 4px var(--gsal-color)); }
+.gsal-cursor span { margin-top: 12px; padding: 1px 6px; display: flex; align-items: center; gap: 4px; font: 11px 'Cascadia Code', monospace; color: #050c17; background: var(--gsal-color); border-radius: 6px; white-space: nowrap; }
+.gsal-cursor span i { width: 13px; height: 13px; display: grid; place-items: center; }
+.gsal-cursor span i:empty { display: none; }
+.gsal-cursor span b { font-weight: 600; }
+#shareButton.gardien-room-live { box-shadow: 0 0 0 2px #33FF99, 0 0 12px rgba(51, 255, 153, 0.5); }
+#shareButton.gardien-room-live::before { content: attr(data-count); position: absolute; top: -4px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; font: 10px/15px 'Cascadia Code', monospace; color: #050c17; background: #33FF99; border-radius: 8px; text-align: center; }
+body.nz-light #gardien-room { color: #440852; background: rgba(255, 255, 255, 0.94); }
+body.nz-light #gardien-room p, body.nz-light #gardien-room .gsal-link input, body.nz-light #gardien-room .gsal-name { color: #440852; background: #fff; }
+
+/* Branches (branches.js) : descendants repliés cachés (!important : en déplaçant la vue, Nodz pose display:block sur
+   chaque node à l'écran), pastille +N pour déplier, menu Branche de la pastille d'un node. */
+.node-group.gardien-folded, .link.gardien-folded { display: none !important; }
+#gardien-folds { position: fixed; inset: 0; z-index: 25; pointer-events: none; }
+#gardien-folds[hidden], body.gardien-compact #gardien-folds { display: none; }
+#gardien-folds .gf-badge { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; pointer-events: auto; min-width: 26px; height: 20px; padding: 0 7px; cursor: pointer;
+    font: 600 11px 'Cascadia Code', monospace; color: #050c17; background: #b89af2; border: 0; border-radius: 10px; box-shadow: 0 0 10px rgba(184, 154, 242, 0.6); }
+#gardien-folds .gf-badge:hover { background: #33FF99; }
+#gardien-folds .gf-badge[hidden] { display: none; }
+:is(#gardien-branch, #gardien-pick) { position: fixed; z-index: 46; display: grid; gap: 4px; min-width: 180px; padding: 8px; box-sizing: border-box;
+    font: 12px 'Cascadia Code', monospace; color: #e2e8f0; background: rgba(5, 12, 23, 0.92); border: 1px solid rgba(104, 72, 166, 0.55);
+    border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+:is(#gardien-branch, #gardien-pick)[hidden] { display: none; }
+#gardien-pick button:disabled { opacity: 0.4; cursor: default; }
+:is(#gardien-branch, #gardien-pick) button { text-align: left; padding: 6px 10px; font: inherit; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+:is(#gardien-branch, #gardien-pick) button:hover:not(:disabled) { background: rgba(104, 72, 166, 0.45); }
+#gardien-branch small { margin: 4px 10px 0; color: #94a3b8; font-size: 10px; letter-spacing: 0.06em; }
+body.nz-light :is(#gardien-branch, #gardien-pick) { color: #440852; background: rgba(255, 255, 255, 0.96); }
+
+/* Texte des nodes (textfit.js) : interligne à la mesure de chaque police (Nodz fixait la hauteur de ligne à la plus
+   grande taille du texte : les lignes d'une grande police se chevauchaient) ; un mot n'est coupé que s'il ne tient
+   vraiment pas (le node s'élargit d'abord pour lui). */
+.node-text-input { line-height: 1.25 !important; word-break: normal; overflow-wrap: break-word; }
+
+/* Importer / Exporter (exchange.js) : le panneau du bouton Export du dock. */
+#gardien-exchange {
+    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 45; width: min(440px, calc(100vw - 32px));
+    box-sizing: border-box; display: grid; gap: 8px; padding: 14px 16px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    background: rgba(5, 12, 23, 0.92); border: 1px solid rgba(104, 72, 166, 0.55); border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 18px rgba(104, 72, 166, 0.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+#gardien-exchange[hidden] { display: none; }
+#gardien-exchange header { display: flex; align-items: center; justify-content: space-between; }
+#gardien-exchange header b { color: #b89af2; letter-spacing: 0.06em; }
+#gardien-exchange .gxx-x { background: none; border: 0; color: #94a3b8; font-size: 16px; cursor: pointer; }
+#gardien-exchange h4 { margin: 6px 0 0; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8; }
+#gardien-exchange .gxx-note { margin: 0; color: #cbd5e1; line-height: 1.5; }
+#gardien-exchange .gxx-note:empty { display: none; }
+#gardien-exchange button:not(.gxx-x) { padding: 6px 12px; font: inherit; color: #eef2ff; background: rgba(104, 72, 166, 0.3);
+    border: 1px solid rgba(184, 154, 242, 0.45); border-radius: 999px; cursor: pointer; }
+#gardien-exchange button:not(.gxx-x):hover:not(:disabled) { background: #6848A6; }
+#gardien-exchange button:disabled { opacity: 0.35; cursor: default; }
+#gardien-exchange .gxx-primary { justify-self: start; background: #6848A6 !important; }
+#gardien-exchange .gxx-seg, #gardien-exchange .gxx-formats { display: flex; flex-wrap: wrap; gap: 6px; }
+#gardien-exchange .gxx-seg button.on { color: #050c17; background: #33FF99; border-color: #33FF99; font-weight: 600; }
+body.nz-light #gardien-exchange { color: #440852; background: rgba(255, 255, 255, 0.96); }
+body.nz-light #gardien-exchange .gxx-note { color: #5b4a78; }
+
+/* Sélection rectangle (Ctrl + glisser) : plus de voile translucide sur les nodes, un trait fin seulement. */
+.selectionBox { fill: none; stroke: #b89af2; stroke-width: 1.5px; stroke-dasharray: 6 5; }
+body.nz-light .selectionBox { stroke: #6848A6; }
+
+/* Agents & modèles (library.js) : fenêtre sombre à barre latérale, comme le guide et les autres panneaux. Tout est
+   limité à .ga-window : les consoles d'administration (admin.js) gardent les mêmes classes .gl-* sans changer. */
+.gl-window.ga-window {
+    --ga-text: #e2e8f0; --ga-muted: #94a3b8; --ga-line: rgba(184, 154, 242, 0.2); --ga-accent: #b89af2; --ga-ok: #33FF99; --ga-card: rgba(255, 255, 255, 0.035);
+    width: min(1100px, 94vw); height: min(780px, 90vh); max-height: none; padding: 0; overflow: hidden; display: grid; grid-template-columns: 220px 1fr;
+    color: var(--ga-text); background: linear-gradient(160deg, rgba(23, 14, 42, 0.97), rgba(5, 12, 23, 0.97)); border: 1px solid rgba(104, 72, 166, 0.55);
+    border-radius: 22px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 28px rgba(104, 72, 166, 0.3); animation: gg-rise 0.22s ease-out;
+}
+.ga-window h3, .ga-window h4 { color: var(--ga-text); }
+.ga-window button, .ga-window select, .ga-window input, .ga-window textarea {
+    font: 12px 'Cascadia Code', monospace; color: var(--ga-text); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(184, 154, 242, 0.28); border-radius: 10px; padding: 6px 10px;
+}
+.ga-window button { border-radius: 999px; padding: 6px 14px; transition: background 0.15s, border-color 0.15s; }
+.ga-window button:hover:not(:disabled) { background: rgba(184, 154, 242, 0.18); box-shadow: none; }
+.ga-window select option, .ga-window select optgroup { background: #0b1120; color: var(--ga-text); }
+.ga-window input:focus, .ga-window select:focus, .ga-window textarea:focus { outline: none; border-color: var(--ga-accent); box-shadow: 0 0 0 3px rgba(184, 154, 242, 0.15); }
+.ga-window .gl-primary { background: var(--ga-ok) !important; color: #050c17 !important; border-color: var(--ga-ok) !important; font-weight: 600; }
+.ga-window .gl-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--ga-ok) !important; }
+.ga-window .gl-danger { color: #ff8a8a !important; border-color: rgba(255, 107, 107, 0.4); }
+.ga-window .gl-hint, .ga-window .gl-empty, .ga-window small { color: var(--ga-muted); }
+.ga-window .gl-hint code, .ga-window code { color: var(--ga-accent); }
+.ga-window .gl-warning { color: #f5c27a; background: rgba(240, 179, 90, 0.08); border: 1px solid rgba(240, 179, 90, 0.3); border-radius: 12px; padding: 8px 12px; }
+.ga-window details > summary { cursor: pointer; color: var(--ga-accent); margin: 6px 0; }
+
+/* barre latérale */
+.ga-side { display: flex; flex-direction: column; gap: 14px; min-height: 0; padding: 20px 12px 14px; border-right: 1px solid var(--ga-line); background: rgba(0, 0, 0, 0.18); }
+.ga-side h2 { margin: 0 8px 4px; font-size: 14px; letter-spacing: 0.06em; color: var(--ga-accent); }
+.ga-nav { display: grid; gap: 3px; }
+.ga-nav button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; text-align: left; border: 0; border-radius: 12px; background: none; color: var(--ga-muted); }
+.ga-nav button svg { width: 18px; height: 18px; flex: none; }
+.ga-nav button.active { color: #fff; background: rgba(184, 154, 242, 0.16); box-shadow: inset 3px 0 0 var(--ga-accent); }
+.ga-machine { margin-top: auto; display: grid; gap: 6px; }
+.ga-remote .ga-machine { display: none; }
+.ga-machine .gm-window { grid-template-columns: 1fr; margin: 0; background: rgba(255, 255, 255, 0.04); }
+.ga-machine .gl-machine { margin: 0 4px; color: var(--ga-muted); font-size: 10px; line-height: 1.5; }
+
+/* contenu */
+.ga-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.ga-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 24px 10px; }
+.ga-head > div { flex: 1; }
+.ga-head h3 { margin: 0 0 4px; font-size: 18px; }
+.ga-head p { margin: 0; color: var(--ga-muted); }
+.ga-window .ga-x { width: 32px; height: 32px; padding: 0; border: 0; background: none; color: var(--ga-muted); font-size: 18px; border-radius: 50%; }
+.ga-main > .ga-seg { margin: 0 24px 8px; align-self: flex-start; }
+.ga-main > .ga-seg[hidden] { display: none; }
+.ga-main > .gl-warning { margin: 0 24px 8px; }
+.ga-body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 24px 20px; }
+.ga-window .gl-notice { margin: 0; padding: 8px 24px; min-height: 16px; border-top: 1px solid var(--ga-line); color: var(--ga-ok); }
+.ga-window .gl-notice:empty { display: none; }
+.ga-window .gl-notice.error { color: #ff8a8a; }
+.ga-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--ga-line); }
+.ga-window .ga-seg button { border: 0; background: none; color: var(--ga-muted); padding: 5px 12px; }
+.ga-window .ga-seg button[aria-selected=true], .ga-window .ga-seg button.on { background: var(--ga-accent); color: #050c17; font-weight: 600; }
+
+/* Mon IA */
+.ga-now { display: flex; align-items: center; gap: 14px; padding: 16px 18px; margin-bottom: 14px; border-radius: 16px; background: var(--ga-card); border: 1px solid var(--ga-line); }
+.ga-now > div { flex: 1; display: grid; gap: 2px; }
+.ga-now strong { font-size: 15px; color: #fff; }
+.ga-now span:not(.ga-dot) { color: var(--ga-muted); }
+.ga-dot { width: 12px; height: 12px; border-radius: 50%; background: #475569; flex: none; }
+.ga-now.ok .ga-dot { background: var(--ga-ok); box-shadow: 0 0 10px var(--ga-ok); }
+.ga-now.off .ga-dot { background: #f0b35a; box-shadow: 0 0 10px #f0b35a; }
+.ga-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.ga-option { display: grid; gap: 8px; align-content: start; padding: 16px 18px; border-radius: 16px; background: var(--ga-card); border: 1px solid var(--ga-line); }
+.ga-option h4 { margin: 0; font-size: 14px; }
+.ga-option p { margin: 0; color: var(--ga-muted); line-height: 1.6; }
+.ga-option > button { justify-self: start; }
+.ga-offers { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 12px; }
+.ga-pitch { margin: 0 0 10px; line-height: 1.6; }
+.ga-offer { grid-template-rows: auto 1fr auto; }
+.ga-offer > .gl-badge, .ga-offer > .ga-link { justify-self: start; }
+.ga-offer h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ga-price { font-size: 12px; font-weight: 600; color: var(--ga-accent); }
+.ga-premium { border-color: rgba(184, 154, 242, 0.55); background: linear-gradient(160deg, rgba(104, 72, 166, 0.22), rgba(255, 255, 255, 0.035)); }
+.ga-premium.on { border-color: var(--ga-ok); }
+.ga-window a.ga-link { display: inline-block; padding: 6px 14px; border: 1px solid; border-radius: 999px; text-decoration: none; font: 12px 'Cascadia Code', monospace; }
+.ga-wide { margin-top: 12px; }
+.ga-window .gl-rec { margin: 0; max-width: none; background: rgba(0, 0, 0, 0.18); border-color: var(--ga-line); }
+.ga-window .gl-rec.best { border-color: rgba(51, 255, 153, 0.5); }
+.ga-window .gl-step-recs { display: grid; gap: 6px; }
+.ga-window .gl-step-recs > div { display: grid; gap: 6px; }
+
+/* Agents */
+.ga-agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.ga-window .gl-agent { margin: 0; padding: 14px 16px; gap: 10px; align-content: start; border-radius: 16px; background: var(--ga-card); border: 1px solid var(--ga-line); }
+.ga-window .gl-agent.is-guardian { grid-column: 1 / -1; border-color: rgba(184, 154, 242, 0.55); box-shadow: inset 3px 0 0 var(--ga-accent); }
+.ga-window .gl-agent.is-off { opacity: 0.6; }
+.ga-window .gl-agent-head { align-items: center; gap: 12px; }
+.ga-window .gl-agent-head > div { flex: 1; }
+.ga-window .gl-agent-head strong { font-size: 14px; color: #fff; }
+.ga-window .gl-agent-head small { color: var(--ga-muted); }
+.ga-window .gl-role { color: var(--ga-accent); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ga-avatar { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 12px; color: #fff; background: linear-gradient(135deg, #6848A6, #1E90FF); }
+.ga-avatar svg { width: 20px; height: 20px; }
+.ga-field { display: grid; gap: 4px; }
+.ga-field > span { color: var(--ga-muted); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ga-window .gl-agent textarea { background: rgba(0, 0, 0, 0.25); }
+.ga-window .gl-doctor-box { display: contents; }
+/* interrupteur : la case cochée devient un curseur */
+.ga-window .gl-switch { position: relative; flex: none; display: inline-block; width: 38px; height: 22px; cursor: pointer; }
+.ga-window .gl-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.ga-window .gl-switch i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.12); border: 1px solid var(--ga-line); transition: background 0.15s; }
+.ga-window .gl-switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #cbd5e1; transition: transform 0.15s; }
+.ga-window .gl-switch input:checked + i { background: rgba(51, 255, 153, 0.35); border-color: rgba(51, 255, 153, 0.6); }
+.ga-window .gl-switch input:checked + i::after { transform: translateX(16px); background: var(--ga-ok); }
+.ga-window .gl-switch input:disabled { cursor: not-allowed; }
+.ga-window .gl-switch input:disabled + i { opacity: 0.4; }
+
+/* Modèles */
+.ga-window .gl-board { gap: 12px; }
+.ga-window .gl-column { background: rgba(0, 0, 0, 0.15); border-color: var(--ga-line); border-radius: 16px; padding: 12px; }
+.ga-window .gl-column.over { background: rgba(184, 154, 242, 0.12); }
+.ga-window .gl-column > small { color: var(--ga-muted); }
+.ga-window .gl-drop-here { border-color: var(--ga-line); color: var(--ga-muted); }
+.ga-window .gl-card { background: var(--ga-card); border-color: var(--ga-line); border-radius: 14px; padding: 12px; gap: 8px; }
+.ga-window .gl-card.is-loaded { border-color: rgba(51, 255, 153, 0.55); }
+.ga-window .gl-card-head strong { color: #fff; }
+.ga-window .gl-size, .ga-window .gl-used { color: var(--ga-muted); }
+.ga-window .gl-cap, .ga-window .gl-badge { border-color: var(--ga-line); background: rgba(255, 255, 255, 0.04); }
+.ga-window .gl-badge.loaded { color: var(--ga-ok); border-color: rgba(51, 255, 153, 0.5); }
+.ga-window .gl-badge.heavy { color: #f5c27a; background: rgba(240, 179, 90, 0.08); }
+.ga-chip { padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--ga-line); color: var(--ga-text); font-size: 10px; }
+.ga-chip.ok { color: var(--ga-ok); border-color: rgba(51, 255, 153, 0.4); }
+.ga-chip.warn { color: #f5c27a; border-color: rgba(240, 179, 90, 0.4); }
+.ga-window .gl-runtime { border: 0; padding: 0; line-height: 1.5; }
+.ga-window .gl-actions { align-items: center; gap: 6px; }
+.ga-more { position: relative; }
+.ga-more > summary { list-style: none; margin: 0; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(184, 154, 242, 0.28); color: var(--ga-text); }
+.ga-more > summary::-webkit-details-marker { display: none; }
+.ga-more > div { position: absolute; z-index: 5; left: 0; top: calc(100% + 4px); display: grid; gap: 2px; min-width: 210px; padding: 6px; border-radius: 12px;
+    background: #0d1426; border: 1px solid rgba(184, 154, 242, 0.4); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5); }
+.ga-window .ga-more > div button { border: 0; background: none; border-radius: 8px; text-align: left; }
+.ga-more.ga-more-end > div { left: auto; right: 0; }
+.ga-window .gl-dialog { background: rgba(5, 12, 23, 0.6); backdrop-filter: blur(3px); }
+.ga-window .gl-dialog-card { background: linear-gradient(160deg, #170e2a, #050c17); color: var(--ga-text); border: 1px solid rgba(184, 154, 242, 0.45); width: min(660px, 92vw); }
+.ga-window .gl-dialog-card h3 { color: #fff; }
+.ga-simple { display: grid; gap: 12px; padding: 14px; border-radius: 14px; background: var(--ga-card); border: 1px solid var(--ga-line); }
+.ga-choice { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+.ga-choice > div:first-child { display: grid; gap: 2px; }
+.ga-choice b { color: #fff; }
+.ga-window .gl-estimate { background: rgba(30, 144, 255, 0.08); border-color: rgba(30, 144, 255, 0.35); }
+.ga-window .gl-estimate strong, .ga-window .gl-load-row > label, .ga-window .gl-params-form legend { color: var(--ga-text); }
+.ga-window .gl-estimate span, .ga-window .gl-accent, .ga-window .gl-params-form { color: var(--ga-muted); }
+.ga-window .gl-estimate b { color: var(--ga-ok); }
+.ga-window .gl-estimate b.warn { color: #f5c27a; }
+.ga-window .gl-estimate b.high, .ga-window .gl-estimate small.bad { color: #ff8a8a; }
+.ga-window .gl-check { color: var(--ga-text); }
+.ga-window .gl-params-form fieldset, .ga-window .gl-load fieldset { border-color: var(--ga-line); }
+.ga-window .gl-tuning { background: var(--ga-card); border-color: var(--ga-line); }
+.ga-window .gl-cuda pre { background: rgba(0, 0, 0, 0.35); }
+.ga-window .gl-row.best { background: rgba(51, 255, 153, 0.06); border-color: rgba(51, 255, 153, 0.35); }
+.ga-window .gl-result:hover, .ga-window .gl-result.open { background: rgba(184, 154, 242, 0.1); border-color: var(--ga-line); }
+.ga-window .gl-size-hint { background: rgba(184, 154, 242, 0.15); color: var(--ga-accent); }
+.ga-window .gl-files { border-color: var(--ga-line); background: rgba(0, 0, 0, 0.15); }
+.ga-window .gl-sizes button.active { background: var(--ga-accent); color: #050c17; border-color: var(--ga-accent); }
+.ga-window .gl-results { max-height: none; }
+.ga-window .gl-download { border-color: var(--ga-line); }
+.ga-window .gl-bar { background: rgba(255, 255, 255, 0.08); }
+.ga-window .gl-bar div { background: linear-gradient(90deg, #6848A6, var(--ga-ok)); }
+.ga-window .gl-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.ga-window .gl-api-form { gap: 10px 14px; }
+.ga-window .gl-field > span { color: var(--ga-muted); }
+.ga-window input[type=file]::file-selector-button { margin-right: 10px; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(184, 154, 242, 0.4); background: rgba(184, 154, 242, 0.15); color: var(--ga-text); font: inherit; cursor: pointer; }
+
+/* Outils */
+.ga-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.ga-window .ga-search { flex: 1; padding: 9px 14px; border-radius: 12px; }
+.ga-count { color: var(--ga-muted); font-size: 11px; white-space: nowrap; }
+.ga-window .gl-toolgroup { margin: 0 0 10px; }
+.ga-window .gl-toolgroup[hidden], .ga-window .gl-tool[hidden] { display: none; }
+.ga-window .gl-toolgroup > summary { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; font-weight: 600; color: var(--ga-text); }
+.ga-window .gl-toolgroup > summary .ga-count { margin-left: auto; font-weight: 400; }
+.ga-window .gl-tool { background: var(--ga-card); border-color: var(--ga-line); border-radius: 12px; align-items: center; }
+.ga-window .gl-tool.off { opacity: 0.55; background: transparent; }
+.ga-window .gl-tool strong { color: #fff; }
+.ga-window .gl-tool code { color: var(--ga-accent); }
+.ga-window .gl-tool small { color: var(--ga-muted); }
+
+/* Téléphone : la barre latérale passe en haut, en ligne. */
+@media (max-width: 760px) {
+    .gl-window.ga-window { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 92vh; }
+    .ga-side { flex-direction: row; align-items: center; padding: 10px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--ga-line); }
+    .ga-side h2, .ga-machine { display: none; }
+    .ga-nav { display: flex; }
+    .ga-nav button { width: auto; white-space: nowrap; }
+    .ga-head, .ga-body { padding-left: 14px; padding-right: 14px; }
+    .ga-choice { grid-template-columns: 1fr; }
+}
+
+/* Étincelle (spark.js) : dans une dimension vide, la carte qui invite à poser une première idée. */
+#gardien-spark {
+    position: fixed; left: 50%; top: 42%; z-index: 20; transform: translate(-50%, -50%); width: min(460px, calc(100vw - 32px)); box-sizing: border-box;
+    display: grid; gap: 10px; padding: 22px 24px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0; text-align: center;
+    background: radial-gradient(circle at 50% 0%, rgba(51, 255, 153, 0.14), transparent 60%), rgba(5, 12, 23, 0.9);
+    border: 1px solid rgba(51, 255, 153, 0.35); border-radius: 20px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 40px rgba(51, 255, 153, 0.12), 0 18px 40px rgba(0, 0, 0, 0.45); animation: gsp-in 0.4s ease-out;
+}
+#gardien-spark[hidden] { display: none; }
+#gardien-spark b { font-size: 17px; color: #fff; }
+#gardien-spark p { margin: 0; color: #94a3b8; }
+#gardien-spark form { display: flex; gap: 8px; margin-top: 4px; }
+#gardien-spark input { flex: 1; min-width: 0; padding: 10px 14px; font: inherit; color: #fff; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(184, 154, 242, 0.35); border-radius: 12px; outline: none; }
+#gardien-spark input:focus { border-color: #33FF99; box-shadow: 0 0 0 3px rgba(51, 255, 153, 0.15); }
+#gardien-spark form button { padding: 0 16px; font: inherit; font-weight: 600; color: #050c17; background: #33FF99; border: 0; border-radius: 12px; cursor: pointer; }
+#gardien-spark form button:hover { filter: brightness(1.1); }
+#gardien-spark .gsp-examples { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+#gardien-spark .gsp-examples button { padding: 5px 12px; font: inherit; color: #cbd5e1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(184, 154, 242, 0.25); border-radius: 999px; cursor: pointer; }
+#gardien-spark .gsp-examples button:hover { color: #fff; border-color: #33FF99; }
+#gardien-spark .gsp-x { position: absolute; top: 8px; right: 10px; width: 26px; height: 26px; padding: 0; font-size: 16px; color: #94a3b8; background: none; border: 0; border-radius: 50%; cursor: pointer; }
+#gardien-spark .gsp-x:hover { color: #fff; }
+@keyframes gsp-in { from { opacity: 0; transform: translate(-50%, -46%); } }
+@media (prefers-reduced-motion: reduce) { #gardien-spark { animation: none; } }
+body.nz-light #gardien-spark { color: #440852; background: rgba(255, 255, 255, 0.95); }
+body.nz-light #gardien-spark b, body.nz-light #gardien-spark input { color: #440852; }
+/* Mode compact (compact.js) : formes effacées, seul le contenu reste, en texte net à la couleur du node. */
+#compactButton::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5'/%3E%3C/svg%3E") no-repeat center / 90%; }
+#compactButton[hidden] { display: none; }
+#compactButton.on { box-shadow: 0 0 0 2px #1E90FF, 0 0 14px rgba(30, 144, 255, 0.6); }
+body.gardien-compact .node-group :is(.hitbox, .squareShape, .selectednode) { stroke-opacity: 0 !important; fill-opacity: 0 !important; filter: none !important; }
+body.gardien-compact .node-group :is(.portal-door, .gf-badge) { display: none; }
+body.gardien-compact .node-group .node-text-input { font-size: var(--gc-font, 17px) !important; line-height: 1.35 !important; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9); }
+/* Le texte n'est plus tenu par le cercle effacé : sa largeur suit le contenu (15 em au plus), centré, mots entiers. */
+body.gardien-compact .node-group > foreignObject { overflow: visible; }
+body.gardien-compact .node-group .node-text-input { width: max-content !important; max-width: 15em; left: 50%; transform: translate(-50%, -50%);
+    word-break: normal; overflow-wrap: normal; overflow: visible; }
+body.gardien-compact .node-group .node-text-input::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 50%;
+    vertical-align: 1px; background: var(--node-color, #33FF99); box-shadow: 0 0 8px var(--node-color, #33FF99); }
+body.gardien-compact :is(#gardien-sizer, #gardien-nodebar, #gardien-send) { display: none !important; }
+body.gardien-compact .link { stroke-opacity: 0.22; }
+/* Hors d'une sélection rangée : le reste de la carte s'efface. */
+body.gardien-compact .gc-out { opacity: 0.06; pointer-events: none; }
+/* Barre des rangements du compact, en haut au centre. */
+#gardien-compact-bar { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 31; width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box;
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 7px 8px 7px 14px; font: 12px 'Cascadia Code', monospace; color: #e2e8f0;
+    border-radius: 999px; border: 1px solid transparent;
+    background: linear-gradient(rgba(8, 13, 28, 0.94), rgba(8, 13, 28, 0.94)) padding-box, linear-gradient(135deg, #b89af2, #6848A6 45%, #1E90FF) border-box;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); animation: gardien-appear 0.18s ease-out; }
+#gardien-compact-bar[hidden] { display: none; }
+#gardien-compact-bar .gc-count { color: #94a3b8; margin-right: 4px; white-space: nowrap; }
+#gardien-compact-bar button { display: inline-flex; align-items: center; gap: 6px; font: inherit; color: #cbd5e1; background: rgba(148, 163, 184, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 999px; padding: 5px 11px; cursor: pointer; white-space: nowrap; }
+#gardien-compact-bar button:hover { color: #fff; background: rgba(104, 72, 166, 0.45); }
+#gardien-compact-bar button.on { color: #fff; background: rgba(30, 144, 255, 0.28); border-color: #1E90FF; }
+#gardien-compact-bar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#gardien-compact-bar .gc-quit { color: #fff; background: rgba(104, 72, 166, 0.55); border-color: #b89af2; }
+@media (max-width: 720px) { #gardien-compact-bar button span { display: none; } }
+body.nz-light #gardien-compact-bar { color: #440852; background: linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+    linear-gradient(135deg, #b89af2, #6848A6 45%, #1E90FF) border-box; }
+body.nz-light #gardien-compact-bar button:not(.on, .gc-quit) { color: #440852; }
+/* Plafond du compte gratuit (quota.js) : carte qui propose Premium. */
+.gq-card { position: relative; width: min(440px, calc(100vw - 32px)); box-sizing: border-box; padding: 26px 26px 22px; display: grid; gap: 12px;
+    font: 13px/1.6 'Cascadia Code', monospace; color: #e2e8f0; border-radius: 22px; border: 1px solid transparent;
+    background: linear-gradient(rgba(10, 14, 30, 0.97), rgba(10, 14, 30, 0.97)) padding-box, linear-gradient(135deg, #b89af2, #6848A6 50%, #1E90FF) border-box;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(104, 72, 166, 0.35); animation: gardien-appear 0.2s ease-out; }
+.gq-card h3 { margin: 0; padding-right: 24px; font-size: 18px; line-height: 1.35; color: #fff; }
+.gq-card p { margin: 0; color: #94a3b8; }
+.gq-card ul { margin: 2px 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.gq-card li { padding-left: 26px; position: relative; color: #e2e8f0; }
+.gq-card li::before { content: ''; position: absolute; left: 4px; top: 6px; width: 10px; height: 10px; border-radius: 50%;
+    background: linear-gradient(135deg, #b89af2, #1E90FF); box-shadow: 0 0 10px rgba(184, 154, 242, 0.7); }
+.gq-card .gq-why { font-size: 11px; }
+.gq-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.gq-actions button { font: inherit; padding: 8px 16px; border-radius: 999px; cursor: pointer; color: #cbd5e1; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.28); }
+.gq-actions .gq-go { color: #050c17; font-weight: 600; background: linear-gradient(135deg, #b89af2, #33FF99); border: 0; box-shadow: 0 0 18px rgba(51, 255, 153, 0.35); }
+.gq-x { position: absolute; top: 12px; right: 14px; border: 0; background: none; color: #94a3b8; font-size: 18px; cursor: pointer; }
+body.nz-light .gq-card { color: #1e1b4b; background: linear-gradient(rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.97)) padding-box,
+    linear-gradient(135deg, #b89af2, #6848A6 50%, #1E90FF) border-box; }
+body.nz-light .gq-card :is(h3, li) { color: #1e1b4b; }
+
+/* Consoles d'administration (admin.js) : même fenêtre sombre que Agents & modèles, sans sa barre latérale (l'en-tête
+   tombait dans la colonne de 220 px), tableaux sombres lisibles (texte clair sur fond blanc avant). */
+.gl-window.ga-window.ga-console { display: flex; flex-direction: column; padding: 18px 22px; gap: 10px; }
+.ga-console > header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ga-console > header h2 { margin: 0; font-size: 16px; color: var(--ga-accent); letter-spacing: 0.04em; }
+.ga-console > header .gl-close { margin-left: auto; }
+.ga-console .ga-body { flex: 1; min-height: 0; overflow: auto; }
+.ga-window .ga-table-wrap { background: var(--ga-card); border-color: var(--ga-line); }
+.ga-window .ga-table { font-size: 12px; color: var(--ga-text); }
+.ga-window .ga-table th { background: #160f2a; color: var(--ga-accent); border-bottom: 1px solid var(--ga-line); }
+.ga-window .ga-table th.sortable:hover { color: #fff; }
+.ga-window .ga-table td { border-top-color: var(--ga-line); vertical-align: middle; }
+.ga-window .ga-table td strong { color: #fff; font-weight: 600; }
+.ga-window .ga-table td small { color: var(--ga-muted); }
+.ga-window .ga-table tbody tr:hover td { background: rgba(184, 154, 242, 0.06); }
+.ga-window .ga-table tr.bad td { background: rgba(255, 107, 107, 0.08); }
+.ga-window .ga-table input[type=checkbox] { accent-color: var(--ga-accent); }
+.ga-window .ga-actions { flex-wrap: nowrap; }
+.ga-window .ga-table .ga-actions button { padding: 3px 10px; font-size: 11px; white-space: nowrap; }
+.ga-console .gl-tabs button.active { background: var(--ga-accent); color: #050c17; border-color: var(--ga-accent); font-weight: 600; }

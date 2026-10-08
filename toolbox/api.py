@@ -1,0 +1,1055 @@
+"""API /api/v1/toolbox : bibliothèque de modèles (Hugging Face, fichiers du serveur), agents, Gardien.
+
+Consulter est ouvert à tout compte connecté ; ce qui change le serveur (télécharger, importer,
+supprimer, régler un modèle) est réservé aux administrateurs : les modèles sont partagés.
+"""
+
+import asyncio
+import html
+import json
+import logging
+import queue
+import re
+import threading
+import time
+import uuid
+from pathlib import Path
+
+from django.conf import settings
+from django.db import connection
+from django.db.models import Count
+from django.http import FileResponse, JsonResponse, StreamingHttpResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+
+from graph.api import api, unauthenticated
+from graph.services import ChangeError
+from nodzapp.models import Layer, Link, Node
+
+from . import cuda, fit, gguf, home as homes, hub, i18n, iaqua, imaging, monitor, params as model_params, premium, prompts, quota, reminders as reminder_store, remote, tools, tools_en, workspace
+from .broker import BrokerTimeout
+from .dispatcher import Busy
+from .engine import Engine, EngineUnavailable, acting_for
+from .guardian import Guardian, PlanError, guardian_prompt
+from .models import Agent, LocalModel, Mission, NodeMark, Preference, Room, hosted
+from .rooms import display_name
+from .runtime import broker, dispatcher, engine
+
+logger = logging.getLogger(__name__)
+SCHEDULES = {'checked': 0.0}  # dernière vérification des planifications (moniteur)
+
+AGENT_FIELDS = ('name', 'role', 'description', 'system_prompt', 'tools_allowed', 'params', 'enabled')
+
+# Bibliothèque de départ : l'utilisateur choisit ensuite le modèle de chaque agent.
+DEFAULT_AGENTS = [
+    ('Gardien', Agent.Role.ORCHESTRATOR, "Répond aux nodes qu'on lui envoie (pastille Gardien ou Ctrl+Entrée) : place, relie, cherche, délègue, guide."),
+    ('Rédacteur', Agent.Role.TEXT, 'Écrit, résume, reformule.'),
+    ('Codeur', Agent.Role.CODE, 'Écrit et explique du code.'),
+    ('Illustrateur', Agent.Role.IMAGE, 'Génère des images.'),
+]
+DEFAULT_AGENTS_EN = [  # les mêmes, pour un compte créé en anglais (un compte existant garde les noms de ses agents)
+    ('Guardian', Agent.Role.ORCHESTRATOR, 'Answers the nodes sent to it (Guardian pill or Ctrl+Enter): places, links, searches, delegates, guides.'),
+    ('Writer', Agent.Role.TEXT, 'Writes, summarizes, rephrases.'),
+    ('Coder', Agent.Role.CODE, 'Writes and explains code.'),
+    ('Illustrator', Agent.Role.IMAGE, 'Generates images.'),
+]
+DESCRIPTIONS_EN = {role: description for _, role, description in DEFAULT_AGENTS_EN}  # description de départ, en anglais
+
+
+class Forbidden(ChangeError):
+    status = 403
+
+
+class Upstream(ChangeError):
+    status = 502
+
+
+class Stopped(BaseException):
+    """L'utilisateur a arrêté sa demande : BaseException, pour traverser les `except Exception` du Gardien."""
+
+
+def staff_only(request):
+    if not request.user.is_staff:
+        raise Forbidden('réservé aux administrateurs : les modèles sont partagés par tout le serveur')
+
+
+def own_or_staff(request, model):
+    """Un connecteur personnel se règle par son propriétaire ; le reste de la bibliothèque, par l'administrateur."""
+    if model.owner_id != request.user.pk:
+        staff_only(request)
+
+
+def hub_call(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:  # réseau, dépôt introuvable, quota : renvoyé tel quel à l'interface
+        raise Upstream(f'Hugging Face : {e}') from None
+
+
+def model_to_dict(m, user):
+    stats = engine.stats.get(m.id)
+    info = gguf.info(m.path) if m.status == LocalModel.Status.READY and m.path else {}
+    return {'id': str(m.id), 'repo': m.repo, 'filename': m.filename, 'label': m.label, 'kind': m.kind,
+            'capabilities': m.capabilities, 'quant': m.quant, 'size': m.size, 'downloaded': m.downloaded,
+            'status': m.status, 'error': m.error, 'params': m.params, 'loaded': engine.loaded == m.id,
+            'stats': stats if engine.loaded == m.id else None, **hub.download_state(m),
+            'agents': [a.name for a in m.agents.all() if a.owner_id == user.pk],
+            'gguf': info, 'kv_bytes': fit.kv_bytes_per_token(info) if info else None,  # estimation mémoire du dialogue
+            'config': Engine.config(m),  # réglages effectifs (défauts d'iAqua compris)
+            'placement': engine.placement.get(m.id),  # couches GPU et contexte retenus au dernier chargement
+            'endpoint': m.endpoint, 'has_key': bool(m.api_key), 'premium': m.premium,  # modèle par API : la clé ne quitte jamais le serveur
+            'mine': m.owner_id is not None and m.owner_id == user.pk}  # connecteur personnel de cet utilisateur
+
+
+def agent_to_dict(a):
+    default = next((d for _, role, d in DEFAULT_AGENTS if role == a.role), None)
+    description = DESCRIPTIONS_EN[a.role] if a.description == default and i18n.english(a.owner) else a.description
+    return {'id': str(a.id), 'name': a.name, 'role': a.role, 'description': description,
+            'model': str(a.model_id) if a.model_id else None, 'system_prompt': a.system_prompt,
+            # le Gardien : son prompt système en entier (commandes, cas d'usage, ses outils) ; un agent : son rôle
+            'default_prompt': guardian_prompt(a, default=True) if a.role == Agent.Role.ORCHESTRATOR else prompts.default(a.role),
+            **({'prompt': guardian_prompt(a)} if a.role == Agent.Role.ORCHESTRATOR else {}),  # ce qu'il reçoit, tel quel
+            'tools_allowed': a.tools_allowed, 'params': a.params, 'enabled': a.enabled}
+
+
+def _number(value, kind, name):
+    try:
+        return kind(value)
+    except (TypeError, ValueError):
+        raise ChangeError(f'{name} : nombre attendu') from None
+
+
+@api('GET')
+def status(request, body):
+    return JsonResponse({'engine': engine.available(), 'staff': request.user.is_staff,
+                         'loaded': str(engine.loaded) if engine.loaded else None, 'broker': broker.state(),
+                         'machine': hub.machine(), 'models_dir': str(settings.MODELS_DIR), 'param_spec': model_params.SPEC,
+                         'imaging': bool(imaging.binary()), 'gpu_offload': engine.gpu_offload(), 'packs': {k: p['label'] for k, p in hub.PACKS.items()}})
+
+
+@api('GET')
+def search(request, body):
+    """Recherche du haut : nodes de toutes les dimensions, classés par le score de la recherche de Nodz,
+    avec leur dimension et un extrait (carrousel précédent / suivant)."""
+    from nodzapp.views import calculate_matching_score
+
+    query = request.GET.get('q', '').strip()[:200]
+    if not query:
+        return JsonResponse({'results': []})
+    names = dict(Layer.objects.filter(user=request.user).values_list('layer_id', 'layer_name'))
+    nodes = Node.objects.filter(user=request.user, archive=False).values(
+        'node_id', 'layer__layer_id', 'text_content', 'image_content', 'file_name', 'file_text_content', 'created_at', 'modified_at')
+    scored = [(calculate_matching_score(n, query), n) for n in nodes]
+    results = [{'id': f"N-{n['node_id']}", 'layer': n['layer__layer_id'], 'dimension': names.get(n['layer__layer_id'], ''),
+                'text': ' '.join(re.sub(r'<[^>]+>', ' ', html.unescape(n['text_content'] or n['file_name'] or '')).split())[:80], 'score': score}
+               for score, n in sorted(scored, key=lambda item: -item[0]) if score > 0][:200]
+    return JsonResponse({'results': results})
+
+
+RUNNERS = {'python': ['python3', '-c'], 'bash': ['/bin/bash', '-c'], 'javascript': ['node', '-e']}
+
+
+@api('POST')
+def run_code(request, body):
+    """IDE des nodes de code, exécution sur le serveur : dans l'espace de travail confiné de l'utilisateur, avec un
+    délai. Comme le shell du Gardien : compte administrateur et GUARDIAN_SHELL=1 seulement (sinon, le navigateur)."""
+    if not (request.user.is_staff and settings.GUARDIAN_SHELL):
+        return JsonResponse({'error': "exécution sur le serveur réservée à l'administrateur (GUARDIAN_SHELL=1) : "
+                                      'exécute dans le navigateur'}, status=403)
+    language, code = body.get('language'), str(body.get('code') or '')
+    if language not in RUNNERS:
+        raise ChangeError(f"langage {language!r} non exécutable sur le serveur ({', '.join(RUNNERS)})")
+    if not code.strip() or len(code) > 100_000:
+        raise ChangeError('code vide ou trop long (100 000 caractères au plus)')
+    started = time.monotonic()
+    try:
+        result = workspace.run([*RUNNERS[language], code], workspace.root(request.user), workspace.TIMEOUT,
+                               workspace.safe_env(request.user))
+    except workspace.WorkspaceError as e:
+        result = {'code': None, 'stdout': '', 'stderr': str(e)}
+    return JsonResponse({**result, 'duration_ms': int((time.monotonic() - started) * 1000)})
+
+
+@api('GET')
+def node_meta(request, body):
+    """Traçabilité des nodes (visite) : création, dernière modification, origine (main de l'utilisateur, Gardien,
+    message au Gardien) et nom de l'auteur. Nodz ne garde pas l'auteur de chaque modification : seule la date."""
+    from .models import NodeMark
+
+    numbers = [int(r[2:]) for r in request.GET.get('ids', '').split(',')[:300] if r.startswith('N-') and r[2:].isdigit()]
+    marks = dict(NodeMark.objects.filter(owner=request.user, node_id__in=numbers).values_list('node_id', 'origin'))
+    me = request.user.username or request.user.email.split('@')[0]
+    by = {NodeMark.Origin.AI: ('ai', 'le Gardien'), NodeMark.Origin.MESSAGE: ('message', f'{me}, pour le Gardien')}
+    nodes = {}
+    for node_id, created, modified in Node.objects.filter(user=request.user, node_id__in=numbers).values_list('node_id', 'created_at', 'modified_at'):
+        origin, author = by.get(marks.get(node_id), ('human', me))
+        nodes[f'N-{node_id}'] = {'created': created.isoformat(), 'modified': modified.isoformat(), 'origin': origin, 'author': author}
+    return JsonResponse({'nodes': nodes})
+
+
+@api('GET', 'POST')
+def reminders(request, body):
+    """Rappels de toutes les dimensions (GET) ; POST {ref, at} pose ou déplace le rappel d'un node, at vide le retire.
+    L'heure est celle de l'humain (le calendrier de Nodz l'écrit ainsi)."""
+    if request.method == 'POST':
+        try:
+            when = reminder_store.parse(body.get('at')) if body.get('at') else None
+            reminder_store.put(request.user, body.get('ref'), when)
+        except reminder_store.ReminderError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'reminders': reminder_store.listing(request.user)})
+
+
+SIDE_NODES = 4000  # nodes au plus dans la vue de côté
+
+
+@api('GET')
+def side(request, body):
+    """Vue de côté de l'univers : tous les nodes de toutes les dimensions, en léger (dimension, position, couleur, forme,
+    début du texte), les liens de chaque dimension et les portails entre nodes (champ quantum de Nodz)."""
+    nodes = list(Node.objects.filter(user=request.user, archive=False).order_by('layer__layer_id', 'node_id').values(
+        'node_id', 'layer__layer_id', 'x_coordinate', 'y_coordinate', 'color', 'shape', 'radius', 'type', 'text_content', 'file_name',
+        'image_content', 'quantum')[:SIDE_NODES])
+    ids = {f"N-{n['node_id']}" for n in nodes}
+    portals = set()
+    for n in nodes:
+        try:
+            targets = json.loads(n['quantum'] or '[]')
+        except json.JSONDecodeError:
+            targets = []
+        for target in targets if isinstance(targets, list) else []:
+            other = str(target.get('node') or '') if isinstance(target, dict) else ''
+            other = other if other.startswith('N-') else f'N-{other}'
+            if other in ids and other != f"N-{n['node_id']}":
+                portals.add(tuple(sorted((f"N-{n['node_id']}", other))))
+    links = [[a, b] for a, b in Link.objects.filter(user=request.user, archive=False).values_list('linkA', 'linkB') if a in ids and b in ids]
+    return JsonResponse({
+        'layers': [{'id': i, 'name': name} for i, name in Layer.objects.filter(user=request.user).order_by('layer_id').values_list('layer_id', 'layer_name')],
+        'nodes': [{'id': f"N-{n['node_id']}", 'layer': n['layer__layer_id'], 'x': round(n['x_coordinate']), 'y': round(n['y_coordinate']),
+                   'color': n['color'], 'shape': n['shape'], 'radius': round(n['radius'] or 0), 'type': n['type'],
+                   # l'image telle que Nodz la charge (src du node) ; un fichier par son nom, comme sa carte
+                   **({'image': n['image_content']} if n['type'] == 'image' and n['image_content'] else {}),
+                   **({'file': n['file_name']} if n['type'] == 'file' and n['file_name'] else {}),
+                   'html': (n['text_content'] or html.escape(n['file_name'] or ''))[:3000],  # son propre texte, rendu comme Nodz le rend
+                   'text': ' '.join(re.sub(r'<[^>]+>', ' ', html.unescape(n['text_content'] or n['file_name'] or '')).split())[:60]} for n in nodes],
+        'links': links,
+        'portals': [list(p) for p in sorted(portals)],
+    })
+
+
+_warming = set()  # utilisateurs dont le Gardien lit déjà son prompt système en arrière-plan
+
+
+@api('POST')
+def warm(request, body):
+    """Préchauffage du Gardien, à l'ouverture de l'univers : son modèle lit le prompt système en arrière-plan
+    (plusieurs minutes sur CPU), pour que la première demande ne lise que le message."""
+    user = request.user
+    if user.pk in _warming or not hasattr(engine, 'prefill'):
+        return JsonResponse({'warming': user.pk in _warming})
+
+    def work():
+        try:
+            with acting_for(user):
+                Guardian(user, engine, lambda kind, data: None).warm(body.get('mode') if body.get('mode') in ('think', 'deep') else 'auto')
+        except (EngineUnavailable, BrokerTimeout):
+            pass  # pas de modèle, ou file trop longue : la première demande lira tout
+        except Exception:
+            logger.exception('préchauffage du Gardien')
+        finally:
+            _warming.discard(user.pk)
+
+    _warming.add(user.pk)
+    threading.Thread(target=work, daemon=True).start()
+    return JsonResponse({'warming': True})
+
+
+@api('GET', 'PATCH')
+def dimensions(request, body):
+    """Liste des dimensions : épinglées (gardées sur le serveur) et nombre de nodes de chacune."""
+    prefs, _ = Preference.objects.get_or_create(owner=request.user)
+    if request.method == 'PATCH':
+        pinned = body.get('pinned') if isinstance(body, dict) else None
+        if not isinstance(pinned, list) or not all(isinstance(i, int) for i in pinned):
+            raise ChangeError('pinned : liste de numéros de dimension')
+        mine = set(Layer.objects.filter(user=request.user).values_list('layer_id', flat=True))
+        prefs.pinned_layers = [i for i in dict.fromkeys(pinned) if i in mine][:50]
+        prefs.save(update_fields=['pinned_layers'])
+    counts = dict(Node.objects.filter(user=request.user, archive=False).values_list('layer__layer_id').annotate(n=Count('id')))
+    return JsonResponse({'pinned': prefs.pinned_layers, 'counts': {str(k): v for k, v in counts.items()}})
+
+
+GALLERY_MAX = 60  # modèles personnels par compte
+GALLERY_NODES = 200
+HEX = re.compile(r'^#[0-9a-fA-F]{3,8}$')
+
+
+def gallery_model(body):
+    """Un modèle de la galerie fait d'une sélection : nodes (position relative, texte, couleur, forme, rayon) et liens."""
+    name = str(body.get('name') or '').strip()[:60]
+    nodes, links = body.get('nodes'), body.get('links') or []
+    if not name:
+        raise ChangeError('nom du modèle requis')
+    if not isinstance(nodes, list) or not 0 < len(nodes) <= GALLERY_NODES or not isinstance(links, list):
+        raise ChangeError(f'de 1 à {GALLERY_NODES} nodes')
+    kept = []
+    for n in nodes:
+        if not isinstance(n, dict) or not all(isinstance(n.get(k), (int, float)) for k in ('x', 'y')):
+            raise ChangeError('node : x et y requis')
+        color = str(n.get('color') or '')
+        kept.append({'x': round(float(n['x']), 1), 'y': round(float(n['y']), 1), 'text': str(n.get('text') or '')[:4000],
+                     'color': color if HEX.match(color) else '', 'shape': n.get('shape') if n.get('shape') in ('square', 'none') else '',
+                     'radius': min(600.0, max(20.0, float(n['radius']))) if isinstance(n.get('radius'), (int, float)) else 60.0})
+    pairs = [[a, b] for a, b in (l for l in links if isinstance(l, list) and len(l) == 2)
+             if isinstance(a, int) and isinstance(b, int) and 0 <= a < len(kept) and 0 <= b < len(kept) and a != b][:GALLERY_NODES * 2]
+    return {'id': uuid.uuid4().hex[:12], 'name': name, 'nodes': kept, 'links': pairs}
+
+
+@api('GET', 'POST', 'DELETE')
+def gallery(request, body):
+    """Modèles personnels de la galerie : liste, ajout (une sélection de nodes et ses liens), retrait (?id=)."""
+    prefs, _ = Preference.objects.get_or_create(owner=request.user)
+    if request.method == 'POST':
+        if len(prefs.gallery) >= GALLERY_MAX:
+            raise ChangeError(f'{GALLERY_MAX} modèles au plus : retires-en un')
+        prefs.gallery = [*prefs.gallery, gallery_model(body if isinstance(body, dict) else {})]
+        prefs.save(update_fields=['gallery'])
+    elif request.method == 'DELETE':
+        prefs.gallery = [m for m in prefs.gallery if m.get('id') != request.GET.get('id')]
+        prefs.save(update_fields=['gallery'])
+    return JsonResponse({'models': prefs.gallery})
+
+
+@api('GET', 'POST', 'DELETE')
+def documents(request, body):
+    """Bibliothèque de modèles de documents du Rédacteur : liste, dépôt (multipart, champ file), retrait (?name=)."""
+    try:
+        if request.method == 'POST':
+            upload = request.FILES.get('file')
+            if upload is None:
+                raise ChangeError('fichier attendu (champ file)')
+            if upload.size > workspace.TEMPLATE_MAX:
+                raise ChangeError('modèle : 20 Mo au plus')
+            name = request.POST.get('name', '').strip()  # nom choisi, avec l'extension du fichier déposé
+            workspace.save_template(request.user, f"{name}.{upload.name.rsplit('.', 1)[-1]}" if name else upload.name, upload.read())
+        elif request.method == 'DELETE':
+            workspace.delete_template(request.user, request.GET.get('name', ''))
+    except workspace.WorkspaceError as e:
+        raise ChangeError(str(e)) from None
+    return JsonResponse({'templates': workspace.templates(request.user)})
+
+
+@api('GET', 'POST')
+def sd_build(request, body):
+    """Compilation de stable-diffusion.cpp (deploy/sd.sh), pour les images FLUX : administrateur. Sans redémarrage."""
+    staff_only(request)
+    if request.method == 'POST' and not imaging.installer.build():
+        raise ChangeError('une compilation est déjà en cours')
+    return JsonResponse({**imaging.installer.state(), 'installed': bool(imaging.binary())})
+
+
+@api('GET', 'POST')
+def cuda_build(request, body):
+    """Compilation de llama-cpp-python avec CUDA (deploy/cuda.sh) et redémarrage de Nodz : administrateur."""
+    staff_only(request)
+    if request.method == 'POST':
+        action = (body or {}).get('action')
+        if action == 'build' and not cuda.build():
+            raise ChangeError('une compilation est déjà en cours')
+        if action == 'restart' and not cuda.restart():
+            raise ChangeError(f'le serveur ne peut pas se redémarrer seul : sudo systemctl restart {cuda.SERVICE}')
+        if action not in ('build', 'restart'):
+            raise ChangeError('action : build ou restart')
+    return JsonResponse(cuda.state())
+
+
+@api('POST')
+def pack(request, body, key):
+    """Installe un pack (modèle d'image et fichiers compagnons)."""
+    staff_only(request)
+    try:
+        models = hub.install_pack(key)
+    except ValueError as e:  # pack inconnu, ou fichier absent du dépôt
+        raise ChangeError(str(e)) from None
+    except Exception as e:
+        raise Upstream(f'Hugging Face : {e}') from None
+    return JsonResponse({'models': [model_to_dict(m, request.user) for m in models]}, status=202)
+
+
+@api('GET')
+def tool_list(request, body):
+    """Catalogue des outils du Gardien (Nodz et iAqua), ceux activés pour l'utilisateur, et les non portés."""
+    guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
+    lang = i18n.lang(request.user)
+    return JsonResponse({'tools': [{**t, **tools_en.tool(t['op'], lang), 'available': tools.available(t['op'], request.user),
+                                    'always': t['op'] in tools.ALWAYS} for t in tools.TOOLS],
+                         'enabled': tools.enabled(guardian, request.user) if guardian else [],
+                         'guardian': str(guardian.id) if guardian else None, 'shell': settings.GUARDIAN_SHELL})
+
+
+@api('GET', 'POST')
+def marks(request, body):
+    """Filtres de toutes les dimensions : origine, dates, dimension et début du texte de chaque node, auteurs à cocher et
+    noms des dimensions ; POST marque des nodes (message, ai)."""
+    if request.method == 'POST':
+        origin = body.get('origin')
+        if origin not in NodeMark.Origin.values:
+            raise ChangeError('origine inconnue')
+        ids = {int(str(i).removeprefix('N-')) for i in body.get('nodes') or [] if str(i).removeprefix('N-').isdigit()}
+        for node_id in ids:  # un message au Gardien reste un message ; une création de l'IA, une création
+            NodeMark.objects.get_or_create(owner=request.user, node_id=node_id, defaults={'origin': origin})
+        return JsonResponse({'marked': len(ids)})
+    origins = dict(NodeMark.objects.filter(owner=request.user).values_list('node_id', 'origin'))
+    nodes = Node.objects.filter(user=request.user, archive=False).values_list(
+        'node_id', 'created_at', 'modified_at', 'layer__layer_id', 'text_content', 'file_name')
+    plain = lambda t: ' '.join(re.sub(r'<[^>]+>', ' ', html.unescape(t or '')).split())[:300]  # la recherche par mot-clé
+    user = request.user
+    return JsonResponse({
+        'nodes': {f'N-{i}': {'origin': origins.get(i, 'user'), 'created': c.timestamp(), 'modified': m.timestamp(), 'layer': layer,
+                             'text': plain(text or name)} for i, c, m, layer, text, name in nodes},
+        'authors': [{'key': 'ai', 'label': 'IA'}, {'key': 'me', 'label': user.username or user.email.split('@')[0]}],
+        'layers': dict(Layer.objects.filter(user=user).values_list('layer_id', 'layer_name')),
+    })
+
+
+@api('GET', 'POST')
+def home_view(request, body):
+    """La dimension « Gardien » (home.py) : GET donne ce qu'il faut y poser (groupes et leurs textes de départ, outils
+    par famille, notes et rêves en attente) et ce qui y est déjà ; POST enregistre ce que la page a posé
+    ({layer, root, groups: {clé: N-3}, memory, brain, tools: {op: N-40}, letters: {id: N-12}, dreams: {id: N-13}}),
+    ajouté à ce qui était là ; POST {build: true} pose d'un bloc ce qui manque de la maison (home.build)."""
+    from .guardian import brain_text, text_html
+
+    guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).first()
+    if guardian is None:  # compte tout neuf (invité) : ses agents naissent à la première ouverture d'Agents & modèles
+        return JsonResponse({'error': 'pas de Gardien'}, status=404)
+    brain = dict(guardian.brain or {})
+    notes, dreams = list(brain.get('letters') or []), list(brain.get('dreams') or [])
+    if request.method == 'POST' and not body.get('build'):
+        ref = lambda value: str(value) if str(value or '').startswith('N-') else None
+        placed = dict(brain.get('home') or {})
+        if isinstance(body.get('layer'), int):
+            placed['layer'] = body['layer']
+        for key in ('root', 'memory', 'brain'):
+            if ref(body.get(key)):
+                placed[key] = ref(body[key])
+        placed['groups'] = {**placed.get('groups', {}), **{k: ref(v) for k, v in (body.get('groups') or {}).items() if k in homes.KEYS and ref(v)}}
+        placed['tools'] = {**placed.get('tools', {}), **{op: ref(v) for op, v in (body.get('tools') or {}).items() if op in tools.BY_OP and ref(v)}}
+        posted = lambda items, key: [{**i, 'node': ref((body.get(key) or {}).get(str(i['id']))) or i.get('node')} for i in items]
+        notes, dreams = posted(notes, 'letters'), posted(dreams, 'dreams')
+        guardian.brain = {**brain, 'home': placed, 'letters': notes, 'dreams': dreams}
+        guardian.save(update_fields=['brain'])
+    ops = tools.enabled(guardian, request.user)
+    lang = i18n.lang(request.user)
+    words = homes.texts(lang)
+    seed = {'groups': [{'key': k, 'label': label, 'hint': hint} for k, label, hint in words['groups']],
+            'soul': guardian.system_prompt or words['soul'], 'identity': words['identity'], 'user': words['user'], 'skill': words['skill'],
+            'name': words['name'], 'root': words['root'], 'memory_title': words['memory'],
+            'memory': guardian.memory, 'brain': brain_text(guardian),
+            'tools': [{'op': t['op'], **tools_en.tool(t['op'], lang)} for t in tools.TOOLS if t['op'] in ops]}
+    if request.method == 'POST' and body.get('build'):  # la maison posée d'un bloc par le serveur (home.build)
+        return JsonResponse({'built': homes.build(request.user, guardian, seed), 'home': homes.mapping(guardian)})
+    waiting = [n for n in notes if not n.get('node')], [d for d in dreams if not d.get('node')]
+    return JsonResponse({
+        'home': homes.mapping(guardian),
+        'seed': seed,
+        'letters': [{**n, 'html': text_html(n['text'])} for n in waiting[0]],
+        'dreams': waiting[1],
+        'unread': len(waiting[0]) + len(waiting[1]),
+    })
+
+
+_dreaming = set()  # utilisateurs dont le Gardien rêve en ce moment
+DREAM_EVERY = 1800  # secondes au moins entre deux rêves
+
+
+@api('POST')
+def dream(request, body):
+    """Rêve du Gardien après une période calme (la page l'envoie avec les derniers échanges du chat) : en arrière-plan,
+    au plus une fois par DREAM_EVERY ; les rêves attendent dans la dimension Gardien (groupe Rêves)."""
+    user = request.user
+    guardian = Agent.objects.filter(owner=user, role=Agent.Role.ORCHESTRATOR).first()
+    history = body.get('history') if isinstance(body.get('history'), list) else []
+    if (guardian is None or not homes.mapping(guardian) or user.pk in _dreaming or not history
+            or time.time() - (guardian.brain or {}).get('dreamt', 0) < DREAM_EVERY):
+        return JsonResponse({'dreaming': False})
+
+    def work():
+        try:
+            with acting_for(user):
+                Guardian(user, engine, lambda kind, data: None).dream(history)
+        except (EngineUnavailable, BrokerTimeout):
+            pass  # pas de modèle, ou file trop longue : il rêvera une autre fois
+        except Exception:
+            logger.exception('rêve du Gardien')
+        finally:
+            _dreaming.discard(user.pk)
+            connection.close()
+
+    _dreaming.add(user.pk)
+    threading.Thread(target=work, daemon=True).start()
+    return JsonResponse({'dreaming': True})
+
+
+MAX_SHEET_ROWS, MAX_SHEET_COLUMNS = 2000, 40
+
+
+@api('POST')
+def dataset(request, body):
+    """Lignes d'un classeur Excel envoyé pour l'import de dataset (dataset.js) : la première feuille, sa première
+    ligne comme en-têtes, des valeurs en texte. Rien n'est gardé sur le serveur."""
+    upload = request.FILES.get('file')
+    if upload is None or upload.size > 10 * 1024 * 1024:
+        raise ChangeError('classeur requis (10 Mo au plus)')
+    from openpyxl import load_workbook
+
+    try:
+        sheet = load_workbook(upload, read_only=True, data_only=True).worksheets[0]
+        raw = [row[:MAX_SHEET_COLUMNS] for row in sheet.iter_rows(values_only=True, max_row=MAX_SHEET_ROWS + 1)]
+    except Exception as e:  # tout fichier illisible (zip abîmé, format inattendu) : la raison à l'humain
+        raise ChangeError(f'classeur illisible : {type(e).__name__}') from None
+    filled = lambda row: [i for i, v in enumerate(row) if v not in (None, '')]
+    raw = [row for row in raw if filled(row)]
+    if not raw:
+        return JsonResponse({'rows': []})
+    width = max(filled(row)[-1] for row in raw) + 1  # les colonnes vides du bord de la feuille ne comptent pas
+    head = [str(h).strip() if h not in (None, '') else f'colonne {i + 1}' for i, h in enumerate((list(raw[0]) + [None] * width)[:width])]
+    text = lambda v: '' if v is None else v.isoformat(sep=' ') if hasattr(v, 'isoformat') else str(v)
+    return JsonResponse({'rows': [dict(zip(head, map(text, (list(row) + [None] * width)[:width]))) for row in raw[1:]]})
+
+
+MAX_TOPICS = 2000
+
+
+def _xmind_tree(archive):
+    """L'arbre de la première feuille d'un fichier XMind : XMind 8 et plus récent (content.json), ou l'ancien format
+    (content.xml) ; {text, kids}, 2000 sujets au plus."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    count = [0]
+
+    def topic(text, kids):
+        count[0] += 1
+        return {'text': str(text or '')[:500], 'kids': kids if count[0] < MAX_TOPICS else []}
+
+    with zipfile.ZipFile(archive) as zf:
+        names = set(zf.namelist())
+        if 'content.json' in names:
+            def walk(t):
+                return topic(t.get('title'), [walk(k) for k in ((t.get('children') or {}).get('attached') or [])][:MAX_TOPICS])
+            sheets = json.loads(zf.read('content.json'))
+            return walk((sheets[0] if isinstance(sheets, list) else sheets)['rootTopic'])
+        root = ElementTree.fromstring(zf.read('content.xml'))
+        local = lambda el: el.tag.rsplit('}', 1)[-1]
+
+        def walk_xml(el):
+            title = next((c.text for c in el if local(c) == 'title'), '')
+            kids = [t for c in el if local(c) == 'children' for topics in c if local(topics) == 'topics'
+                    and topics.get('type', 'attached') == 'attached' for t in topics if local(t) == 'topic']
+            return topic(title, [walk_xml(k) for k in kids][:MAX_TOPICS])
+        first = next(el for el in root.iter() if local(el) == 'topic')
+        return walk_xml(first)
+
+
+@api('POST')
+def outline(request, body):
+    """Carte XMind envoyée pour l'import (dataset.js) : son arbre, rien n'est gardé sur le serveur."""
+    upload = request.FILES.get('file')
+    if upload is None or upload.size > 20 * 1024 * 1024:
+        raise ChangeError('fichier XMind requis (20 Mo au plus)')
+    try:
+        return JsonResponse({'tree': _xmind_tree(upload)})
+    except Exception as e:  # archive abîmée, format inconnu : la raison à l'humain
+        raise ChangeError(f'fichier XMind illisible : {type(e).__name__}') from None
+
+
+@api('GET', 'POST', 'DELETE')
+def rooms(request, body):
+    """Le salon de l'humain (un seul à la fois) : GET le rend s'il est ouvert, POST l'ouvre (ou le renomme), DELETE
+    le ferme ; le lien d'accès est universe?room=<token>."""
+    room = Room.objects.filter(host=request.user, closed=False).first()
+    if request.method == 'POST':
+        if room is None and not hosted(request.user):  # ouvrir un salon : Premium ; le rejoindre reste ouvert à tous
+            raise Forbidden('les salons collaboratifs sont réservés au Premium')
+        name = str(body.get('name') or '')[:120]
+        if room is None:
+            room = Room.objects.create(host=request.user, name=name)
+        elif name:
+            Room.objects.filter(pk=room.pk).update(name=name)
+            room.name = name
+    elif request.method == 'DELETE' and room:
+        Room.objects.filter(pk=room.pk).update(closed=True)
+        room = None
+    return JsonResponse({'room': room and {'token': room.token, 'name': room.name}})
+
+
+@api('GET')
+def room(request, body, token):
+    """Un salon, vu par qui veut y entrer : son nom, son hôte ; introuvable s'il est fermé ou si l'on en est exclu."""
+    found = Room.objects.filter(token=token, closed=False).select_related('host').first()
+    if found is None or (found.host_id != request.user.pk and request.user.pk in found.banned):
+        return JsonResponse({'error': 'salon fermé ou introuvable'}, status=404)
+    return JsonResponse({'name': found.name, 'host': display_name(found.host), 'mine': found.host_id == request.user.pk})
+
+
+@api('GET')
+def workspace_file(request, body, path):
+    """Fichier de l'espace de travail de l'utilisateur (documents générés, exports), en téléchargement."""
+    try:
+        target = workspace.resolve(request.user, path)
+    except workspace.WorkspaceError:
+        target = None
+    if target is None or not target.is_file():
+        return JsonResponse({'error': 'fichier introuvable'}, status=404)
+    return FileResponse(open(target, 'rb'), as_attachment=True, filename=target.name)
+
+
+@api('GET')
+def image(request, body, name):
+    """Image générée pour l'utilisateur (seulement les siennes)."""
+    path = imaging.image_path(request.user, name)
+    if path is None:
+        return JsonResponse({'error': 'image introuvable'}, status=404)
+    if path.suffix == '.svg':  # dessin nettoyé (drawing.py) ; ouvert seul dans un onglet, aucun script ne s'y exécute
+        response = FileResponse(open(path, 'rb'), content_type='image/svg+xml')
+        response['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'"
+        response['X-Content-Type-Options'] = 'nosniff'
+        return response
+    return FileResponse(open(path, 'rb'), content_type='image/png')
+
+
+@api('GET')
+def system(request, body):
+    """Moniteur du serveur : CPU, RAM, GPU, disque, modèle en mémoire, file du broker.
+
+    Interrogé toutes les 3 s par les pages ouvertes : il déclenche aussi les tâches planifiées, une fois par minute.
+    """
+    now = time.monotonic()
+    if now - SCHEDULES['checked'] >= 60:
+        SCHEDULES['checked'] = now
+        iaqua.fire_due_schedules(engine)
+    loaded = LocalModel.objects.filter(id=engine.loaded).first() if engine.loaded else None
+    # Un Gardien branché sur un modèle par API : c'est lui qu'on montre (il n'occupe pas la mémoire locale).
+    guardian = Agent.objects.filter(owner=request.user, role=Agent.Role.ORCHESTRATOR).select_related('model').first()
+    remote = guardian.model if guardian and guardian.model and guardian.model.endpoint else None
+    shown = remote or loaded
+    return JsonResponse({**monitor.snapshot(), 'broker': broker.state(), 'dispatch': dispatcher.state(), 'engine': engine.available(),
+                         'model': {'id': str(shown.id), 'name': shown.label or shown.filename, 'api': bool(remote),
+                                   'stats': engine.stats.get(shown.id)} if shown else None})
+
+
+@api('GET')
+def hub_search(request, body):
+    q = request.GET
+    size = {key: _number(q[key], float, key) if q.get(key) else None for key in ('min_b', 'max_b')}
+    return JsonResponse({'models': hub_call(hub.search, q.get('q', ''), q.get('sort', 'downloads'),
+                                            min(_number(q.get('limit', 30), int, 'limit'), 100), q.get('pipeline', ''),
+                                            q.get('quant', ''), size['min_b'], size['max_b'])})
+
+
+@api('GET')
+def hub_files(request, body):
+    repo = request.GET.get('repo', '')
+    if repo.count('/') != 1:
+        raise ChangeError('repo attendu sous la forme organisation/dépôt')
+    return JsonResponse(hub_call(hub.repo_files, repo))
+
+
+@api('GET')
+def recommendations(request, body):
+    return JsonResponse(hub.recommendations())
+
+
+@api('GET', 'POST')
+def models(request, body):
+    if request.method == 'GET':
+        return JsonResponse({'models': [model_to_dict(m, request.user) for m in LocalModel.visible_to(request.user).prefetch_related('agents')]})
+    if body.get('endpoint'):  # tout compte branche son IA par API, avec sa clé ; l'administrateur, pour tout le serveur
+        return JsonResponse(model_to_dict(api_model(body, owner=None if request.user.is_staff else request.user), request.user), status=201)
+    staff_only(request)
+    repo, filename = body.get('repo', ''), body.get('filename', '')
+    if repo.count('/') != 1 or not filename.lower().endswith('.gguf') or '..' in filename:
+        raise ChangeError('repo (organisation/dépôt) et filename (.gguf) requis')
+    kind = body.get('kind', LocalModel.Kind.TEXT)
+    if kind not in LocalModel.Kind.values:
+        raise ChangeError(f'type {kind!r} inconnu')
+    model = hub.start_download(repo, filename, body.get('size', 0), kind, body.get('capabilities', []))
+    return JsonResponse(model_to_dict(model, request.user), status=202)
+
+
+def api_model(body, model=None, owner=None):
+    """Entrée « modèle par API » (URL de base compatible OpenAI, nom du modèle, clé facultative), vérifiée par un petit
+    appel avant d'être gardée. `owner` : connecteur personnel (un compte non administrateur), adresse publique exigée."""
+    endpoint = str(body.get('endpoint', model.endpoint if model else '')).strip().rstrip('/')
+    name = str(body.get('name', model.filename if model else '')).strip()
+    if not endpoint.startswith(('http://', 'https://')) or not name or len(endpoint) > 300 or len(name) > 300:
+        raise ChangeError('URL de base (http:// ou https://) et nom du modèle requis')
+    host = endpoint.split('/')[2]
+    model = model or LocalModel(repo=f'api:{host}'[:200], status=LocalModel.Status.READY, kind=LocalModel.Kind.TEXT,
+                                capabilities=['chat', 'api'], owner=owner)
+    model.endpoint, model.filename = endpoint, name
+    if 'api_key' in body:  # absente : on garde la clé enregistrée
+        model.api_key = str(body['api_key']).strip()[:300]
+    model.label = str(body.get('label') or model.label or name)[:120]
+    try:
+        remote.check(model)
+    except remote.RemoteError as e:
+        raise ChangeError(f'connexion impossible : {e}') from None
+    if LocalModel.objects.filter(repo=model.repo, filename=model.filename, owner=model.owner).exclude(pk=model.pk).exists():
+        raise ChangeError('ce modèle de cette API est déjà dans la bibliothèque')
+    model.save()
+    return model
+
+
+@api('PATCH', 'DELETE')
+def model_detail(request, body, model_id):
+    """Réglages d'un modèle ; DELETE le retire de la bibliothèque (?file=1 supprime aussi le fichier)."""
+    model = LocalModel.visible_to(request.user).filter(id=model_id).first()
+    if model is None:
+        return JsonResponse({'error': 'modèle introuvable'}, status=404)
+    own_or_staff(request, model)
+    if request.method == 'DELETE':
+        hub.cancel_download(model)
+        if engine.loaded == model.id:
+            engine.unload()
+        if request.GET.get('file') == '1' and model.path and Path(model.path).is_relative_to(Path(settings.MODELS_DIR)):
+            Path(model.path).unlink(missing_ok=True)
+        model.delete()
+        return JsonResponse({'deleted': str(model_id)})
+    if model.endpoint and any(k in body for k in ('endpoint', 'name', 'api_key')):
+        model = api_model(body, model)
+    if 'label' in body:
+        model.label = str(body['label'])[:120]
+    if 'premium' in body:  # le modèle de l'offre Premium : un modèle partagé, choisi par l'administrateur
+        staff_only(request)
+        if model.owner_id is not None:
+            raise ChangeError('le Premium se donne à un modèle partagé, pas à un connecteur personnel')
+        model.premium = bool(body['premium'])
+    if 'kind' in body:
+        if body['kind'] not in LocalModel.Kind.values:
+            raise ChangeError('type inconnu')
+        model.kind = body['kind']
+    if 'params' in body:
+        try:
+            model.params = model_params.validate(body['params'])
+        except model_params.ParamError as e:
+            raise ChangeError(str(e)) from None
+    model.save()
+    return JsonResponse(model_to_dict(model, request.user))
+
+
+@api('POST')
+def model_action(request, body, model_id, action):
+    """unload (libérer la mémoire), cancel (arrêter le téléchargement), retry (le reprendre)."""
+    staff_only(request)
+    model = LocalModel.objects.filter(id=model_id).first()
+    if model is None:
+        return JsonResponse({'error': 'modèle introuvable'}, status=404)
+    if action == 'unload':
+        if engine.loaded == model.id:
+            engine.unload()
+    elif action == 'cancel':
+        hub.cancel_download(model)
+    elif action == 'retry':
+        model = hub.start_download(model.repo, model.filename, model.size, model.kind, model.capabilities)
+    else:
+        raise ChangeError(f'action inconnue : {action}')
+    model.refresh_from_db()
+    return JsonResponse(model_to_dict(model, request.user))
+
+
+@api('GET', 'POST', 'DELETE')
+def local_files(request, body):
+    """Fichiers .gguf déjà présents dans MODELS_DIR : liste, import dans la bibliothèque, suppression."""
+    if request.method == 'GET':
+        return JsonResponse({'files': hub.local_files(), 'models_dir': str(settings.MODELS_DIR)})
+    staff_only(request)
+    path = hub.resolve_local((body or {}).get('path') if request.method == 'POST' else request.GET.get('path'))
+    if path is None:
+        raise ChangeError('fichier .gguf introuvable dans le dossier des modèles')
+    if request.method == 'DELETE':
+        LocalModel.objects.filter(path=str(path)).delete()
+        path.unlink()
+        return JsonResponse({'deleted': str(path.name)})
+    return JsonResponse(model_to_dict(hub.import_local(path), request.user), status=201)
+
+
+def _agent_model(body, user):
+    if not body.get('model'):
+        return None
+    model = LocalModel.visible_to(user).filter(id=body['model']).first()  # jamais le connecteur (la clé) d'un autre
+    if model is None:
+        raise ChangeError('modèle introuvable')
+    return model
+
+
+def _site(request):
+    """L'adresse publique de Nodz (préfixe compris), pour les retours de Stripe."""
+    return request.build_absolute_uri('/').rstrip('/') + (settings.FORCE_SCRIPT_NAME or '')
+
+
+@api('GET')
+def quota_view(request, body):
+    """Compte gratuit : nodes et dimensions utilisés (dimension Gardien hors quota) et les plafonds."""
+    return JsonResponse(quota.usage(request.user))
+
+
+@api('GET')
+def premium_offer(request, body):
+    return JsonResponse(premium.offer(request.user))
+
+
+@api('POST')
+def premium_checkout(request, body):
+    try:
+        return JsonResponse({'url': premium.checkout_url(request.user, _site(request))})
+    except premium.PremiumError as e:
+        raise ChangeError(str(e)) from None
+    except Exception as e:  # Stripe injoignable ou mal réglé
+        logger.exception('Stripe Checkout')
+        raise Upstream(f'Stripe : {e}') from None
+
+
+@api('POST')
+def premium_portal(request, body):
+    try:
+        return JsonResponse({'url': premium.billing_url(request.user, _site(request))})
+    except premium.PremiumError as e:
+        raise ChangeError(str(e)) from None
+    except Exception as e:
+        logger.exception('Stripe portail')
+        raise Upstream(f'Stripe : {e}') from None
+
+
+@csrf_exempt
+def premium_webhook(request):
+    """Stripe appelle sans session : seule la signature (STRIPE_WEBHOOK_SECRET) fait foi."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'méthode non autorisée'}, status=405)
+    try:
+        done = premium.handle(request.body, request.META.get('HTTP_STRIPE_SIGNATURE', ''))
+    except premium.PremiumError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'ok': done})
+
+
+@api('GET', 'POST')
+def agents(request, body):
+    if request.method == 'GET':
+        if not Agent.objects.filter(owner=request.user).exists():  # compte neuf : ses agents, sans IA (Premium ou sa clé)
+            starters = DEFAULT_AGENTS_EN if i18n.english(request.user) else DEFAULT_AGENTS
+            Agent.objects.bulk_create([Agent(owner=request.user, name=n, role=r, description=d) for n, r, d in starters])
+        return JsonResponse({'agents': [agent_to_dict(a) for a in Agent.objects.filter(owner=request.user)]})
+    if not body.get('name') or body.get('role', Agent.Role.TEXT) not in Agent.Role.values:
+        raise ChangeError('name et role valides requis')
+    agent = Agent(owner=request.user, model=_agent_model(body, request.user))
+    for field in AGENT_FIELDS:
+        if field in body:
+            setattr(agent, field, body[field])
+    agent.save()
+    return JsonResponse(agent_to_dict(agent), status=201)
+
+
+@api('PATCH', 'DELETE')
+def agent_detail(request, body, agent_id):
+    agent = Agent.objects.filter(id=agent_id, owner=request.user).first()
+    if agent is None:
+        return JsonResponse({'error': 'agent introuvable'}, status=404)
+    if request.method == 'DELETE':
+        agent.delete()
+        return JsonResponse({'deleted': str(agent_id)})
+    if 'model' in body:
+        agent.model = _agent_model(body, request.user)
+    for field in AGENT_FIELDS:
+        if field in body:
+            setattr(agent, field, body[field])
+    if 'tools_allowed' in body:
+        unknown = set(body['tools_allowed'] or []) - set(tools.BY_OP)
+        if unknown or not isinstance(body['tools_allowed'], list):
+            raise ChangeError(f"outil inconnu : {', '.join(sorted(map(str, unknown)))}")
+    if 'params' in body:  # réglages d'échantillonnage propres à l'agent (priment sur ceux du modèle)
+        if set(body['params'] or {}) - set(model_params.SAMPLING):
+            raise ChangeError("un agent ne règle que l'échantillonnage")
+        try:
+            agent.params = model_params.validate(body['params'])
+        except model_params.ParamError as e:
+            raise ChangeError(str(e)) from None
+    if agent.role not in Agent.Role.values:
+        raise ChangeError('rôle inconnu')
+    agent.save()
+    return JsonResponse(agent_to_dict(agent))
+
+
+async def command(request):
+    """Demande au Gardien, réponse en flux SSE : queued, start, thinking (le plan en cours d'écriture), plan, intent, text, action,
+    notice, agent, agent_text, error, end.
+
+    Le corps porte la demande et le contexte de la page Nodz (nodes, liens, dimensions, sélection) ;
+    les événements `action` sont exécutés par la page avec les fonctions de Nodz.
+
+    L'inférence tourne dans un thread : sous Daphne, les vues synchrones partagent un seul thread
+    et une génération sur CPU bloquerait toutes les autres requêtes.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'méthode non autorisée'}, status=405)
+    user = await request.auser()
+    if not user.is_authenticated:
+        return unauthenticated(request)
+    try:
+        body = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    if not isinstance(body, dict) or not isinstance(body.get('context'), dict):
+        return JsonResponse({'error': 'contexte de la page requis'}, status=400)
+    prompt = str(body.get('prompt', '')).strip()
+    if not prompt:
+        return JsonResponse({'error': 'prompt requis'}, status=400)
+
+    try:
+        ticket = dispatcher.admit(user.pk)  # peu de demandes à la fois, une par utilisateur
+    except Busy as e:
+        return JsonResponse({'error': str(e)}, status=429)
+    events = queue.Queue()
+
+    def work():
+        # Chaque demande traitée entre au journal du Gardien (console d'administration) : actions, durée, échec.
+        outcome = {'actions': 0, 'error': None, 'ran': False}
+
+        def emit(kind, data):
+            if ticket.cancelled and kind != 'error':  # arrêt demandé : coupe le modèle au prochain jeton (le flux se ferme), puis le tour
+                raise Stopped
+            if kind == 'tick':  # pouls du modèle qui écrit : seulement pour s'arrêter à temps, rien n'est envoyé
+                return
+            if kind == 'action':
+                outcome['actions'] += 1
+            elif kind == 'timing':
+                outcome['timing'] = data
+            events.put((kind, data))
+        try:
+            if not dispatcher.wait(ticket, lambda position: events.put(('queued', {'position': position}))):
+                return  # la page est partie avant son tour
+            outcome['ran'], started = True, time.monotonic()
+            with acting_for(user):
+                Guardian(user, engine, emit).handle(prompt, body['context'])
+            if ticket.cancelled:
+                raise Stopped
+        except Stopped:
+            outcome['error'] = 'arrêté'
+            events.put(('stopped', {}))
+        except (PlanError, EngineUnavailable, BrokerTimeout) as e:
+            outcome['error'] = 'arrêté' if ticket.cancelled else str(e)
+            events.put(('stopped', {}) if ticket.cancelled else ('error', {'message': outcome['error']}))
+        except Exception as e:
+            logger.exception('Gardien')
+            # La cause en clair pour l'administrateur (journal du serveur : « Gardien » avec la trace), son type pour tous.
+            detail = f'{type(e).__name__} : {str(e)[:200]}' if user.is_staff else type(e).__name__
+            outcome['error'] = f'erreur interne du Gardien ({detail})'
+            emit('error', {'message': outcome['error']})
+        finally:
+            if outcome['ran']:
+                result = f"échec : {outcome['error']}" if outcome['error'] else f"{outcome['actions']} actions"
+                timing = outcome.get('timing')
+                detail = f" ({timing['calls']} appels au modèle, premier mot après {timing['wait_s']} s)" if timing else ''
+                iaqua.log(user, 'demande', f'{prompt} → {result}, {time.monotonic() - started:.1f} s{detail}')
+            dispatcher.done(ticket)
+            connection.close()
+            events.put(None)
+
+    threading.Thread(target=work, daemon=True).start()
+
+    async def stream():
+        try:
+            while (item := await asyncio.to_thread(events.get)) is not None:
+                if item[0] == 'error':  # message dans la langue du compte
+                    item = ('error', {**item[1], 'message': i18n.error(user, item[1].get('message'))})
+                yield f'event: {item[0]}\ndata: {json.dumps(item[1])}\n\n'
+            yield 'event: end\ndata: {}\n\n'
+        finally:
+            dispatcher.cancel(ticket)  # connexion fermée : une demande encore en file ne sera pas traitée
+
+    return StreamingHttpResponse(stream(), content_type='text/event-stream',
+                                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+@api('POST')
+def doctor(request, body):
+    """Diagnostic du Gardien, en clair : ce qu'une vraie demande va rencontrer (agent, modèle, moteur, mémoire, contexte
+    comparé à son vrai prompt, essai de génération avec sa vitesse). Chaque ligne : {label, ok, detail}."""
+    checks = []
+
+    def check(label, ok, detail):
+        checks.append({'label': label, 'ok': bool(ok), 'detail': detail})
+        return ok
+
+    user = request.user
+    say = lambda fr, en, **values: i18n.say(user, fr, en, **values)
+    guardian_ = Guardian(user, engine, lambda kind, data: None)
+    agents = guardian_.agents()
+    orchestrator = next((a for a in agents.values() if a.role == Agent.Role.ORCHESTRATOR), None)
+    if not check(say('Gardien actif', 'Guardian on'), orchestrator,
+                 say('activé', 'on') if orchestrator else say('le Gardien est désactivé dans Agents & modèles', 'the Guardian is turned off in Agents & models')):
+        return JsonResponse({'checks': checks})
+    model = orchestrator.model
+    if not check(say('Modèle choisi', 'Model chosen'), model,
+                 (model.label or model.filename) if model else say('aucun modèle : choisis-en un pour le Gardien', 'no model: pick one for the Guardian')):
+        return JsonResponse({'checks': checks})
+    n_ctx = None
+    if model.endpoint:
+        try:
+            remote.check(model)
+            check(say('Modèle par API', 'Model via API'), True, model.endpoint)
+        except remote.RemoteError as e:
+            check(say('Modèle par API', 'Model via API'), False, i18n.error(user, str(e)))
+            return JsonResponse({'checks': checks})
+    else:
+        present = bool(model.path) and Path(model.path).is_file()
+        if not check(say('Fichier du modèle', 'Model file'), present, model.path if present else say(
+                '{path} introuvable : retélécharge-le (Hugging Face) ou réimporte-le (Fichiers du serveur)',
+                '{path} not found: download it again (Hugging Face) or import it again (Server files)', path=model.path or say('rien', 'nothing'))):
+            return JsonResponse({'checks': checks})
+        if not check(say('Moteur local', 'Local engine'), engine.available(), say('llama-cpp-python installé', 'llama-cpp-python installed') if engine.available()
+                     else say('llama-cpp-python absent : pip install -r requirements-ai.txt', 'llama-cpp-python missing: pip install -r requirements-ai.txt')):
+            return JsonResponse({'checks': checks})
+        _, placement = fit.resolve(model.path, Engine.options(model), engine.gpu_offload() is not False,
+                                   set(model_params.load_options(model.params)))
+        n_ctx = placement['n_ctx']
+        go = lambda mb: say('{v} Go', '{v} GB', v=f'{mb / 1024:.1f}'.replace('.', say(',', '.')))
+        check(say('Mémoire', 'Memory'), placement['fits'], say('besoin {need}, libre {free}', 'needs {need}, {free} free', need=go(placement['need_mb']), free=go(placement['ram_free_mb']))
+              + (say(', {on}/{all} couches sur GPU', ', {on}/{all} layers on GPU', on=placement['gpu_layers'], all=placement['layers']) if placement['gpu_layers'] else say(', sur CPU', ', on CPU'))
+              + ('' if placement['fits'] else say(" : il relira le disque à chaque mot, prends un modèle plus petit", ': it will reread the disk for every word, pick a smaller model')))
+    # Essai réel : le prompt système du Gardien, une réponse de quelques jetons.
+    try:
+        system = guardian_.system(agents)
+        with acting_for(user):
+            engine.chat(model, [{'role': 'system', 'content': system}, {'role': 'user', 'content': 'Réponds seulement : OK'}],
+                        owner='diagnostic', max_tokens=8, temperature=0)
+    except Exception as e:  # le diagnostic rapporte toute panne au lieu d'échouer
+        check(say('Essai du modèle', 'Model test'), False, f'{type(e).__name__} : {i18n.error(user, str(e))}'[:300])
+        return JsonResponse({'checks': checks})
+    last = (engine.stats.get(model.pk) or {}).get('last') or {}
+    prompt = last.get('prompt_tokens')
+    if n_ctx and prompt:
+        check(say('Contexte', 'Context'), prompt + 1024 <= n_ctx, say('{p} jetons de consignes, fenêtre de {n}', '{p} tokens of instructions, window of {n}', p=prompt, n=n_ctx)
+              + ('' if prompt + 1024 <= n_ctx else say(' : augmente le contexte du modèle (réglages) pour laisser la place à sa réponse',
+                                                       " : increase the model's context (settings) to leave room for its answer")))
+    wait, speed = last.get('wait_s'), last.get('speed')
+    check(say('Essai du modèle', 'Model test'), True, say('lecture des consignes {w} s', 'reading the instructions {w} s', w=wait)
+          + (say(', {s} jetons/s', ', {s} tokens/s', s=speed) if speed else ''))
+    if speed:
+        check(say('Vitesse', 'Speed'), speed >= 2, say('{s} jetons/s', '{s} tokens/s', s=speed)
+              + ('' if speed >= 2 else say(' : très lent, un plan prendra plusieurs minutes', ': very slow, a plan will take several minutes')))
+    return JsonResponse({'checks': checks})
+
+
+@api('POST')
+def command_stop(request, body):
+    """Bouton stop du chat : tout ce que le modèle fait pour l'utilisateur s'arrête. Sa demande (au prochain calcul de
+    llama.cpp, lecture du prompt comprise), son préchauffage, sa tâche de fond en cours et ses missions ; une demande
+    encore en file n'est pas traitée."""
+    user = request.user
+    stopped = dispatcher.stop(user.pk)
+    interrupted = engine.interrupt(user.pk) if hasattr(engine, 'interrupt') else False  # le modèle, lecture du prompt comprise
+    missions = Mission.objects.filter(owner=user, status=Mission.Status.RUNNING).update(status=Mission.Status.ABORTED,
+                                                                                         finished_at=timezone.now())
+    return JsonResponse({'stopped': stopped or interrupted or bool(missions), 'missions': missions})

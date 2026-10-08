@@ -1,149 +1,349 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nod-Z</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nodz : pense en nodes</title>
+    <meta name="description" content="Nodz : ton univers d'idées en nodes, en dimensions et en portails, avec un Gardien qui pense avec toi.">
     <link rel="icon" href="{% static 'img/icon.png' %}" type="image/png">
-    <link rel="stylesheet" href="{% static 'css/home.css' %}">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/landing.css' %}">
 </head>
 <body>
-    <div class="parallax-container">
-    <div class="parallax-content">
-    <div class="container">
-        <section class="hero">
-            <div class="hero-content">
-                <h1>Welcome to Nod-Z</h1>
-                <p class="tagline">The Multidimensional Mind Mapping Tool</p>
-                <p class="description">Nod-Z is a new generation mind mapping tool that helps you visualize your data like never before. With its user-friendly interface and media-rich features, Nod-Z allows you to create beautiful and collaborative mind maps effortlessly.</p>
-                <button class="submit-button" onclick="window.location.href='you';">Start Mapping Now</button>
+    <header class="lp-top">
+        <div class="lp-wrap">
+            <a class="lp-brand" href="#top"><span class="lp-orb" aria-hidden="true"><i></i><i></i></span>Nodz</a>
+            <nav class="lp-nav">
+                <a href="#nodz" data-i18n="nav.nodz"></a>
+                <a href="#gardien" data-i18n="nav.guardian"></a>
+                <a href="#salons" data-i18n="nav.rooms"></a>
+                <a href="#offres" data-i18n="nav.plans"></a>
+            </nav>
+            <div class="lp-lang" role="group" aria-label="Langue / Language">
+                <button type="button" data-lang="fr">FR</button><button type="button" data-lang="en">EN</button>
             </div>
-            <div class="media">
-                <img src="{% static 'img/logo.svg' %}" alt="Nod-Z Flag Image">
+            <a class="lp-login" href="{% url 'universe' %}" data-i18n="nav.login"></a>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero : un petit univers vivant en fond (dessiné par le script plus bas), le Gardien y parle -->
+        <section class="lp-hero" id="top">
+            <svg class="lp-universe" id="lp-universe" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+            <div class="lp-wrap">
+                <div class="lp-hero-text">
+                    <span class="lp-kicker" data-i18n="hero.kicker"></span>
+                    <h1 data-i18n-html="hero.title"></h1>
+                    <p data-i18n="hero.lead"></p>
+                    <div class="lp-cta">
+                        <a class="lp-btn primary" href="{% url 'universe' %}" data-i18n="hero.try"></a>
+                        <a class="lp-btn ghost" href="{% url 'universe' %}" data-i18n="hero.signup"></a>
+                    </div>
+                </div>
             </div>
-        </section>
- 
-        <section class="features">
-            <div class="feature">
-                <h3>Interactive Mind Maps</h3>
-                <p>Create dynamic mind maps and navigate data like a multidimensional space voyager!</p>
-                <img src="{% static 'img/capture1.png' %}" alt="Interactive Mind Maps">
-            </div>
-            <div class="feature">
-                <h3>Media Integration</h3>
-                <p>Embed images, videos, and documents directly into your mind maps.</p>
-                <img src="{% static 'img/capture1.png' %}" alt="Media Integration">
-            </div>
-            <div class="feature">
-                <h3>Enhanced Collaboration </h3>
-                <p>Fosters idea generation and collaboration in both individual and collaborative workspaces designed for organizations and companies.</p>
-                <img src="{% static 'img/capture1.png' %}" alt="Enhance Collaboration">
+            <div class="lp-guardian lp-float">
+                <div class="lp-card"><span class="lp-orb big" aria-hidden="true"><i></i><i></i></span>
+                    <div><b>Gardien</b><span id="lp-says"></span></div></div>
             </div>
         </section>
 
-        <section class="pricing">
-            <div class="pricing-card">
-                <h3>Discovery Plan</h3>
-                <p>$0</p>
-                <ul>
-                    <li>Basic features</li>
-                    <li>30 days trial-period</li>
-                </ul>
-                <button class="submit-button" onclick="window.location.href='you';">Try It !</button>
-            </div>
-            <div class="pricing-card">
-                <h3>Basic Plan</h3>
-                <p>$9.99/month</p>
-                <ul>
-                    <li>All features included</li>
-                    <li>Collaborative space</li>
-                </ul>
-                <button class="submit-button" onclick="window.location.href='you';">Sign Up</button>
-            </div>
-            <div class="pricing-card">
-                <h3>Organization Plan</h3>
-                <p>tailored</p>
-                <ul>
-                    <li>On-demand features</li>
-                    <li>Premium support</li>
-                </ul>
-                <button class="submit-button" onclick="window.location.href='contact';">Contact</button>
-            </div>
-        </section>
-
-        <section class="testimonials">
-            <h2>What Our Users Say</h2>
-            <div class="testimonials-container">
-                <!-- Testimonials section content goes here -->
-                <div class="testimonial">
-                    <p>"Nod-z has completely transformed the way I organize my thoughts. Highly recommended!"</p>
-                    <p>- John Doe, CEO</p>
-                </div>
-                <div class="testimonial">
-                    <p>"Amazing tool! It's so intuitive and user-friendly. I love it!"</p>
-                    <p>- Jane Smith, Designer</p>
-                </div>
-                <div class="testimonial">
-                    <p>"Nod-z has been a game-changer for our team. Collaboration has never been easier!"</p>
-                    <p>- David Johnson, Project Manager</p>
-                </div>
-                <div class="testimonial">
-                    <p>"I've tried many mind mapping tools, but Nod-z stands out with its simplicity and versatility."</p>
-                    <p>- Emily Brown, Freelancer</p>
+        <section class="lp-section" id="nodz">
+            <div class="lp-wrap">
+                <h2 data-i18n="nodz.title"></h2>
+                <p class="lp-lead" data-i18n="nodz.lead"></p>
+                <div class="lp-grid">
+                    <article class="lp-feature">
+                        <svg viewBox="0 0 200 110" fill="none" aria-hidden="true">
+                            <line x1="62" y1="55" x2="138" y2="30" stroke="#b89af2" stroke-width="2"/><line x1="62" y1="55" x2="138" y2="82" stroke="#b89af2" stroke-width="2"/>
+                            <circle cx="62" cy="55" r="20" stroke="#33FF99" stroke-width="3"/><circle cx="138" cy="30" r="13" stroke="#1E90FF" stroke-width="3"/>
+                            <rect x="124" y="70" width="30" height="24" rx="3" stroke="#FF9F45" stroke-width="3"/>
+                        </svg>
+                        <h3 data-i18n="nodz.f1.t"></h3><p data-i18n="nodz.f1.p"></p>
+                    </article>
+                    <article class="lp-feature">
+                        <svg viewBox="0 0 200 110" fill="none" aria-hidden="true">
+                            <ellipse cx="100" cy="55" rx="40" ry="40" stroke="#b89af2" stroke-width="2.5" stroke-dasharray="4 5"/>
+                            <ellipse cx="100" cy="55" rx="30" ry="30" stroke="url(#lp-portal)" stroke-width="4"/>
+                            <circle cx="100" cy="55" r="12" stroke="#33FF99" stroke-width="3"/>
+                            <defs><linearGradient id="lp-portal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b89af2"/><stop offset="0.5" stop-color="#1E90FF"/><stop offset="1" stop-color="#33FF99"/></linearGradient></defs>
+                        </svg>
+                        <h3 data-i18n="nodz.f2.t"></h3><p data-i18n="nodz.f2.p"></p>
+                    </article>
+                    <article class="lp-feature">
+                        <svg viewBox="0 0 200 110" fill="none" aria-hidden="true">
+                            <rect x="20" y="30" width="44" height="50" rx="4" stroke="#4DD4C6" stroke-width="2.5"/><path d="M28 70l10-14 8 9 6-6 8 11" stroke="#4DD4C6" stroke-width="2"/>
+                            <rect x="78" y="30" width="44" height="50" rx="4" stroke="#FF6B6B" stroke-width="2.5"/><path d="M88 44h24M88 54h24M88 64h16" stroke="#FF6B6B" stroke-width="2"/>
+                            <rect x="136" y="30" width="44" height="50" rx="4" stroke="#33FF99" stroke-width="2.5"/><path d="M148 46l-6 9 6 9M168 46l6 9-6 9" stroke="#33FF99" stroke-width="2"/>
+                        </svg>
+                        <h3 data-i18n="nodz.f3.t"></h3><p data-i18n="nodz.f3.p"></p>
+                    </article>
+                    <article class="lp-feature">
+                        <svg viewBox="0 0 200 110" fill="none" aria-hidden="true">
+                            <circle cx="40" cy="55" r="12" stroke="#b89af2" stroke-width="3"/>
+                            <path d="M52 55C80 55 80 25 108 25M52 55h56M52 55c28 0 28 30 56 30" stroke="#b89af2" stroke-width="2"/>
+                            <circle cx="118" cy="25" r="9" stroke="#1E90FF" stroke-width="2.5"/><circle cx="118" cy="55" r="9" stroke="#1E90FF" stroke-width="2.5"/><circle cx="118" cy="85" r="9" stroke="#1E90FF" stroke-width="2.5"/>
+                            <path d="M150 40h28M150 55h20M150 70h28" stroke="#33FF99" stroke-width="2.5"/>
+                        </svg>
+                        <h3 data-i18n="nodz.f4.t"></h3><p data-i18n="nodz.f4.p"></p>
+                    </article>
                 </div>
             </div>
         </section>
-              
-    </div>
-</div>
-</div>
 
-    <footer class="footer">
-        <span style="padding-bottom: 5px;">&copy; 2023-{% now "Y" %} Nod-Z. All rights reserved. | <a href="privacy">Privacy Policy</a> | <a href="terms">Terms of Service</a> | <a href="contact">Contact</a></span>
-        <span class="social-links">
-            <a href="#"><img width="15" height="15" src="{% static 'img/youtube-logo.png' %}" alt="Youtube"></a>
-            <a href="#"><img width="15" height="15" src="{% static 'img/X-logo.svg' %}" alt="X"></a>
-            <a href="#"><img width="15" height="15" src="{% static 'img/linkedin-logo.svg' %}" alt="LinkedIn"></a>
-        </span>  
+        <section class="lp-section" id="gardien">
+            <div class="lp-wrap lp-split">
+                <div>
+                    <h2 data-i18n="guardian.title"></h2>
+                    <p class="lp-lead" data-i18n="guardian.lead"></p>
+                    <ul class="lp-list">
+                        <li data-i18n="guardian.l1"></li><li data-i18n="guardian.l2"></li><li data-i18n="guardian.l3"></li><li data-i18n="guardian.l4"></li>
+                    </ul>
+                    <p class="lp-note" data-i18n="guardian.note"></p>
+                </div>
+                <!-- Démo : un message, puis un petit arbre qui pousse depuis le node -->
+                <div class="lp-demo">
+                    <div class="lp-card"><span class="lp-orb" aria-hidden="true"><i></i><i></i></span><div><b>Gardien</b><span data-i18n="guardian.demo"></span></div></div>
+                    <svg viewBox="0 0 400 260" fill="none" aria-hidden="true" id="lp-tree"></svg>
+                </div>
+            </div>
+        </section>
+
+        <section class="lp-section" id="salons">
+            <div class="lp-wrap lp-split">
+                <!-- Démo : deux curseurs nommés qui se promènent sur un même univers -->
+                <div class="lp-demo">
+                    <svg viewBox="0 0 400 260" fill="none" aria-hidden="true">
+                        <line x1="120" y1="130" x2="260" y2="70" stroke="#b89af2" stroke-width="1.6" opacity="0.6"/><line x1="120" y1="130" x2="270" y2="190" stroke="#b89af2" stroke-width="1.6" opacity="0.6"/>
+                        <circle cx="120" cy="130" r="28" stroke="#33FF99" stroke-width="3"/><circle cx="260" cy="70" r="20" stroke="#1E90FF" stroke-width="3"/>
+                        <rect x="242" y="172" width="58" height="38" rx="4" stroke="#FF9F45" stroke-width="3"/>
+                        <g class="lp-cursor" id="lp-c1"><path d="M0 0l14 5-6 2-2 6z" fill="#F15BB5"/><rect x="12" y="12" width="44" height="16" rx="8" fill="#F15BB5"/><text x="34" y="24" font-size="9" text-anchor="middle" fill="#050c17" font-family="monospace">Léa</text></g>
+                        <g class="lp-cursor" id="lp-c2"><path d="M0 0l14 5-6 2-2 6z" fill="#4DD4C6"/><rect x="12" y="12" width="44" height="16" rx="8" fill="#4DD4C6"/><text x="34" y="24" font-size="9" text-anchor="middle" fill="#050c17" font-family="monospace">Tom</text></g>
+                    </svg>
+                </div>
+                <div>
+                    <h2 data-i18n="rooms.title"></h2>
+                    <p class="lp-lead" data-i18n="rooms.lead"></p>
+                    <ul class="lp-list">
+                        <li data-i18n="rooms.l1"></li><li data-i18n="rooms.l2"></li><li data-i18n="rooms.l3"></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section class="lp-section" id="offres">
+            <div class="lp-wrap">
+                <h2 data-i18n="plans.title"></h2>
+                <p class="lp-lead" data-i18n="plans.lead"></p>
+                <div class="lp-plans">
+                    <div class="lp-plan">
+                        <h3><span data-i18n="plans.free"></span><small data-i18n="plans.freePrice"></small></h3>
+                        <ul class="lp-list">
+                            <li data-i18n="plans.f1"></li><li data-i18n="plans.f2"></li><li data-i18n="plans.f3"></li>
+                        </ul>
+                        <a class="lp-btn ghost" href="{% url 'universe' %}" data-i18n="hero.try"></a>
+                    </div>
+                    <div class="lp-plan premium">
+                        <h3><span>Premium</span><small>{% if premium_price %}{{ premium_price }}{% else %}<span data-i18n="plans.sub"></span>{% endif %}</small></h3>
+                        <ul class="lp-list">
+                            <li data-i18n="plans.p1"></li><li data-i18n="plans.p2"></li><li data-i18n="plans.p3"></li><li data-i18n="plans.p4"></li>
+                        </ul>
+                        <a class="lp-btn primary" href="{% url 'universe' %}" data-i18n="hero.signup"></a>
+                    </div>
+                </div>
+                <p class="lp-referral"><span class="lp-orb" aria-hidden="true"><i></i><i></i></span><span data-i18n="plans.referral"></span></p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="lp-foot">
+        <div class="lp-wrap">
+            <span>&copy; 2023-{% now "Y" %} Nodz</span>
+            <nav>
+                <a href="{% url 'contact' %}" data-i18n="foot.contact"></a>
+                <a href="{% url 'privacy' %}" data-i18n="foot.privacy"></a>
+                <a href="{% url 'terms' %}" data-i18n="foot.terms"></a>
+            </nav>
+        </div>
     </footer>
 
+    {{ landing|json_script:"lp-data" }}
     <script>
-        
-        function cycleTestimonials() {
-        const testimonials = document.querySelectorAll('.testimonial');
-        let currentIndex = 0;
+    // Textes en deux langues : data-i18n (texte) et data-i18n-html (balises <em> du titre). Langue : choix gardé, sinon
+    // celle du navigateur.
+    const DATA = JSON.parse(document.getElementById('lp-data').textContent);
+    const TEXT = {
+        fr: {
+            'nav.nodz': 'Nodz', 'nav.guardian': 'Le Gardien', 'nav.rooms': 'Salons', 'nav.plans': 'Offres', 'nav.login': 'Se connecter',
+            'hero.kicker': 'Carte mentale multidimensionnelle', 'hero.title': 'Pense en <em>nodes</em>.<br>Ton univers d\'idées, avec un Gardien qui pense avec toi.',
+            'hero.lead': 'Pose tes idées, relie-les, plonge dans une dimension par un portail. Le Gardien, ton IA, range, résume et fait pousser la suite sous tes yeux.',
+            'hero.try': 'Essayer sans compte', 'hero.signup': 'Créer mon compte',
+            'nodz.title': 'Tout tient dans un univers', 'nodz.lead': 'Un espace infini où chaque idée est un node : tu zoomes, tu voyages, tu ranges, rien ne se perd.',
+            'nodz.f1.t': 'Penser en nodes', 'nodz.f1.p': 'Double-clic pour poser une idée, glisse pour la relier, Tab pour voyager de node en node.',
+            'nodz.f2.t': 'Dimensions et portails', 'nodz.f2.p': 'Entrée ouvre un portail : un node part détailler sa propre dimension, et l\'on y revient d\'un clic.',
+            'nodz.f3.t': 'Un node pour tout', 'nodz.f3.p': 'Texte, image, PDF, dessin, code qui s\'exécute, modèle 3D : un node change de type sans perdre son texte.',
+            'nodz.f4.t': 'Ranger et exporter', 'nodz.f4.p': 'Arbre, vue éclatée, branches repliées ; export Markdown, OPML, FreeMind ou PDF.',
+            'guardian.title': 'Le Gardien pense avec toi', 'guardian.lead': 'Une IA qui vit dans ton univers : elle agit avec les mêmes gestes que toi, et tout s\'annule d\'un Ctrl+Z.',
+            'guardian.l1': 'Il crée, relie, range et résume tes nodes ; il pense en arbre, une branche par piste.',
+            'guardian.l2': 'Il garde sa mémoire dans sa propre dimension : tu le règles en réécrivant ses nodes.',
+            'guardian.l3': 'Il te rappelle ce qu\'il faut, quand il faut, avec un compte à rebours sur le node.',
+            'guardian.l4': 'Il fait visiter une carte en travelling et propose des portails vers tes autres dimensions.',
+            'guardian.note': 'Ton IA par API (ta clé) en gratuit, ou l\'IA du serveur avec Premium.',
+            'guardian.demo': 'Je déploie ta stratégie en trois pistes…',
+            'rooms.title': 'Salons : à plusieurs dans une dimension', 'rooms.lead': 'Inviter ouvre ta dimension par un lien. Chacun voit les autres penser, en direct.',
+            'rooms.l1': 'Curseurs nommés et gestes partagés en direct.', 'rooms.l2': 'Tout s\'enregistre chez toi ; l\'hôte garde la main et peut exclure.',
+            'rooms.l3': 'Suivre cale ta caméra sur celle d\'un autre : idéal pour présenter.',
+            'plans.title': 'Offres', 'plans.lead': 'Commence gratuitement, passe Premium quand ton univers grandit.',
+            'plans.free': 'Gratuit', 'plans.freePrice': '0 €', 'plans.sub': 'sur abonnement',
+            'plans.f1': `${DATA.dimensions} dimensions et ${DATA.nodes} nodes, plus la dimension du Gardien`, 'plans.f2': 'Le Gardien avec ton IA par API (ta clé)',
+            'plans.f3': 'Export, rangement, portails, rappels',
+            'plans.p1': 'Dimensions et nodes illimités', 'plans.p2': 'Le Gardien sur l\'IA du serveur, sans clé', 'plans.p3': 'Salons à plusieurs',
+            'plans.p4': 'Résiliable à tout moment',
+            'plans.referral': 'Parrainage : chaque ami inscrit avec ton lien t\'offre 1 mois de Premium.',
+            'foot.contact': 'Contact', 'foot.privacy': 'Confidentialité', 'foot.terms': 'Conditions',
+            says: ['Je relie tes idées sur le climat aux trois sources que tu as posées.', 'J\'ai rangé ta branche « Projet » en arbre.',
+                'Je te rappelle vendredi 9 h de relire le plan.', 'Je propose un portail vers ta dimension « Lectures ».'],
+        },
+        en: {
+            'nav.nodz': 'Nodz', 'nav.guardian': 'The Guardian', 'nav.rooms': 'Rooms', 'nav.plans': 'Plans', 'nav.login': 'Sign in',
+            'hero.kicker': 'Multidimensional mind mapping', 'hero.title': 'Think in <em>nodes</em>.<br>Your universe of ideas, with a Guardian who thinks with you.',
+            'hero.lead': 'Drop your ideas, link them, dive into a dimension through a portal. The Guardian, your AI, tidies, sums up and grows what comes next before your eyes.',
+            'hero.try': 'Try without an account', 'hero.signup': 'Create my account',
+            'nodz.title': 'Everything fits in one universe', 'nodz.lead': 'An infinite space where every idea is a node: zoom, travel, tidy up, nothing gets lost.',
+            'nodz.f1.t': 'Think in nodes', 'nodz.f1.p': 'Double-click to drop an idea, drag to link it, Tab to travel from node to node.',
+            'nodz.f2.t': 'Dimensions and portals', 'nodz.f2.p': 'Enter opens a portal: a node unfolds into its own dimension, one click brings you back.',
+            'nodz.f3.t': 'A node for everything', 'nodz.f3.p': 'Text, image, PDF, drawing, runnable code, 3D model: a node changes type without losing its text.',
+            'nodz.f4.t': 'Tidy and export', 'nodz.f4.p': 'Tree, exploded view, folded branches; export to Markdown, OPML, FreeMind or PDF.',
+            'guardian.title': 'The Guardian thinks with you', 'guardian.lead': 'An AI living in your universe: it acts with the same gestures as you, and Ctrl+Z undoes it all.',
+            'guardian.l1': 'It creates, links, tidies and sums up your nodes; it thinks in trees, one branch per lead.',
+            'guardian.l2': 'It keeps its memory in its own dimension: tune it by rewriting its nodes.',
+            'guardian.l3': 'It reminds you of what matters, when it matters, with a countdown on the node.',
+            'guardian.l4': 'It gives guided tours of a map and suggests portals to your other dimensions.',
+            'guardian.note': 'Your own AI by API (your key) for free, or the server AI with Premium.',
+            'guardian.demo': 'Unfolding your strategy into three leads…',
+            'rooms.title': 'Rooms: together in one dimension', 'rooms.lead': 'Invite opens your dimension with a link. Everyone sees the others think, live.',
+            'rooms.l1': 'Named cursors and shared gestures, live.', 'rooms.l2': 'Everything is saved on your side; the host stays in charge and can remove people.',
+            'rooms.l3': 'Follow locks your camera on someone else\'s: perfect for presenting.',
+            'plans.title': 'Plans', 'plans.lead': 'Start for free, go Premium when your universe grows.',
+            'plans.free': 'Free', 'plans.freePrice': '€0', 'plans.sub': 'subscription',
+            'plans.f1': `${DATA.dimensions} dimensions and ${DATA.nodes} nodes, plus the Guardian's dimension`, 'plans.f2': 'The Guardian with your own AI by API (your key)',
+            'plans.f3': 'Export, tidying, portals, reminders',
+            'plans.p1': 'Unlimited dimensions and nodes', 'plans.p2': 'The Guardian on the server AI, no key needed', 'plans.p3': 'Rooms with others',
+            'plans.p4': 'Cancel anytime',
+            'plans.referral': 'Referral: every friend who signs up with your link gives you 1 month of Premium.',
+            'foot.contact': 'Contact', 'foot.privacy': 'Privacy', 'foot.terms': 'Terms',
+            says: ['Linking your climate ideas to the three sources you dropped.', 'I tidied your "Project" branch into a tree.',
+                'I\'ll remind you on Friday at 9 to review the plan.', 'How about a portal to your "Reading" dimension?'],
+        },
+    };
+    let lang;
+    try { lang = localStorage.getItem('nodz-lang'); } catch { /* stockage indisponible */ }
+    if (!TEXT[lang]) lang = (navigator.language || '').toLowerCase().startsWith('fr') ? 'fr' : 'en';
+    function translate(next) {
+        lang = next;
+        const t = TEXT[lang];
+        document.documentElement.lang = lang;
+        document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t[el.dataset.i18n]; });
+        document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t[el.dataset.i18nHtml]; });
+        document.querySelectorAll('.lp-lang button').forEach(b => b.classList.toggle('on', b.dataset.lang === lang));
+        document.title = lang === 'fr' ? 'Nodz : pense en nodes' : 'Nodz: think in nodes';
+        says(0);
+        try { localStorage.setItem('nodz-lang', lang); } catch { /* stockage indisponible */ }
+    }
+    document.querySelectorAll('.lp-lang button').forEach(b => b.addEventListener('click', () => translate(b.dataset.lang)));
 
-        function showTestimonial(index) {
-            testimonials.forEach((testimonial, i) => {
-                if (i === index) {
-                    testimonial.classList.add('active');
-                } else {
-                    testimonial.classList.remove('active');
-                }
-            });
+    // Le Gardien du hero : une phrase après l'autre.
+    const said = document.getElementById('lp-says');
+    let saying = 0;
+    function says(k) {
+        saying = k;
+        said.style.opacity = 0;
+        setTimeout(() => { said.textContent = TEXT[lang].says[saying % TEXT[lang].says.length]; said.style.opacity = 1; }, 250);
+    }
+    setInterval(() => says(saying + 1), 4200);
+
+    // Univers du hero : un arbre radial de nodes aux couleurs de l'app, qui respire ; des liens se dessinent tour à tour ;
+    // une légère dérive suit le pointeur.
+    const NS = 'http://www.w3.org/2000/svg';
+    const COLORS = ['#33FF99', '#1E90FF', '#b89af2', '#FF9F45', '#4DD4C6', '#F15BB5', '#FFD93D'];
+    const sky = document.getElementById('lp-universe');
+    const world = document.createElementNS(NS, 'g');
+    sky.append(world);
+    let seed = 11;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const nodes = [{ x: 1120, y: 430, r: 34, depth: 0 }];
+    [[6, 190, 0], [12, 330, 1]].forEach(([count, radius, parent]) => {
+        for (let i = 0; i < count; i++) {
+            const a = (i / count) * Math.PI * 2 + random() * 0.4;
+            const from = parent ? nodes[1 + Math.floor(i / 2)] : nodes[0];
+            nodes.push({ x: 1120 + Math.cos(a) * radius * 1.35, y: 430 + Math.sin(a) * radius, r: 12 + random() * 14, depth: parent + 1, from });
         }
-
-        setInterval(() => {
-            showTestimonial(currentIndex);
-            currentIndex = (currentIndex + 1) % testimonials.length;
-        }, 5000);
+    });
+    for (let i = 0; i < 14; i++) nodes.push({ x: 120 + random() * 1400, y: 60 + random() * 780, r: 4 + random() * 7, depth: 3, star: true });
+    nodes.forEach((n, i) => {
+        if (n.from || n.depth === 1) {
+            const p = n.from || nodes[0];
+            const line = document.createElementNS(NS, 'line');
+            Object.entries({ x1: p.x, y1: p.y, x2: n.x, y2: n.y, stroke: COLORS[i % COLORS.length] }).forEach(([k, v]) => line.setAttribute(k, v));
+            line.setAttribute('class', i % 3 ? 'l' : 'l draw');
+            line.style.animationDelay = `${(i % 7) * 0.9}s`;
+            world.prepend(line);
+        }
+        const shape = document.createElementNS(NS, i % 4 === 3 && !n.star ? 'rect' : 'circle');
+        if (shape.tagName === 'rect') Object.entries({ x: n.x - n.r * 1.3, y: n.y - n.r * 0.8, width: n.r * 2.6, height: n.r * 1.6, rx: 3 }).forEach(([k, v]) => shape.setAttribute(k, v));
+        else Object.entries({ cx: n.x, cy: n.y, r: n.r }).forEach(([k, v]) => shape.setAttribute(k, v));
+        shape.setAttribute('stroke', COLORS[i % COLORS.length]);
+        shape.setAttribute('stroke-width', n.star ? 1.5 : 3);
+        shape.setAttribute('fill', n.star ? 'none' : 'rgba(5, 12, 23, 0.6)');
+        shape.setAttribute('opacity', n.star ? 0.4 : 0.9);
+        shape.setAttribute('class', 'n');
+        shape.style.animationDelay = `${(i % 9) * 0.55}s`;
+        world.append(shape);
+    });
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let aim = { x: 0, y: 0 }, at = { x: 0, y: 0 };
+    if (!still) {
+        addEventListener('pointermove', e => { aim = { x: (e.clientX / innerWidth - 0.5) * -24, y: (e.clientY / innerHeight - 0.5) * -16 }; });
+        (function drift() {
+            at = { x: at.x + (aim.x - at.x) * 0.05, y: at.y + (aim.y - at.y) * 0.05 };
+            world.setAttribute('transform', `translate(${at.x.toFixed(2)} ${at.y.toFixed(2)})`);
+            requestAnimationFrame(drift);
+        })();
     }
 
-    // Call the function to cycle through testimonials
-    cycleTestimonials();
+    // Démo du Gardien : un arbre qui pousse, branche après branche, puis recommence.
+    const tree = document.getElementById('lp-tree');
+    const leaves = [[300, 90], [320, 160], [300, 230]];
+    function grow() {
+        tree.replaceChildren();
+        const root = document.createElementNS(NS, 'circle');
+        Object.entries({ cx: 120, cy: 160, r: 26, stroke: '#33FF99', 'stroke-width': 3 }).forEach(([k, v]) => root.setAttribute(k, v));
+        tree.append(root);
+        leaves.forEach(([x, y], i) => setTimeout(() => {
+            const line = document.createElementNS(NS, 'path');
+            Object.entries({ d: `M146 160C220 160 220 ${y} ${x - 22} ${y}`, stroke: '#b89af2', 'stroke-width': 2, 'stroke-dasharray': 300, 'stroke-dashoffset': 300 }).forEach(([k, v]) => line.setAttribute(k, v));
+            line.style.transition = still ? 'none' : 'stroke-dashoffset 0.9s ease';
+            const leaf = document.createElementNS(NS, 'circle');
+            Object.entries({ cx: x, cy: y, r: 20, stroke: COLORS[i + 1], 'stroke-width': 3, opacity: 0 }).forEach(([k, v]) => leaf.setAttribute(k, v));
+            leaf.style.transition = still ? 'none' : 'opacity 0.6s ease 0.6s';
+            tree.append(line, leaf);
+            requestAnimationFrame(() => requestAnimationFrame(() => { line.setAttribute('stroke-dashoffset', 0); leaf.setAttribute('opacity', 1); }));
+        }, still ? 0 : 900 + i * 900));
+    }
+    grow();
+    if (!still) setInterval(grow, 7000);
 
-    document.addEventListener('contextmenu', function() {
-        event.preventDefault();
-    });
+    // Salons : deux curseurs se promènent d'un node à l'autre.
+    const spots = [[120, 130], [260, 70], [270, 190], [180, 210], [330, 120]];
+    function wander() {
+        ['lp-c1', 'lp-c2'].forEach((id, k) => {
+            const [x, y] = spots[Math.floor(Math.random() * spots.length)];
+            document.getElementById(id).style.transform = `translate(${x + (k ? 14 : -10)}px, ${y + (k ? 10 : -14)}px)`;
+        });
+    }
+    wander();
+    if (!still) setInterval(wander, 2200);
 
-    document.addEventListener('mousedown', function() {
-        event.preventDefault();
-    });
-
+    translate(lang);
     </script>
-
 </body>
-
 </html>

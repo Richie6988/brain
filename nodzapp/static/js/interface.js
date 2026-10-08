@@ -177,8 +177,19 @@ document.getElementById('linksButton').addEventListener('mouseover', function(ev
 });
 
 
+// Retour à l'origine : dans la dimension du drapeau d'abord (elle se charge), puis à ses coordonnées.
 document.getElementById('originButton').addEventListener('click', function() {
-    dragUniverse(parseFloat(root.getAttribute('x'))-originX*currentZoom,-originY*currentZoom - parseFloat(root.getAttribute('y')));
+    const home = () => dragUniverse(parseFloat(root.getAttribute('x'))-originX*currentZoom,-originY*currentZoom - parseFloat(root.getAttribute('y')));
+    if (originLayer === null || Number(originLayer) === Number(layerNumber) || !layers.some(l => Number(l.id) === Number(originLayer))) {
+        home();
+        return;
+    }
+    load(Number(originLayer));
+    const arrived = setInterval(() => {
+        if (isLoading) return;
+        clearInterval(arrived);
+        home();
+    }, 50);
 });
 document.getElementById('originButton').addEventListener('mouseover', function(event) {
     createTooltip ('originButton','Back to origin');
@@ -196,31 +207,17 @@ document.getElementById('layerButton').addEventListener('mouseover', function(ev
 document.getElementById('flagButton').addEventListener('click', function() {
     originX = parseFloat(root.getAttribute('x'))/currentZoom;
     originY = - parseFloat(root.getAttribute('y'))/currentZoom;
+    originLayer = layerNumber;
 
     placeFlag();
 
+    // Drapeau de verre en 3D (comme le cube HYPERSPACE) planté au centre de l'écran, qui tourne puis s'efface.
     function placeFlag() {
-        // Create a flag element
-        const flagImage = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-
-        // Set the href attribute to point to the image source (e.g., flag icon)
-        flagImage.setAttributeNS(null, 'href', NODZ_BASE + '/static/img/pin.svg');
-        
-        // Set the width and height of the image
-        flagImage.setAttribute('width', '30px');
-        flagImage.setAttribute('height', '30px');
-
-        // Set the x and y coordinates for positioning
-        flagImage.setAttribute('x', window.innerWidth/2 - parseFloat(flagImage.getAttribute('width'))/2);
-        flagImage.setAttribute('y', window.innerHeight/2 - parseFloat(flagImage.getAttribute('height'))/2);
-       
-        // Append the flag to the map
-        svg.appendChild(flagImage);
-  
-        // Optional: Remove the flag after a few seconds
-        setTimeout(() => {
-            flagImage.remove();
-        }, 3000); 
+        const flag = document.createElement('div');
+        flag.className = 'origin-flag';
+        flag.innerHTML = '<span class="of3"><i class="pole"></i><i class="pole"></i><b class="sail"><i></i><i></i></b></span><small>origine</small>';
+        document.body.appendChild(flag);
+        flag.addEventListener('animationend', event => { if (event.target === flag) flag.remove(); });
     }
 
 });
@@ -273,87 +270,11 @@ document.getElementById('templateButton').addEventListener('click', function() {
     });
 });
 
-//////////////////// SHARE/INVITE ////////////////////
+//////////////////// SHARE (salons : toolbox/static/gardien/room.js) ////////////////////
 
 document.getElementById('shareButton').addEventListener('mouseover', function() {
     createTooltip ('shareButton','Share');
 });
-
-document.getElementById('shareButton').addEventListener('click', function() {
-    // var sharedIDs = [('userID',userID)]
-    var sharedIDs = [];
-    const nodeGroups = document.querySelectorAll('.node-group');
-       nodeGroups.forEach(node => {
-        if (node.getAttribute('privacy') !== 2){
-            sharedIDs.push(parseInt(node.id.match(/\d+/)[0], 10));
-        }        
-    }) 
-    generateInvite(sharedIDs);
-});
-
-
-function generateInvite(nodeIds) {
-    fetch(`/generate_invite/${nodeIds.join(',')}/`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.invite_link) {
-                let popup = document.createElement('div');
-                popup.id = 'invitePopup'
-                popup.className = 'popup'; 
-                popup.style.height = 'auto';
-            
-                popup.addEventListener('contextmenu', (event) => {
-                    event.preventDefault();
-                });
-            
-                const message = document.createElement('div');
-                message.className = 'smallmessage';   
-                message.textContent = data.invite_link;
-                popup.appendChild(message);
-                const buttonContainer = document.createElement('div');
-                buttonContainer.className = 'popupbutton-container'; 
-                buttonContainer.style.justifyContent = 'center';
-                const copyButton = document.createElement('span');
-                copyButton.textContent = 'COPY';
-                copyButton.className = 'popupbutton confirm'; 
-                copyButton.style.fontSize = '10px';
-                copyButton.className = 'submit-button'; 
-                copyButton.style.padding = '5px';
-                buttonContainer.appendChild(copyButton);
-                popup.appendChild(buttonContainer)
-                document.body.appendChild(popup);
-                
-                copyButton.addEventListener('mousedown', function() {                                        
-                    console.log(data.invite_link)
-                    const inviteLink = data.invite_link;
-                    // Use the Clipboard API if available for modern browsers
-                    if (navigator.clipboard) {
-                        navigator.clipboard.writeText(inviteLink).then(() => {
-                            message.textContent = "Link copied to clipboard!"; 
-                            setTimeout(closePopup, 1000);
-                        }).catch(err => {
-                            console.error('Failed to copy text: ', err);
-                        });
-                    } 
-                });
-                
-                svg.addEventListener('mousedown', function(event) {
-                    if (popup) {
-                        closePopup();    
-                    }
-                });
-                
-                function closePopup() {
-                    document.body.removeChild(popup);
-                    popup = null;
-                }
-               
-            } else {
-                console.log("Failed to generate invite link.");
-            }
-        });
-}
-
 
 //////////////////// EXPORT ////////////////////
 
@@ -373,7 +294,7 @@ document.getElementById('exportButton').addEventListener('mousedown', function()
         const exportation = document.getElementById('export');
         exportation.style.display = 'flex';
         exportation.children[0].scrollTop = 0; 
-        exportBtn.textContent = 'Export';
+        exportBtn.textContent = 'Exporter';
         nodesToExport = selectedNodes;
         templatesToExport = selectedTemplates
 
@@ -428,10 +349,9 @@ document.getElementById('profileButton').addEventListener('mousedown', function(
 
     profile.addEventListener('mousedown', function(e) {
         const feedback = document.getElementById('feedback-input');
-        const plan = document.getElementById('plan');
         const country = document.getElementById('country-select');
 
-        if(feedback.contains(e.target) || plan.contains(e.target)){
+        if(feedback.contains(e.target)){
             return;
         } else if (country &&  country.contains(e.target)){
             return;
@@ -505,6 +425,12 @@ document.getElementById('profileButton').addEventListener('mousedown', function(
 //////////////////// DARK ////////////////////
 
 let dark = true;
+// Les barres d'outils des nodes sont gardées hors de la page (node.tools) : leurs images et leurs listes changent
+// de thème avec le reste (Nodz lit la forme et le verrou d'un node dans le nom de ces images).
+function themed(selector) {
+    const tools = [...document.querySelectorAll('.node-group')].flatMap(n => Object.values(n.tools || {}).flatMap(g => [...g.querySelectorAll(selector)]));
+    return [...new Set([...document.querySelectorAll(selector), ...tools])];
+}
 document.getElementById('darkButton').addEventListener('mouseover', function() {
     if (dark) {
         createTooltip ('darkButton','Dark');
@@ -517,8 +443,9 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
     this.style.transform = this.style.transform === 'rotate(180deg)' ? 'rotate(0deg)' : 'rotate(180deg)';
     if (dark) {
         dark = false;
-        const dropdowns = document.querySelectorAll('.select-dropdown')
+        const dropdowns = themed('.select-dropdown')
         layer.classList.add('lightmode');
+        document.body.classList.add('nz-light');  // le thème clair se lit sur le body : un body:has() recalculait toute la page à chaque image
         for (let i = 0; i < dropdowns.length; i++) {
             dropdowns[i].className = 'selectlight';       
         }
@@ -529,7 +456,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
             node.classList.add('raylight');
         });
 
-        const colorLogo = document.querySelectorAll('img');
+        const colorLogo = themed('img');
         colorLogo.forEach(color => {
             if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking.svg'){
                 color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking-light.svg');
@@ -602,8 +529,9 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
         }
     } else {
         dark = true;
-        const dropdowns = document.querySelectorAll('.selectlight')
+        const dropdowns = themed('.selectlight')
         layer.classList.remove('lightmode');
+        document.body.classList.remove('nz-light');
         for (let i = 0; i < dropdowns.length; i++) {
             dropdowns[i].className = 'select-dropdown';  
         }
@@ -614,7 +542,7 @@ document.getElementById('darkButton').addEventListener('mousedown', function() {
             node.classList.add('raydark');
         });
 
-        const colorLogo = document.querySelectorAll('img');
+        const colorLogo = themed('img');
         colorLogo.forEach(color => {
             if (color.getAttribute('src') === NODZ_BASE + '/static/img/colorpicking-light.svg'){
                 color.setAttribute('src', NODZ_BASE + '/static/img/colorpicking.svg');
@@ -859,36 +787,7 @@ window.addEventListener('resize', function(event) {
 
 let pendingLogin = false;
 window.addEventListener('load', function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-
-    if (token) {
-        fetch(`/api/shared_nodes/?token=${token}`)
-        .then(response => {
-            if (!response.ok) throw new Error('Failed to load nodes');
-            return response.json();
-        })
-        .then(data => {
-            if (data.nodes) {
-                data.nodes.forEach(node => {    
-                    displayNode(node);
-                });
-            } if (data.links) {
-                data.links.forEach(link => {    
-                    displayLink(link);
-                });
-            } if (data.params) {
-                data.params.forEach(param => {    
-                    loadParams(param); // TODO userID of original universe for saving operations
-                });
-            }  
-            guest();  
-            multiUsers();
-        })
-        .catch(error => console.error(error));
-    } else {
-        login();
-    }
+    login();
     console.log('Window has finished loading!');
     // Create the audio element
     const audio = document.createElement('audio');
@@ -907,6 +806,24 @@ window.addEventListener('load', function() {
 });
 
 function login() {
+    // Session already open (account or guest) and reloaded by a language switch (i18n.js leaves a tab flag): the
+    // universe resumes directly, without LOGIN / GUEST; LSD.js loads it when #log says "login". A reload by hand shows
+    // the panel, as before.
+    const log = document.getElementById('log');
+    let resume = false;
+    try {
+        resume = sessionStorage.getItem('nodz-resume') === '1';
+        sessionStorage.removeItem('nodz-resume');
+    } catch (error) { /* storage unavailable: the panel */ }
+    if (log.dataset.resume && resume && !isLoggedIn) {
+        log.dataset.resume = '';
+        if (log.dataset.guest) {
+            guestUser = true;
+            document.getElementById('exportButton').className = 'save';
+        }
+        log.innerHTML = 'login';
+        return;
+    }
     let popup = document.createElement('div');
     popup.id = 'loginPopup'
     popup.className = 'popup'; 
@@ -921,7 +838,7 @@ function login() {
 
     const message = document.createElement('div');
     message.className = 'message';   
-    message.textContent = `Welcome to Nod-Z`;
+    message.textContent = nodzT('login.welcome');
     message.style.marginBottom = '30px';
     message.style.color = '#5753b996';
     message.style.textShadow = `
@@ -942,7 +859,7 @@ function login() {
     buttonContainer.className = 'popupbutton-container'; 
     const loginButton = document.createElement('button');
     loginButton.id = 'loginButton';
-    loginButton.textContent = 'LOGIN';
+    loginButton.textContent = nodzT('login.login');
     loginButton.className = 'submit-button log-button';  
     loginButton.style.padding = '5px';
     
@@ -958,7 +875,8 @@ function login() {
     buttonContainer.appendChild(loginButton);
 
     const guestButton = document.createElement('button');
-    guestButton.textContent = 'GUEST';
+    guestButton.id = 'guestButton';
+    guestButton.textContent = nodzT('login.guest');
     guestButton.className = 'submit-button log-button secondary'; 
     guestButton.style.padding = '5px';
 
@@ -1096,29 +1014,19 @@ counters.forEach(counter => {
     });
 }); 
 
+const cornerCounters = ['top-left-corner', 'top-right-corner', 'bottom-left-corner', 'bottom-right-corner'];
 function navigationLabels(navigationCounters) {
-    const counters = document.querySelectorAll('.counter');
-    // Loop through each counter
-    counters.forEach(counter => {
-        if (counter.id === 'top-left-corner') {
-            counter.textContent = navigationCounters[0];
-        } else if (counter.id === 'top-right-corner') {
-            counter.textContent = navigationCounters[1];
-        } else if (counter.id === 'bottom-left-corner') {
-            counter.textContent = navigationCounters[2];
-        } else {
-            counter.textContent = navigationCounters[3];
-        }
-        const triangleContainer = counter.parentElement;
-        // Check if counter value is 0
-        if (counter.textContent.trim() === '0') {
-            // Add class to make counter transparent
-            counter.classList.add('counter-zero');
-            triangleContainer.classList.add('counter-zero');
-        } 
-        else {
-            counter.classList.remove('counter-zero');
-            triangleContainer.classList.remove('counter-zero');
+    // Each corner is rewritten only when its count changes (every pan or zoom frame calls this)
+    cornerCounters.forEach((id, i) => {
+        const counter = document.getElementById(id);
+        if (!counter) return;
+        const text = String(navigationCounters[i]);
+        if (counter.textContent !== text) counter.textContent = text;
+        const zero = text === '0';
+        if (counter.classList.contains('counter-zero') !== zero) {
+            // Class to make counter transparent
+            counter.classList.toggle('counter-zero', zero);
+            counter.parentElement.classList.toggle('counter-zero', zero);
         }
     });
 }
@@ -1266,7 +1174,7 @@ notification.addEventListener('click', function () {
             focusNode(document.getElementById(notificationsDate[notificationIndex][2]),true)
             CurrentNode(document.getElementById(notificationsDate[notificationIndex][2]));
             currentNode.children[1].setAttribute('class', 'selectednode');
-            currentNode.children[7].children[6].children[0].click()
+            currentNode.tools.type.children[6].children[0].click()
         } else {
             layerNumber = notificationsDate[notificationIndex][1];
             seeNotification = true;

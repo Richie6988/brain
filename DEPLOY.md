@@ -38,6 +38,75 @@ sudo -iu nodz /home/nodz/brain/deploy/update.sh
 
 Le script fait `git pull`, installe les dépendances, migre, collecte les statiques, lance `check --deploy`, redémarre le service et interroge `/healthz`.
 
+## IA locale (optionnelle)
+
+Texte (Gardien et agents), avec llama-cpp-python :
+
+```bash
+# Sur CPU (fonctionne partout, lent)
+sudo -iu nodz /home/nodz/brain/.venv/bin/pip install -r /home/nodz/brain/requirements-ai.txt
+# Sur GPU NVIDIA : vérifier la carte (nvidia-smi), installer le CUDA Toolkit (nvcc), puis recompiler
+sudo -iu nodz env CMAKE_ARGS="-DGGML_CUDA=on" CMAKE_BUILD_PARALLEL_LEVEL=2 \
+    /home/nodz/brain/.venv/bin/pip install --force-reinstall --no-cache-dir llama-cpp-python
+```
+
+Ou depuis l'interface : Agents & modèles, Réglages d'un modèle, bouton « Compiler avec CUDA » (administrateur).
+Il lance `deploy/cuda.sh` (vérifie la carte et nvcc, compile, contrôle que l'offload GPU est actif) et affiche
+son journal ; le bouton « Redémarrer Nodz » marche si le compte `nodz` peut redémarrer le service sans mot de
+passe :
+
+```bash
+echo 'nodz ALL=(root) NOPASSWD: /usr/bin/systemctl restart nodz' | sudo tee /etc/sudoers.d/nodz-restart
+sudo chmod 440 /etc/sudoers.d/nodz-restart
+```
+
+Sans GPU NVIDIA, l'offload GPU des réglages n'a aucun effet. Avec peu de RAM, ajouter du swap avant de
+compiler (`fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`).
+
+Images (Illustrateur), avec stable-diffusion.cpp :
+
+```bash
+sudo apt install -y cmake build-essential git
+git clone --recursive https://github.com/leejet/stable-diffusion.cpp /opt/stable-diffusion.cpp
+cd /opt/stable-diffusion.cpp && cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j2
+# GPU NVIDIA : ajouter -DSD_CUDA=ON à la première commande cmake
+echo "SD_BIN=$(find /opt/stable-diffusion.cpp/build/bin -maxdepth 1 -name 'sd*' -type f | head -1)" >> /home/nodz/brain/.env
+systemctl restart nodz
+```
+
+Puis, dans Agents & modèles, bouton « Installer FLUX.1 schnell » (modèle et fichiers compagnons : VAE,
+CLIP-L, T5-XXL) et choix du modèle de l'Illustrateur. FLUX demande environ 8 Go de RAM même en
+quantisation légère : sur un petit serveur, préférer un modèle SD-Turbo ou SD 1.5 en GGUF.
+
+## Tâches planifiées du Gardien
+
+Les tâches récurrentes (`schedule_task`) se déclenchent quand une page Nodz est ouverte. Pour qu'elles
+tournent aussi pages fermées, une ligne de cron :
+
+```bash
+echo '* * * * * nodz cd /home/nodz/brain && .venv/bin/python manage.py run_schedules >> var/schedules.log 2>&1' | sudo tee /etc/cron.d/nodz-schedules
+```
+
+## Outils administrateur du Gardien
+
+Shell, environnement Python, outils forgés et serveurs MCP exécutent du code sur le serveur : ils ne sont
+proposés qu'au compte administrateur, après `GUARDIAN_SHELL=1` dans `.env`, puis cochés un par un dans
+Agents & modèles, onglet Outils. Serveurs MCP : `MCP_SERVERS={"nom": {"url": "https://…/mcp", "headers": {}}}`.
+
+## Nodes de code (IDE)
+
+L'IDE des nodes de code exécute JavaScript et Python dans le navigateur, et Python, Bash ou Node sur le serveur
+(administrateur, `GUARDIAN_SHELL=1`, dans l'espace de travail de l'utilisateur).
+
+Python dans le navigateur utilise Pyodide, chargé depuis le CDN jsdelivr au premier usage. Pour un serveur sans accès
+au CDN (ou pour ne rien charger d'ailleurs), installer une copie locale (14 Mo, hors dépôt), elle sera prise d'abord :
+
+```bash
+cd nodzapp/static/vendor && npm pack pyodide@0.27.7 && tar xzf pyodide-0.27.7.tgz \
+  && mkdir -p pyodide && cp package/{pyodide.js,pyodide.asm.js,pyodide.asm.wasm,python_stdlib.zip,pyodide-lock.json} pyodide/ \
+  && rm -rf package pyodide-0.27.7.tgz && cd - && python manage.py collectstatic --noinput
+```
+
 ## Désinstallation
 
 ```bash

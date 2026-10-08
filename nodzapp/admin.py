@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Feedback 
+from .models import ContactMessage, Feedback 
 
 from django.contrib.admin import SimpleListFilter
 from datetime import timedelta
@@ -73,3 +73,12 @@ class FeedbackAdmin(admin.ModelAdmin):
         self.message_user(request, f'{updated_count} feedback(s) marked as responded.')
 
     mark_as_responded.short_description = "Mark selected feedback as responded"
+
+# Formulaire de contact de la page publique (views.feedback)
+@admin.register(ContactMessage)
+class ContactMessageAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'name', 'email', 'message', 'handled')
+    list_editable = ('handled',)
+    list_filter = ('handled', 'created_at', Last30DaysFilter)
+    search_fields = ('name', 'email', 'message')
+    readonly_fields = ('created_at',)

@@ -11,13 +11,21 @@
 <body>
     
     <div class="container">
-        <h1>Thank You!</h1>
-        <p>Your message has been successfully sent.</p>
-        <a href="/" class="btn">Back to Homepage</a>
+        <div class="lang-block" lang="en">
+            <h1>Thank You!</h1>
+            <p>Your message has been successfully sent.</p>
+            <a href="/" class="btn">Back to Homepage</a>
+        </div>
+        <div class="lang-block" lang="fr" hidden>
+            <h1>Merci !</h1>
+            <p>Ton message a bien été envoyé.</p>
+            <a href="/" class="btn">Retour à l'accueil</a>
+        </div>
         <div>
             <img src="{% static 'img/logo.svg' %}" alt="Nod-z Flag Image" style="width: 160px; height: auto; align-items: end; position: absolute; left: 80%; top:10%">
         </div>
         
     </div>
+    {% include "lang_pick.html" %}
 </body>
 </html>

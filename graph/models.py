@@ -94,6 +94,7 @@ class Node(models.Model):
         MODEL3D = 'model3d'
         CODE = 'code'
         PROMPT = 'prompt'
+        DRAWING = 'drawing'
 
     class Shape(models.TextChoices):
         CIRCLE = 'circle'
