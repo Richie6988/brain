@@ -18,8 +18,8 @@ const MAX_SPEED = 30;
 const CALM = 0.08;       // vitesse sous laquelle un node est posé
 const QUIET = 20;        // images calmes d'affilée avant la fin
 const LONGEST = 9000;    // ms au plus après la dernière naissance
-const BURST = 3;         // Ordonner : rayon de l'éclatement, en rayons de node par racine du nombre de nodes
-const GATHER = 0.004;    // Ordonner : rappel vers le centre de la zone, plus doux que TETHER
+const BURST = 3;         // Répulsion : rayon de l'éclatement, en rayons de node par racine du nombre de nodes
+const GATHER = 0.004;    // Répulsion : rappel vers le centre de la zone, plus doux que TETHER
 
 const radius = node => parseFloat(node.children[1]?.getAttribute('r')) || 60;
 const place = node => ({ x: parseFloat(node.getAttribute('x')), y: parseFloat(node.getAttribute('y')) });
@@ -49,8 +49,9 @@ export function createPhysics({ timeline }) {
         }
     }
 
-    // Ordonner une zone : les nodes partent en éclats dans des directions tirées au hasard, loin du centre, ce qui
+    // Répulsion (barre Configs) : les nodes partent en éclats dans des directions tirées au hasard, loin du centre, ce qui
     // défait les liens croisés ; puis les liens les ramènent vers leurs voisins et un rappel doux vers le centre regroupe.
+    // Ils restent sélectionnés et bougent quand même (un node sélectionné est sinon tenu).
     function arrange(nodes) {
         if (!nodes.length) return;
         const spots = nodes.map(place);
@@ -60,12 +61,12 @@ export function createPhysics({ timeline }) {
             const angle = Math.random() * 2 * Math.PI, far = span * (0.6 + 0.4 * Math.random());
             const x = center.x + far * Math.cos(angle), y = center.y + far * Math.sin(angle);
             // Vitesse qui, amortie image après image, porte le node jusqu'à son éclat.
-            add(node, { vx: (x - spots[i].x) * (1 - DAMPING), vy: (y - spots[i].y) * (1 - DAMPING), home: center, tether: GATHER, burst: true });
+            add(node, { vx: (x - spots[i].x) * (1 - DAMPING), vy: (y - spots[i].y) * (1 - DAMPING), home: center, tether: GATHER, burst: true, free: true });
         });
     }
 
-    function held(node) {
-        return node.getAttribute('lock') === '1' || selectedNodes.includes(node) || dragging() || isLoading || quantum;
+    function held(node, body) {
+        return node.getAttribute('lock') === '1' || (!body.free && selectedNodes.includes(node)) || dragging() || isLoading || quantum;
     }
 
     function step() {
@@ -75,7 +76,7 @@ export function createPhysics({ timeline }) {
         bodies.forEach((body, id) => {
             const { node } = body;
             if (!node.isConnected) return bodies.delete(id);
-            if (held(node)) {
+            if (held(node, body)) {
                 body.vx = body.vy = 0;
                 return;
             }

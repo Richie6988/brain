@@ -328,6 +328,8 @@ Un geste finit après 150 ms sans événement.
 
 **Panneau CONNEXION / INVITÉ à chaque chargement** : un rechargement à la main (F5, Ctrl+Maj+R) montre de nouveau le panneau, comme avant ; seul le rechargement fait par un changement de langue reprend la session ouverte (un témoin d'onglet, `sessionStorage`).
 
+**Barre du node et Configs** : le bouton portail de la barre d'outils du node s'appelle « Changer de dimension » ; Branche et Sélection quittent la pastille pour devenir deux boutons de cette barre (mêmes menus : ranger en arbre, replier ; amont, aval, tout). La pastille ne garde que « Gardien » (« Gardien · N nodes » en multisélection). Dans le dock, Compact devient **Configs**, visible seulement avec au moins deux nodes sélectionnés : même vue en texte net, cercles jaunes de sélection effacés, et un cinquième rangement, **Répulsion** (l'ancien Ordonner : la physique écarte puis pose les nodes, enregistré, un seul Ctrl+Z ; touche 5). La barre des rangements tient sur une ligne.
+
 **Application en français et en anglais (lot 2)** :
 - Agents & modèles (bibliothèque, réglages, Hugging Face, Mon IA, diagnostic) et consoles administrateur en anglais ; les réglages décrits par le serveur (libellés, aides, choix) aussi ;
 - maison du Gardien dans la langue du compte : groupes, textes de départ, familles et les 84 outils avec leur mode d'emploi (`toolbox/tools_en.py`), nom de la dimension (Guardian) ; un compte qui change de langue voit sa maison réécrite, sauf les nodes qu'il a modifiés ;

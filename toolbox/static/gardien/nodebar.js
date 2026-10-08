@@ -18,6 +18,32 @@ import { t } from './i18n.js';
 
 const TYPE = 'type', TEXT = 'text', FILE = 'file', CANVAS = 'canvas';  // barres d'outils du node (node.tools, elementsCreation.js)
 
+// Branche (ranger en arbre, replier) et Sélection (amont, aval, tout ce qui est relié) : leurs nodes pleins en vert.
+const ICON_BRANCH = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8C8 8 8 3 11 3M5 8h6M5 8c3 0 3 5 6 5"/><circle class="dot" cx="3.2" cy="8" r="1.9"/>'
+    + '<circle class="dot" cx="12.6" cy="3" r="1.4"/><circle class="dot" cx="12.6" cy="8" r="1.4"/><circle class="dot" cx="12.6" cy="13" r="1.4"/></svg>';
+const ICON_PICK = '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="8" rx="6.6" ry="5.6" stroke-dasharray="1.8 1.9"/><path d="M5.6 9.6L8 5.6l2.4 4"/>'
+    + '<circle class="dot" cx="5.6" cy="9.6" r="1.25"/><circle class="dot" cx="8" cy="5.6" r="1.25"/><circle class="dot" cx="10.4" cy="9.6" r="1.25"/></svg>';
+
+// Les nodes reliés à `node` en remontant (parents : Node1 → Node2 = node), en descendant, ou les deux (tout ce qui lui
+// est relié), de proche en proche, par les seuls liens visibles : un node masqué par les filtres coupe la chaîne (sinon
+// les nodes au-delà semblaient pris sans lien).
+function kin(node, way) {
+    const found = new Set([node.id]), queue = [node.id];
+    const links = [...document.querySelectorAll('.link:not(.gardien-filtered)')].map(l => [l.getAttribute('Node1'), l.getAttribute('Node2')]);
+    while (queue.length) {
+        const id = queue.shift();
+        links.forEach(([parent, child]) => {
+            const next = (way !== 'up' && parent === id) ? child : (way !== 'down' && child === id) ? parent : null;
+            if (next && !found.has(next) && document.getElementById(next)) {
+                found.add(next);
+                queue.push(next);
+            }
+        });
+    }
+    found.delete(node.id);
+    return [...found].map(id => document.getElementById(id));
+}
+
 const TRASH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>';
 
 // Image : le choix de fichier de Nodz (le même que son double-clic sur l'image).
@@ -57,6 +83,8 @@ const TOOLS = {
         { icon: 'calendar', title: t('nb.reminder'), group: TYPE, index: 6, on: 'click' },
         { icon: node => (node.getAttribute('lock') === '1' ? 'lock' : 'unlock'), title: t('nb.lock'), group: TYPE, index: 7, on: 'click' },
         { icon: 'layer', title: t('nb.portal'), group: TYPE, index: 8, on: 'click' },
+        { kind: 'menu', menu: 'branch', svg: ICON_BRANCH, title: t('nb.branch'), when: node => kin(node, 'down').length },  // une branche : des enfants
+        { kind: 'menu', menu: 'pick', svg: ICON_PICK, title: t('nb.pick'), when: node => kin(node, 'all').length },  // rien de relié : rien à sélectionner
     ],
     text: [
         { icon: 'bold', title: t('nb.bold'), group: TEXT, index: 0, on: 'mousedown' },
@@ -192,7 +220,7 @@ function createSizer() {
     })();
 }
 
-export function createNodebar() {
+export function createNodebar({ onBranch }) {
     createSizer();
     const bar = document.createElement('div');
     bar.id = 'gardien-nodebar';
@@ -202,6 +230,34 @@ export function createNodebar() {
         if (!event.target.closest('select, input')) event.preventDefault();  // le texte du node garde le focus
         event.stopPropagation();
     });
+    // Menu « Sélection » : remplace la sélection par le node et sa lignée choisie.
+    const pickMenu = Object.assign(document.createElement('div'), { id: 'gardien-pick', hidden: true });
+    document.body.append(pickMenu);
+    pickMenu.addEventListener('mousedown', event => event.preventDefault());
+    document.addEventListener('mousedown', event => {
+        if (!pickMenu.contains(event.target) && !bar.contains(event.target)) pickMenu.hidden = true;
+    }, true);
+    // Sélectionner le node et tous ses parents, ses enfants ou tout ce qui lui est relié, rien d'autre : une sélection
+    // précédente est remplacée.
+    const extend = (way, node) => {
+        if (!node.isConnected) return;
+        if (document.activeElement?.isContentEditable) document.activeElement.blur();
+        const family = [node, ...kin(node, way)];
+        [...selectedNodes].forEach(n => { if (!family.includes(n)) nodeUnselection(n); });
+        family.forEach(n => { if (!selectedNodes.includes(n)) nodeSelection(n); });
+    };
+    const openPick = (node, anchor) => {
+        pickMenu.replaceChildren(...[['up', `▲ ${t('pick.up')}`, t('pick.upTitle')],
+            ['down', `▼ ${t('pick.down')}`, t('pick.downTitle')], ['all', t('pick.all'), t('pick.allTitle')]]
+            .map(([way, label, title]) => {
+                const count = kin(node, way).length;
+                return Object.assign(document.createElement('button'), { type: 'button', textContent: `${label} (${count})`, title, disabled: !count,
+                    onclick: () => { pickMenu.hidden = true; extend(way, node); } });
+            }));
+        pickMenu.style.left = `${Math.min(innerWidth - 190, anchor.left)}px`;
+        pickMenu.style.top = `${anchor.bottom + 6}px`;
+        pickMenu.hidden = false;
+    };
     let drawn = null;  // dernier dessin touché : ses outils restent sous la main pendant qu'on dessine
     let key = '';
     const SIZES = [1, 2, 4, 6, 7];  // XS, S, M, L, XL : les tailles de la liste de Nodz
@@ -279,6 +335,19 @@ export function createNodebar() {
             b.addEventListener('click', () => { tool.run(node); key = ''; });
             return b;
         }
+        if (tool.kind === 'menu') {  // Branche et Sélection : un appui ouvre le menu, un second le referme
+            const b = Object.assign(document.createElement('button'), { type: 'button', title: tool.title, innerHTML: tool.svg });
+            b.addEventListener('click', () => {
+                const branchMenu = document.getElementById('gardien-branch');
+                const open = tool.menu === 'branch' ? branchMenu?.hidden === false : !pickMenu.hidden;
+                pickMenu.hidden = true;
+                if (branchMenu) branchMenu.hidden = true;
+                if (open) return;
+                if (tool.menu === 'branch') onBranch(node, b.getBoundingClientRect());
+                else openPick(node, b.getBoundingClientRect());
+            });
+            return b;
+        }
         if (tool.kind === 'action') {
             const b = Object.assign(document.createElement('button'), { type: 'button', title: tool.title, textContent: tool.label, className: 'gn-action' });
             b.addEventListener('click', () => document.dispatchEvent(new CustomEvent('gardien-code', { detail: { node, action: tool.action } })));
@@ -312,12 +381,13 @@ export function createNodebar() {
     }
 
     function render(node, modes) {
-        const next = `${node.id}|${modes}|${node.getAttribute('shape')}|${node.getAttribute('lock')}|${node.getAttribute('type')}|${typeof dark !== 'undefined' && dark}`;
+        const next = `${node.id}|${modes}|${node.getAttribute('shape')}|${node.getAttribute('lock')}|${node.getAttribute('type')}|${node.getAttribute('links')}|${typeof dark !== 'undefined' && dark}`;
         if (next === key) return;
         key = next;
         bar.replaceChildren(...modes.flatMap((mode, i) => [
             ...(i ? [Object.assign(document.createElement('span'), { className: 'sep' })] : []),
-            ...TOOLS[mode].filter(tool => ['family', 'action', 'do'].includes(tool.kind) || source(node, tool)).map(tool => control(node, tool)),
+            ...TOOLS[mode].filter(tool => (['family', 'action', 'do', 'menu'].includes(tool.kind) || source(node, tool)) && (!tool.when || tool.when(node)))
+                .map(tool => control(node, tool)),
         ]));
     }
 

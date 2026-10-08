@@ -15,15 +15,7 @@ const SKETCH = 360;  // côté d'un node de croquis posé par l'IA (le canvas de
 const ease = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 // Icônes de la pastille d'un node : Branche, un node d'où trois branches courbes partent vers leurs enfants ;
 // Sélection, un lasso en pointillés autour de trois nodes reliés.
-// Couleurs de la carte Gardien : traits en dégradé violet → bleu (dégradé #gd-ig, posé une fois avec la pastille ; en
-// userSpaceOnUse, un trait horizontal resterait sinon invisible), nodes pleins en vert lumineux comme les yeux de l'orbe.
-const svgIcon = body => `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="url(#gd-ig)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-const ICON_BRANCH = svgIcon('<path d="M5 8C8 8 8 3 11 3M5 8h6M5 8c3 0 3 5 6 5"/><circle class="dot" cx="3.2" cy="8" r="1.9"/><circle class="dot" cx="12.6" cy="3" r="1.4"/><circle class="dot" cx="12.6" cy="8" r="1.4"/><circle class="dot" cx="12.6" cy="13" r="1.4"/>');
-const ICON_PICK = svgIcon('<ellipse cx="8" cy="8" rx="6.6" ry="5.6" stroke-dasharray="1.8 1.9"/><path d="M5.6 9.6L8 5.6l2.4 4"/><circle class="dot" cx="5.6" cy="9.6" r="1.25"/><circle class="dot" cx="8" cy="5.6" r="1.25"/><circle class="dot" cx="10.4" cy="9.6" r="1.25"/>');
-const ICON_GRADIENT = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="gd-ig" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="16" y2="16">'
-    + '<stop offset="0" stop-color="#b89af2"/><stop offset="1" stop-color="#1E90FF"/></linearGradient></defs></svg>';
-
-export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onBranch = () => {}, onSchema = async () => {}, onFree = () => {}, onArrange = () => {},
+export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, onSchema = async () => {}, onFree = () => {},
     onCodeError = () => {} }) {
     let ide = null;  // l'IDE des nodes de code (gardien.js le branche) : le Codeur y écrit et y exécute
     const refs = new Map();  // référence du Gardien (new1…) → id du node Nodz (N-12)
@@ -450,63 +442,15 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
         // L'humain déclenche l'IA : la pastille « Gardien » près du node en cours d'écriture (ou du seul node
         // sélectionné), ou Ctrl+Entrée (Cmd+Entrée sur Mac) dans le node. Écrire, déplacer ou quitter un
         // node ne lance rien.
-        // La pastille d'un node porte Gardien (l'envoyer, comme Ctrl+Entrée), Branche ▾ (ranger, replier) et Sélection ▾
-        // (amont, aval, tout ce qui lui est relié) ; celle d'une multisélection : Gardien · N nodes et Ordonner. La Visite
-        // part du bouton du dock (gardien.js).
+        // La pastille d'un node porte Gardien (l'envoyer, comme Ctrl+Entrée) ; celle d'une multisélection : Gardien · N
+        // nodes. Branche et Sélection sont dans la barre d'outils du node (nodebar.js), la Visite et Configs dans le dock.
         watchMessages(send) {
             const textOf = node => node.children[0]?.children[0]?.innerText?.trim() || '';
             const pill = document.createElement('div');
             pill.id = 'gardien-send';
             pill.hidden = true;
-            pill.innerHTML = `<button type="button" class="send"><span class="gt-orb" aria-hidden="true"><i></i><i></i></span><b>${t('pill.guardian')}</b><kbd>Ctrl ↵</kbd></button>`
-                + `<button type="button" class="arrange" title="${t('pill.arrangeTitle')}">${t('pill.arrange')}</button>`
-                + '<span class="tools">'
-                + `<button type="button" class="branch" title="${t('pill.branchTitle')}" aria-label="${t('pill.branch')}">${ICON_BRANCH}</button>`
-                + `<button type="button" class="pick" title="${t('pill.pickTitle')}" aria-label="${t('pill.pick')}">${ICON_PICK}</button>`
-                + '</span>' + ICON_GRADIENT;
-            const [sendButton, arrangeButton, tools] = pill.children;
-            const [branchButton, pickButton] = tools.children;
-            const branchMenu = () => document.getElementById('gardien-branch');
-            // Les nodes reliés à `node` en remontant (parents : Node1 → Node2 = node), en descendant, ou les deux (tout ce
-            // qui lui est relié), de proche en proche, par les seuls liens visibles : un node masqué par les filtres coupe
-            // la chaîne (sinon les nodes au-delà semblaient pris sans lien).
-            const kin = (node, way) => {
-                const found = new Set([node.id]), queue = [node.id];
-                const links = [...document.querySelectorAll('.link:not(.gardien-filtered)')].map(l => [l.getAttribute('Node1'), l.getAttribute('Node2')]);
-                while (queue.length) {
-                    const id = queue.shift();
-                    links.forEach(([parent, child]) => {
-                        const next = (way !== 'up' && parent === id) ? child : (way !== 'down' && child === id) ? parent : null;
-                        if (next && !found.has(next) && document.getElementById(next)) {
-                            found.add(next);
-                            queue.push(next);
-                        }
-                    });
-                }
-                found.delete(node.id);
-                return [...found].map(id => document.getElementById(id));
-            };
-            // Menu « Sélection » : remplace la sélection par le node et sa lignée choisie.
-            const pickMenu = Object.assign(document.createElement('div'), { id: 'gardien-pick', hidden: true });
-            document.body.append(pickMenu);
-            pickMenu.addEventListener('mousedown', event => event.preventDefault());  // garde le focus : la pastille garde son node
-            document.addEventListener('mousedown', event => {
-                if (!pickMenu.contains(event.target) && !pill.contains(event.target)) pickMenu.hidden = true;
-            }, true);
-            const openPick = node => {
-                const r = pickButton.getBoundingClientRect();
-                pickMenu.replaceChildren(...[['up', `▲ ${t('pick.up')}`, t('pick.upTitle')],
-                    ['down', `▼ ${t('pick.down')}`, t('pick.downTitle')], ['all', t('pick.all'), t('pick.allTitle')]]
-                    .map(([way, label, title]) => {
-                        const count = kin(node, way).length;
-                        return Object.assign(document.createElement('button'), { type: 'button', textContent: `${label} (${count})`, title, disabled: !count,
-                            onclick: () => { pickMenu.hidden = true; extend(way, node); } });
-                    }));
-                pickMenu.style.left = `${Math.min(innerWidth - 190, r.left)}px`;
-                pickMenu.style.top = `${r.bottom + 6}px`;
-                pickMenu.hidden = false;
-            };
-            const menusOpen = () => !pickMenu.hidden || branchMenu()?.hidden === false;
+            pill.innerHTML = `<button type="button" class="send"><span class="gt-orb" aria-hidden="true"><i></i><i></i></span><b>${t('pill.guardian')}</b><kbd>Ctrl ↵</kbd></button>`;
+            const [sendButton] = pill.children;
             const label = sendButton.querySelector('b');
             document.body.append(pill);
             let target = null;
@@ -514,11 +458,9 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
             const place = () => {
                 if (!target || !target.isConnected) return hide();
                 pill.style.visibility = dragging() ? 'hidden' : '';  // pendant un glissé : ni mesure ni suivi
-                // Sous le pointeur ou menu ouvert, la pastille ne bouge plus : un node qui s'agrandit (textfit) la
-                // déplaçait entre l'appui et le relâchement, et le clic était perdu.
-                branchButton.classList.toggle('on', branchMenu()?.hidden === false);
-                pickButton.classList.toggle('on', !pickMenu.hidden);
-                if (dragging() || pill.matches(':hover') || menusOpen()) return requestAnimationFrame(place);
+                // Sous le pointeur, la pastille ne bouge plus : un node qui s'agrandit (textfit) la déplaçait entre l'appui
+                // et le relâchement, et le clic était perdu.
+                if (dragging() || pill.matches(':hover')) return requestAnimationFrame(place);
                 const shape = target.getAttribute('shape') === 'square' ? target.children[2] : target.children[1];
                 const r = (shape || target).getBoundingClientRect();
                 pill.style.left = `${Math.min(window.innerWidth - pill.offsetWidth - 8, r.right + 8)}px`;
@@ -532,9 +474,6 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 pill.classList.toggle('multi', nodes.length > 1);
                 label.textContent = nodes.length > 1 ? `${t('pill.guardian')} · ${nodes.length} nodes` : t('pill.guardian');
                 sendButton.title = nodes.length > 1 ? t('pill.joinTitle') : t('pill.sendTitle');
-                branchButton.hidden = nodes.length > 1 || !kin(node, 'down').length;  // une branche : des enfants
-                pickButton.hidden = nodes.length > 1 || !kin(node, 'all').length;  // rien de relié : rien à sélectionner
-                tools.hidden = branchButton.hidden && pickButton.hidden;
                 if (target === node) return;
                 const idle = !target;
                 target = node;
@@ -553,12 +492,12 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 const input = document.activeElement;
                 return input?.isContentEditable ? input.closest?.('.node-group') : null;
             };
-            // Le node en cours d'écriture ou le seul node sélectionné, s'il a du texte (Gardien) ou des liens (Branche,
-            // Sélection) ; plusieurs nodes sélectionnés : la pastille les joint au chat.
+            // Le node en cours d'écriture ou le seul node sélectionné, s'il a du texte ; plusieurs nodes sélectionnés : la
+            // pastille les joint au chat.
             const refresh = () => {
                 const node = editing() || (selectedNodes.length === 1 ? selectedNodes[0] : null);
                 if (!editing() && selectedNodes.length > 1) show(selectedNodes[selectedNodes.length - 1], [...selectedNodes]);
-                else if (node && (textOf(node) || kin(node, 'all').length)) show(node);
+                else if (node && textOf(node)) show(node);
                 else hide();
             };
             document.addEventListener('input', event => { if (event.target.isContentEditable) refresh(); }, true);
@@ -574,35 +513,6 @@ export function createBridge({ caption, onTour = () => {}, onAttach = () => {}, 
                 }
                 if (target && !sendButton.disabled) fire(target);
             });
-            // Sélection de zone : la physique de répulsion range ces nodes, les autres restent en place.
-            // Branche et Sélection s'ouvrent dès l'appui ; un second appui referme.
-            branchButton.addEventListener('pointerdown', event => {
-                if (event.button !== 0 || !target) return;
-                pickMenu.hidden = true;
-                if (branchMenu()?.hidden === false) branchMenu().hidden = true;
-                else onBranch(target, branchButton.getBoundingClientRect());
-            });
-            arrangeButton.addEventListener('click', () => {
-                const nodes = group.filter(n => n.isConnected);
-                hide();
-                onArrange(nodes);
-            });
-            pickButton.addEventListener('pointerdown', event => {
-                if (event.button !== 0 || !target) return;
-                if (branchMenu()) branchMenu().hidden = true;
-                if (!pickMenu.hidden) pickMenu.hidden = true;
-                else openPick(target);
-            });
-            // Sélectionner le node et tous ses parents, ses enfants ou tout ce qui lui est relié, rien d'autre : une
-            // sélection précédente est remplacée ; la pastille passe en multisélection.
-            const extend = (way, node = target) => {
-                if (!node?.isConnected) return;
-                if (document.activeElement?.isContentEditable) document.activeElement.blur();
-                const family = [node, ...kin(node, way)];
-                [...selectedNodes].forEach(n => { if (!family.includes(n)) nodeUnselection(n); });
-                family.forEach(n => { if (!selectedNodes.includes(n)) nodeSelection(n); });
-                refresh();
-            };
             document.addEventListener('keydown', event => {
                 if (event.key === 'Escape') hide();
                 if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || !event.isTrusted) return;

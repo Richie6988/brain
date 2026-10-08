@@ -1,9 +1,11 @@
-// Mode compact : une vue passagère pour lire d'un coup d'œil une arborescence complexe. Les nodes sélectionnés (sinon
-// toute la dimension, branches repliées laissées) se rangent selon le choix de la barre : Arbre (les liens de parent
-// à enfant, de gauche à droite), Nuage (les plus reliés au centre, en plus grand), Processus horizontal ou vertical
-// (une étape par niveau, dans le sens des liens). Les formes s'effacent : seul le contenu reste, en texte net. Rien
-// n'est enregistré : un node réécrit en compact est sauvegardé à sa place éclatée, et le retour (bouton, C, Échap) rend
-// chaque node à sa place exacte. Déplacer un node, changer de dimension ou une action du Gardien ramènent à l'éclaté.
+// Configs : une vue passagère pour lire d'un coup d'œil une arborescence complexe. Le bouton du dock n'apparaît qu'avec
+// au moins deux nodes sélectionnés (branches repliées laissées) ; ils se rangent selon le choix de la barre : Arbre (les
+// liens de parent à enfant, de gauche à droite), Nuage (les plus reliés au centre, en plus grand), Processus horizontal
+// ou vertical (une étape par niveau, dans le sens des liens). Les formes et les cercles de sélection s'effacent : seul le
+// contenu reste, en texte net. Rien n'est enregistré : un node réécrit en Configs est sauvegardé à sa place éclatée, et
+// le retour (bouton, C, Échap) rend chaque node à sa place exacte. Déplacer un node, changer de dimension ou une action
+// du Gardien ramènent à l'éclaté. Répulsion, elle, revient à l'éclaté puis laisse la physique écarter et poser les nodes
+// pour de bon (enregistré, un seul Ctrl+Z).
 
 import { t } from './i18n.js';
 const DURATION = 380;  // ms de transition
@@ -15,12 +17,14 @@ const ICONS = {
     cloud: '<circle cx="12" cy="12" r="3.2"/><circle cx="5" cy="8" r="1.6"/><circle cx="19" cy="9" r="2"/><circle cx="7" cy="17" r="1.8"/><circle cx="17.5" cy="17" r="1.4"/>',
     row: '<rect x="2.5" y="9" width="5" height="6" rx="1.5"/><rect x="16.5" y="9" width="5" height="6" rx="1.5"/><rect x="9.5" y="9" width="5" height="6" rx="1.5"/>',
     column: '<rect x="9" y="2.5" width="6" height="5" rx="1.5"/><rect x="9" y="9.5" width="6" height="5" rx="1.5"/><rect x="9" y="16.5" width="6" height="5" rx="1.5"/>',
+    repel: '<circle cx="12" cy="12" r="2.2"/><path d="M12 7V3M12 17v4M7 12H3M17 12h4M8.5 8.5 6 6M15.5 15.5 18 18M8.5 15.5 6 18M15.5 8.5 18 6"/>',
 };
 const LAYOUTS = [
     { id: 'tree', label: t('cp.tree'), title: t('cp.tree') },
     { id: 'cloud', label: t('cp.cloud'), title: t('cp.cloudTitle') },
     { id: 'row', label: t('cp.row'), title: t('cp.rowTitle') },
     { id: 'column', label: t('cp.column'), title: t('cp.columnTitle') },
+    { id: 'repel', label: t('cp.repel'), title: t('cp.repelTitle') },
 ];
 
 const TRANSFORM = /translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)\s*scale\((-?\d+\.?\d*)\)/;
@@ -221,16 +225,21 @@ function cloud(items, order) {
     return { at, anchor: order[0] };
 }
 
-export function createCompact({ bridge, say }) {
+export function createCompact({ bridge, say, onRepel }) {
     let items = null;      // en compact : [{ node, home, x, y, w, h }]
     let layer = null;
     let animating = 0;
     let kind = 'tree';
     try { kind = LAYOUTS.some(l => l.id === localStorage.getItem(KEEP)) ? localStorage.getItem(KEEP) : kind; } catch { /* stockage indisponible */ }
 
-    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'compactButton', title: 'Compact (C)' });
+    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'menuBtn', id: 'compactButton', title: 'Configs (C)', hidden: true });
     document.getElementById('visitButton')?.after(button);
     button.addEventListener('click', () => toggle());
+    (function watch() {  // le bouton n'est là qu'avec deux nodes sélectionnés au moins (ou en Configs)
+        const hide = !items && selectedNodes.length < 2;
+        if (button.hidden !== hide) button.hidden = hide;
+        requestAnimationFrame(watch);
+    })();
 
     // Barre des rangements, en haut de l'écran pendant le compact.
     const bar = Object.assign(document.createElement('div'), { id: 'gardien-compact-bar', hidden: true });
@@ -309,6 +318,11 @@ export function createCompact({ bridge, say }) {
     // Range les nodes du compact selon `id`, en glissant depuis leur place actuelle, puis cadre le résultat.
     async function arrange(id) {
         if (!items) return;
+        if (id === 'repel') {
+            const nodes = items.map(i => i.node);
+            await off();
+            return onRepel(nodes.filter(n => n.isConnected));
+        }
         kind = id;
         try { localStorage.setItem(KEEP, id); } catch { /* stockage indisponible */ }
         choices.forEach((b, k) => b.classList.toggle('on', LAYOUTS[k].id === id));
@@ -352,22 +366,19 @@ export function createCompact({ bridge, say }) {
     }
 
     function on() {
-        // La sélection (au moins deux nodes) ; sinon toute la dimension. Une branche repliée reste repliée, hors du rangement.
+        // La sélection, au moins deux nodes. Une branche repliée reste repliée, hors du rangement.
         const shown = node => node.isConnected && !node.classList.contains('gardien-folded');
-        const picked = selectedNodes.filter(shown);
-        const nodes = picked.length >= 2 ? [...new Set(picked)] : [...document.querySelectorAll('.node-group:not(.gardien-folded)')];
+        const nodes = [...new Set(selectedNodes.filter(shown))];
         if (nodes.length < 2) return say(t('cp.few'), 'notice');
         layer = layerNumber;
         items = nodes.map(node => ({ node, home: place(node) }));
-        // Le reste de la carte s'efface derrière une sélection.
+        // Le reste de la carte s'efface derrière la sélection.
         const inside = new Set(nodes.map(n => n.id));
-        if (picked.length >= 2) {
-            document.querySelectorAll('.node-group').forEach(n => { if (!inside.has(n.id)) n.classList.add('gc-out'); });
-            document.querySelectorAll('.link').forEach(l => { if (!inside.has(l.getAttribute('Node1')) || !inside.has(l.getAttribute('Node2'))) l.classList.add('gc-out'); });
-        }
+        document.querySelectorAll('.node-group').forEach(n => { if (!inside.has(n.id)) n.classList.add('gc-out'); });
+        document.querySelectorAll('.link').forEach(l => { if (!inside.has(l.getAttribute('Node1')) || !inside.has(l.getAttribute('Node2'))) l.classList.add('gc-out'); });
         nodes.forEach(n => n.style.setProperty('--node-color', n.getAttribute('color') || '#33FF99'));  // pastille du texte
         document.body.classList.add('gardien-compact');  // formes effacées d'abord : les tailles mesurées sont celles du texte
-        count.textContent = t(picked.length >= 2 ? 'cp.countPicked' : 'cp.count', { n: nodes.length });
+        count.textContent = t('cp.countPicked', { n: nodes.length });
         bar.hidden = false;
         button.classList.add('on');
         return arrange(kind);
@@ -394,7 +405,7 @@ export function createCompact({ bridge, say }) {
 
     const toggle = () => (items ? off() : on());
 
-    // C bascule ; en compact, 1 à 4 choisissent le rangement et Échap revient à l'éclaté (hors saisie et fenêtres).
+    // C bascule ; en Configs, 1 à 5 choisissent le rangement et Échap revient à l'éclaté (hors saisie et fenêtres).
     document.addEventListener('keydown', event => {
         if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
         if (event.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || document.querySelector('.gl-modal:not([hidden])')) return;

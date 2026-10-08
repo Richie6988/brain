@@ -116,10 +116,10 @@ const signedIn = setInterval(() => {
 }, 400);
 
 const joined = node => ({ id: node.id, text: (node.children[0]?.children[0]?.innerText || '').trim() });  // node joint au chat
-const branches = createBranches({ say });  // replier, ranger en arbre (menu Branche de la pastille)
+const branches = createBranches({ say });  // replier, ranger en arbre (menu Branche de la barre d'outils du node)
 const filters = createFilters({ onAttach: items => chat.attach(items) });  // sélecteur de contexte au-dessus du dock
 const dimensions = createDimensions();  // recherche, épinglées et nombre de nodes dans la liste des dimensions
-createNodebar();  // barre d'outils du node, à la place des barres SVG de Nodz
+createNodebar({ onBranch: (node, anchor) => branches.open(node, anchor) });  // barre d'outils du node, à la place des barres SVG de Nodz
 createGrab();  // zone de saisie du node allumée au survol
 createTextFit();  // le texte d'un node n'est jamais rogné : le node grandit juste assez
 createCorners();  // le nombre des indicateurs de coin sursaute quand il change
@@ -134,9 +134,7 @@ createLinkDrop();  // un node tenu contre un autre une demi-seconde s'y relie au
 createLinkJump();  // près d'un lien, une grosse flèche (style de la visite) y voyage d'un clic
 createAdmin({ say });  // consoles des boutons administrateur (Console IA, Utilisateurs)
 const bridge = createBridge({ caption: text => say(text, 'guide'), onTour: node => tour.start(node), onAttach: nodes => chat.attach(nodes.map(joined)),
-    onBranch: (node, anchor) => branches.open(node, anchor),
     onSchema: (type, at, fill, title) => schemas.build(type, at, false, fill, title), onFree: node => physics.add(node),
-    onArrange: nodes => { nodes.forEach(n => nodeUnselection(n)); sfx.play('arrange'); physics.arrange(nodes); },
     // Le code du Codeur échoue : le Gardien le reprend une fois (pas de boucle de corrections).
     onCodeError: (node, error) => {
         if (fixed.has(node.id)) return chat.add('notice', t('g.codeStillFails', { id: node.id, error: error.split('\n').pop() }));
@@ -154,7 +152,8 @@ visitButton.addEventListener('click', () => {
     if (node) tour.start(node);
     else say(t('g.visitPick'));
 });
-const compact = createCompact({ bridge, say });  // mode compact : sélection ou dimension rangée en arbre, nuage ou processus, en texte net (C)
+// Configs : la sélection rangée en arbre, nuage ou processus, en texte net, ou écartée par Répulsion (C)
+const compact = createCompact({ bridge, say, onRepel: nodes => { sfx.play('arrange'); physics.arrange(nodes); } });
 const room = createRoom({ bridge, say, onPremiumOnly: () => quota.offer('rooms') });  // salons multijoueur : bouton Inviter, curseurs, gestes en direct
 const dataset = createDataset({ bridge, say, onDone: refs => bridge.perform({ op: 'frame', refs }) });  // import de cartes et de tableaux
 createExchange({ dataset, filters });  // bouton Export du dock : tout l'import et l'export

@@ -307,14 +307,14 @@ export function createBranches({ say }) {
         if (unfolding) arrange(node);
     }
 
-    // Menu « Branche » de la pastille d'un node.
+    // Menu « Branche » de la barre d'outils du node.
     const menu = document.createElement('div');
     menu.id = 'gardien-branch';
     menu.hidden = true;
     document.body.append(menu);
-    // Hors du menu et de la pastille du node (son bouton Branche ouvre et referme lui-même le menu).
+    // Hors du menu et de la barre d'outils du node (son bouton Branche ouvre et referme lui-même le menu).
     document.addEventListener('mousedown', event => {
-        if (!menu.contains(event.target) && !event.target.closest?.('#gardien-send')) menu.hidden = true;
+        if (!menu.contains(event.target) && !event.target.closest?.('#gardien-nodebar')) menu.hidden = true;
     }, true);
     document.addEventListener('keydown', event => { if (event.key === 'Escape') menu.hidden = true; });
     const item = (label, title, run) => Object.assign(document.createElement('button'), { type: 'button', textContent: label, title,
@@ -322,7 +322,7 @@ export function createBranches({ say }) {
 
 
     return {
-        // Le menu d'une branche, ouvert sous `anchor` (DOMRect du bouton de la pastille).
+        // Le menu d'une branche, ouvert sous `anchor` (DOMRect du bouton de la barre d'outils).
         open(node, anchor) {
             const count = descendants(node.id).length;
             const isFolded = folded().has(node.id);

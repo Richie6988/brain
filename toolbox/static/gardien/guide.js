@@ -33,7 +33,7 @@ const STEPS_FR = [
         + 'dimension. [Shift] liste les dimensions, la vue de côté (cube) les montre toutes à la fois.'],
     ['ai', 'Le Gardien pense avec toi', 'L\'IA de ton univers, locale ou par API. Sélectionne des nodes et ouvre la bulle en bas à droite, '
         + 'ou [Ctrl]+[Entrée] dans un node. Il crée, relie, range, cherche sur le web, dessine. Tout s\'annule par [Ctrl]+[Z].'],
-    ['tidy', 'Range, invite, exporte', 'Branche ▾ sur un node range sa branche en arbre ou la replie. Inviter ouvre un salon en direct ; '
+    ['tidy', 'Range, invite, exporte', 'Branche, dans la barre d\'un node, range sa branche en arbre ou la replie. Inviter ouvre un salon en direct ; '
         + 'Importer / Exporter fait entrer et sortir tes cartes (Markdown, OPML, FreeMind, XMind, CSV, PDF).'],
 ];
 
@@ -74,7 +74,7 @@ const SHORTCUTS_FR = [
         ['[Ctrl]+[Entrée] dans un node', 'L\'envoyer au Gardien'],
         ['/web /dessin /image', 'En tête du message : il part avec cet outil'],
         ['Visite : [←] [↑] [→] [↓] [Retour arrière] [Échap]', 'Prendre la flèche de cette direction, revenir, arrêter'],
-        ['[C]', 'Mode compact : la sélection (sinon la dimension) rangée en texte net ; 1 Arbre, 2 Nuage, 3 Processus horizontal, 4 vertical ; C ou Échap : retour'],
+        ['[C]', 'Configs (2 nodes sélectionnés au moins) : la sélection rangée en texte net ; 1 Arbre, 2 Nuage, 3 Processus horizontal, 4 vertical, 5 Répulsion ; C ou Échap : retour'],
     ]],
 ];
 
@@ -91,11 +91,11 @@ const CARDS_FR = [
     ['Modes', 'Pensée : il pense en nodes. Profond : réflexion libre d\'abord. Auto : web, fichiers, agents et missions.'],
     ['Web, Dessin, Image', 'Les puces au-dessus de la saisie : recherche web sourcée, croquis du Gardien sur un node, image FLUX '
         + '(ou dessin si FLUX manque).'],
-    ['Pastille d\'un node', 'Branche ▾ pour ranger sa branche en arbre ou la replier ; Sélection ▾ pour sélectionner sa lignée : '
+    ['Barre d\'un node', 'Changer de dimension : son portail ; Branche pour ranger sa branche en arbre ou la replier ; Sélection pour sélectionner sa lignée : '
         + 'Amont (ses parents), Aval (ses enfants) ou Tout ce qui lui est relié.'],
     ['Visite', 'Bouton du dock : de grosses flèches entourent le node sélectionné, une par lien. Survole-en une : l\'aperçu en haut '
         + 'montre le node où elle mène ; clique : la caméra y glisse. Un clic sur un autre node en fait le centre.'],
-    ['Pastille d\'une sélection', 'Gardien · N nodes les joint au chat ; Ordonner : la physique les éclate puis les range.'],
+    ['Pastille d\'une sélection', 'Gardien · N nodes les joint au chat. Configs, dans le dock : Arbre, Nuage, Horizontal, Vertical, ou Répulsion (la physique les éclate puis les pose).'],
     ['Importer / Exporter', 'Bouton du dock : une carte (Markdown, OPML, FreeMind, XMind) se pose en arbre, un tableau (CSV, Excel, JSON) '
         + 'en nodes, un CSV exporté par Nodz redonne ses nodes et ses liens ; la sélection, la dimension ou les filtres repartent en CSV, '
         + 'Markdown, OPML, FreeMind ou PDF.'],
@@ -116,7 +116,7 @@ const STEPS_EN = [
         + 'dimension. [Shift] lists the dimensions, the side view (cube) shows them all at once.'],
     ['ai', 'The Guardian thinks with you', 'The AI of your universe, local or by API. Select nodes and open the bubble at the bottom right, '
         + 'or [Ctrl]+[Enter] in a node. It creates, links, tidies, searches the web, draws. [Ctrl]+[Z] undoes it all.'],
-    ['tidy', 'Tidy, invite, export', 'Branch on a node tidies its branch into a tree or folds it. Invite opens a live room; '
+    ['tidy', 'Tidy, invite, export', 'Branch, in a node\'s toolbar, tidies its branch into a tree or folds it. Invite opens a live room; '
         + 'Import / Export brings your maps in and out (Markdown, OPML, FreeMind, XMind, CSV, PDF).'],
 ];
 
@@ -156,7 +156,7 @@ const SHORTCUTS_EN = [
         ['[Ctrl]+[Enter] in a node', 'Send it to the Guardian'],
         ['/web /dessin /image', 'At the start of the message: it goes with that tool'],
         ['Tour: [←] [↑] [→] [↓] [Backspace] [Esc]', 'Take the arrow in that direction, go back, stop'],
-        ['[C]', 'Compact mode: the selection (or the dimension) tidied as clean text; 1 Tree, 2 Cloud, 3 Horizontal process, 4 vertical; C or Esc: back'],
+        ['[C]', 'Configs (at least 2 selected nodes): the selection tidied as clean text; 1 Tree, 2 Cloud, 3 Horizontal process, 4 vertical, 5 Repulsion; C or Esc: back'],
     ]],
 ];
 
@@ -173,11 +173,11 @@ const CARDS_EN = [
     ['Modes', 'Thought: it thinks in nodes. Deep: free reflection first. Auto: web, files, agents and missions.'],
     ['Web, Drawing, Image', 'The chips above the input: sourced web search, the Guardian\'s sketch on a node, FLUX image '
         + '(or a drawing if FLUX is missing).'],
-    ['Node pill', 'Branch to tidy its branch into a tree or fold it; Selection to select its lineage: '
+    ['Node toolbar', 'Change dimension: its portal; Branch to tidy its branch into a tree or fold it; Selection to select its lineage: '
         + 'Upstream (its parents), Downstream (its children) or Everything linked to it.'],
     ['Tour', 'Dock button: big arrows surround the selected node, one per link. Hover one: the preview at the top '
         + 'shows the node it leads to; click: the camera glides there. A click on another node makes it the center.'],
-    ['Selection pill', 'Guardian · N nodes attaches them to the chat; Arrange: physics spreads them out, then tidies them.'],
+    ['Selection pill', 'Guardian · N nodes attaches them to the chat. Configs, in the dock: Tree, Cloud, Horizontal, Vertical, or Repulsion (physics spreads them out, then settles them).'],
     ['Import / Export', 'Dock button: a map (Markdown, OPML, FreeMind, XMind) lands as a tree, a table (CSV, Excel, JSON) '
         + 'as nodes, a CSV exported by Nodz restores its nodes and links; the selection, the dimension or the filters go out as CSV, '
         + 'Markdown, OPML, FreeMind or PDF.'],
